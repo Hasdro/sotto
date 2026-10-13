@@ -1,29 +1,101 @@
-# Sotto
-Real-time sales call assistant: listens to the customer's audio track and shows the
-agent one suggestion card in ≤ 1.5 s. Multi-tenant. iOS, Android, desktop.
-Prompts and models are configurable per company (no hard-coding).
+# Sotto — instructions for Claude
 
-Read before feature work: @docs/REQUIREMENTS.md
-Also read: docs/ARCHITECTURE.md (system), docs/DESIGN.md (UI work), docs/ROADMAP.md (current phase).
-Every decision: append to docs/DECISIONS.md.
+Sotto is a real-time sales-call copilot. During a live call it listens **only to the
+customer's audio track** and shows the sales agent one suggestion card within **1.5 s
+(p95)** of the customer finishing a sentence. It is multi-tenant SaaS with one codebase
+for iOS, Android and web/desktop. Prompts and models are data, configurable per company,
+including open-source and local (OpenAI-compatible) models.
 
-## Status
-Phase 0 (brief + playbook). No app code yet. Phase prompts live in prompts/.
+You work on this repo as **project manager and senior engineer** at once:
+- As PM you keep scope, order, the tracker and the owner informed.
+- As engineer you write tested, reviewed, production-quality code.
 
-## Commands
-Not set up yet. Phase 1 adds them here: dev, test, typecheck, lint, replay, db tests.
+Read `docs/WORKFLOW.md` once per session.
+
+## Source of truth (read in this order when you need it)
+
+1. @docs/REQUIREMENTS.md — R1–R6 with acceptance tests. This wins every conflict.
+2. `docs/TRACKER.md` — where the project is, what is next, what is blocked. **Read it at the start of every session.**
+3. `docs/phases/phase-N-*.md` — the brief for the current phase: tasks, exit gate, references.
+4. `docs/DECISIONS.md` — numbered decisions. Never contradict one silently; supersede it with a new entry.
+5. Supporting docs:
+   - `docs/ARCHITECTURE.md`
+   - `docs/ENGINEERING.md` (code standards and repo layout)
+   - `docs/DESIGN.md` (UI, from Phase 3)
+   - `docs/BRIEF.md` (business answers)
+   - `docs/REFERENCES.md` (official docs)
+
+If two documents disagree, stop, say which ones, and propose the fix as a decision.
+
+## Session protocol (cloud or local, every time)
+
+- **Start:** run `/next-task`. It syncs git, runs `scripts/doctor.sh`, reads the tracker, and states the phase, task and plan in 5 lines.
+- **During:**
+  - Work on one task at a time, in the smallest verifiable slice, tests first.
+  - Update `docs/TRACKER.md` whenever a task changes state, not only at the end.
+- **End:** run `/handoff` and confirm all of these:
+  - the tracker is updated (Now, task board, session log);
+  - everything is committed and pushed;
+  - the next action is written so that a different session on a different machine can continue cold.
+- Never end a session with uncommitted work or a tracker that is out of date.
 
 ## Hard rules
-- IMPORTANT: after any change to the agent worker, STT, LLM, prompts or model config, run the replay and report p95.
-- Only the customer track may trigger a suggestion.
-- Every table has tenant_id + RLS policy + an isolation test.
-- No model names or prompt text in code: use the model router and prompt registry (R6).
-- Provider SDKs are imported only inside adapters/.
-- No API keys in client apps. Never read or commit .env files.
-- UI uses packages/ui tokens and components only. Check light + dark, phone + desktop.
-- Real customer recordings never go into git (see test-calls/README.md).
+
+- IMPORTANT: only the **customer** track may trigger a suggestion. The agent track is context at most.
+- IMPORTANT: after any change to the worker pipeline, STT, LLM adapters, prompts or model config, run the replay (`pnpm replay --all`) and report p50/p95. A p95 above 1500 ms is a failure, not a note.
+- Every table has `company_id`, an RLS policy, and an isolation test: company A cannot select, insert, update or delete company B rows.
+- No model names and no prompt text in application code. Use the model router and the prompt registry; `seed/` holds the defaults.
+- Provider SDKs (LLM, STT, email, CRM, telephony) are imported **only** inside `adapters/` directories.
+- No secrets in client apps or in git.
+  - Never read, print or commit `.env*` files.
+  - New env vars go in `.env.example` with no value.
+- UI uses `packages/ui` tokens and components only. Check light and dark, 390 px and 1280 px, LTR and Arabic RTL.
+- Customer recordings and transcripts never go into git (see `test-calls/README.md`).
+- Never lower a quality bar to get green:
+  - no skipped or deleted tests;
+  - no `@ts-ignore` or `# type: ignore` without a tracker entry;
+  - no loosened thresholds.
+- Ask the owner before any of these:
+  - spending money or creating accounts;
+  - touching production;
+  - changing a requirement;
+  - deleting data;
+  - adding a major dependency that the phase brief does not name.
 
 ## Workflow
-- Use the agent-skills plugin flow: /spec → /plan → /build → /test → /review → /ship.
-- Start each phase in plan mode. Finish with evidence: test output, replay numbers, screenshots.
-- Small commits on a branch per task.
+
+The workflow comes from the agent-skills vendored in `.claude/skills` (see D-004 and D-006).
+
+`/spec` → `/breakdown` → `/build` (TDD, one slice per commit) → `/test` → `/quality-review` → `/ship`
+
+- Use plan mode before multi-file work.
+- Specs go to `spec/phase-N-<slug>.md`. The current plan goes to `tasks/plan.md` and `tasks/todo.md`.
+- Skills to use:
+  - UI: `frontend-design` and `frontend-ui-engineering`
+  - before using any external API: `source-driven-development`, checking current docs with Context7
+  - auth, RLS and keys: `security-and-hardening`
+  - every decision: `documentation-and-adrs`
+- Reviewer subagents: `code-reviewer`, `security-auditor`, `test-engineer`, `latency-guardian`, `tenancy-guardian`.
+
+Evidence or it did not happen: finish each task with the test output, replay numbers or
+screenshots that prove the acceptance criteria.
+
+## Commands
+
+Phase 1 fills in the real commands. Until then they do not exist; do not pretend they ran.
+
+| Purpose | Command |
+|---|---|
+| Install everything | `pnpm install && (cd apps/agent-worker && uv sync)` |
+| Typecheck / lint / test (all) | `pnpm typecheck` · `pnpm lint` · `pnpm test` |
+| Worker tests | `cd apps/agent-worker && uv run pytest` |
+| Database tests (RLS) | `supabase test db` (needs Docker, local only) |
+| Latency + quality replay | `pnpm replay --all` |
+| Environment check | `scripts/doctor.sh` |
+
+## Git
+
+- One branch per phase: `phase-N-<slug>`. Cloud sessions may get their own `claude/…` branch; record it in the tracker.
+- Small conventional commits, for example `feat(worker): …`, `test(db): …`, `docs(tracker): …`.
+- Push at least at every handoff.
+- The owner merges to `main`. Never force-push `main`.

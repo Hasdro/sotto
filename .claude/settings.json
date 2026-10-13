@@ -7,6 +7,12 @@
       "Read(./**/.env.*)"
     ],
     "allow": [
+      "Bash(bash scripts/doctor.sh)",
+      "Bash(scripts/doctor.sh)",
+      "Bash(git status *)",
+      "Bash(git fetch *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
       "Bash(pnpm test *)",
       "Bash(pnpm lint *)",
       "Bash(pnpm typecheck)",
@@ -16,6 +22,20 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f docs/TRACKER.md ] && { echo 'Sotto tracker — current state (run /next-task to start):'; sed -n '/^## Now/,/^## Phase board/p' docs/TRACKER.md | grep -v -e '^## Phase board' -e '<!--'; }; exit 0"
+          },
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] && [ -f package.json ] && command -v pnpm >/dev/null && pnpm install --frozen-lockfile >/dev/null 2>&1; exit 0"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
@@ -38,14 +58,11 @@
       }
     ]
   },
-  "extraKnownMarketplaces": {
-    "addy-agent-skills": {
-      "source": { "source": "github", "repo": "addyosmani/agent-skills" }
-    }
-  },
   "enabledPlugins": {
-    "agent-skills@addy-agent-skills": true,
-    "frontend-design@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true
+    "security-guidance@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true
   }
 }

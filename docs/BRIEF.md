@@ -1,6 +1,6 @@
 # Brief (filled in during Phase 0)
 
-Claude interviews you with `prompts/phase-0-brief.md` and writes the answers here.
+Claude interviews you in Phase 0 (`docs/phases/phase-0-brief.md`, task P0.1) and writes the answers here.
 
 ## The calls
 - Will agents call through the app instead of their phone's dialer?

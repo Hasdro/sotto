@@ -24,7 +24,7 @@ Customer phone ──SIP trunk──▶ Media server (LiveKit) ◀── Agent a
 | Calls | LiveKit + SIP trunk (Yeastar or Twilio/Telnyx) | Separate track per participant |
 | AI worker | LiveKit Agents (Python) | Reads company config per call |
 | Model router | Own module over provider adapters | Per-stage provider/model/settings from DB |
-| Prompt registry | DB table, versioned, scoped platform → company → team → campaign | Seeded from `prompts-seed/` files |
+| Prompt registry | DB table, versioned, scoped platform → company → team → campaign | Seeded from `seed/prompts/` files |
 | Data | Supabase (Postgres + RLS, auth, storage) | Separate dev and prod projects |
 | Email | Resend / Postmark / ZeptoMail via adapter | Escalations, trial reminders |
 | Observability | Sentry + card latency table | Feeds R1 dashboard |
