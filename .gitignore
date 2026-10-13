@@ -1,0 +1,33 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# customer audio never goes into git
+test-calls/**/*.wav
+test-calls/**/*.mp3
+test-calls/**/*.m4a
+test-calls/**/*.ogg
+test-calls/**/*.flac
+recordings/
+
+# deps / builds
+node_modules/
+.venv/
+__pycache__/
+dist/
+build/
+.expo/
+ios/Pods/
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local Claude settings
+.claude/settings.local.json
