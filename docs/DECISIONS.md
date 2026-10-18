@@ -35,7 +35,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   gates; MIT; widely used. One framework only, to keep context small and behaviour consistent.
 - **Rejected:** Stacking Superpowers / Spec Kit / BMAD on top (overlapping instructions).
 
-## D-005 — Client framework (OPEN)
+## D-005 — Client framework (OPEN → resolved by D-010)
 - **Options:** Expo (React Native, TypeScript; recommended) vs Flutter (Dart).
 - **Decide in:** Phase 1, before any app code.
 
@@ -85,3 +85,34 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Why:** The owner wants progress without blocking on the interview. Phase 1 (skeleton, CI, boundaries) does not depend on business facts. Every assumption sits behind a setting, the model router or the prompt registry (D-003), so the answers can change it later without a rewrite.
 - **Risk:** If a wrong assumption reaches code, rework follows. To limit that, assumptions only reach `seed/` data and settings, never logic.
 - **Rejected:** Waiting for the interview, which stalls all work. Inventing playbook content, which would tune the engine on guesses (see the phase-0 pitfalls).
+
+## D-010 — Client framework: Expo (resolves D-005)
+2026-10-18 · accepted under D-009 (Claude's recommendation; the owner may override before Phase 3)
+- **Decision:** `apps/app` is an Expo app (React Native + TypeScript, expo-router) for iOS, Android and web. Desktop starts as the installable web build, with Tauri later.
+- **Comparison for this project:**
+
+| Criterion | Expo (React Native + TS) | Flutter (Dart) |
+|---|---|---|
+| LiveKit SDK | `@livekit/react-native` with the official Expo config plugin (`@livekit/react-native-expo-plugin`). Needs a dev build, not Expo Go. Web uses `livekit-client` directly. | `livekit_client` covers Android, iOS, web, macOS, Windows and Linux in one package. |
+| CallKit / ConnectionService | `react-native-callkeep` (community library) plus the LiveKit audio session APIs | Community packages (`flutter_callkit_incoming`); no official LiveKit guidance |
+| Web and desktop | react-native-web gives a real DOM, a PWA and a Tauri shell later. It shares the TS card protocol and Supabase client with the web admin. | Web renders to canvas, which is weaker for admin tables, text selection and accessibility. Desktop builds are native. |
+| Claude's strength | TypeScript and React are the strongest. Design tools (frontend-design, Playwright screenshots) target the DOM. | Good, but less training data and no DOM screenshots for the design loop |
+| Hiring | The React/TS pool is the largest. | Smaller |
+| RTL | `I18nManager` on native and `dir` on web. Both are mature, with a reload needed when switching direction. | Built-in `Directionality`, excellent |
+| Shared code with the worker | The card protocol is one zod schema, with JSON Schema generated for Python. | It would need a separate Dart codegen. |
+
+- **Why:** Expo wins on web/admin quality, shared TypeScript types, Claude's productivity and hiring. Flutter's advantage, native desktop, is not needed before Phase 8.
+- **Sources (checked 2026-10-18):**
+  - npm: `expo@58.0.14`, `@livekit/react-native@3.1.0`, `@livekit/react-native-expo-plugin@1.1.0`;
+  - https://github.com/livekit/client-sdk-react-native-expo-plugin (install steps, iOS and Android options);
+  - https://github.com/livekit/client-sdk-flutter (platforms).
+- **Rejected:** Flutter, for the reasons above.
+
+## D-011 — TypeScript lint and format: Biome
+2026-10-18 · accepted under D-009 (settles the open choice in ENGINEERING §2)
+- **Decision:** Biome (`@biomejs/biome`) is the single TypeScript linter and formatter, configured in the root `biome.json`. The worker uses ruff.
+- **Why:**
+  - One fast tool keeps the PostToolUse format hook and the Stop hook under the 20 s budget (P1.4).
+  - It needs one config instead of the ESLint + Prettier plugin stack.
+- **Trade-off:** Biome does not run every ESLint plugin, so Expo's own ESLint config is not used. Biome's React hooks rules are on.
+- **Rejected:** ESLint + Prettier, which is slower and needs two configs.

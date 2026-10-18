@@ -60,7 +60,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [~] P0.6 Decisions from the interview — D-009 recorded; more after the interview
 
 ### Phase 1
-- [ ] P1.1 Decide D-005 Expo vs Flutter `owner`
+- [x] P1.1 Decide D-005 Expo vs Flutter `owner` — Expo, D-010 (Claude's recommendation under D-009; owner may override before Phase 3)
 - [ ] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner`
 - [ ] P1.3 Monorepo skeleton
 - [ ] P1.4 Commands + hooks working
