@@ -26,18 +26,18 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** 0 — Brief, playbook, golden calls (not started)
-- **Next task:** P0.1 Interview the owner
-- **Branch:** main (start `phase-0-brief` when work begins)
-- **Environment last used:** none yet
-- **Blockers:** none
-- **Next action:** Run `/next-task`, then start the P0.1 interview using the `interview-me` skill. Handoff rules: `docs/HANDOFF.md`.
+- **Phase:** 0 — Brief, playbook, golden calls (in progress)
+- **Task:** P0.1 Interview the owner `[~]`
+- **Branch:** `claude/friendly-gates-fbhqdv` (cloud-generated; use it for all of Phase 0, D-008)
+- **Environment last used:** cloud (no Docker, simulators, Ollama, supabase/lk CLIs or API keys)
+- **Blockers:** none for Phase 0
+- **Next action:** Continue the P0.1 interview (one question at a time); answers are logged in `docs/BRIEF.md` as they arrive.
 
 ## Phase board
 
 | Phase | Status | Branch / PR | Exit gate evidence |
 |---|---|---|---|
-| 0 Brief, playbook, golden calls | todo | – | – |
+| 0 Brief, playbook, golden calls | in progress | `claude/friendly-gates-fbhqdv` | – |
 | 1 Architecture, skeleton, CI | todo | – | – |
 | 2 Engine, router, registry, replay | todo | – | – |
 | 3 Design system and screens | todo | – | – |
@@ -52,7 +52,7 @@ Tags:
 Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 ### Phase 0
-- [ ] P0.1 Interview the owner `owner`
+- [~] P0.1 Interview the owner `owner`
 - [ ] P0.2 Write docs/BRIEF.md `owner`
 - [ ] P0.3 Draft the playbook (faq, objections, products, never-promise)
 - [ ] P0.4 Golden-call plan (test-calls/PLAN.md) `owner`
@@ -66,7 +66,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P1.4 Commands + hooks working
 - [ ] P1.5 scripts/check-boundaries.sh with fixtures
 - [ ] P1.6 GitHub Actions CI + gitleaks
-- [ ] P1.7 Local Supabase smoke test `local-only`
+- [!] P1.7 Local Supabase smoke test `local-only` — blocked in cloud: needs Docker + supabase CLI (Mac)
 - [ ] P1.8 CONSTRAINTS.md
 - [ ] P1.9 Roadmap + tracker refresh
 
@@ -79,7 +79,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P2.6 R2 chain: backup, holding line, escalation record
 - [ ] P2.7 Telemetry events per card
 - [ ] P2.8 Replay harness + judge, p95 ≤ 1500 ms (needs P0.5 + keys)
-- [ ] P2.9 Local model (Ollama) benchmark `local-only`
+- [!] P2.9 Local model (Ollama) benchmark `local-only` — blocked in cloud: needs Ollama (Mac)
 
 ### Phase 3
 - [ ] P3.1 Two visual directions `owner`
