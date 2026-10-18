@@ -84,6 +84,8 @@ async def test_hello_then_typed_question_gets_a_playbook_card(
     assert types[:3] == ["call_started", "transcript", "turn_end"]
     cards = [m["card"] for m in msgs if m["type"] == "card"]
     assert cards[0]["source"] == "playbook"
+    turn_end = next(m for m in msgs if m["type"] == "turn_end")
+    assert turn_end["turn_id"] == cards[0]["turn_id"]
     assert cards[0]["delta"].startswith("Ten percent on booking")
 
 

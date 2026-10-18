@@ -39,7 +39,12 @@ export const DemoServerMessage = z.discriminatedUnion("type", [
     at_ms: z.int().nonnegative(),
   }),
   /** The customer finished a turn that may need a card (the R1 clock starts). */
-  z.strictObject({ type: z.literal("turn_end"), at_ms: z.int().nonnegative() }),
+  z.strictObject({
+    type: z.literal("turn_end"),
+    at_ms: z.int().nonnegative(),
+    /** Set when the turn may produce a card; matches CardMessage.turn_id. */
+    turn_id: z.uuid().nullish(),
+  }),
   z.strictObject({ type: z.literal("card"), card: CardMessage }),
   z.strictObject({ type: z.literal("escalation"), question: text }),
   z.strictObject({ type: z.literal("call_ended"), call_id: z.uuid() }),

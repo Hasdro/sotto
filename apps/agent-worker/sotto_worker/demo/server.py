@@ -83,12 +83,14 @@ class _Call:
         now = self._clock.now_ms()
         at = self._at()
         await self.send({"type": "transcript", "speaker": speaker, "text": text, "at_ms": at})
-        if speaker == "customer":
-            await self.send({"type": "turn_end", "at_ms": at})
         event = TranscriptEvent(
             speaker=speaker, text=text, final=True, start_ms=max(now - duration_ms, 0), end_ms=now
         )
-        await self.session.on_transcript(event, t0_ms=now)
+        turn_id = await self.session.on_transcript(event, t0_ms=now)
+        if speaker == "customer":
+            # Sent before the turn's cards: the turn task only runs once this coroutine yields,
+            # and the send lock orders the frames.
+            await self.send({"type": "turn_end", "at_ms": at, "turn_id": turn_id})
 
     async def play(self, scenario: Scenario, speed: float) -> None:
         for line in scenario.lines:

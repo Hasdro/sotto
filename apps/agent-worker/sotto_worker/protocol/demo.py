@@ -93,12 +93,22 @@ class DemoServerMessage3(BaseModel):
     at_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
+class TurnId(RootModel[StrictStr]):
+    root: Annotated[
+        StrictStr,
+        Field(
+            pattern="^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        ),
+    ]
+
+
 class DemoServerMessage4(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     type: Literal["turn_end"]
     at_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    turn_id: TurnId | None = None
 
 
 class Label(RootModel[StrictStr]):
@@ -132,6 +142,7 @@ class Card(BaseModel):
             pattern="^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         ),
     ]
+    turn_id: TurnId | None = None
     seq: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
     type: Literal["answer", "question", "objection", "warning", "holding"]
     source: Literal["playbook", "ai", "backup", "holding"]

@@ -94,6 +94,7 @@ class _CardWriter:
             v=1,
             card_id=self.card_id,
             call_id=self._s.call_id,
+            turn_id=self._turn.turn_id,
             seq=self._seq,
             type=self._type,
             source=self._source,
@@ -141,6 +142,7 @@ class _CardWriter:
 
 @dataclass
 class _Turn:
+    turn_id: str
     event: TranscriptEvent
     kind: TurnKind
     t0_ms: int
@@ -190,21 +192,23 @@ class CallSession:
         """Agent voice activity (VAD; text only when agent context is on), for echo gating."""
         self.echo_gate.agent_voice(start_ms, end_ms, text)
 
-    async def on_transcript(self, event: TranscriptEvent, *, t0_ms: int) -> None:
-        """Feed a transcript event. `t0_ms` is when the speaker stopped (the R1 clock start)."""
+    async def on_transcript(self, event: TranscriptEvent, *, t0_ms: int) -> str | None:
+        """Feed a transcript event. `t0_ms` is when the speaker stopped (the R1 clock start).
+        Returns the turn_id when the event starts a turn that will produce a card."""
         if not event.final:
-            return  # drafting on partials: P2.5 follow-up (ARCHITECTURE §4)
+            return None  # drafting on partials: P2.5 follow-up (ARCHITECTURE §4)
         if event.speaker == "customer" and self.echo_gate.is_echo(
             start_ms=event.start_ms, end_ms=event.end_ms, text=event.text
         ):
-            return  # the agent's own voice coming back on the SIP leg (R4, F-18)
+            return None  # the agent's own voice coming back on the SIP leg (R4, F-18)
         if event.speaker == "agent" and not self.company.agent_context:
-            return
+            return None
         self._events.append(event)
         kind = classify(event)  # R4: agent speech never classifies
         if kind is None:
-            return
+            return None
         turn = _Turn(
+            turn_id=self.new_id(),
             event=event,
             kind=kind,
             t0_ms=t0_ms,
@@ -214,6 +218,7 @@ class CallSession:
         task = asyncio.create_task(self._run_turn(turn))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return turn.turn_id
 
     async def close(self) -> None:
         for task in list(self._tasks):

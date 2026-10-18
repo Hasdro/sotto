@@ -331,3 +331,15 @@ async def test_echo_of_the_agent_on_the_customer_track_never_triggers_f18() -> N
     await h.session.on_transcript(echo, t0_ms=3100)
     await h.clock.advance(6000)
     assert h.cards == []
+
+
+async def test_cards_carry_their_turn_id_so_a_late_answer_replaces_only_its_own_holding_line() -> (
+    None
+):
+    h = make(primary_ms=2000, backup_ms=1300)
+    await h.say("customer", "Do you allow pets in the building?", at_ms=1000)
+    await h.say("customer", "What's the payment plan?", at_ms=9000)
+    turns = [c.turn_id for c in h.cards if c.seq == 0]
+    assert turns[0] == turns[1], "holding line and its late answer share the turn"
+    assert turns[2] != turns[0], "the next turn gets a new id"
+    assert all(t is not None for t in turns)

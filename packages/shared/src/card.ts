@@ -31,6 +31,9 @@ export const CardMessage = z.strictObject({
   v: z.literal(CARD_PROTOCOL_VERSION),
   card_id: z.uuid(),
   call_id: z.uuid(),
+  /** The customer turn this card answers. A later answer card with the same turn_id replaces a
+   * holding card (R2); cards of other turns never do. Optional for v1 compatibility. */
+  turn_id: z.uuid().nullish(),
   seq: z.int().nonnegative(),
   type: z.enum(CARD_TYPES),
   source: z.enum(CARD_SOURCES),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type CallContext, decideCallStart } from "./policy.ts";
 
 const NOW = Date.parse("2026-10-18T12:00:00Z");
+const device = { id: "d1", user_id: "u1", company_id: "c1", revoked_at: null };
 const ok: CallContext = {
   userId: "u1",
   request: { company_id: "c1", phone_number: "+971501234567", device_id: "d1" },
@@ -11,7 +12,7 @@ const ok: CallContext = {
     trial_ends_at: "2026-10-30T00:00:00Z",
     allowed_country_codes: ["+971", "+966"],
   },
-  device: { id: "d1", user_id: "u1", company_id: "c1", revoked_at: null },
+  device,
   callsStartedLastHour: 3,
   now: NOW,
 };
@@ -49,10 +50,10 @@ describe("livekit-token call-start policy (ARCHITECTURE §2, R3, R4)", () => {
     ["suspended", { company: { ...ok.company, plan_state: "suspended" as const } }, "plan_blocked"],
     [
       "revoked device",
-      { device: { ...ok.device!, revoked_at: "2026-10-17T00:00:00Z" } },
+      { device: { ...device, revoked_at: "2026-10-17T00:00:00Z" } },
       "device_revoked",
     ],
-    ["device of another user", { device: { ...ok.device!, user_id: "u9" } }, "device_revoked"],
+    ["device of another user", { device: { ...device, user_id: "u9" } }, "device_revoked"],
     ["unknown device", { device: null }, "device_revoked"],
     [
       "destination not allowed",
