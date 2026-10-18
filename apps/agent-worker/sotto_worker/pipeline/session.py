@@ -31,6 +31,7 @@ HOLDING_AT_MS = 1400  # sent so it renders before the 1500 ms R1 limit
 LATE_ANSWER_UNTIL_MS = 5000  # an answer by then replaces the holding line; otherwise escalate
 ANSWER_HARD_LIMIT_MS = 8000  # a streaming answer is closed by then, whatever the provider does
 CONTEXT_WINDOW_MS = 60_000
+TURN_MARKER = "---turn---"  # splits a prompt into cacheable system prefix + per-turn message
 LANGUAGE_NAME = {"en": "English", "ar": "Arabic"}
 
 CardType = Literal["answer", "question", "objection", "warning", "holding"]
@@ -362,10 +363,14 @@ class CallSession:
             self.prompts_key, PromptContext(company_id=self.company.company_id), variables
         )
         settings = self._router.resolve("suggest", self._routing).settings
+        system, _, user = rendered.text.partition(TURN_MARKER)
+        if not user:  # prompt without a cache split: everything is per-turn
+            system, user = "", system
         return LLMRequest(
-            system="",
-            messages=[Message(role="user", content=rendered.text)],
+            system=system.strip(),
+            messages=[Message(role="user", content=user.strip())],
             max_tokens=int(settings.get("max_tokens", 120)),
             temperature=float(settings.get("temperature", 0.2)),
+            cacheable_prefix=system.strip(),
             settings=dict(settings),
         )

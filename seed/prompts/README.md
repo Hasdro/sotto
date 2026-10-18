@@ -16,3 +16,7 @@ Template body with {{transcript.last_60s}} ...
 ```
 
 `apps/agent-worker/tests/test_seed.py` checks every file: the front matter is complete, the stage exists, and the body uses exactly the declared variables.
+
+## Cacheable prefix
+
+A live prompt may contain one line `---turn---`. Everything before it must use only per-company variables (it is sent as the cacheable system prefix, ARCHITECTURE §4). Everything after it is the per-turn user message.
