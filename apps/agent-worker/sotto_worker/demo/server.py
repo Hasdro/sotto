@@ -194,7 +194,9 @@ class DemoServer:
         return Response(200, "OK", headers, body)
 
     async def _handle(self, ws: ServerConnection) -> None:
-        runtime = self._runtime or await asyncio.to_thread(self._runtime_factory)
+        runtime = self._runtime
+        if runtime is None:
+            runtime = await asyncio.to_thread(self._runtime_factory)
         call: _Call | None = None
         await ws.send(
             json.dumps(
