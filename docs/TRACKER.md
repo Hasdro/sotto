@@ -153,6 +153,9 @@ Things only the owner can do, so the agent never waits silently.
   - Phase 8: Sentry
 - [ ] Cloud sessions: set the API keys as environment secrets, and allow network access to the vendors' domains
 - [ ] Trademark and domain check for "Sotto" (D-001)
+- [ ] Approve or edit two Claude Code hook changes in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
+  - **Stop hook:** send stdout to stderr, `{ pnpm -s typecheck && pnpm -s test; } 1>&2 || exit 2`, so Claude sees the tsc and pytest errors. Also exit 0 when the hook input has `"stop_hook_active": true`, so a machine without `uv` cannot trap the session.
+  - **PostToolUse format hook:** today a Biome failure skips ruff with no notice. Run the two formatters independently.
 
 ## Known issues and tech debt
 

@@ -1,8 +1,9 @@
 """Enforce the worker coverage floors from CONSTRAINTS.md on a coverage.py JSON report.
 
 Usage: python scripts/check_coverage.py [coverage.json]
-Coverage counts statements and branches together. A floor for a directory that has no code yet
-does not fail; it starts to bite with the first file there.
+Coverage counts statements and branches together and is compared unrounded. A floor for a
+directory that has no code yet does not fail; it starts to bite with the first file there, and
+a directory with code that the report does not mention fails (it was never imported by a test).
 """
 
 import json
@@ -10,6 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+WORKER_ROOT = Path(__file__).resolve().parents[1]
 OVERALL_FLOOR = 90
 FLOORS = {
     "sotto_worker/pipeline/": 90,
@@ -21,19 +23,22 @@ FLOORS = {
 def _percent(summaries: list[dict[str, int]]) -> float | None:
     covered = sum(s["covered_lines"] + s["covered_branches"] for s in summaries)
     total = sum(s["num_statements"] + s["num_branches"] for s in summaries)
-    return None if total == 0 else round(100 * covered / total, 1)
+    return None if total == 0 else 100 * covered / total
 
 
-def failures(report: dict[str, Any]) -> list[str]:
+def failures(report: dict[str, Any], worker_root: Path = WORKER_ROOT) -> list[str]:
     files: dict[str, dict[str, Any]] = report["files"]
     found: list[str] = []
     for prefix, floor in FLOORS.items():
         pct = _percent([f["summary"] for p, f in files.items() if p.startswith(prefix)])
-        if pct is not None and pct < floor:
-            found.append(f"{prefix}: {pct}% < {floor}%")
+        if pct is None:
+            if any((worker_root / prefix).rglob("*.py")):
+                found.append(f"{prefix}: has Python files but none are in the coverage report")
+        elif pct < floor:
+            found.append(f"{prefix}: {pct:.2f}% < {floor}%")
     overall = _percent([f["summary"] for f in files.values()])
     if overall is not None and overall < OVERALL_FLOOR:
-        found.append(f"overall: {overall}% < {OVERALL_FLOOR}%")
+        found.append(f"overall: {overall:.2f}% < {OVERALL_FLOOR}%")
     return found
 
 

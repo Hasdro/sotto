@@ -3,9 +3,12 @@
 # Each fixtures/boundaries/fail-<rule>[--<variant>]/ tree must fail with [<rule>]; each pass-*/
 # tree must pass. Finally the real repository must pass.
 set -uo pipefail
+shopt -s nullglob
 here="$(cd "$(dirname "$0")" && pwd)"
 check="$here/../check-boundaries.sh"
 failures=0
+seen_fail=0
+seen_pass=0
 
 for dir in "$here"/fixtures/boundaries/*/; do
   name="$(basename "$dir")"
@@ -17,15 +20,22 @@ for dir in "$here"/fixtures/boundaries/*/; do
         echo "FAIL $name: expected exit 1 with [$rule], got exit $code:"; echo "$out"; failures=$((failures + 1))
       else
         echo "ok   $name"
-      fi ;;
+      fi
+      seen_fail=$((seen_fail + 1)) ;;
     pass-*)
       if [[ $code -ne 0 ]]; then
         echo "FAIL $name: expected exit 0, got $code:"; echo "$out"; failures=$((failures + 1))
       else
         echo "ok   $name"
-      fi ;;
+      fi
+      seen_pass=$((seen_pass + 1)) ;;
+    *)
+      echo "FAIL $name: fixture folders must start with fail- or pass-"; failures=$((failures + 1)) ;;
   esac
 done
+if [[ $seen_fail -eq 0 || $seen_pass -eq 0 ]]; then
+  echo "FAIL no fail-*/pass-* fixtures found (fail=$seen_fail pass=$seen_pass)"; failures=$((failures + 1))
+fi
 
 out="$(bash "$check" 2>&1)"; code=$?
 if [[ $code -ne 0 ]]; then echo "FAIL repository: $out"; failures=$((failures + 1)); else echo "ok   repository"; fi

@@ -1,0 +1,10 @@
+{
+  "v": true,
+  "card_id": "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d11",
+  "call_id": "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c",
+  "seq": 0,
+  "type": "answer",
+  "source": "playbook",
+  "delta": "x",
+  "done": false
+}

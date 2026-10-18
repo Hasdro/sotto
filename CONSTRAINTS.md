@@ -13,7 +13,7 @@ Set on 2026-10-18 (P1.8). The owner deferred the interview (D-009), so the numbe
 | Types are clean: TS `strict` + `noUncheckedIndexedAccess`; mypy `--strict` | `pnpm typecheck` | Stop hook, CI |
 | Lint and format are clean (Biome, ruff) | `pnpm lint` | PostToolUse format hook, CI |
 | All tests pass | `pnpm test` | Stop hook, CI |
-| No type-check suppressions (`@ts-ignore`, `@ts-expect-error`, `# type: ignore`) and no skipped or focused tests (`.skip`, `.only`, `pytest.mark.skip/xfail`), unless the same line names its tracker entry `T-NNN` | `scripts/check-boundaries.sh` (rule `suppression`) | `pnpm lint`, CI |
+| No suppressions and no skipped or focused tests, unless the same line names a `T-NNN` that exists in `docs/TRACKER.md`. This covers:<br>• `@ts-ignore`, `@ts-expect-error`, `# type: ignore`;<br>• `# pragma: no cover`, `biome-ignore`, `eslint-disable`;<br>• `.skip*`, `.only`, `.todo`, `.fails`, `.runIf`;<br>• `pytest.mark.skip*`/`xfail`, `pytest.skip()`/`importorskip()`, `unittest.skip*`. | `scripts/check-boundaries.sh` (rule `suppression`); at runtime, pytest fails the run if any test is skipped or xfailed (`tests/conftest.py`), and vitest refuses `.only` in CI | `pnpm lint`, `pnpm test`, CI |
 | Architecture boundaries (ENGINEERING §3): provider SDKs only in `adapters/`; no model names or prompt text in code; the app never imports the worker or holds provider keys; no raw colours in the app | `scripts/check-boundaries.sh` | `pnpm lint`, CI |
 | The card protocol is generated from one schema, so the TS and Python copies never drift | `pnpm gen` + `git diff --exit-code` | CI |
 | No secrets in git | gitleaks (`--redact`), full history | pre-commit hook (`.githooks/`, when gitleaks is installed), CI |

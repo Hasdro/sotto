@@ -40,3 +40,7 @@ strict = true
 files = ["sotto_worker", "replay", "scripts", "tests", "../../scripts"]
 plugins = ["pydantic.mypy"]
 exclude = ["scripts/tests/fixtures/"]
+
+[tool.coverage.report]
+# Count modules in folders without __init__.py too, so untested code cannot hide.
+include_namespace_packages = true

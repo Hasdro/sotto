@@ -41,7 +41,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - name: Card protocol codegen is up to date
-        run: pnpm gen && git diff --exit-code -- packages/shared/schema apps/agent-worker/sotto_worker/protocol
+        run: |
+          pnpm gen
+          changes="$(git status --porcelain -- packages/shared/schema apps/agent-worker/sotto_worker/protocol)"
+          if [ -n "$changes" ]; then echo "$changes"; echo "::error::run pnpm gen and commit the result"; exit 1; fi
       - name: Web build exports
         run: pnpm --filter @sotto/app export:web
         env:
@@ -68,7 +71,7 @@ jobs:
         working-directory: apps/agent-worker
         run: |
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
-          uvx pip-audit --strict --requirement "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit@2.10.1 --strict --requirement "$RUNNER_TEMP/requirements.txt"
 
   gitleaks:
     name: secrets scan
