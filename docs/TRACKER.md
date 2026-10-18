@@ -68,17 +68,17 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [x] P1.6 GitHub Actions CI + gitleaks — all 4 jobs green on PR https://github.com/Hasdro/sotto/pull/1 (run https://github.com/Hasdro/sotto/actions/runs/39166712190); pre-commit hook blocks a planted token (exit 1)
 - [!] P1.7 Local Supabase smoke test `local-only` — blocked in cloud: needs Docker + supabase CLI (Mac)
 - [x] P1.8 CONSTRAINTS.md — floor + numbers (p95 1500, worker coverage 90%, AA contrast, 450 KB web JS, audits) each with a command; suppression guard in check-boundaries; linked from CLAUDE.md
-- [ ] P1.9 Roadmap + tracker refresh
+- [x] P1.9 Roadmap + tracker refresh — ROADMAP "done when" lines rewritten from the acceptance tests; Phase 2 tasks annotated with what each needs
 
 ### Phase 2
 - [ ] P2.1 Contracts and fake adapters
 - [ ] P2.2 Model router (per stage, per company, deadlines, fallback)
-- [ ] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2
+- [ ] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — code + contract tests work in the cloud with fakes and mocked HTTP; the live smoke test needs API keys `owner`
 - [ ] P2.4 Prompt registry (seed/prompts, scopes, variables)
 - [ ] P2.5 Pipeline: turn → trigger → playbook → suggest → stream
 - [ ] P2.6 R2 chain: backup, holding line, escalation record
 - [ ] P2.7 Telemetry events per card
-- [ ] P2.8 Replay harness + judge, p95 ≤ 1500 ms (needs P0.5 + keys)
+- [ ] P2.8 Replay harness + judge, p95 ≤ 1500 ms (needs P0.5 + keys) `owner` — harness can be built on synthetic calls first; the p95 gate needs real golden calls and keys
 - [!] P2.9 Local model (Ollama) benchmark `local-only` — blocked in cloud: needs Ollama (Mac)
 
 ### Phase 3
