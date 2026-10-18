@@ -107,6 +107,7 @@ The worker code lives in `apps/agent-worker/sotto_worker/`. ENGINEERING §4 has 
 - The JSON Schema `packages/shared/schema/card.v1.schema.json` is generated from it, and the pydantic model `sotto_worker/protocol/card.py` is generated from that.
 - The fixtures in `packages/shared/fixtures/cards/` must be accepted or rejected the same way by both sides. CI fails on drift.
 - Deltas share a `card_id`, are ordered by `seq`, and `done: true` closes the card.
+- Every card carries the `turn_id` of the customer turn it answers. A later answer card with the same `turn_id` replaces that turn's holding card (§5); cards of other turns never do. The field is optional, so v1 stays compatible.
 - The app dedupes on `(card_id, seq)` and drops unknown versions.
 
 ### Token minting (`supabase/functions/livekit-token`)
