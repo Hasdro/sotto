@@ -34,10 +34,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     print("replay: no golden calls yet (P0.5); running the synthetic replay only.\n")
+    calls = load_all(DEMO / "calls")
     profile = LatencyProfile(seed=args.seed)
-    report = asyncio.run(replay_synthetic(load_all(DEMO / "calls"), profile))
+    report = asyncio.run(replay_synthetic(calls, profile))
     print(format_report(report, profile))
-    return 0 if report.passed else 1
+    # R2 drill: every provider down. Each turn that needs a card must still show one by 1500 ms.
+    outage = asyncio.run(
+        replay_synthetic(calls, LatencyProfile(seed=args.seed, providers_down=True))
+    )
+    outage_ok = outage.summary.p95_ms <= 1500 and not outage.unmet_expectations
+    holding = sum(1 for r in outage.records if r.source == "holding")
+    print(
+        f"\nR2 drill, all providers down: {outage.cards} cards, p95 {outage.summary.p95_ms} ms, "
+        f"holding {holding}: {'PASS' if outage_ok else 'FAIL'}"
+    )
+    return 0 if report.passed and outage_ok else 1
 
 
 if __name__ == "__main__":

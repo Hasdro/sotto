@@ -42,3 +42,21 @@ def test_cli_fails_when_golden_calls_exist_but_audio_replay_is_not_built(
     (tmp_path / "call-001.json").write_text("{}")
     assert main(["--all", "--calls-dir", str(tmp_path)]) == 1
     assert "audio replay" in capsys.readouterr().out
+
+
+async def test_all_providers_down_still_shows_a_card_for_every_turn_r2() -> None:
+    profile = LatencyProfile(seed=3, providers_down=True)
+    report = await replay_synthetic(load_all(DEMO / "calls"), profile)
+    assert report.unmet_expectations == []
+    assert report.summary.p95_ms <= 1500
+    assert {r.source for r in report.records} <= {"playbook", "holding"}
+
+
+def test_cli_reports_stages_and_the_outage_drill(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["--all", "--calls-dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "model first token" in out
+    assert "holding rate" in out
+    assert "all providers down" in out

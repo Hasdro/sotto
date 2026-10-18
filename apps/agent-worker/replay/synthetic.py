@@ -28,7 +28,7 @@ from sotto_worker.protocol import CardMessage
 from sotto_worker.router import ModelRouter, RoutingConfig, StageRoute
 from sotto_worker.runtime import build_demo_runtime
 from sotto_worker.scenarios import Scenario
-from sotto_worker.telemetry import CardTimingRecord, LatencySummary, summarise
+from sotto_worker.telemetry import CardTimingRecord, LatencySummary, percentile, summarise
 
 R1_P95_MS = 1500
 
@@ -41,6 +41,11 @@ class LatencyProfile:
     backup_p50_ms: int = 420
     spread: float = 0.45  # lognormal sigma: a long tail, so some turns hit the backup race
     chunk_ms: int = 25
+    providers_down: bool = False  # every model call fails: the agent must still see a card
+
+
+class ProvidersDown(RuntimeError):
+    pass
 
 
 class _JitterLLM:
@@ -49,8 +54,15 @@ class _JitterLLM:
     provider = "fake"
 
     def __init__(
-        self, clock: Clock, rng: random.Random, p50_ms: int, spread: float, chunk_ms: int
+        self,
+        clock: Clock,
+        rng: random.Random,
+        p50_ms: int,
+        spread: float,
+        chunk_ms: int,
+        down: bool = False,
     ) -> None:
+        self._down = down
         self.model = f"jitter-{p50_ms}"
         self.capabilities = ModelCapabilities(streaming=True)
         self._clock, self._rng, self._p50, self._spread, self._chunk = (
@@ -66,6 +78,8 @@ class _JitterLLM:
 
     async def stream(self, req: LLMRequest) -> AsyncIterator[LLMChunk]:
         await self._clock.sleep(self._rng.lognormvariate(0, self._spread) * self._p50)
+        if self._down:
+            raise ProvidersDown("simulated outage")
         for i, word in enumerate(demo_fake_text(req).split(" ")):
             if i:
                 await self._clock.sleep(self._chunk)
@@ -107,8 +121,22 @@ async def replay_synthetic(
         clock = FakeClock()
         rng = random.Random(f"{profile.seed}:{scenario.id}")  # noqa: S311 - latency simulation, not security
         base = build_demo_runtime(clock, {}, force_fake=True)
-        primary = _JitterLLM(clock, rng, profile.primary_p50_ms, profile.spread, profile.chunk_ms)
-        backup = _JitterLLM(clock, rng, profile.backup_p50_ms, profile.spread, profile.chunk_ms)
+        primary = _JitterLLM(
+            clock,
+            rng,
+            profile.primary_p50_ms,
+            profile.spread,
+            profile.chunk_ms,
+            profile.providers_down,
+        )
+        backup = _JitterLLM(
+            clock,
+            rng,
+            profile.backup_p50_ms,
+            profile.spread,
+            profile.chunk_ms,
+            profile.providers_down,
+        )
         config = RoutingConfig(
             stages={
                 "suggest": StageRoute(provider="fake", model="primary", first_token_ms=700),
@@ -179,6 +207,18 @@ async def replay_synthetic(
     return report
 
 
+SOURCES = ("playbook", "ai", "backup", "holding")
+
+
+def stage_values(records: Sequence[CardTimingRecord]) -> dict[str, list[int]]:
+    return {
+        "final transcript": [r.stt_final_ms for r in records],
+        "playbook lookup": [r.lookup_ms for r in records],
+        "model first token": [r.first_token_ms for r in records if r.first_token_ms is not None],
+        "first word shown": [r.first_delta_ms for r in records],
+    }
+
+
 def format_report(report: ReplayReport, profile: LatencyProfile) -> str:
     lines = [
         "SYNTHETIC replay (scripted text calls, fake models with seeded latency, simulated "
@@ -189,8 +229,18 @@ def format_report(report: ReplayReport, profile: LatencyProfile) -> str:
     for call_id, s in report.per_call.items():
         lines.append(f"{call_id:<22}{s.cards:>6}{s.p50_ms:>9}{s.p95_ms:>9}{s.max_ms:>9}")
     s = report.summary
+    lines += [f"{'ALL':<22}{s.cards:>6}{s.p50_ms:>9}{s.p95_ms:>9}{s.max_ms:>9}", ""]
+    lines += ["per stage (ms after t0)   p50      p95"]
+    for name, values in stage_values(report.records).items():
+        if values:
+            lines.append(f"  {name:<22}{percentile(values, 50):>6}{percentile(values, 95):>9}")
+    total = max(len(report.records), 1)
+    by_source = {src: sum(1 for r in report.records if r.source == src) for src in SOURCES}
+    fallbacks = sum(1 for r in report.records if r.fallback_reason)
     lines += [
-        f"{'ALL':<22}{s.cards:>6}{s.p50_ms:>9}{s.p95_ms:>9}{s.max_ms:>9}",
+        "cards by source: " + ", ".join(f"{k} {v}" for k, v in by_source.items()),
+        f"holding rate {100 * by_source['holding'] / total:.0f}% · backup/fallback rate "
+        f"{100 * fallbacks / total:.0f}%",
         "",
         f"R1 p95 ≤ {R1_P95_MS} ms: {'PASS' if s.p95_ms <= R1_P95_MS else 'FAIL'}",
         f"R4 agent-triggered cards: {report.agent_triggered} "
