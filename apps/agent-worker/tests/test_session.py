@@ -315,3 +315,19 @@ async def test_prompt_is_split_into_a_cacheable_company_prefix_and_the_turn() ->
     assert "pets" not in first.system
     assert "pets" in first.messages[0].content
     assert "school" in second.messages[0].content
+
+
+async def test_echo_of_the_agent_on_the_customer_track_never_triggers_f18() -> None:
+    h = make()
+    await h.clock.advance(1000)
+    h.session.on_agent_voice(start_ms=1000, end_ms=3000, text="what is the payment plan you prefer")
+    echo = TranscriptEvent(
+        speaker="customer",
+        text="What is the payment plan you prefer?",
+        final=True,
+        start_ms=1200,
+        end_ms=3100,
+    )
+    await h.session.on_transcript(echo, t0_ms=3100)
+    await h.clock.advance(6000)
+    assert h.cards == []

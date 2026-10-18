@@ -24,6 +24,7 @@ from sotto_worker.pipeline.verdict import VerdictParser
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.prompts import PromptContext, PromptRegistry
 from sotto_worker.protocol import CardMessage, CardTiming
+from sotto_worker.room import EchoGate
 from sotto_worker.router import ModelRouter, RouteResult
 from sotto_worker.telemetry import CardTimingRecord
 
@@ -178,16 +179,25 @@ class CallSession:
         self._tasks: set[asyncio.Task[None]] = set()
         self._escalated: set[str] = set()
         self.holding_at_ms = HOLDING_AT_MS
+        self.echo_gate = EchoGate()
         self.prompts_key = "suggest"
 
     async def warm(self) -> None:
         """Call start: open model connections for the live stage and its backup."""
         await self._router.warm("suggest", self._routing)
 
+    def on_agent_voice(self, *, start_ms: int, end_ms: int, text: str = "") -> None:
+        """Agent voice activity (VAD; text only when agent context is on), for echo gating."""
+        self.echo_gate.agent_voice(start_ms, end_ms, text)
+
     async def on_transcript(self, event: TranscriptEvent, *, t0_ms: int) -> None:
         """Feed a transcript event. `t0_ms` is when the speaker stopped (the R1 clock start)."""
         if not event.final:
             return  # drafting on partials: P2.5 follow-up (ARCHITECTURE §4)
+        if event.speaker == "customer" and self.echo_gate.is_echo(
+            start_ms=event.start_ms, end_ms=event.end_ms, text=event.text
+        ):
+            return  # the agent's own voice coming back on the SIP leg (R4, F-18)
         if event.speaker == "agent" and not self.company.agent_context:
             return
         self._events.append(event)
