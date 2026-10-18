@@ -26,19 +26,24 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** 0 — Brief, playbook, golden calls (in progress)
-- **Task:** P0.1 Interview the owner `[~]`
-- **Branch:** `claude/friendly-gates-fbhqdv` (cloud-generated; use it for all of Phase 0, D-008)
-- **Environment last used:** cloud (no Docker, simulators, Ollama, supabase/lk CLIs or API keys)
-- **Blockers:** none for Phase 0
-- **Next action:** Continue the P0.1 interview (one question at a time); answers are logged in `docs/BRIEF.md` as they arrive.
+- **Phase:** 1 — Architecture, skeleton, CI: cloud work done, gate waits on the owner. Phase 0 runs on working assumptions (D-009).
+- **Next task:** P2.1 Contracts and fakes (Phase 2), once the owner has looked at PR #1. In parallel, P1.7 needs the Mac.
+- **Branch:** `claude/friendly-gates-fbhqdv`, carrying Phases 0 and 1 (D-009). Draft PR: https://github.com/Hasdro/sotto/pull/1
+- **Environment last used:** cloud, 2026-10-18 (no Docker, simulators, Ollama, supabase/lk CLIs or API keys; github.com downloads blocked)
+- **Blockers:**
+  - owner approval of `docs/ARCHITECTURE.md` and of the BRIEF assumptions;
+  - P1.7 is local-only (Docker).
+- **Next action:**
+  1. Read `docs/handoffs/phase-1.md`.
+  2. If PR #1 is merged, branch `phase-2-engine` from `main`. If not, branch from `claude/friendly-gates-fbhqdv` (stacked). Record the branch here.
+  3. Run `/spec` to write `spec/phase-2-engine.md`, then build P2.1 test-first in `apps/agent-worker/sotto_worker/` (contracts, fakes, injectable clock).
 
 ## Phase board
 
 | Phase | Status | Branch / PR | Exit gate evidence |
 |---|---|---|---|
-| 0 Brief, playbook, golden calls | in progress | `claude/friendly-gates-fbhqdv` | – |
-| 1 Architecture, skeleton, CI | todo | – | – |
+| 0 Brief, playbook, golden calls | on assumptions (D-009); waits on owner | `claude/friendly-gates-fbhqdv` · [PR #1](https://github.com/Hasdro/sotto/pull/1) | – |
+| 1 Architecture, skeleton, CI | cloud done; gate waits on owner approval + P1.7 | `claude/friendly-gates-fbhqdv` · [PR #1](https://github.com/Hasdro/sotto/pull/1) | CI green ([run](https://github.com/Hasdro/sotto/actions/runs/39166712190)); `docs/handoffs/phase-1.md` |
 | 2 Engine, router, registry, replay | todo | – | – |
 | 3 Design system and screens | todo | – | – |
 | 4 Live calls | todo | – | – |
@@ -61,7 +66,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 ### Phase 1
 - [x] P1.1 Decide D-005 Expo vs Flutter `owner` — Expo, D-010 (Claude's recommendation under D-009; owner may override before Phase 3)
-- [~] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner` — drafted (17 failure modes, no TBD; cost ≈ $0.02–0.04/min + carrier); in review, then the owner approves
+- [~] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner` — written and revised after an adversarial review; 19 failure modes with no TBD; cost ≈ $0.02–0.05/min plus carrier (up to $0.30/min on Twilio UAE mobile). Waits for the owner to approve.
 - [x] P1.3 Monorepo skeleton — `pnpm install && pnpm typecheck && pnpm test` green (vitest 28, jest-expo 3, pytest 30); web screenshots in `docs/evidence/p1.3/`
 - [x] P1.4 Commands + hooks working — CLAUDE.md table updated; Stop hook exits 2 on a broken type, 0 when clean (~8 s); format hook ~0.6 s
 - [x] P1.5 scripts/check-boundaries.sh with fixtures — 7 rule IDs (incl. the P1.8 suppression guard), 12 failing + 2 passing fixture trees, repo clean (`bash scripts/tests/run.sh`)
@@ -174,6 +179,47 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-18 · cloud · Claude Opus 5.5 · P0.1–P0.6 (assumptions), P1.1–P1.9
+- **Done:**
+  - The owner skipped the interview, so the build runs on recorded assumptions (D-009): `docs/BRIEF.md` (`ASSUMED:` / `OPEN:` markers), `test-calls/PLAN.md` draft.
+  - D-010: Expo (resolves D-005). D-011: Biome. D-012: the worker uses a per-call JWT, not the service role.
+  - Monorepo skeleton:
+    - Expo app with a web hello screen;
+    - `packages/ui` tokens (AA contrast tests);
+    - `packages/shared` card protocol (zod → JSON Schema → strict pydantic, shared fixtures);
+    - uv worker with the replay stub;
+    - seed models and prompts;
+    - `supabase init`.
+  - Real commands and hooks. `scripts/check-boundaries.sh`: 7 rule IDs, 34 fixture trees.
+  - Coverage and bundle floors; `CONSTRAINTS.md`.
+  - CI: typecheck, lint and test on Python 3.12 and 3.13; codegen drift; web export and bundle budget; npm and pip audits; gitleaks. Pre-commit gitleaks hook.
+  - `docs/ARCHITECTURE.md` written in full. `docs/handoffs/phase-1.md` written (gate pending).
+  - Two fresh-context reviews:
+    - the architecture review found R1, R2, R4 and tenancy problems, all fixed in the doc;
+    - the code review found checker, coverage and protocol holes, all fixed with fixtures.
+- **Evidence:**
+  - Clean clone: `pnpm install` + `uv sync`, then typecheck ✓, lint ✓, test ✓. That is vitest 14 + 14, jest-expo 3, pytest 39, boundary/bundle fixtures 36, and `coverage floors: ok` (worker 96%).
+  - The Stop hook exits 2 on a broken type. The pre-commit hook exits 1 on a planted token.
+  - Web bundle 291 KB gzipped (budget 450).
+  - CI green, 4/4 jobs: https://github.com/Hasdro/sotto/actions/runs/39166712190. Later pushes are re-run on PR #1.
+  - Screenshots: `docs/evidence/p1.3/`.
+- **Tried and rejected:**
+  - `expo install` fails in the cloud (api.expo.dev blocked by the proxy). Use the versions in `node_modules/expo/bundledNativeModules.json` with `pnpm add`.
+  - The datamodel-codegen `UUID` type with `pattern` crashes pydantic. UUIDs are mapped to strings with the pattern instead.
+  - The codegen builtin formatter reads the nearest pyproject, so its output changed by location. It is now piped through `ruff format --isolated`.
+  - Ignoring the two Expo-tooling audit advisories by raising the threshold was rejected. They are ignored by GHSA ID instead (T-001).
+  - Declined review suggestions:
+    - catching `o1`/`o3` model names (too many false positives);
+    - skipping `.json`/`.toml` dependency names in the model-name rule (no hits today; revisit if one appears).
+- **Next:** see Now (P2.1 via `/spec`). Owner items are in *Waiting on owner*.
+- **Notes:**
+  - Cloud sessions:
+    - Python 3.12 cannot be downloaded (github.com 403); uv uses the system 3.13, and CI covers 3.12;
+    - gitleaks installs via `go install github.com/zricethezav/gitleaks/v8@v8.30.1` (the Go proxy works);
+    - `docs.expo.dev` and `docs.livekit.io` are blocked, but WebFetch on GitHub READMEs works.
+  - React Native Testing Library v14 has an async `render`, so write `await render(...)`.
+  - `pnpm install` sets `core.hooksPath=.githooks`. The pre-commit hook only warns when gitleaks is missing.
 
 ### 2026-10-19 · local · Claude Opus 5.5 · setup (handoff kit)
 - **Done:**
