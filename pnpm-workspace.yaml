@@ -1,6 +1,7 @@
 packages:
   - apps/app
   - packages/*
+  - supabase/functions
 
 # Advisories with no patched version, reachable only through Expo's build/dev tooling (not shipped
 # in the app bundle). Each is tracked in docs/TRACKER.md → Known issues; remove when Expo updates.

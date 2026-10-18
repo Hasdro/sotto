@@ -1,0 +1,260 @@
+import type { CardMessage } from "@sotto/shared";
+import {
+  type CardsAction,
+  type CardsState,
+  cardsReducer,
+  initialCardsState,
+  MAX_CARDS,
+  selectCards,
+} from "./reducer";
+
+const CALL = "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c";
+const A = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d11";
+const B = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d12";
+const H = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d13";
+
+function msg(
+  over: Partial<CardMessage> & Pick<CardMessage, "card_id" | "seq" | "delta">,
+): CardMessage {
+  return { v: 1, call_id: CALL, type: "answer", source: "playbook", done: false, ...over };
+}
+
+const card = (m: CardMessage, now = 0): CardsAction => ({ type: "card", card: m, now });
+
+function run(actions: CardsAction[], from: CardsState = initialCardsState): CardsState {
+  return actions.reduce(cardsReducer, from);
+}
+
+describe("cardsReducer", () => {
+  it("renders the first delta immediately", () => {
+    const s = run([card(msg({ card_id: A, seq: 0, delta: "Ask what" }))]);
+    const [first] = selectCards(s);
+    expect(first?.text).toBe("Ask what");
+    expect(first?.done).toBe(false);
+  });
+
+  it("appends deltas in seq order", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "Ask " })),
+      card(msg({ card_id: A, seq: 1, delta: "what " })),
+      card(msg({ card_id: A, seq: 2, delta: "it includes." })),
+    ]);
+    expect(selectCards(s)[0]?.text).toBe("Ask what it includes.");
+  });
+
+  it("orders out-of-order deltas by seq", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 2, delta: "C" })),
+      card(msg({ card_id: A, seq: 0, delta: "A" })),
+      card(msg({ card_id: A, seq: 1, delta: "B" })),
+    ]);
+    expect(selectCards(s)[0]?.text).toBe("ABC");
+  });
+
+  it("shows a late first delta at once even when seq 0 never arrives", () => {
+    const s = run([card(msg({ card_id: A, seq: 3, delta: "partial" }))]);
+    expect(selectCards(s)[0]?.text).toBe("partial");
+  });
+
+  it("dedupes on (card_id, seq), keeping the first copy and the same state object", () => {
+    const s1 = run([card(msg({ card_id: A, seq: 0, delta: "one" }))]);
+    const s2 = cardsReducer(s1, card(msg({ card_id: A, seq: 0, delta: "other" })));
+    expect(s2).toBe(s1);
+    expect(selectCards(s2)[0]?.text).toBe("one");
+  });
+
+  it("does not dedupe the same seq across different cards", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "a" })),
+      card(msg({ card_id: B, seq: 0, delta: "b" })),
+    ]);
+    expect(selectCards(s).map((c) => c.text)).toEqual(["b", "a"]);
+  });
+
+  it("closes a card on done: true", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "Hi" })),
+      card(msg({ card_id: A, seq: 1, delta: " there.", done: true })),
+    ]);
+    expect(selectCards(s)[0]).toMatchObject({ text: "Hi there.", done: true, doneSeq: 1 });
+  });
+
+  it("accepts a late delta that fills a gap before the close, ignores one after it", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "A" })),
+      card(msg({ card_id: A, seq: 2, delta: "C", done: true })),
+      card(msg({ card_id: A, seq: 1, delta: "B" })),
+      card(msg({ card_id: A, seq: 3, delta: "X" })),
+    ]);
+    expect(selectCards(s)[0]).toMatchObject({ text: "ABC", done: true });
+  });
+
+  it("drops chunks numbered after the closing seq", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "A" })),
+      card(msg({ card_id: A, seq: 5, delta: "Z" })),
+      card(msg({ card_id: A, seq: 1, delta: "B", done: true })),
+    ]);
+    expect(selectCards(s)[0]?.text).toBe("AB");
+  });
+
+  it("a single done message is a complete card", () => {
+    const s = run([
+      card(
+        msg({
+          card_id: H,
+          seq: 0,
+          delta: "Let me confirm.",
+          type: "holding",
+          source: "holding",
+          done: true,
+        }),
+      ),
+    ]);
+    expect(selectCards(s)[0]).toMatchObject({ type: "holding", done: true });
+  });
+
+  it("lists the newest card first", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "first" })),
+      card(msg({ card_id: B, seq: 0, delta: "second" })),
+      card(msg({ card_id: A, seq: 1, delta: " more" })),
+    ]);
+    expect(selectCards(s).map((c) => c.id)).toEqual([B, A]);
+  });
+
+  it("keeps a label that only arrives on a later delta", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "x", source: "ai" })),
+      card(
+        msg({ card_id: A, seq: 1, delta: "y", source: "ai", label: "Not in playbook", done: true }),
+      ),
+      card(msg({ card_id: A, seq: 0, delta: "dup" })),
+    ]);
+    expect(selectCards(s)[0]?.label).toBe("Not in playbook");
+  });
+
+  it("keeps the timing once it arrives", () => {
+    const timing = { turn_end_ms: 1, stt_final_ms: 2, lookup_ms: 3, first_token_ms: 4 };
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "x", timing })),
+      card(msg({ card_id: A, seq: 1, delta: "y", timing: null })),
+    ]);
+    expect(selectCards(s)[0]?.timing).toEqual(timing);
+  });
+
+  describe("holding cards (R2)", () => {
+    const holding = msg({
+      card_id: H,
+      seq: 0,
+      delta: "Let me confirm that.",
+      type: "holding",
+      source: "holding",
+      done: true,
+    });
+
+    it("a newer card in the same turn replaces the holding card", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        card(holding, 1400),
+        card(msg({ card_id: A, seq: 0, delta: "It is included.", source: "ai" }), 1600),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A]);
+      expect(s.retired[H]).toBe(true);
+    });
+
+    it("late deltas of a replaced holding card stay dropped", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        card({ ...holding, done: false }),
+        card(msg({ card_id: A, seq: 0, delta: "Answer" })),
+        card({ ...holding, seq: 1, delta: " more" }),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A]);
+    });
+
+    it("a holding card from an earlier turn is not replaced", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        card(holding),
+        { type: "turn_end", now: 10 },
+        card(msg({ card_id: A, seq: 0, delta: "Next answer" })),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A, H]);
+    });
+
+    it("a holding card after a real card of the same turn is dropped", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        card(msg({ card_id: A, seq: 0, delta: "Answer" })),
+        card(holding),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A]);
+    });
+
+    it("a card whose source is holding counts as holding", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        card(msg({ card_id: H, seq: 0, delta: "Hold", source: "holding", type: "answer" })),
+        card(msg({ card_id: A, seq: 0, delta: "Real" })),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A]);
+    });
+
+    it("two real cards in one turn both stay", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        card(msg({ card_id: A, seq: 0, delta: "One" })),
+        card(msg({ card_id: B, seq: 0, delta: "Two", type: "question" })),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([B, A]);
+    });
+  });
+
+  describe("delay from the end of the customer's turn (R1)", () => {
+    it("records first-delta time minus turn_end time", () => {
+      const s = run([
+        { type: "turn_end", now: 1000 },
+        card(msg({ card_id: A, seq: 0, delta: "x" }), 1840),
+        card(msg({ card_id: A, seq: 1, delta: "y" }), 2500),
+      ]);
+      expect(selectCards(s)[0]).toMatchObject({ shownAfterMs: 840, firstSeenAt: 1840 });
+    });
+
+    it("is unknown before any turn_end", () => {
+      const s = run([card(msg({ card_id: A, seq: 0, delta: "x" }), 50)]);
+      expect(selectCards(s)[0]?.shownAfterMs).toBeNull();
+    });
+
+    it("assigns cards to the current turn", () => {
+      const s = run([
+        { type: "turn_end", now: 0 },
+        { type: "turn_end", now: 5 },
+        card(msg({ card_id: A, seq: 0, delta: "x" }), 6),
+      ]);
+      expect(selectCards(s)[0]?.turn).toBe(2);
+    });
+  });
+
+  it(`keeps at most ${MAX_CARDS} cards and ignores deltas for evicted ones`, () => {
+    const ids = Array.from(
+      { length: MAX_CARDS + 2 },
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    );
+    let s = run(ids.map((id) => card(msg({ card_id: id, seq: 0, delta: id }))));
+    expect(s.order).toHaveLength(MAX_CARDS);
+    const oldest = ids[0] as string;
+    expect(s.byId[oldest]).toBeUndefined();
+    s = cardsReducer(s, card(msg({ card_id: oldest, seq: 1, delta: "late" })));
+    expect(s.byId[oldest]).toBeUndefined();
+  });
+
+  it("reset clears everything", () => {
+    const s = run([
+      { type: "turn_end", now: 0 },
+      card(msg({ card_id: A, seq: 0, delta: "x" })),
+      { type: "reset" },
+    ]);
+    expect(s).toEqual(initialCardsState);
+  });
+});

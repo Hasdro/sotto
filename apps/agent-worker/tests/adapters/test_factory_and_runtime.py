@@ -52,7 +52,14 @@ def test_demo_fake_answers_objections_and_declines_unknown_facts() -> None:
             system="", messages=[Message(role="user", content=f"Kind of turn: {kind}.")]
         )
 
-    assert demo_fake_text(req("objection")).startswith("ANSWER:")
+    assert demo_fake_text(req("objection")).startswith("ANSWER: I hear you")
+    arabic = LLMRequest(
+        system="",
+        messages=[
+            Message(role="user", content="Kind of turn: objection. Write the card in Arabic.")
+        ],
+    )
+    assert demo_fake_text(arabic).startswith("ANSWER: أفهمك")
     assert demo_fake_text(req("question")) == "NO_SAFE_ANSWER"
 
 

@@ -1,0 +1,125 @@
+/** One past call: transcript and the cards shown (R1, R3). Mock data until Phase 5. */
+import {
+  Badge,
+  Button,
+  EmptyState,
+  layout,
+  Panel,
+  Screen,
+  SuggestionCard,
+  space,
+  Text,
+  TranscriptLine,
+} from "@sotto/ui";
+import { router, useLocalSearchParams } from "expo-router";
+import { StyleSheet, View } from "react-native";
+import { cardStrings, clock } from "../../features/call/components/strings";
+import { findCall } from "../../features/history/mock";
+import { OUTCOME_TONE } from "../../features/history/outcome";
+import { formatDateTime } from "../../lib/format";
+import { useI18n } from "../../lib/locale";
+import { useIsWide } from "../../lib/responsive";
+
+export default function CallDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { t, locale } = useI18n();
+  const wide = useIsWide();
+  const call = findCall(String(id));
+  const back = (
+    <Button
+      variant="ghost"
+      label={t("history.detail.back")}
+      onPress={() => router.push("/history")}
+    />
+  );
+  if (!call) {
+    return (
+      <Screen style={styles.center}>
+        <EmptyState
+          title={t("history.notFound")}
+          action={{ label: t("history.detail.back"), onPress: () => router.push("/history") }}
+        />
+      </Screen>
+    );
+  }
+  const transcript = (
+    <Panel style={styles.col}>
+      <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
+        {t("history.detail.transcript")}
+      </Text>
+      {call.transcript.map((l) => (
+        <TranscriptLine
+          key={`${l.atMs}-${l.speaker}`}
+          speaker={l.speaker}
+          speakerLabel={t(`call.speaker.${l.speaker}`)}
+          text={l.text}
+          time={clock(l.atMs)}
+        />
+      ))}
+    </Panel>
+  );
+  const cards = (
+    <View style={styles.col}>
+      <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
+        {t("history.detail.cards")}
+      </Text>
+      {call.cards.map((c) => (
+        <View key={`${c.atMs}-${c.type}`} style={styles.cardRow}>
+          <Text variant="label" tone="muted" style={styles.time}>
+            {clock(c.atMs)}
+          </Text>
+          <View style={styles.grow}>
+            <SuggestionCard
+              variant="compact"
+              type={c.type}
+              source={c.source}
+              text={c.text}
+              done
+              strings={cardStrings(t, c.type, c.source)}
+            />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+  return (
+    <Screen scroll maxWidth={layout.contentMaxWidth} testID="history-detail" style={styles.page}>
+      <View style={styles.backRow}>{back}</View>
+      <View style={styles.head}>
+        <Text variant="title" weight="semibold" accessibilityRole="header">
+          {call.customer}
+        </Text>
+        <View style={styles.metaRow}>
+          <Badge tone={OUTCOME_TONE[call.outcome]} label={t(`history.outcome.${call.outcome}`)} />
+          <Text variant="body" tone="muted">
+            {call.company}
+          </Text>
+          <Text variant="body" tone="muted">
+            {formatDateTime(call.startedAt, locale)}
+          </Text>
+          <Text variant="body" tone="muted">
+            {t("history.minutes", { count: call.minutes })}
+          </Text>
+        </View>
+      </View>
+      <View style={[styles.body, wide ? styles.bodyWide : null]}>
+        {wide ? transcript : cards}
+        {wide ? cards : transcript}
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: { paddingTop: space.lg },
+  center: { justifyContent: "center" },
+  backRow: { alignItems: "flex-start", marginStart: -space.lg },
+  head: { gap: space.sm, marginBottom: space.xl },
+  metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
+  body: { gap: space.xl },
+  bodyWide: { flexDirection: "row", alignItems: "flex-start" },
+  col: { flex: 1, gap: space.md },
+  cardRow: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
+  time: { width: 44, paddingTop: space.md },
+  grow: { flex: 1 },
+});

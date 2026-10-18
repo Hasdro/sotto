@@ -144,3 +144,22 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - The bridge binds to 127.0.0.1 only. It is dev-only and never part of a production build.
   - Its message schema lives in `packages/shared` like the card protocol.
   - Demo company content is fictional and lives in `seed/demo/`, never in `playbook/` (no invented content for the owner's real playbook).
+
+## D-014 — Visual direction "Prompter's box" (P3.1)
+2026-10-18 · accepted under D-013 (Claude's choice; the owner reviews the screenshots in `docs/evidence/p3/` and `docs/evidence/demo/`)
+- **Decision:**
+  - Quiet, cool surfaces with an ink-teal brand colour. The suggestion card is loud: one hue per card type, plus an 8 px voice bar on the side where reading starts.
+  - No shadows or gradients, and nothing moves on the read path.
+  - Typeface: Readex Pro (Latin + Arabic, 3 weights). Hero sentence 28 px on phones, 36 px from 900 px wide.
+  - One breakpoint at 900 px: bottom tabs and a thumb-reach composer below it; sidebar and transcript pane above it.
+  - Arabic uses Western digits.
+  - Details and the rejected second direction are in `docs/DESIGN.md`.
+- **Why:** The card must be readable in one glance mid-conversation (ENGINEERING §11, RESEARCH §6). A calm shell keeps attention on the card.
+- **New dependencies:** `@expo-google-fonts/readex-pro`, `expo-font` (DESIGN.md explains why).
+
+## D-015 — Edge-function logic is pure and unit-tested (P4.2)
+2026-10-18 · accepted under D-013
+- **Decision:**
+  - `supabase/functions` is a pnpm workspace package (`@sotto/functions`). Each function's decisions live in a pure module (for example `livekit-token/policy.ts`) with vitest tests.
+  - The Deno entry point only loads rows (caller JWT, so RLS applies), calls the policy, and talks to providers through `_shared/adapters/`.
+- **Why:** Cloud sessions have no Deno or Supabase runtime. Pure policies keep the security decisions tested in CI: membership, plan or trial, device revocation, destination allowlist, rate limit and least-privilege grants.

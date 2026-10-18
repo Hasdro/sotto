@@ -21,6 +21,8 @@ def demo_fake_text(req: LLMRequest) -> str:
     playbook does not cover get NO_SAFE_ANSWER, which shows the holding line + escalation (R2)."""
     prompt = (req.messages[-1].content if req.messages else "") + req.system
     if "Kind of turn: objection" in prompt:
+        if "in Arabic" in prompt:
+            return "ANSWER: أفهمك تماماً. ما الذي يجعل هذا القرار مريحاً لك؟"
         return "ANSWER: I hear you. What would make this feel like the right decision for you?"
     return "NO_SAFE_ANSWER"
 
