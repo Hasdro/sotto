@@ -173,6 +173,7 @@ class CallSession:
         self._events: list[TranscriptEvent] = []
         self._tasks: set[asyncio.Task[None]] = set()
         self._escalated: set[str] = set()
+        self.holding_at_ms = HOLDING_AT_MS
 
     async def warm(self) -> None:
         """Call start: open model connections for the live stage and its backup."""
@@ -261,7 +262,7 @@ class CallSession:
 
         task = asyncio.create_task(suggest())
         try:
-            finished = await self._wait(task, until_ms=turn.t0_ms + HOLDING_AT_MS)
+            finished = await self._wait(task, until_ms=turn.t0_ms + self.holding_at_ms)
             holding_sent = False
             if not finished and writer is None:
                 await self._holding(turn)
