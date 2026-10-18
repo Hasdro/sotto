@@ -14,7 +14,7 @@ objection.
 
 ## Status
 
-There is no application code yet; it is ready to build. This repository holds:
+A working local demo exists: the suggestion engine plus the web app, on fictional demo data. To run it on a Mac, see [`docs/RUN-ON-MAC.md`](docs/RUN-ON-MAC.md) (`pnpm demo`). Real phone calls come in Phase 4. This repository also holds:
 
 - the requirements;
 - the plan;
