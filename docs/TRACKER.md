@@ -162,7 +162,7 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Known issues and tech debt
 
-- **T-002** (2026-10-18) The card protocol has no `turn_id`. The app links a holding card to its turn by counting `turn_end` messages, which works only because the bridge sends `turn_end` before that turn's cards. Add an optional `turn_id` to the card and `turn_end` (protocol v1, additive) before live calls (Phase 4).
+- **T-002** (2026-10-18) — resolved the same night: cards and `turn_end` carry `turn_id`, and the app groups by it (commits a300a22, b5d81aa).
 - **T-003** (2026-10-18) zod adds about 90 KB to the web bundle (426 KB of the 450 KB budget). Consider a zod/mini parser in `packages/shared`.
 - **T-004** (2026-10-18) Drafting on partial transcripts (ARCHITECTURE §4) is not implemented. Today the suggest request starts on the final transcript.
 
@@ -212,10 +212,10 @@ followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** a
   - **Reviews:** latency, tenancy and two code reviews. All required findings were fixed with tests; the UI fixes went back to the UI agent.
 - **Evidence:**
   - worker `pytest` 199 passed, coverage floors ok;
-  - TS: shared 25, ui 102 + 31, app 90 (before the UI review fixes), functions 12;
+  - TS: shared 25, ui 102 + 34, app 112, functions 12;
   - `pnpm replay --all` (SYNTHETIC): p50 567 / p95 1148 ms, agent-triggered 0, outage drill p95 1285 ms PASS;
-  - `pnpm test:db`: 284 assertions; mutation checks on two policies fail as expected;
-  - web bundle 426/450 KB;
+  - `pnpm test:db`: 293 assertions (RLS matrix + escalation approval); mutation checks on two policies fail as expected;
+  - web bundle 428/450 KB;
   - e2e screenshots `docs/evidence/demo/`, with no console errors.
 - **Tried and rejected:**
   - Writing `.env.example`: the agent's deny rule blocks it, so the list is in `docs/ENV.md`.
@@ -224,7 +224,7 @@ followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** a
   - Pushing after every small commit cancels CI runs (concurrency). Batch pushes.
 - **Next:**
   1. The owner tries the demo (`docs/RUN-ON-MAC.md`) and reviews D-009…D-015.
-  2. Merge the UI review fixes (`turn_id` reducer, reconnect, `__DEV__` gating, a11y announce) if they are not in yet; check the tracker's T-items.
+  2. Check the tracker's T-items (T-003 bundle headroom, T-004 drafting on partials).
   3. P3.5 role switch, P6.2 prompt studio, P7.2 escalation → playbook.
   4. With accounts: P2.3 STT, P4.1 to P4.4 live calls.
 - **Notes:**
