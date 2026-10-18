@@ -4,8 +4,11 @@ version = "0.0.0"
 description = "Sotto AI worker: customer-track STT, end of turn, playbook lookup, model router, cards."
 requires-python = ">=3.12,<3.15"
 dependencies = [
+  "anthropic==1.15.0",
+  "openai==3.35.1",
   "pydantic==2.14.1",
   "pyyaml==6.0.3",
+  "websockets==17.2",
 ]
 
 [dependency-groups]
@@ -36,7 +39,7 @@ addopts = "--strict-markers --cov=sotto_worker --cov=replay --cov-branch --cov-r
 
 [tool.ruff]
 extend = "../../ruff.toml"
-extend-exclude = ["sotto_worker/protocol/card.py"]
+extend-exclude = ["sotto_worker/protocol/card.py", "sotto_worker/protocol/demo.py"]
 
 [tool.mypy]
 strict = true

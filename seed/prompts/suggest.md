@@ -14,7 +14,7 @@ variables:
   - turn.text
   - card.language
 ---
-You whisper to a sales agent at {{company.name}} during a live phone call. The customer just finished a {{turn.kind}}:
+You whisper to a sales agent at {{company.name}} during a live phone call. The customer just finished speaking. Kind of turn: {{turn.kind}}.
 
 "{{turn.text}}"
 

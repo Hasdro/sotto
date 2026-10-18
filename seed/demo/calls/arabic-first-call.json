@@ -1,0 +1,50 @@
+{
+  "id": "arabic-first-call",
+  "title": "مكالمة أولى بالعربية (Arabic first call)",
+  "language": "ar",
+  "synthetic": true,
+  "lines": [
+    {
+      "speaker": "agent",
+      "text": "مرحبا، معك عمر من بالم جروف. شفت إعلاننا؟",
+      "gap_ms": 500,
+      "duration_ms": 3000,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "أهلا، نعم شفته.",
+      "gap_ms": 400,
+      "duration_ms": 1500,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "كم السعر لشقة غرفة وحدة؟",
+      "gap_ms": 500,
+      "duration_ms": 2200,
+      "expect": "ai_or_holding"
+    },
+    {
+      "speaker": "agent",
+      "text": "تبدأ من مليون ومئتين ألف درهم.",
+      "gap_ms": 2500,
+      "duration_ms": 2500,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "السعر غالي شوي.",
+      "gap_ms": 600,
+      "duration_ms": 1600,
+      "expect": "ai_or_holding"
+    },
+    {
+      "speaker": "customer",
+      "text": "هل توجد مدرسة قريبة؟",
+      "gap_ms": 2500,
+      "duration_ms": 1800,
+      "expect": "ai_or_holding"
+    }
+  ]
+}

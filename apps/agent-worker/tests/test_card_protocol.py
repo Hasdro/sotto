@@ -48,11 +48,11 @@ def test_serialised_card_omits_unset_optional_fields() -> None:
     assert json.loads(card.to_wire()) == json.loads(raw)
 
 
-def test_generated_model_is_up_to_date(tmp_path: Path) -> None:
-    out = tmp_path / "card.py"
+@pytest.mark.parametrize("module", ["card.py", "demo.py"])
+def test_generated_model_is_up_to_date(tmp_path: Path, module: str) -> None:
     subprocess.run(  # noqa: S603 - fixed argv, our own script
-        [sys.executable, str(WORKER / "scripts" / "gen_card_model.py"), "--output", str(out)],
+        [sys.executable, str(WORKER / "scripts" / "gen_card_model.py"), "--out-dir", str(tmp_path)],
         check=True,
     )
-    committed = (WORKER / "sotto_worker" / "protocol" / "card.py").read_text()
-    assert out.read_text() == committed, "run `pnpm gen` and commit the result"
+    committed = (WORKER / "sotto_worker" / "protocol" / module).read_text()
+    assert (tmp_path / module).read_text() == committed, "run `pnpm gen` and commit the result"

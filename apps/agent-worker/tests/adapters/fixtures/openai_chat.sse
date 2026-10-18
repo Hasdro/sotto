@@ -1,0 +1,10 @@
+data: {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m", "choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": null}]}
+
+data: {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m", "choices": [{"index": 0, "delta": {"content": "ANSWER:"}, "finish_reason": null}]}
+
+data: {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m", "choices": [{"index": 0, "delta": {"content": " Yes."}, "finish_reason": null}]}
+
+data: {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m", "choices": [{"index": 0, "delta": {}, "finish_reason": null}]}
+
+data: [DONE]
+

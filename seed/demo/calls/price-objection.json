@@ -1,0 +1,78 @@
+{
+  "id": "price-objection",
+  "title": "Investor call: payment plan and price objection",
+  "language": "en",
+  "synthetic": true,
+  "lines": [
+    {
+      "speaker": "agent",
+      "text": "Hi, this is Omar from Palm Grove Realty. You asked about our new apartments?",
+      "gap_ms": 500,
+      "duration_ms": 3500,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "Yes, I saw your ad last week.",
+      "gap_ms": 400,
+      "duration_ms": 1800,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "agent",
+      "text": "Great. Are you looking to live there or to invest?",
+      "gap_ms": 400,
+      "duration_ms": 2500,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "Mostly invest. What's the payment plan?",
+      "gap_ms": 500,
+      "duration_ms": 2500,
+      "expect": "playbook"
+    },
+    {
+      "speaker": "agent",
+      "text": "Ten percent on booking, then fifty during construction and forty on handover.",
+      "gap_ms": 2500,
+      "duration_ms": 4000,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "Okay. Another company quoted us 20% less for something similar.",
+      "gap_ms": 600,
+      "duration_ms": 3200,
+      "expect": "playbook"
+    },
+    {
+      "speaker": "agent",
+      "text": "Is it too expensive for you, or is it more about the monthly payments?",
+      "gap_ms": 3000,
+      "duration_ms": 3000,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "Do you allow pets in the building?",
+      "gap_ms": 700,
+      "duration_ms": 2000,
+      "expect": "ai_or_holding"
+    },
+    {
+      "speaker": "agent",
+      "text": "Let me check that for you.",
+      "gap_ms": 2500,
+      "duration_ms": 1500,
+      "expect": "no_card"
+    },
+    {
+      "speaker": "customer",
+      "text": "Alright. I need to think about it.",
+      "gap_ms": 800,
+      "duration_ms": 2000,
+      "expect": "playbook"
+    }
+  ]
+}

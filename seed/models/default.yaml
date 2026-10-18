@@ -19,6 +19,8 @@ stages:
     provider: anthropic
     model: claude-haiku-5-5
     first_token_ms: 400
+    settings:
+      thinking: { type: disabled }
   suggest:
     provider: anthropic
     model: claude-haiku-5-5
@@ -26,6 +28,7 @@ stages:
     settings:
       max_tokens: 120
       temperature: 0.2
+      thinking: { type: disabled }   # no hidden reasoning before the first visible word (R1)
   suggest_backup:
     provider: openai
     model: gpt-5.4-mini     # verify the current ID at https://platform.openai.com/docs/models in P2.3
@@ -33,6 +36,7 @@ stages:
     settings:
       max_tokens: 120
       temperature: 0.2
+      reasoning_effort: minimal
   summary:
     provider: anthropic
     model: claude-sonnet-5-5
