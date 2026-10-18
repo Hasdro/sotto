@@ -1,3 +1,10 @@
 packages:
   - apps/app
   - packages/*
+
+# Advisories with no patched version, reachable only through Expo's build/dev tooling (not shipped
+# in the app bundle). Each is tracked in docs/TRACKER.md → Known issues; remove when Expo updates.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-86w9-cpqp-85rv # node-forge via @expo/cli (T-001)
+    - GHSA-vfj7-8cjw-p6xm # braces via metro-file-map (T-001)

@@ -156,7 +156,11 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Known issues and tech debt
 
-_None yet._
+- **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
+  - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
+  - GHSA-vfj7-8cjw-p6xm: braces via `metro-file-map`.
+
+  Both are listed in `pnpm-workspace.yaml` → `auditConfig.ignoreGhsas`. Remove them when Expo ships a fix; re-check at every Expo SDK upgrade.
 
 ## Ideas (not scheduled; need a requirement or decision first)
 

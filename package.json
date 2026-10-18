@@ -6,6 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "pnpm --filter @sotto/app dev",
     "typecheck": "pnpm -r --if-present typecheck && pnpm run typecheck:worker",
     "typecheck:worker": "cd apps/agent-worker && uv run --frozen mypy",

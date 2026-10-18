@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Blocks commits that contain secrets (P1.6). Enabled by `pnpm install` (core.hooksPath=.githooks).
+set -euo pipefail
+if command -v gitleaks >/dev/null 2>&1; then
+  exec gitleaks git --pre-commit --staged --redact --no-banner .
+fi
+echo "pre-commit: gitleaks is not installed, so staged files were NOT scanned for secrets." >&2
+echo "            Install it (macOS: brew install gitleaks). CI scans every push regardless." >&2
