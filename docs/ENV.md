@@ -13,4 +13,5 @@ Put these in `.env` at the repo root. `.env` is git-ignored; never commit it. Ev
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | live calls (Phase 4) | not used yet |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | app + worker (Phase 5) | not used yet |
 | `EXPO_PUBLIC_DEMO_BRIDGE_URL` | app: demo bridge address | `ws://127.0.0.1:8787` |
+| `EXPO_PUBLIC_SOTTO_DEMO` | app build: `1` enables the demo bridge in a production web build (set by `pnpm demo`) | production builds never connect to the bridge |
 | `SOTTO_RECORDINGS_DIR` | replay: golden-call audio outside git | the replay uses synthetic text calls only |

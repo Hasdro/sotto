@@ -88,6 +88,7 @@ export function connectBridge(
   // "open" is reported when the server says hello (the session reducer does that); a socket that
   // opens but never greets stays "connecting".
   socket.onmessage = (ev) => {
+    if (closed) return; // a frame already in flight when we closed belongs to the old session
     const msg = decodeServerFrame(ev.data);
     if (msg) handlers.onMessage(msg);
   };

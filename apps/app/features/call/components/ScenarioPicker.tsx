@@ -1,4 +1,4 @@
-import { Button, Panel, radius, space, Text, useTheme } from "@sotto/ui";
+import { Button, Panel, radius, size, space, Text, useTheme } from "@sotto/ui";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useI18n } from "../../../lib/locale";
@@ -90,19 +90,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    minHeight: 52,
+    minHeight: size.controlLg,
     paddingHorizontal: space.lg,
     borderWidth: 1,
     borderRadius: radius.md,
   },
   radio: {
-    width: 20,
-    height: 20,
+    width: size.radio,
+    height: size.radio,
     borderRadius: radius.pill,
-    borderWidth: 2,
+    borderWidth: size.stroke,
     alignItems: "center",
     justifyContent: "center",
   },
-  radioDot: { width: 10, height: 10, borderRadius: radius.pill },
+  radioDot: { width: size.radioDot, height: size.radioDot, borderRadius: radius.pill },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.sm },
 });

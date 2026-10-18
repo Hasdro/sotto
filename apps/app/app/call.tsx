@@ -1,9 +1,10 @@
 /**
  * In-call screen (R1, R2, R4): the hero of the product.
  *
- * Connects to the local demo bridge (D-013) at EXPO_PUBLIC_DEMO_BRIDGE_URL, default
- * ws://127.0.0.1:8787. `?mock=1` is DEV-ONLY: it replays a canned call through the same decoder
- * and reducer so the screen can be reviewed without the worker (features/call/mock-stream.ts).
+ * Development builds connect to the local demo bridge (D-013) at EXPO_PUBLIC_DEMO_BRIDGE_URL,
+ * default ws://127.0.0.1:8787. `?mock=1` is DEV-ONLY: it replays a canned call through the same
+ * decoder and reducer so the screen can be reviewed without the worker (mock-stream.ts).
+ * Production builds (`__DEV__` false) do neither and show a neutral Phase 4 state.
  */
 import {
   Button,
@@ -25,16 +26,33 @@ import { CardStack } from "../features/call/components/CardStack";
 import { Composer } from "../features/call/components/Composer";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
+import { demoEnabled } from "../features/call/devGate";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 
 export default function CallScreen() {
+  // demoEnabled() is constant for the life of the build, so the hook order never changes.
+  return demoEnabled() ? <DemoCallScreen /> : <NotInThisBuild />;
+}
+
+function DemoCallScreen() {
   const params = useLocalSearchParams<{ mock?: string }>();
   const { locale } = useI18n();
-  const session = useCallSession({ mock: params.mock === "1", locale });
-  return <CallView session={session} mock={params.mock === "1"} />;
+  const mock = params.mock === "1";
+  const session = useCallSession({ mock, locale });
+  return <CallView session={session} mock={mock} />;
+}
+
+/** Production builds: no local demo bridge and no mock calls (D-013). Exported for tests. */
+export function NotInThisBuild() {
+  const { t } = useI18n();
+  return (
+    <Screen testID="call-not-in-build" style={styles.center}>
+      <EmptyState title={t("call.notInThisBuild.title")} body={t("call.notInThisBuild.body")} />
+    </Screen>
+  );
 }
 
 /** The screen for a given session; exported for tests. */
@@ -112,7 +130,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       <Toast
         testID="toast"
         title={t(notice.kind === "escalation" ? "call.escalated.title" : "call.error.title")}
-        body={notice.text}
+        body={notice.kind === "escalation" ? notice.text : t("call.error.body")}
       />
     </View>
   ) : null;
@@ -170,5 +188,5 @@ const styles = StyleSheet.create({
   sideScroll: { flex: 1, padding: space.lg },
   ended: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
   toast: { position: "absolute", bottom: space.md, start: space.md, end: space.md },
-  toastWide: { bottom: space.xl, start: space.xxl, end: undefined, maxWidth: 420 },
+  toastWide: { bottom: space.xl, start: space.xxl, end: undefined, maxWidth: layout.toastMaxWidth },
 });

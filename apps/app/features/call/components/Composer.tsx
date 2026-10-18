@@ -3,6 +3,7 @@ import {
   minTouchTarget,
   radius,
   SegmentedControl,
+  size,
   space,
   Text,
   TextField,
@@ -125,5 +126,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.md,
   },
-  chipDot: { width: 8, height: 8, borderRadius: radius.pill },
+  chipDot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
 });

@@ -107,12 +107,48 @@ describe("sessionReducer", () => {
     expect(selectCards(s.cards)).toHaveLength(0);
   });
 
+  it("passes the turn_id of turn_end to the card reducer", () => {
+    const T = "11111111-1111-4111-8111-111111111111";
+    const s = run([server(started, 0), server({ type: "turn_end", at_ms: 5, turn_id: T }, 1000)]);
+    expect(s.cards.turnEnds[T]).toBe(1000);
+  });
+
+  it("a hello during a live call means the connection dropped: the call ends with a system line", () => {
+    const live = run([server(hello), server(started, 1000)]);
+    const s = sessionReducer(live, server(hello, 5000));
+    expect(s.phase).toBe("ended");
+    expect(s.endedAt).toBe(5000);
+    expect(s.transcript.at(-1)).toMatchObject({
+      speaker: "system",
+      system: "connection_lost",
+      atMs: 4000,
+    });
+    expect(selectCards(sessionReducer(s, server(cardMsg())).cards)).toHaveLength(0);
+  });
+
+  it("a hello when no call is live just refreshes the greeting", () => {
+    const s = run([server(hello), server({ ...hello, mode: "live" } as DemoServerMessage)]);
+    expect(s.phase).toBe("idle");
+    expect(s.hello?.mode).toBe("live");
+    expect(s.transcript).toHaveLength(0);
+  });
+
+  it("ignores an escalation outside a live call", () => {
+    const s = run([server(hello), server({ type: "escalation", question: "Q" })]);
+    expect(s).toMatchObject({ escalations: [], notice: null, transcript: [] });
+  });
+
   it("an escalation adds a system line, a record and a toast", () => {
     const s = run([
       server(started, 1000),
       server({ type: "escalation", question: "Bitcoin?" }, 4000),
     ]);
-    expect(s.transcript.at(-1)).toMatchObject({ speaker: "system", text: "Bitcoin?", atMs: 3000 });
+    expect(s.transcript.at(-1)).toMatchObject({
+      speaker: "system",
+      system: "escalation",
+      text: "Bitcoin?",
+      atMs: 3000,
+    });
     expect(s.escalations).toEqual([{ question: "Bitcoin?", at: 4000 }]);
     expect(s.notice).toMatchObject({ kind: "escalation", text: "Bitcoin?" });
   });
@@ -141,8 +177,8 @@ describe("sessionReducer", () => {
     expect(selectCards(s.cards)).toHaveLength(0);
   });
 
-  it("an error from the bridge becomes a toast", () => {
+  it("an error from the bridge becomes a toast (the raw message stays out of the UI)", () => {
     const s = run([server({ type: "error", message: "Unknown scenario" })]);
-    expect(s.notice).toMatchObject({ kind: "error", text: "Unknown scenario" });
+    expect(s.notice).toMatchObject({ kind: "error" });
   });
 });

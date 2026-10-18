@@ -4,12 +4,13 @@
  * Rules (ENGINEERING §4, R1, R2):
  * - Deltas are grouped by `card_id` and ordered by `seq`; a repeated `(card_id, seq)` is ignored.
  * - The first delta of a card renders at once, whatever its seq; later deltas fill in around it.
- * - `done: true` closes a card. Deltas with a higher seq than the closing one are ignored.
- * - A turn is the stretch between two `turn_end` events. A non-holding card replaces any holding
- *   card of the same turn; a holding card that arrives after a real card of its turn is dropped.
- *
- * The card protocol has no turn id, so the turn is the client's count of `turn_end` events at the
- * moment a card's first delta arrives (gap reported to the lead).
+ * - `done: true` closes a card. Text already shown is never removed; after the close, deltas
+ *   numbered above every seq received so far are ignored.
+ * - A card's type and source are fixed by its first delta.
+ * - Turns are keyed by the card's `turn_id` (the customer turn it answers). Only when it is
+ *   absent does the client fall back to counting `turn_end` events. A non-holding card replaces
+ *   the holding card of the same turn; a holding card is dropped only when its own turn already
+ *   has a real card.
  */
 import type { CardMessage, CardSource, CardType } from "@sotto/shared";
 
@@ -27,8 +28,8 @@ export type CardView = {
   /** All deltas received so far, in seq order. */
   text: string;
   done: boolean;
-  /** Index of the turn this card belongs to (count of turn_end events seen before it). */
-  turn: number;
+  /** The turn this card answers: its turn_id, or `n:<count of turn_end events>` without one. */
+  turnKey: string;
   /** Client clock (ms) when the first delta arrived. */
   firstSeenAt: number;
   /** Client-side delay from the turn_end that opened this turn to the first delta, if known. */
@@ -48,13 +49,15 @@ export type CardsState = {
   turn: number;
   /** Client clock of the last turn_end. */
   turnEndedAt: number | null;
+  /** Client clock of each turn_end that carried a turn_id. */
+  turnEnds: Readonly<Record<string, number>>;
   /** Ids replaced or evicted; late deltas for them are ignored. */
   retired: Readonly<Record<string, true>>;
 };
 
 export type CardsAction =
   | { type: "card"; card: CardMessage; now: number }
-  | { type: "turn_end"; now: number }
+  | { type: "turn_end"; now: number; turnId?: string | null }
   | { type: "reset" };
 
 export const initialCardsState: CardsState = {
@@ -62,8 +65,12 @@ export const initialCardsState: CardsState = {
   byId: {},
   turn: 0,
   turnEndedAt: null,
+  turnEnds: {},
   retired: {},
 };
+
+/** turn_end times kept per call; older ones are dropped. */
+const MAX_TURN_ENDS = 100;
 
 function joinChunks(chunks: Readonly<Record<number, string>>): string {
   return Object.keys(chunks)
@@ -81,8 +88,14 @@ export function cardsReducer(state: CardsState, action: CardsAction): CardsState
   switch (action.type) {
     case "reset":
       return initialCardsState;
-    case "turn_end":
-      return { ...state, turn: state.turn + 1, turnEndedAt: action.now };
+    case "turn_end": {
+      let turnEnds = state.turnEnds;
+      if (action.turnId) {
+        const kept = Object.entries(turnEnds).slice(-(MAX_TURN_ENDS - 1));
+        turnEnds = { ...Object.fromEntries(kept), [action.turnId]: action.now };
+      }
+      return { ...state, turn: state.turn + 1, turnEndedAt: action.now, turnEnds };
+    }
     case "card":
       return applyCard(state, action.card, action.now);
   }
@@ -94,10 +107,23 @@ function applyCard(state: CardsState, msg: CardMessage, now: number): CardsState
   return existing ? updateCard(state, existing, msg) : openCard(state, msg, now);
 }
 
+function turnKeyOf(state: CardsState, msg: CardMessage): string {
+  return msg.turn_id ?? `n:${state.turn}`;
+}
+
+function shownAfter(state: CardsState, msg: CardMessage, now: number): number | null {
+  if (msg.turn_id) {
+    const at = state.turnEnds[msg.turn_id];
+    return at === undefined ? null : Math.max(0, now - at);
+  }
+  return state.turnEndedAt !== null && state.turn > 0 ? Math.max(0, now - state.turnEndedAt) : null;
+}
+
 function openCard(state: CardsState, msg: CardMessage, now: number): CardsState {
+  const turnKey = turnKeyOf(state, msg);
   const turnCards = state.order
     .map((id) => state.byId[id])
-    .filter((c): c is CardView => c !== undefined && c.turn === state.turn);
+    .filter((c): c is CardView => c !== undefined && c.turnKey === turnKey);
 
   if (isHolding(msg) && turnCards.some((c) => !isHolding(c))) {
     // The real answer already arrived for this turn; a late holding line would only distract.
@@ -112,10 +138,9 @@ function openCard(state: CardsState, msg: CardMessage, now: number): CardsState 
     label: msg.label ?? null,
     text: msg.delta,
     done: msg.done,
-    turn: state.turn,
+    turnKey,
     firstSeenAt: now,
-    shownAfterMs:
-      state.turnEndedAt !== null && state.turn > 0 ? Math.max(0, now - state.turnEndedAt) : null,
+    shownAfterMs: shownAfter(state, msg, now),
     timing: msg.timing ?? null,
     chunks: { [msg.seq]: msg.delta },
     doneSeq: msg.done ? msg.seq : null,
@@ -141,22 +166,17 @@ function openCard(state: CardsState, msg: CardMessage, now: number): CardsState 
 function updateCard(state: CardsState, card: CardView, msg: CardMessage): CardsState {
   if (msg.seq in card.chunks) return state; // duplicate (card_id, seq)
   if (card.doneSeq !== null && msg.seq > card.doneSeq) return state; // after the close
-  let chunks: Record<number, string> = { ...card.chunks, [msg.seq]: msg.delta };
-  if (msg.done) {
-    // The closing seq is the last one; anything numbered after it was never part of the card.
-    chunks = Object.fromEntries(Object.entries(chunks).filter(([seq]) => Number(seq) <= msg.seq));
-  }
-  const done = card.done || msg.done;
+  const chunks: Record<number, string> = { ...card.chunks, [msg.seq]: msg.delta };
+  // The close is at the highest seq seen, so a short `done` never removes text already shown.
+  const doneSeq = msg.done ? Math.max(...Object.keys(chunks).map(Number)) : card.doneSeq;
   const next: CardView = {
     ...card,
-    type: msg.type,
-    source: msg.source,
     label: msg.label ?? card.label,
     timing: msg.timing ?? card.timing,
     chunks,
     text: joinChunks(chunks),
-    done,
-    doneSeq: msg.done ? msg.seq : card.doneSeq,
+    done: card.done || msg.done,
+    doneSeq,
   };
   return { ...state, byId: { ...state.byId, [card.id]: next } };
 }

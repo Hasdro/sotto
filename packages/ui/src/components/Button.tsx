@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Pressable, type StyleProp, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../theme.tsx";
-import { type Hex, minTouchTarget, radius, space } from "../tokens.ts";
+import { type Hex, minTouchTarget, radius, size, space } from "../tokens.ts";
 import { Text } from "./Text.tsx";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: space.sm,
   },
-  lg: { minHeight: 52, paddingHorizontal: space.xl },
+  lg: { minHeight: size.controlLg, paddingHorizontal: space.xl },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.45 },
 });

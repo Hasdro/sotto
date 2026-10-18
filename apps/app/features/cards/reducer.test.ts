@@ -12,6 +12,8 @@ const CALL = "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c";
 const A = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d11";
 const B = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d12";
 const H = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d13";
+const T1 = "11111111-1111-4111-8111-111111111111";
+const T2 = "22222222-2222-4222-8222-222222222222";
 
 function msg(
   over: Partial<CardMessage> & Pick<CardMessage, "card_id" | "seq" | "delta">,
@@ -89,13 +91,24 @@ describe("cardsReducer", () => {
     expect(selectCards(s)[0]).toMatchObject({ text: "ABC", done: true });
   });
 
-  it("drops chunks numbered after the closing seq", () => {
+  it("a done with a lower seq than chunks already shown never deletes shown text", () => {
     const s = run([
       card(msg({ card_id: A, seq: 0, delta: "A" })),
       card(msg({ card_id: A, seq: 5, delta: "Z" })),
       card(msg({ card_id: A, seq: 1, delta: "B", done: true })),
     ]);
-    expect(selectCards(s)[0]?.text).toBe("AB");
+    expect(selectCards(s)[0]).toMatchObject({ text: "ABZ", done: true });
+    // Nothing numbered after the highest shown seq is accepted once closed.
+    const s2 = cardsReducer(s, card(msg({ card_id: A, seq: 6, delta: "late" })));
+    expect(s2).toBe(s);
+  });
+
+  it("fixes a card's type and source at its first delta", () => {
+    const s = run([
+      card(msg({ card_id: A, seq: 0, delta: "x", type: "answer", source: "playbook" })),
+      card(msg({ card_id: A, seq: 1, delta: "y", type: "warning", source: "ai" })),
+    ]);
+    expect(selectCards(s)[0]).toMatchObject({ type: "answer", source: "playbook", text: "xy" });
   });
 
   it("a single done message is a complete card", () => {
@@ -201,6 +214,49 @@ describe("cardsReducer", () => {
       expect(selectCards(s).map((c) => c.id)).toEqual([A]);
     });
 
+    it("keys turns by turn_id: a late answer replaces its own holding card, the next holding card stays", () => {
+      const H1 = H;
+      const H2 = "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d14";
+      const s = run([
+        { type: "turn_end", now: 0, turnId: T1 },
+        card({ ...holding, card_id: H1, turn_id: T1 }, 1400),
+        { type: "turn_end", now: 3000, turnId: T2 },
+        card(msg({ card_id: A, seq: 0, delta: "Late answer", source: "ai", turn_id: T1 }), 3500),
+        card({ ...holding, card_id: H2, turn_id: T2 }, 4400),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([H2, A]);
+      expect(s.retired[H1]).toBe(true);
+    });
+
+    it("never drops a holding card for a turn that has no answer yet", () => {
+      const s = run([
+        { type: "turn_end", now: 0, turnId: T1 },
+        card(msg({ card_id: A, seq: 0, delta: "Answer", turn_id: T1 })),
+        { type: "turn_end", now: 10, turnId: T2 },
+        card({ ...holding, turn_id: T2 }),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([H, A]);
+    });
+
+    it("a holding card whose turn_id already has an answer is dropped", () => {
+      const s = run([
+        { type: "turn_end", now: 0, turnId: T1 },
+        card(msg({ card_id: A, seq: 0, delta: "Answer", turn_id: T1 })),
+        { type: "turn_end", now: 10, turnId: T2 },
+        card({ ...holding, turn_id: T1 }),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A]);
+    });
+
+    it("an answer with a turn_id does not replace a holding card of another turn", () => {
+      const s = run([
+        { type: "turn_end", now: 0, turnId: T2 },
+        card({ ...holding, turn_id: T2 }),
+        card(msg({ card_id: A, seq: 0, delta: "Answer", turn_id: T1 })),
+      ]);
+      expect(selectCards(s).map((c) => c.id)).toEqual([A, H]);
+    });
+
     it("two real cards in one turn both stay", () => {
       const s = run([
         { type: "turn_end", now: 0 },
@@ -226,13 +282,27 @@ describe("cardsReducer", () => {
       expect(selectCards(s)[0]?.shownAfterMs).toBeNull();
     });
 
-    it("assigns cards to the current turn", () => {
+    it("without turn_id, assigns cards to the turn counted from turn_end events", () => {
       const s = run([
         { type: "turn_end", now: 0 },
         { type: "turn_end", now: 5 },
         card(msg({ card_id: A, seq: 0, delta: "x" }), 6),
       ]);
-      expect(selectCards(s)[0]?.turn).toBe(2);
+      expect(selectCards(s)[0]?.turnKey).toBe("n:2");
+    });
+
+    it("with turn_id, measures from the turn_end of that turn, not the latest one", () => {
+      const s = run([
+        { type: "turn_end", now: 1000, turnId: T1 },
+        { type: "turn_end", now: 3000, turnId: T2 },
+        card(msg({ card_id: A, seq: 0, delta: "late", turn_id: T1 }), 3500),
+      ]);
+      expect(selectCards(s)[0]).toMatchObject({ turnKey: T1, shownAfterMs: 2500 });
+    });
+
+    it("with an unknown turn_id the delay is unknown", () => {
+      const s = run([card(msg({ card_id: A, seq: 0, delta: "x", turn_id: T2 }), 10)]);
+      expect(selectCards(s)[0]?.shownAfterMs).toBeNull();
     });
   });
 

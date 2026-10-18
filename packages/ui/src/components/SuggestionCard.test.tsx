@@ -127,6 +127,21 @@ describe("SuggestionCard", () => {
   });
 });
 
+describe("SuggestionCard glyphs in RTL", () => {
+  it.each([
+    ["answer", "”"],
+    ["question", "؟"],
+    ["warning", "!"],
+  ] as const)("%s uses %s in RTL", async (type, glyph) => {
+    await render(
+      <UIProvider direction="rtl">
+        <SuggestionCard type={type} source="playbook" text="x" done strings={strings} />
+      </UIProvider>,
+    );
+    expect(screen.getByText(glyph, { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+});
+
 describe("noticeFor", () => {
   it("returns null for playbook and holding sources without a label", () => {
     expect(noticeFor("playbook", null, "n")).toBeNull();

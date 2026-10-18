@@ -101,6 +101,19 @@ describe("demo bridge client", () => {
     expect(sock.sent).toEqual(['{"type":"start","scenario_id":"price-objection"}']);
   });
 
+  it("ignores frames that arrive after close", () => {
+    const messages: unknown[] = [];
+    const bridge = connectBridge(
+      "ws://test",
+      { onStatus: () => {}, onMessage: (m) => messages.push(m) },
+      factory,
+    );
+    const sock = FakeSocket.last as FakeSocket;
+    bridge.close();
+    sock.onmessage?.({ data: valid });
+    expect(messages).toHaveLength(0);
+  });
+
   it("a deliberate close does not report offline", () => {
     const statuses: string[] = [];
     const bridge = connectBridge(

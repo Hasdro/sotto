@@ -15,7 +15,8 @@ if (!args.includes("--no-build") || !existsSync(join(dist, "index.html"))) {
   const build = spawnSync("pnpm", ["--filter", "@sotto/app", "export:web"], {
     cwd: root,
     stdio: "inherit",
-    env: { ...process.env, CI: "1" },
+    // The demo bridge only runs in builds that opt in (apps/app/features/call/devGate.ts).
+    env: { ...process.env, CI: "1", EXPO_PUBLIC_SOTTO_DEMO: "1" },
   });
   if (build.status !== 0) process.exit(build.status ?? 1);
 }

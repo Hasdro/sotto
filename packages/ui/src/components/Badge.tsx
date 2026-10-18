@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../theme.tsx";
-import { type CardKind, type Hex, radius, space } from "../tokens.ts";
+import { type CardKind, type Hex, radius, size, space } from "../tokens.ts";
 import { Text } from "./Text.tsx";
 
 /** Card-type tones reuse the card palettes, so "approximate" (objection amber) reads as caution. */
@@ -59,5 +59,5 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs - 1,
     borderRadius: radius.pill,
   },
-  dot: { width: 8, height: 8, borderRadius: radius.pill },
+  dot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
 });

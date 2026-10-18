@@ -108,7 +108,7 @@ One palette per card type in the protocol (`answer`, `question`, `objection`, `w
 
 | Type | Meaning to the agent | Hue | Icon (glyph in a disc) | Label (en / ar) |
 |---|---|---|---|---|
-| `answer` | Say this | teal (brand family) | `“` | Answer / إجابة |
+| `answer` | Say this | teal (brand family) | `“` (`”` in RTL) | Answer / إجابة |
 | `question` | Ask this next | indigo | `?` (`؟` in RTL) | Ask next / اسأل بعدها |
 | `objection` | Handle the pushback | amber | `≠` | Objection / اعتراض |
 | `warning` | Do not say or promise this | red | `!` | Careful / انتبه |
@@ -148,7 +148,8 @@ Colour is never the only signal: every card also has its icon and its type name 
 | `radius` | sm 6, md 10, lg 16, xl 22, pill 999 | grows with the element: notice 6, controls 10, panels and compact cards 16, hero card 22, badges pill |
 | `minTouchTarget` | 44 | every control is at least 44 × 44 pt; primary agent actions use `Button size="lg"` (52) |
 | `motion` | fast 120, base 200, toastMs 8000 | see §7 |
-| `layout` | wideBreakpoint 900, sidebarWidth 248, transcriptWidth 380, contentMaxWidth 1180, readableMaxWidth 760 | see §6 |
+| `size` | stroke 2, bar 4, voiceBar 8, dot 8, iconSm 20, iconMd 28, radio 20, radioDot 10, controlLg 52, listenMark 24 | fixed sizes of small marks, strokes and large controls; no other literal sizes in in-call code |
+| `layout` | wideBreakpoint 900, heroMinHeight 200, toastMaxWidth 420, sidebarWidth 248, transcriptWidth 380, contentMaxWidth 1180, readableMaxWidth 760 | see §6 |
 
 Elevation: none. Surfaces are separated by colour and 1 px borders, never by shadows.
 
@@ -209,6 +210,15 @@ The gallery at `/gallery` shows every component in light and dark, LTR and RTL.
   exist (see the gallery); the mode arrives with live calls in Phase 4.
 - **Screen readers** get one label per card: type, notice, text, plus "still arriving" while
   it streams. The card is not a live region, so deltas are not read out word by word.
+- **Announcement.** Each new hero card is announced once with
+  `AccessibilityInfo.announceForAccessibility`, **when it is done**, not at its first delta.
+  The first delta is a fragment ("Ask what"); announcing it would cut the agent off mid-sentence
+  and need a second announcement. Deltas finish well within a second, and the sighted R1 clock
+  still stops at the first delta. Holding cards arrive done and are announced at once.
+- **Turns.** A card belongs to the customer turn named by its `turn_id`. A real card replaces
+  the holding card of its own turn, even when it arrives after the next turn has started; a
+  holding card is dropped only if its own turn already has a real card. Without a `turn_id`
+  the app falls back to counting `turn_end` messages.
 
 ## 6. Layout
 
@@ -285,7 +295,8 @@ Team, Prompts, Models, Settings.
   `borderStartWidth`. No `left`/`right`. Rows flip automatically.
 - **Text:** never set `textAlign: "left"`; the natural alignment follows the language.
   Centred text stays centred.
-- **Glyphs:** the question icon becomes `؟` in RTL. Arrows are avoided, so none need mirroring.
+- **Glyphs:** in RTL the question icon becomes `؟` and the answer quote mark becomes `”`.
+  Arrows are avoided, so nothing else needs mirroring.
 - **Numbers and times:**
   - Western digits in both languages, as UAE apps commonly do (`formatNumber`, `lib/format.ts`
     with `numberingSystem: "latn"`);
@@ -333,6 +344,14 @@ glyphs, motion is not used, navigation is expo-router `Slot` with a custom shell
 string table is a small typed module.
 
 ## 12. Dev-only pieces
+
+- The demo bridge connection and `?mock=1` run only when `__DEV__` is true
+  (`features/call/devGate.ts`). A production build opens no socket to 127.0.0.1, shows no mock
+  call, and renders "Live calls arrive in Phase 4" on the call screen. Screenshots of the mock
+  call therefore need the dev server (`expo start --web`), not `export:web`.
+- If the bridge greets again during a live call (it restarted), the call ends with a
+  "Connection lost" line in the transcript. While offline the app retries every 3 s.
+- Server `error` messages show a generic localised line; the raw text goes to the console.
 
 - `?mock=1` on `/call` replays a canned, fictional demo call (`features/call/mock-stream.ts`).
   - It goes through the same JSON decoder (`parseDemoServerMessage`) and the same reducers as

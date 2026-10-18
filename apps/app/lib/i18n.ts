@@ -71,6 +71,13 @@ const en = {
   "call.composer.send": "Send",
   "call.escalated.title": "Sent to your manager",
   "call.error.title": "The demo reported a problem",
+  "call.error.body": "Details are in the terminal where pnpm demo runs.",
+  "call.connectionLost.title": "Connection lost",
+  "call.connectionLost.body":
+    "The demo restarted, so this call ended. Start another call to go on.",
+  "call.notInThisBuild.title": "Live calls arrive in Phase 4",
+  "call.notInThisBuild.body":
+    "This build does not include the local demo. Use the dev server (pnpm demo) to try the in-call screen.",
   "call.mockBadge": "Mock stream (dev only)",
   "call.approximate": "Approximate: speaker matching",
 
@@ -240,6 +247,13 @@ const ar: Record<StringKey, string> = {
   "call.composer.send": "إرسال",
   "call.escalated.title": "أُرسل إلى مديرك",
   "call.error.title": "أبلغ العرض التجريبي عن مشكلة",
+  "call.error.body": "التفاصيل في الطرفية التي يعمل فيها pnpm demo.",
+  "call.connectionLost.title": "انقطع الاتصال",
+  "call.connectionLost.body":
+    "أُعيد تشغيل العرض التجريبي فانتهت هذه المكالمة. ابدأ مكالمة أخرى للمتابعة.",
+  "call.notInThisBuild.title": "المكالمات المباشرة تصل في المرحلة 4",
+  "call.notInThisBuild.body":
+    "هذا الإصدار لا يتضمن العرض التجريبي المحلي. استخدم خادم التطوير (pnpm demo) لتجربة شاشة المكالمة.",
   "call.mockBadge": "بث تجريبي (للتطوير فقط)",
   "call.approximate": "تقريبي: مطابقة الصوت",
 

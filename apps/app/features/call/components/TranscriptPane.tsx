@@ -27,8 +27,12 @@ export function TranscriptPane({ lines, limit, scroll }: Props) {
         <TranscriptLine
           key={l.id}
           speaker={l.speaker}
-          speakerLabel={t(`call.speaker.${l.speaker}`)}
-          text={l.text}
+          speakerLabel={
+            l.system === "connection_lost"
+              ? t("call.connectionLost.title")
+              : t(`call.speaker.${l.speaker}`)
+          }
+          text={l.system === "connection_lost" ? t("call.connectionLost.body") : l.text}
           time={l.speaker === "system" ? undefined : clock(l.atMs)}
         />
       ))

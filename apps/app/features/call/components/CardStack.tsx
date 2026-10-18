@@ -1,5 +1,6 @@
-import { radius, SuggestionCard, space, Text, useTheme } from "@sotto/ui";
-import { StyleSheet, View } from "react-native";
+import { layout, noticeFor, radius, SuggestionCard, size, space, Text, useTheme } from "@sotto/ui";
+import { useEffect, useRef } from "react";
+import { AccessibilityInfo, StyleSheet, View } from "react-native";
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { CardView } from "../../cards/reducer";
@@ -20,6 +21,7 @@ type Props = { cards: readonly CardView[]; wide: boolean; listening: boolean };
 export function CardStack({ cards, wide, listening }: Props) {
   const { t, locale } = useI18n();
   const [hero, ...earlier] = cards;
+  useAnnounceWhenDone(hero);
   return (
     <View style={styles.stack}>
       {hero ? (
@@ -65,6 +67,32 @@ export function CardStack({ cards, wide, listening }: Props) {
   );
 }
 
+/**
+ * Screen readers hear each hero card once, when it is complete (DESIGN.md §9). Announcing the
+ * first delta would read a fragment ("Ask what") and cut off the rest; deltas stream in well
+ * under a second, so waiting for `done` costs little and gives one whole sentence.
+ */
+function useAnnounceWhenDone(hero: CardView | undefined) {
+  const { t } = useI18n();
+  const announced = useRef(new Set<string>());
+  const label = hero
+    ? [
+        t(`card.type.${hero.type}`),
+        noticeFor(hero.source, hero.label, t("card.notInPlaybook")),
+        hero.text,
+      ]
+        .filter(Boolean)
+        .join(". ")
+    : "";
+  const ready = hero?.done === true && !announced.current.has(hero.id);
+  const id = hero?.id;
+  useEffect(() => {
+    if (!ready || !id || announced.current.has(id)) return;
+    announced.current.add(id);
+    AccessibilityInfo.announceForAccessibility(label);
+  }, [ready, id, label]);
+}
+
 function Listening() {
   const { color } = useTheme();
   const { t } = useI18n();
@@ -97,9 +125,9 @@ const styles = StyleSheet.create({
   stack: { gap: space.xl },
   earlier: { gap: space.sm },
   listening: {
-    minHeight: 200,
+    minHeight: layout.heroMinHeight,
     borderRadius: radius.xl,
-    borderWidth: 1.5,
+    borderWidth: size.stroke,
     borderStyle: "dashed",
     padding: space.xl,
     gap: space.sm,
@@ -108,9 +136,9 @@ const styles = StyleSheet.create({
   bars: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 4,
-    height: 24,
+    gap: space.xs,
+    height: size.listenMark,
     marginBottom: space.sm,
   },
-  barMark: { width: 4, borderRadius: radius.pill },
+  barMark: { width: size.bar, borderRadius: radius.pill },
 });

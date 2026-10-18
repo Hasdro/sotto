@@ -13,6 +13,9 @@ export type Speaker = "customer" | "agent";
 export type TranscriptEntry = {
   id: number;
   speaker: Speaker | "system";
+  /** For system lines: what happened. The screen picks the localised label from it. */
+  system?: "escalation" | "connection_lost";
+  /** Speech or the escalated question; empty for connection_lost (the screen supplies the text). */
   text: string;
   /** ms since call start (server clock for speech, client clock for system lines). */
   atMs: number;
@@ -83,8 +86,18 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
 
 function applyServer(state: SessionState, msg: DemoServerMessage, now: number): SessionState {
   switch (msg.type) {
-    case "hello":
-      return { ...state, connection: "open", hello: msg };
+    case "hello": {
+      const greeted = { ...state, connection: "open" as const, hello: msg };
+      if (state.phase !== "live") return greeted;
+      // A new greeting mid-call means the socket dropped and reconnected: the server has no
+      // memory of this call, so it is over. Say so in the transcript.
+      const atMs = state.startedAt === null ? 0 : Math.max(0, now - state.startedAt);
+      return {
+        ...appendLine(greeted, { speaker: "system", system: "connection_lost", text: "", atMs }),
+        phase: "ended",
+        endedAt: now,
+      };
+    }
     case "call_started":
       return {
         ...state,
@@ -102,7 +115,10 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
       return appendLine(state, { speaker: msg.speaker, text: msg.text, atMs: msg.at_ms });
     case "turn_end":
       if (state.phase !== "live") return state;
-      return { ...state, cards: cardsReducer(state.cards, { type: "turn_end", now }) };
+      return {
+        ...state,
+        cards: cardsReducer(state.cards, { type: "turn_end", now, turnId: msg.turn_id ?? null }),
+      };
     case "card":
       // Only cards of the current call; a stray card from an earlier call is dropped.
       if (state.phase !== "live" || (state.callId !== null && msg.card.call_id !== state.callId)) {
@@ -110,8 +126,14 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
       }
       return { ...state, cards: cardsReducer(state.cards, { type: "card", card: msg.card, now }) };
     case "escalation": {
+      if (state.phase !== "live") return state;
       const atMs = state.startedAt === null ? 0 : Math.max(0, now - state.startedAt);
-      const next = appendLine(state, { speaker: "system", text: msg.question, atMs });
+      const next = appendLine(state, {
+        speaker: "system",
+        system: "escalation",
+        text: msg.question,
+        atMs,
+      });
       return {
         ...next,
         escalations: [...state.escalations, { question: msg.question, at: now }],

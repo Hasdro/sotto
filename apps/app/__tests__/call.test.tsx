@@ -2,12 +2,14 @@ import type { CardMessage, DemoServerMessage } from "@sotto/shared";
 import { themes } from "@sotto/ui";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import * as RN from "react-native";
-import { CallView } from "../app/call";
+import CallScreen, { CallView } from "../app/call";
+import { demoEnabled } from "../features/call/devGate";
 import { initialSessionState, type SessionState, sessionReducer } from "../features/call/session";
 import type { CallSession } from "../features/call/useCallSession";
 import { useIsWide } from "../lib/responsive";
 
 jest.mock("../lib/responsive", () => ({ useIsWide: jest.fn(() => false) }));
+jest.mock("../features/call/devGate", () => ({ demoEnabled: jest.fn(() => true) }));
 
 const CALL = "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c";
 const hello: DemoServerMessage = {
@@ -60,6 +62,58 @@ describe("in-call screen", () => {
   afterEach(() => {
     jest.restoreAllMocks();
     jest.mocked(useIsWide).mockReturnValue(false);
+    jest.mocked(demoEnabled).mockReturnValue(true);
+  });
+
+  it("a production build shows the Phase 4 state and opens no socket", async () => {
+    jest.mocked(demoEnabled).mockReturnValue(false);
+    const ws = jest.fn();
+    const original = globalThis.WebSocket;
+    globalThis.WebSocket = ws as unknown as typeof WebSocket;
+    try {
+      await render(<CallScreen />);
+      expect(screen.getByText("Live calls arrive in Phase 4")).toBeOnTheScreen();
+      expect(screen.queryByText("Mock stream (dev only)")).toBeNull();
+      expect(ws).not.toHaveBeenCalled();
+    } finally {
+      globalThis.WebSocket = original;
+    }
+  });
+
+  it("announces the hero card to screen readers once, when it is complete", async () => {
+    const announce = jest
+      .spyOn(RN.AccessibilityInfo, "announceForAccessibility")
+      .mockImplementation(() => {});
+    const base = [hello, { type: "call_started", call_id: CALL } as DemoServerMessage];
+    const streaming = stateFrom([...base, card({ source: "ai" })]);
+    const view = await render(<CallView session={session(streaming)} mock={false} />);
+    expect(announce).not.toHaveBeenCalled();
+    const done = stateFrom([
+      ...base,
+      card({ source: "ai" }),
+      card({ seq: 1, delta: " today.", done: true }),
+    ]);
+    await view.rerender(<CallView session={session(done)} mock={false} />);
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith(
+      "Answer. Not in playbook — check before promising. Offer a viewing today.",
+    );
+    await view.rerender(<CallView session={session(done)} mock={false} />);
+    expect(announce).toHaveBeenCalledTimes(1);
+  });
+
+  it("a dropped connection mid-call ends it with a 'Connection lost' line", async () => {
+    const st = stateFrom([hello, { type: "call_started", call_id: CALL }, hello]);
+    await render(<CallView session={session(st)} mock={false} />);
+    expect(screen.getByText("Connection lost")).toBeOnTheScreen();
+    expect(screen.getByText("Call ended")).toBeOnTheScreen();
+  });
+
+  it("a server error shows a localised line, not the raw message", async () => {
+    const st = stateFrom([hello, { type: "error", message: "KeyError: scenario" }]);
+    await render(<CallView session={session(st)} mock={false} />);
+    expect(screen.getByText("The demo reported a problem")).toBeOnTheScreen();
+    expect(screen.queryByText("KeyError: scenario")).toBeNull();
   });
 
   it("shows the connecting state before hello", async () => {

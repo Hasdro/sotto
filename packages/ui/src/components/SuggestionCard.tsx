@@ -7,7 +7,7 @@
  */
 import { StyleSheet, View } from "react-native";
 import { useDirection, useTheme } from "../theme.tsx";
-import { type CardKind, radius, space } from "../tokens.ts";
+import { type CardKind, layout, radius, size as sizes, space } from "../tokens.ts";
 import { Text } from "./Text.tsx";
 
 /** Mirrors the card protocol's `source` (packages/shared card.ts). */
@@ -48,6 +48,9 @@ const GLYPH: Record<CardKind, string> = {
   holding: "…",
 };
 
+/** Glyphs that point a direction are mirrored in RTL (DESIGN.md §8). */
+const GLYPH_RTL: Partial<Record<CardKind, string>> = { answer: "”", question: "؟" };
+
 /** Whether the R2 notice shows, and its text. */
 export function noticeFor(
   source: SuggestionSource,
@@ -75,7 +78,7 @@ export function SuggestionCard({
   const c = theme.card[type];
   const notice = noticeFor(source, label, strings.notInPlaybook);
   const holding = type === "holding" || source === "holding";
-  const glyph = type === "question" && direction === "rtl" ? "؟" : GLYPH[type];
+  const glyph = direction === "rtl" ? (GLYPH_RTL[type] ?? GLYPH[type]) : GLYPH[type];
   const a11yLabel = [strings.type, notice, text, done ? null : strings.streaming]
     .filter(Boolean)
     .join(". ");
@@ -93,7 +96,7 @@ export function SuggestionCard({
         ]}
       >
         <View style={styles.compactMeta}>
-          <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={20} />
+          <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={sizes.iconSm} />
           <Text variant="label" weight="medium" tone="muted">
             {strings.type}
           </Text>
@@ -120,12 +123,12 @@ export function SuggestionCard({
         styles.hero,
         { backgroundColor: c.fill },
         holding
-          ? { borderColor: c.accent, borderStyle: "dashed", borderWidth: 2 }
-          : { borderStartColor: c.accent, borderStartWidth: 8 },
+          ? { borderColor: c.accent, borderStyle: "dashed", borderWidth: sizes.stroke }
+          : { borderStartColor: c.accent, borderStartWidth: sizes.voiceBar },
       ]}
     >
       <View style={styles.meta}>
-        <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={28} />
+        <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={sizes.iconMd} />
         <Text variant="heading" weight="semibold" color={c.text} style={styles.grow}>
           {strings.type}
         </Text>
@@ -181,7 +184,7 @@ function Disc({
       style={[styles.disc, { width: size, height: size, backgroundColor: fill }]}
     >
       <Text
-        variant={size >= 28 ? "body" : "label"}
+        variant={size >= sizes.iconMd ? "body" : "label"}
         weight="semibold"
         color={ink}
         style={{ lineHeight: size }}
@@ -197,7 +200,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: space.xl,
     gap: space.md,
-    minHeight: 200,
+    minHeight: layout.heroMinHeight,
   },
   meta: { flexDirection: "row", alignItems: "center", gap: space.sm },
   grow: { flex: 1 },
@@ -212,7 +215,7 @@ const styles = StyleSheet.create({
   compact: {
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderStartWidth: 4,
+    borderStartWidth: sizes.bar,
     paddingVertical: space.md,
     paddingHorizontal: space.lg,
     gap: space.xs,

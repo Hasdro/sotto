@@ -160,9 +160,33 @@ export const minTouchTarget = 44;
 /** Motion never sits on the read path: card text appears with no animation (DESIGN.md §7). */
 export const motion = { fast: 120, base: 200, toastMs: 8000 } as const;
 
+/** Fixed sizes of small marks and strokes (DESIGN.md §3.4). */
+export const size = {
+  /** Thick strokes: holding-card outline, listening outline, radio ring. */
+  stroke: 2,
+  /** Compact-card bar and the listening mark's bars. */
+  bar: 4,
+  /** The hero card's voice bar. */
+  voiceBar: 8,
+  /** Badge and speaker-chip dots. */
+  dot: 8,
+  /** Icon discs: compact card, hero card. */
+  iconSm: 20,
+  iconMd: 28,
+  radio: 20,
+  radioDot: 10,
+  /** Large controls (Button size="lg", scenario rows). */
+  controlLg: 52,
+  /** Height of the static listening mark. */
+  listenMark: 24,
+} as const;
+
 export const layout = {
   /** At or above this window width the app uses the sidebar and two-column layouts. */
   wideBreakpoint: 900,
+  /** The hero card slot keeps this height, so the first card causes no layout jump. */
+  heroMinHeight: 200,
+  toastMaxWidth: 420,
   sidebarWidth: 248,
   transcriptWidth: 380,
   contentMaxWidth: 1180,
