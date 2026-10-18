@@ -117,7 +117,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 ### Phase 7
 - [x] P7.1 Email adapter + outbox — retry 10 s/30 s/1/5/15 min + dead letter, Resend with Idempotency-Key; DB trigger enqueues one email per escalation
-- [ ] P7.2 Escalation flow → playbook
+- [~] P7.2 Escalation flow → playbook — DB: `approve_escalation()` turns an answered escalation into a playbook entry (team-scoped, ≤ 25 words, once, audited; 9 pgTAP); inbox UI wiring pending
 - [x] P7.3 CRM interface + fake
 - [ ] P7.4 Zoho implementation `owner`
 - [x] P7.5 After-call summary — summary stage + seed prompt + extract fallback (not yet wired to the CRM outbox)
