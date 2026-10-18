@@ -2,7 +2,14 @@
 
 from pathlib import Path
 
-from scripts.check_coverage import FLOORS, failures
+from scripts.check_coverage import FLOORS
+from scripts.check_coverage import failures as _failures
+
+EMPTY = Path(__file__).parent / "__no_such_worker__"
+
+
+def failures(report: dict[str, object], worker_root: Path = EMPTY) -> list[str]:
+    return _failures(report, worker_root=worker_root)
 
 
 def _report(files: dict[str, tuple[int, int]]) -> dict[str, object]:
