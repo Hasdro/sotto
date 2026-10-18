@@ -1,1 +1,7 @@
-{ "type": "hello", "v": 1, "company_name": "Palm Grove Realty (demo)", "mode": "fake", "scenarios": [{ "id": "price-objection", "title": "Price objection" }] }
+{
+  "type": "hello",
+  "v": 1,
+  "company_name": "Palm Grove Realty (demo)",
+  "mode": "fake",
+  "scenarios": [{ "id": "price-objection", "title": "Price objection" }]
+}

@@ -1,0 +1,14 @@
+company_id: demo
+name: Palm Grove Realty (demo)
+tone: warm, confident, brief; never pushy
+call_goal: book a viewing or a video walkthrough this week
+card_language: same as the customer
+ai_answers_allowed: true
+agent_context: true
+backup_disabled: []
+holding_line:
+  en: Good question. Let me confirm that and send it to you today.
+  ar: سؤال ممتاز. خلّيني أتأكد وأرسل لك الجواب اليوم.
+escalation_label:
+  en: Not in playbook — check before promising
+  ar: غير موجود في الدليل — تأكد قبل أن تعد
