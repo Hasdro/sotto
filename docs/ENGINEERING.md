@@ -146,7 +146,7 @@ for top FAQs, streaming. Measure before optimising; record every change's replay
 
 ## 10. Security and privacy baseline
 
-- Supabase Auth; RLS on every table; service role only in edge functions/worker, never in the app.
+- Supabase Auth; RLS on every table. The service role is used only in edge functions, never in the app or the worker. The worker uses a per-call JWT (role `worker`, claim `company_id`), so RLS applies to it too (D-012).
 - LiveKit tokens minted server-side per call with least privilege (agent can publish mic,
   subscribe; worker subscribes customer).
 - Recording consent per company setting; retention per company; deletion jobs.

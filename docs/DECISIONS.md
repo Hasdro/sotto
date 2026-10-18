@@ -116,3 +116,14 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - It needs one config instead of the ESLint + Prettier plugin stack.
 - **Trade-off:** Biome does not run every ESLint plugin, so Expo's own ESLint config is not used. Biome's React hooks rules are on.
 - **Rejected:** ESLint + Prettier, which is slower and needs two configs.
+
+## D-012 — The worker uses a per-call JWT, not the service role
+2026-10-18 · accepted under D-009 · supersedes the "service role … in worker" clause of ENGINEERING §10
+- **Decision:**
+  - The `livekit-token` edge function mints a per-call worker JWT: role `worker`, claims `company_id` and `call_id`, TTL = maximum call length. It passes the token in the dispatch.
+  - The worker uses only this token for Supabase, so RLS policies apply to every worker query.
+  - The pgTAP isolation matrix includes the `worker` role (P5.2).
+- **Why:** With the service role, the worker bypasses RLS. Then a missing `company_id` filter (for example in a playbook lookup) would leak another company's data, and the isolation tests would never catch it (R3). The architecture review found this, ARCHITECTURE §2–§3.
+- **Rejected:**
+  - Service role plus careful filters, which is untestable by RLS tests.
+  - `SECURITY DEFINER` functions for every worker read, which means more surface to test and keep in sync.
