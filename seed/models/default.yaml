@@ -1,0 +1,44 @@
+# Default model routing: one entry per pipeline stage (R6, D-003).
+# This file and the adapters' capability tables are the ONLY places model names may appear
+# (scripts/check-boundaries.sh). Companies override it from the DB in Phase 6.
+#
+# provider: the adapter name under sotto_worker/adapters/ (anthropic, openai, openai_compatible, fake, ...)
+# first_token_ms: deadline for the first streamed token; after it the router races the backup (R2).
+#
+# Status 2026-10-18: model IDs are working defaults (D-009). P2.3 benchmarks them on the golden set
+# before any stage goes live; a stage whose benchmark misses R1 must not use the model.
+version: 1
+stages:
+  stt:
+    provider: fake          # TODO(P2.3): choose primary + backup vendor by benchmark (Arabic/English code-switching)
+    model: fake-stt
+  turn:
+    provider: fake          # TODO(P2.5): LiveKit end-of-turn model
+    model: fake-turn
+  trigger:
+    provider: anthropic
+    model: claude-haiku-5-5
+    first_token_ms: 400
+  suggest:
+    provider: anthropic
+    model: claude-haiku-5-5
+    first_token_ms: 700
+    settings:
+      max_tokens: 120
+      temperature: 0.2
+  suggest_backup:
+    provider: openai
+    model: gpt-5.4-mini     # verify the current ID at https://platform.openai.com/docs/models in P2.3
+    first_token_ms: 700
+    settings:
+      max_tokens: 120
+      temperature: 0.2
+  summary:
+    provider: anthropic
+    model: claude-sonnet-5-5
+  embed:
+    provider: fake          # TODO(P2.4): embeddings provider for playbook lookup
+    model: fake-embed
+  judge:
+    provider: anthropic
+    model: claude-sonnet-5-5

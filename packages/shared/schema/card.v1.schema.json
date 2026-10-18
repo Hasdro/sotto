@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "card_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "call_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "answer",
+        "question",
+        "objection",
+        "warning",
+        "holding"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "playbook",
+        "ai",
+        "backup",
+        "holding"
+      ]
+    },
+    "label": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "delta": {
+      "type": "string"
+    },
+    "done": {
+      "type": "boolean"
+    },
+    "timing": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "turn_end_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "stt_final_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "lookup_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "first_token_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "turn_end_ms",
+            "stt_final_ms",
+            "lookup_ms",
+            "first_token_ms"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "v",
+    "card_id",
+    "call_id",
+    "seq",
+    "type",
+    "source",
+    "delta",
+    "done"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:sotto:schema:card:v1",
+  "title": "CardMessage"
+}

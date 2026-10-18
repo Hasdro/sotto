@@ -1,0 +1,25 @@
+{
+  "name": "sotto",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @sotto/app dev",
+    "typecheck": "pnpm -r --if-present typecheck && pnpm run typecheck:worker",
+    "typecheck:worker": "cd apps/agent-worker && uv run --frozen mypy",
+    "lint": "biome check . && pnpm run lint:worker && bash scripts/check-boundaries.sh",
+    "lint:worker": "cd apps/agent-worker && uv run --frozen ruff check . && uv run --frozen ruff format --check .",
+    "format": "biome check --write . && cd apps/agent-worker && uv run --frozen ruff format . && uv run --frozen ruff check --fix --quiet .",
+    "test": "pnpm -r --if-present test && pnpm run test:worker && pnpm run test:scripts",
+    "test:worker": "cd apps/agent-worker && uv run --frozen pytest -q",
+    "test:scripts": "bash scripts/tests/run.sh",
+    "replay": "cd apps/agent-worker && uv run --frozen python -m replay",
+    "gen": "pnpm --filter @sotto/shared gen && cd apps/agent-worker && uv run --frozen python scripts/gen_card_model.py"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "typescript": "6.0.3"
+  }
+}

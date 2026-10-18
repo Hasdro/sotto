@@ -1,0 +1,74 @@
+"""Seed data must be well-formed before the router (P2.2) and registry (P2.4) read it."""
+
+import re
+from pathlib import Path
+from typing import Any
+
+import pytest
+import yaml
+
+from tests.conftest import REPO_ROOT
+
+SEED = REPO_ROOT / "seed"
+STAGES = {"stt", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed", "judge"}
+LIVE_STAGES = {"trigger", "suggest", "suggest_backup"}
+SCOPES = {"platform", "company", "team", "campaign"}
+VARIABLE = re.compile(r"{{\s*([a-z0-9_.]+)\s*}}")
+
+
+def _models() -> dict[str, Any]:
+    data = yaml.safe_load((SEED / "models" / "default.yaml").read_text())
+    assert isinstance(data, dict)
+    return data
+
+
+def test_every_stage_has_a_provider_and_model() -> None:
+    stages = _models()["stages"]
+    assert set(stages) == STAGES
+    for name, cfg in stages.items():
+        assert isinstance(cfg["provider"], str), name
+        assert cfg["provider"]
+        assert isinstance(cfg["model"], str), name
+        assert cfg["model"]
+
+
+def test_live_stages_have_a_first_token_deadline_within_r2() -> None:
+    stages = _models()["stages"]
+    for name in LIVE_STAGES:
+        deadline = stages[name]["first_token_ms"]
+        assert isinstance(deadline, int)
+        assert 0 < deadline <= 700, f"{name}: R2 switches to backup after 700 ms"
+
+
+def _prompt_files() -> list[Path]:
+    files = sorted((SEED / "prompts").glob("*.md"))
+    files = [f for f in files if f.name != "README.md"]
+    assert files, "no seed prompts"
+    return files
+
+
+def _split(path: Path) -> tuple[dict[str, Any], str]:
+    text = path.read_text()
+    assert text.startswith("---\n"), f"{path.name}: missing front matter"
+    _, front, body = text.split("---\n", 2)
+    meta = yaml.safe_load(front)
+    assert isinstance(meta, dict)
+    return meta, body
+
+
+@pytest.mark.parametrize("path", _prompt_files(), ids=lambda p: p.name)
+def test_prompt_front_matter_is_complete(path: Path) -> None:
+    meta, body = _split(path)
+    assert meta["key"] == path.stem
+    assert isinstance(meta["version"], int)
+    assert meta["version"] >= 1
+    assert meta["scope"] in SCOPES
+    assert meta["stage"] in STAGES
+    assert meta["description"]
+    assert body.strip()
+
+
+@pytest.mark.parametrize("path", _prompt_files(), ids=lambda p: p.name)
+def test_prompt_uses_exactly_the_declared_variables(path: Path) -> None:
+    meta, body = _split(path)
+    assert set(VARIABLE.findall(body)) == set(meta["variables"])

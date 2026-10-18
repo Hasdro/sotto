@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "card_id": "not-a-uuid",
+  "call_id": "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c",
+  "seq": 0,
+  "type": "answer",
+  "source": "playbook",
+  "delta": "x",
+  "done": false
+}

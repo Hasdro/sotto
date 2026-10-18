@@ -1,0 +1,11 @@
+{
+  "v": 1,
+  "card_id": "6f1c2a52-3b7e-4d0a-9a51-0c3f8e2b7d13",
+  "call_id": "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c",
+  "seq": 0,
+  "type": "holding",
+  "source": "holding",
+  "delta": "Good question. Let me confirm that and send it to you today.",
+  "done": true,
+  "timing": { "turn_end_ms": 200, "stt_final_ms": 100, "lookup_ms": 20, "first_token_ms": 1500 }
+}
