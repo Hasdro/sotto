@@ -98,7 +98,7 @@ async def test_router_uses_the_db_override_for_the_next_call() -> None:
     rest = SupabaseRest(
         url="https://proj.supabase.co", anon_key="anon", jwt="j", client=_client([])
     )
-    config = await load_company_config(rest, COMPANY)
+    config = await load_company_config(rest, COMPANY, deployment="local")
     base = RoutingConfig.load(REPO_ROOT / "seed" / "models" / "default.yaml")
     router = ModelRouter(base, lambda r: pytest.fail("not built"), FakeClock())
     assert router.resolve("suggest", config.routing).model == "llama-local"
@@ -123,4 +123,5 @@ async def test_cloud_drops_a_private_company_endpoint_and_keeps_the_platform_def
     )
     config = await load_company_config(rest, COMPANY, deployment="cloud", resolve=lambda _h: [])
     assert "suggest" not in config.routing.overrides
-    assert config.rejected and "suggest" in config.rejected[0]
+    assert config.rejected
+    assert "suggest" in config.rejected[0]
