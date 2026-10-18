@@ -65,6 +65,7 @@ def make(
     backup_text: str = "ANSWER: From the backup.",
     backup_ms: int = 300,
     primary_error: bool = False,
+    primary_error_after: int | None = None,
     backup_error: bool = False,
     hang: bool = False,
     **company_overrides: object,
@@ -72,7 +73,8 @@ def make(
     clock = FakeClock()
     primary = FakeLLM(
         clock=clock, model="m1", text=primary_text, first_token_ms=primary_ms, hang=hang,
-        error=FakeLLMError("down") if primary_error else None,
+        error=FakeLLMError("down") if primary_error or primary_error_after else None,
+        error_after_chunks=primary_error_after,
     )  # fmt: skip
     backup = FakeLLM(
         clock=clock, model="m2", text=backup_text, first_token_ms=backup_ms, hang=hang,
@@ -257,3 +259,47 @@ async def test_session_close_cancels_pending_work() -> None:
     await h.clock.advance(10_000)
     assert h.escalations == []
     assert not asyncio.all_tasks() - {asyncio.current_task()}
+
+
+async def test_mid_stream_failure_closes_the_card_and_escalates() -> None:
+    h = make(
+        primary_text="ANSWER: Sure we can arrange that today",
+        primary_error_after=3,
+        backup_error=True,
+    )
+    await h.say("customer", "Do you allow pets in the building?", at_ms=1000)
+    [(card_id, source, text)] = h.texts()
+    assert (source, text) == ("ai", "Sure we")
+    assert h.cards[-1].done, "a card the agent is reading must be closed, never left open"
+    assert any(t.card_id == card_id for t in h.timings)
+    assert len(h.escalations) == 1
+
+
+async def test_any_pipeline_error_still_gives_the_holding_line() -> None:
+    h = make()
+    h.session.prompts_key = "missing-prompt"  # render fails before any model call
+    await h.say("customer", "Do you allow pets in the building?", at_ms=1000)
+    [(card_id, source, _)] = h.texts()
+    assert source == "holding"
+    assert h.first_delta_ms(card_id) <= 1400
+    assert len(h.escalations) == 1
+
+
+async def test_t0_after_the_final_transcript_does_not_break_timing() -> None:
+    h = make()
+    await h.clock.advance(100)
+    event = TranscriptEvent(
+        speaker="customer", text="What's the payment plan?", final=True, start_ms=0, end_ms=0
+    )
+    await h.session.on_transcript(event, t0_ms=500)  # clock skew: t0 later than now
+    await h.clock.advance(6000)
+    assert h.cards[0].timing is not None
+    assert h.cards[0].timing.stt_final_ms == 0
+
+
+async def test_a_streaming_answer_is_closed_by_its_hard_deadline() -> None:
+    h = make(primary_text="ANSWER: " + " ".join(["word"] * 2000), primary_ms=300)
+    await h.say("customer", "Do you allow pets in the building?", at_ms=1000, run_ms=20_000)
+    assert h.cards[-1].done
+    [timing] = h.timings
+    assert timing.total_ms <= 8000

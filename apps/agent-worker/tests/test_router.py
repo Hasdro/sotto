@@ -199,3 +199,49 @@ async def test_warm_up_opens_primary_and_backup() -> None:
 
 def test_seed_config_path_exists() -> None:
     assert Path(REPO_ROOT / "seed" / "models" / "default.yaml").exists()
+
+
+async def test_empty_primary_response_starts_the_backup() -> None:
+    clock = FakeClock()
+    m1 = FakeLLM(clock=clock, text="", first_token_ms=50, empty=True)
+    m2 = FakeLLM(clock=clock, text="from backup", first_token_ms=100)
+    text, result = await _run(
+        ModelRouter(_config(), Adapters(m1=m1, m2=m2), clock), clock, CompanyRouting("c1")
+    )
+    assert text == "from backup"
+    assert (result.winner, result.fallback_reason) == ("backup", "error")
+
+
+async def test_backup_that_fails_r1_is_dropped_not_raised() -> None:
+    clock = FakeClock()
+    m1 = FakeLLM(clock=clock, text="x", first_token_ms=10, error=FakeLLMError("down"))
+    m2 = FakeLLM(
+        clock=clock,
+        model="m2",
+        text="b",
+        first_token_ms=10,
+        benchmark_p95_ms={"suggest_backup": 5000},
+    )
+    with pytest.raises(AllProvidersFailed):
+        await _run(
+            ModelRouter(_config(), Adapters(m1=m1, m2=m2), clock), clock, CompanyRouting("c1")
+        )
+
+
+async def test_cancelling_the_stream_leaves_no_tasks_behind() -> None:
+    clock = FakeClock()
+    m1 = FakeLLM(clock=clock, text="x", hang=True)
+    m2 = FakeLLM(clock=clock, text="y", hang=True)
+    router = ModelRouter(_config(), Adapters(m1=m1, m2=m2), clock)
+
+    async def consume() -> None:
+        async for _ in router.stream("suggest", REQ, company=CompanyRouting("c1"), t0_ms=0):
+            pass
+
+    task = asyncio.create_task(consume())
+    await clock.advance(1000)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await clock.advance(10)
+    assert asyncio.all_tasks() == {asyncio.current_task()}

@@ -24,11 +24,12 @@ from sotto_worker.pipeline.verdict import VerdictParser
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.prompts import PromptContext, PromptRegistry
 from sotto_worker.protocol import CardMessage, CardTiming
-from sotto_worker.router import AllProvidersFailed, ModelRouter, RouteResult
+from sotto_worker.router import ModelRouter, RouteResult
 from sotto_worker.telemetry import CardTimingRecord
 
 HOLDING_AT_MS = 1400  # sent so it renders before the 1500 ms R1 limit
 LATE_ANSWER_UNTIL_MS = 5000  # an answer by then replaces the holding line; otherwise escalate
+ANSWER_HARD_LIMIT_MS = 8000  # a streaming answer is closed by then, whatever the provider does
 CONTEXT_WINDOW_MS = 60_000
 LANGUAGE_NAME = {"en": "English", "ar": "Arabic"}
 
@@ -74,12 +75,13 @@ class _CardWriter:
         self._result = result
         self._seq = 0
         self._first_delta_ms: int | None = None
+        self.closed = False
 
     async def delta(self, text: str, *, done: bool = False) -> None:
         now = self._s.clock.now_ms()
         timing = None
         if self._seq == 0:
-            self._first_delta_ms = now - self._turn.t0_ms
+            self._first_delta_ms = max(now - self._turn.t0_ms, 0)
             timing = CardTiming(
                 turn_end_ms=0,
                 stt_final_ms=self._turn.stt_final_ms,
@@ -99,14 +101,15 @@ class _CardWriter:
             timing=timing,
         )
         self._seq += 1
+        self.closed = done
         await self._s.on_card(card)
         if done:
             self._record(now)
 
     def _first_token_ms(self, now: int) -> int:
         if self._result is not None and self._result.first_token_at_ms is not None:
-            return self._result.first_token_at_ms - self._turn.t0_ms
-        return now - self._turn.t0_ms
+            return max(self._result.first_token_at_ms - self._turn.t0_ms, 0)
+        return max(now - self._turn.t0_ms, 0)
 
     def _record(self, now: int) -> None:
         result = self._result or RouteResult()
@@ -121,12 +124,12 @@ class _CardWriter:
                 stt_final_ms=self._turn.stt_final_ms,
                 lookup_ms=self._turn.lookup_ms,
                 first_token_ms=(
-                    result.first_token_at_ms - self._turn.t0_ms
+                    max(result.first_token_at_ms - self._turn.t0_ms, 0)
                     if result.first_token_at_ms is not None
                     else None
                 ),
                 first_delta_ms=self._first_delta_ms if self._first_delta_ms is not None else 0,
-                total_ms=now - self._turn.t0_ms,
+                total_ms=max(now - self._turn.t0_ms, 0),
                 provider=result.provider,
                 model=result.model,
                 fallback_reason=result.fallback_reason,
@@ -174,6 +177,7 @@ class CallSession:
         self._tasks: set[asyncio.Task[None]] = set()
         self._escalated: set[str] = set()
         self.holding_at_ms = HOLDING_AT_MS
+        self.prompts_key = "suggest"
 
     async def warm(self) -> None:
         """Call start: open model connections for the live stage and its backup."""
@@ -193,7 +197,7 @@ class CallSession:
             event=event,
             kind=kind,
             t0_ms=t0_ms,
-            stt_final_ms=self.clock.now_ms() - t0_ms,
+            stt_final_ms=max(self.clock.now_ms() - t0_ms, 0),
             language=self.company.language_for(event.text),
         )
         task = asyncio.create_task(self._run_turn(turn))
@@ -230,27 +234,26 @@ class CallSession:
         await self._ai_turn(turn, card_type)
 
     async def _ai_turn(self, turn: _Turn, card_type: CardType) -> None:
+        """R2 for one turn. Whatever fails (provider, prompt, validation), the agent gets either
+        a closed answer card or the holding line, and an unanswered question escalates once."""
         result = RouteResult()
         writer: _CardWriter | None = None
 
         async def suggest() -> bool:
             nonlocal writer
             parser = VerdictParser()
-            async for chunk in self._router.stream(
-                "suggest",
-                self._request(turn),
-                company=self._routing,
-                t0_ms=turn.t0_ms,
-                result=result,
-            ):
-                text = parser.feed(chunk.text)
-                if parser.verdict == "no_answer":
-                    return False
-                if writer is None:
-                    text = text.lstrip()
-                if text:
-                    writer = writer or self._ai_writer(turn, card_type, result)
-                    await writer.delta(text)
+            request = self._request(turn)
+            stream = self._router.stream(
+                "suggest", request, company=self._routing, t0_ms=turn.t0_ms, result=result
+            )
+            async with contextlib.aclosing(stream) as chunks:
+                async for chunk in chunks:
+                    text = parser.feed(chunk.text)
+                    if parser.verdict == "no_answer":
+                        return False
+                    if text:
+                        writer = writer or self._ai_writer(turn, card_type, result)
+                        await writer.delta(text)
             tail = parser.finish()
             if tail:
                 writer = writer or self._ai_writer(turn, card_type, result)
@@ -261,32 +264,32 @@ class CallSession:
             return True
 
         task = asyncio.create_task(suggest())
+        holding_sent = False
         try:
             finished = await self._wait(task, until_ms=turn.t0_ms + self.holding_at_ms)
-            holding_sent = False
             if not finished and writer is None:
                 await self._holding(turn)
                 holding_sent = True
                 finished = await self._wait(task, until_ms=turn.t0_ms + LATE_ANSWER_UNTIL_MS)
-                if not finished and writer is None:
-                    task.cancel()
-                    await self._escalate(turn)
-                    return
-            if not finished:
-                await task  # an answer is already streaming: let it finish
-            try:
-                answered = task.result()
-            except AllProvidersFailed:
-                answered = False
-            if not answered:
-                if not holding_sent:
-                    await self._holding(turn)
-                await self._escalate(turn)
+            if not finished and writer is not None:  # an answer is streaming: give it a hard cap
+                finished = await self._wait(task, until_ms=turn.t0_ms + ANSWER_HARD_LIMIT_MS)
+            answered = False
+            if finished:
+                try:
+                    answered = task.result()
+                except Exception:
+                    answered = False
         finally:
             if not task.done():
                 task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
+                with contextlib.suppress(asyncio.CancelledError, Exception):
                     await task
+        if writer is not None and not writer.closed:
+            await writer.delta("", done=True)  # close what the agent is reading; never retract
+        if not answered:
+            if writer is None and not holding_sent:
+                await self._holding(turn)
+            await self._escalate(turn)
 
     def _ai_writer(self, turn: _Turn, card_type: CardType, result: RouteResult) -> _CardWriter:
         source: CardSource = "backup" if result.winner == "backup" else "ai"
@@ -356,7 +359,7 @@ class CallSession:
             "card.language": LANGUAGE_NAME.get(turn.language, turn.language),
         }
         rendered = self._prompts.render(
-            "suggest", PromptContext(company_id=self.company.company_id), variables
+            self.prompts_key, PromptContext(company_id=self.company.company_id), variables
         )
         settings = self._router.resolve("suggest", self._routing).settings
         return LLMRequest(

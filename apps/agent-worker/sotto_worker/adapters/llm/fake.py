@@ -26,6 +26,8 @@ class FakeLLM:
         chunk_ms: int = 15,
         error: Exception | None = None,
         hang: bool = False,
+        empty: bool = False,
+        error_after_chunks: int | None = None,
         benchmark_p95_ms: dict[str, int] | None = None,
     ) -> None:
         self.model = model
@@ -38,6 +40,8 @@ class FakeLLM:
         self._chunk_ms = chunk_ms
         self._error = error
         self._hang = hang
+        self._empty = empty
+        self._error_after = error_after_chunks
         self.requests: list[LLMRequest] = []
         self.warmed = False
 
@@ -50,11 +54,15 @@ class FakeLLM:
             while True:
                 await self._clock.sleep(60_000)
         await self._clock.sleep(self._first_token_ms)
-        if self._error is not None:
+        if self._error is not None and self._error_after is None:
             raise self._error
+        if self._empty:
+            return
         text = self._text(req) if callable(self._text) else self._text
         words = text.split(" ")
         for i, word in enumerate(words):
             if i:
                 await self._clock.sleep(self._chunk_ms)
+            if self._error is not None and self._error_after is not None and i >= self._error_after:
+                raise self._error
             yield LLMChunk(text=word if i == 0 else f" {word}")

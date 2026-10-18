@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections import deque
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -134,7 +134,7 @@ class ModelRouter:
         company: CompanyRouting,
         t0_ms: int,
         result: RouteResult | None = None,
-    ) -> AsyncIterator[LLMChunk]:
+    ) -> AsyncGenerator[LLMChunk, None]:
         result = result if result is not None else RouteResult()
         primary_route = self.resolve(stage, company)
         backup_stage = self._backup_stage(stage, company)
@@ -157,9 +157,14 @@ class ModelRouter:
             tasks[source] = asyncio.create_task(pump(source, self.adapter_for(which, company)))
 
         def start_backup(reason: Literal["timeout", "error", "circuit_open"]) -> None:
-            if backup_stage is not None and "backup" not in tasks:
-                result.fallback_reason = result.fallback_reason or reason
-                start("backup", backup_stage)
+            if backup_stage is None or "backup" in tasks:
+                return
+            try:
+                adapter = self.adapter_for(backup_stage, company)
+            except ModelFailsR1:
+                return  # a backup that cannot meet R1 is no backup (R6); race on without it
+            result.fallback_reason = result.fallback_reason or reason
+            tasks["backup"] = asyncio.create_task(pump("backup", adapter))
 
         if primary_circuit.is_open() and backup_stage is not None:
             start_backup("circuit_open")
@@ -172,6 +177,7 @@ class ModelRouter:
             deadline_task = asyncio.create_task(self._clock.sleep(wait))
 
         winner: Source | None = None
+        getter: asyncio.Task[tuple[Source, LLMChunk | BaseException | None]] | None = None
         try:
             while True:
                 getter = asyncio.create_task(queue.get())
@@ -199,6 +205,9 @@ class ModelRouter:
                 if item is None:
                     if winner is None:  # finished without a single chunk: treat as a failure
                         failed.add(source)
+                        if source == "primary":
+                            primary_circuit.record_failure()
+                            start_backup("error")
                         if failed >= set(tasks):
                             raise AllProvidersFailed(f"{stage}: empty response")
                         continue
@@ -223,6 +232,8 @@ class ModelRouter:
                         tasks[loser].cancel()
                 yield item
         finally:
+            if getter is not None:
+                getter.cancel()
             for task in [*tasks.values(), *([deadline_task] if deadline_task else [])]:
                 task.cancel()
             for task in tasks.values():
