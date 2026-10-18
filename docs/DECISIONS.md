@@ -127,3 +127,20 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Rejected:**
   - Service role plus careful filters, which is untestable by RLS tests.
   - `SECURITY DEFINER` functions for every worker read, which means more surface to test and keep in sync.
+
+## D-013 — Autonomous overnight run; a local demo before live calls
+2026-10-18 · accepted (owner: "keep running without waiting for my response to approve the phases … when you need my decision go ahead with your recommendation")
+- **Decision:**
+  - Phase gates that need owner approval are passed provisionally. The owner reviews everything together on return.
+  - All work stays on the cloud branch `claude/friendly-gates-fbhqdv` (PR #1), because this session may push only there.
+  - The first testable deliverable is a **local demo** that runs on the Mac with `pnpm demo`:
+    - the real worker pipeline (Phase 2) serves a dev-only WebSocket bridge on localhost;
+    - the Expo web app (Phase 3 in-call screen) connects to it;
+    - the customer side is typed or scripted, which stands in for STT and telephony.
+  - With `ANTHROPIC_API_KEY` set in `.env`, suggestions come from the real model; without it, from fakes.
+  - Live phone calls (Phase 4) wait for accounts: LiveKit Cloud, a SIP trunk, Apple and Google developer accounts. The rule "ask before creating accounts or spending money" still holds.
+- **Why:** The owner wants something to try on the Mac after a few hours. Real calls need accounts that only the owner can create. The demo exercises everything except telephony, with the same card protocol and pipeline.
+- **Guard rails:**
+  - The bridge binds to 127.0.0.1 only. It is dev-only and never part of a production build.
+  - Its message schema lives in `packages/shared` like the card protocol.
+  - Demo company content is fictional and lives in `seed/demo/`, never in `playbook/` (no invented content for the owner's real playbook).

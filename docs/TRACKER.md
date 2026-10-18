@@ -26,17 +26,12 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** 1 — Architecture, skeleton, CI: cloud work done, gate waits on the owner. Phase 0 runs on working assumptions (D-009).
-- **Next task:** P2.1 Contracts and fakes (Phase 2), once the owner has looked at PR #1. In parallel, P1.7 needs the Mac.
-- **Branch:** `claude/friendly-gates-fbhqdv`, carrying Phases 0 and 1 (D-009). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** cloud, 2026-10-18 (no Docker, simulators, Ollama, supabase/lk CLIs or API keys; github.com downloads blocked)
-- **Blockers:**
-  - owner approval of `docs/ARCHITECTURE.md` and of the BRIEF assumptions;
-  - P1.7 is local-only (Docker).
-- **Next action:**
-  1. Read `docs/handoffs/phase-1.md`.
-  2. If PR #1 is merged, branch `phase-2-engine` from `main`. If not, branch from `claude/friendly-gates-fbhqdv` (stacked). Record the branch here.
-  3. Run `/spec` to write `spec/phase-2-engine.md`, then build P2.1 test-first in `apps/agent-worker/sotto_worker/` (contracts, fakes, injectable clock).
+- **Phase:** 2 — Engine (autonomous overnight run, D-013). Phase 1 gate passed provisionally.
+- **Task:** P2.1–P2.7 + local demo (`pnpm demo`) `[~]`; Phase 3 in-call screen in parallel
+- **Branch:** `claude/friendly-gates-fbhqdv` (all phases this run, D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
+- **Environment last used:** cloud, 2026-10-18 (no Docker, simulators, Ollama or API keys)
+- **Blockers:** live calls (Phase 4) need owner accounts; P1.7, P2.9 local-only
+- **Next action:** continue the newest session-log entry's **Next**.
 
 ## Phase board
 
