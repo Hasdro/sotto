@@ -82,9 +82,10 @@ create table public.memberships (
 );
 create index memberships_user_idx on public.memberships (user_id);
 
+-- User permissions never apply to a worker token, even if it carries a user's sub (D-012).
 create function app.has_role(target uuid, roles app.member_role[]) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select exists (
+  select app.jwt_role() <> 'worker' and exists (
     select 1 from public.memberships m
     where m.company_id = target and m.user_id = auth.uid() and m.role = any (roles)
   )
@@ -92,7 +93,7 @@ $$;
 
 create function app.is_member(target uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select exists (
+  select app.jwt_role() <> 'worker' and exists (
     select 1 from public.memberships m where m.company_id = target and m.user_id = auth.uid()
   )
 $$;
@@ -100,7 +101,7 @@ $$;
 -- A sales manager sees their own team's agents (R3 "own team").
 create function app.manages(target uuid, agent uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select exists (
+  select app.jwt_role() <> 'worker' and exists (
     select 1
     from public.memberships mgr
     join public.memberships a on a.company_id = mgr.company_id and a.team_id = mgr.team_id
@@ -109,6 +110,7 @@ language sql stable security definer set search_path = '' as $$
   )
 $$;
 
+revoke execute on all functions in schema app from public;
 grant execute on all functions in schema app to authenticated;
 
 -- ── tenant tables ──
@@ -139,7 +141,7 @@ create table public.calls (
 
 create function app.can_see_call(target uuid, agent uuid) returns boolean
 language sql stable set search_path = '' as $$
-  select agent = auth.uid()
+  select (agent = auth.uid() and app.is_member(target))
       or app.has_role(target, array['company_admin']::app.member_role[])
       or app.manages(target, agent)
 $$;
@@ -255,7 +257,8 @@ create table public.feature_flags (
 
 create table public.audit_log (
   id uuid primary key default gen_random_uuid(),
-  company_id uuid not null references public.companies (id) on delete cascade,
+  -- No FK: the trail must outlive a deleted company (R3 retention).
+  company_id uuid not null,
   actor_user_id uuid,
   action text not null,
   target_table text not null,
@@ -355,9 +358,11 @@ create policy memberships_admin on public.memberships for all to authenticated
   with check (app.has_role(company_id, array['company_admin']::app.member_role[]));
 
 -- devices: your own, in a company you belong to; admins can revoke any in their company.
-create policy devices_own on public.devices for all to authenticated
-  using (user_id = auth.uid() and app.is_member(company_id))
-  with check (user_id = auth.uid() and app.is_member(company_id));
+create policy devices_own_read on public.devices for select to authenticated
+  using (user_id = auth.uid() and app.is_member(company_id));
+-- Registering a device is allowed; un-revoking or deleting one is not (admins only).
+create policy devices_own_register on public.devices for insert to authenticated
+  with check (user_id = auth.uid() and app.is_member(company_id) and revoked_at is null);
 create policy devices_admin on public.devices for all to authenticated
   using (app.has_role(company_id, array['company_admin']::app.member_role[]))
   with check (app.has_role(company_id, array['company_admin']::app.member_role[]));
@@ -375,21 +380,26 @@ create policy segments_read on public.transcript_segments for select to authenti
   using (exists (select 1 from public.calls c where c.id = call_id and c.company_id = transcript_segments.company_id
                  and app.can_see_call(c.company_id, c.agent_user_id)));
 create policy segments_worker on public.transcript_segments for insert to authenticated
-  with check (company_id = app.worker_company() and call_id = app.worker_call());
+  with check (company_id = app.worker_company() and call_id = app.worker_call()
+         and exists (select 1 from public.calls c where c.id = call_id and c.status in ('dialling', 'live')));
 create policy cards_read on public.cards for select to authenticated
   using (exists (select 1 from public.calls c where c.id = call_id and c.company_id = cards.company_id
                  and app.can_see_call(c.company_id, c.agent_user_id)));
 create policy cards_worker on public.cards for insert to authenticated
-  with check (company_id = app.worker_company() and call_id = app.worker_call());
+  with check (company_id = app.worker_company() and call_id = app.worker_call()
+         and exists (select 1 from public.calls c where c.id = call_id and c.status in ('dialling', 'live')));
 create policy cards_feedback on public.cards for update to authenticated
   using (exists (select 1 from public.calls c where c.id = call_id and c.company_id = cards.company_id
                  and c.agent_user_id = auth.uid()))
   with check (exists (select 1 from public.calls c where c.id = call_id and c.company_id = cards.company_id
                       and c.agent_user_id = auth.uid()));
 create policy timings_read on public.card_timings for select to authenticated
-  using (app.has_role(company_id, array['company_admin', 'sales_manager']::app.member_role[]));
+  using (app.has_role(company_id, array['company_admin', 'sales_manager']::app.member_role[])
+         and exists (select 1 from public.calls c where c.id = call_id and c.company_id = card_timings.company_id
+                     and app.can_see_call(c.company_id, c.agent_user_id)));
 create policy timings_worker on public.card_timings for insert to authenticated
-  with check (company_id = app.worker_company() and call_id = app.worker_call());
+  with check (company_id = app.worker_company() and call_id = app.worker_call()
+         and exists (select 1 from public.calls c where c.id = call_id and c.status in ('dialling', 'live')));
 
 -- playbook: everyone in the company and its worker read; admins and managers edit (R3).
 create policy playbook_read on public.playbook_entries for select to authenticated
@@ -399,13 +409,22 @@ create policy playbook_edit on public.playbook_entries for all to authenticated
   with check (app.has_role(company_id, array['company_admin', 'sales_manager']::app.member_role[]));
 
 -- escalations: the worker files them for its call; admins and managers read and answer.
+create function app.staff_sees_call(target uuid, call uuid) returns boolean
+language sql stable set search_path = '' as $$
+  select app.has_role(target, array['company_admin', 'sales_manager']::app.member_role[])
+     and exists (select 1 from public.calls c where c.id = call and c.company_id = target
+                 and app.can_see_call(c.company_id, c.agent_user_id))
+$$;
+grant execute on function app.staff_sees_call(uuid, uuid) to authenticated;
+revoke execute on function app.staff_sees_call(uuid, uuid) from public;
 create policy escalations_staff on public.escalations for select to authenticated
-  using (app.has_role(company_id, array['company_admin', 'sales_manager']::app.member_role[]));
+  using (app.staff_sees_call(company_id, call_id));
 create policy escalations_answer on public.escalations for update to authenticated
-  using (app.has_role(company_id, array['company_admin', 'sales_manager']::app.member_role[]))
-  with check (app.has_role(company_id, array['company_admin', 'sales_manager']::app.member_role[]));
+  using (app.staff_sees_call(company_id, call_id))
+  with check (app.staff_sees_call(company_id, call_id));
 create policy escalations_worker on public.escalations for insert to authenticated
-  with check (company_id = app.worker_company() and call_id = app.worker_call());
+  with check (company_id = app.worker_company() and call_id = app.worker_call()
+         and exists (select 1 from public.calls c where c.id = call_id and c.status in ('dialling', 'live')));
 
 -- prompts, model routes, flags: admins edit; managers and the worker read (R6).
 create policy prompts_read on public.prompt_versions for select to authenticated
@@ -456,8 +475,29 @@ create trigger audit_routes after insert or update or delete on public.model_rou
   for each row execute function app.audit();
 create trigger audit_flags after insert or update or delete on public.feature_flags
   for each row execute function app.audit();
-create trigger audit_companies after update on public.companies
+create trigger audit_companies after insert or update on public.companies
   for each row execute function app.audit();
+create trigger audit_teams after insert or update or delete on public.teams
+  for each row execute function app.audit();
+create trigger audit_devices after insert or update or delete on public.devices
+  for each row execute function app.audit();
+create trigger audit_escalation_answers after update on public.escalations
+  for each row execute function app.audit();
+
+-- Plan, plan state and trial end are the platform owner's (billing, R3); admins edit settings.
+create function app.guard_company() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if not app.is_platform_owner()
+     and (new.plan_id, new.plan_state, new.trial_ends_at)
+         is distinct from (old.plan_id, old.plan_state, old.trial_ends_at) then
+    raise exception 'plan fields are platform-owner only' using errcode = '42501';
+  end if;
+  return new;
+end
+$$;
+create trigger guard_company before update on public.companies
+  for each row execute function app.guard_company();
 
 -- ── escalation → outbox (one manager email per escalation; idempotent, R2) ──
 
@@ -475,4 +515,12 @@ $$;
 create trigger escalation_email after insert on public.escalations
   for each row execute function app.enqueue_escalation_email();
 
+-- Supabase grants everything on public tables to anon and authenticated by default; narrow it.
+revoke all on all tables in schema public from anon;
 grant select, insert, update, delete on all tables in schema public to authenticated;
+revoke truncate, references, trigger on all tables in schema public from authenticated;
+-- Column limits: the worker only moves a call's status; an agent only rates a card.
+revoke update on public.calls from authenticated;
+grant update (status, end_reason, ended_at) on public.calls to authenticated;
+revoke update on public.cards from authenticated;
+grant update (feedback) on public.cards to authenticated;

@@ -2,7 +2,7 @@
 -- cannot select, insert, update or delete company B rows. Runs with `pnpm test:db`
 -- (local Postgres or `supabase test db`).
 begin;
-select plan(142);
+select plan(284);
 
 -- ── fixtures (as the test superuser) ──
 create schema tests;
@@ -77,13 +77,13 @@ end
 $$;
 
 -- Four checks per table: no select, no insert, no update, no delete of the victim company's rows.
-create function tests.isolated(tbl text, victim uuid, insert_sql text, who text) returns setof text
+create function tests.isolated(tbl text, victim uuid, insert_sql text, who text, upd text) returns setof text
 language plpgsql as $$
 begin
   return next is_empty(format('select 1 from public.%I where company_id = %L', tbl, victim),
                        who || ' cannot select ' || tbl);
   return next throws_ok(insert_sql, '42501', null, who || ' cannot insert into ' || tbl);
-  return next is_empty(format('update public.%I set created_at = created_at where company_id = %L returning 1', tbl, victim),
+  return next is_empty(format('update public.%I set %I = %I where company_id = %L returning 1', tbl, upd, upd, victim),
                        who || ' cannot update ' || tbl);
   return next is_empty(format('delete from public.%I where company_id = %L returning 1', tbl, victim),
                        who || ' cannot delete ' || tbl);
@@ -92,8 +92,9 @@ $$;
 grant execute on all functions in schema tests to authenticated;
 
 -- Inserts that try to write into company B.
-create table tests.attacks (tbl text primary key, sql text not null);
+create table tests.attacks (tbl text primary key, sql text not null, upd text not null default 'created_at');
 grant select on tests.attacks to authenticated;
+-- Probe updates use a column the role may update at all, so a denial is RLS, not a column grant.
 insert into tests.attacks values
   ('teams',               $$insert into public.teams (company_id, name) values ('bbbbbbbb-0000-4000-8000-000000000000', 'x')$$),
   ('memberships',         $$insert into public.memberships (company_id, user_id, role) values ('bbbbbbbb-0000-4000-8000-000000000000', 'a0000000-0000-4000-8000-000000000001', 'company_admin')$$),
@@ -110,9 +111,12 @@ insert into tests.attacks values
   ('audit_log',           $$insert into public.audit_log (company_id, action, target_table) values ('bbbbbbbb-0000-4000-8000-000000000000', 'x', 'y')$$),
   ('outbox',              $$insert into public.outbox (company_id, kind, idempotency_key, payload) values ('bbbbbbbb-0000-4000-8000-000000000000', 'x', 'k', '{}')$$);
 
+update tests.attacks set upd = 'status' where tbl = 'calls';
+update tests.attacks set upd = 'feedback' where tbl = 'cards';
+
 -- ── the matrix: company A's admin (strongest tenant user) against company B ──
 select tests.act_as('a0000000-0000-4000-8000-000000000001');
-select tests.isolated(tbl, 'bbbbbbbb-0000-4000-8000-000000000000', sql, 'A admin') from tests.attacks order by tbl;
+select tests.isolated(tbl, 'bbbbbbbb-0000-4000-8000-000000000000', sql, 'A admin', upd) from tests.attacks order by tbl;
 select is_empty($$select 1 from public.companies where id = 'bbbbbbbb-0000-4000-8000-000000000000'$$, 'A admin cannot select company B');
 select is_empty($$update public.companies set name = 'pwned' where id = 'bbbbbbbb-0000-4000-8000-000000000000' returning 1$$, 'A admin cannot update company B');
 select is_empty($$delete from public.companies where id = 'bbbbbbbb-0000-4000-8000-000000000000' returning 1$$, 'A admin cannot delete company B');
@@ -122,7 +126,7 @@ reset role;
 -- ── the same matrix for company A's per-call worker (D-012) ──
 select tests.act_as('a0000000-0000-4000-8000-000000000003',
   '{"sotto_role": "worker", "company_id": "aaaaaaaa-0000-4000-8000-000000000000", "call_id": "aaaaaaaa-0000-4000-8000-0000000000c1"}');
-select tests.isolated(tbl, 'bbbbbbbb-0000-4000-8000-000000000000', sql, 'A worker') from tests.attacks order by tbl;
+select tests.isolated(tbl, 'bbbbbbbb-0000-4000-8000-000000000000', sql, 'A worker', upd) from tests.attacks order by tbl;
 select is_empty($$select 1 from public.companies where id = 'bbbbbbbb-0000-4000-8000-000000000000'$$, 'A worker cannot select company B');
 -- A worker claiming B's call but A's company still cannot write into B.
 reset role;
@@ -192,6 +196,66 @@ reset role;
 -- ── anon sees nothing ──
 set local role anon;
 select throws_ok($$select 1 from public.companies$$, '42501', null, 'anon has no table access');
+reset role;
+
+-- ── the matrix again for A's agent and A's manager ──
+select tests.act_as('a0000000-0000-4000-8000-000000000003');
+select tests.isolated(tbl, 'bbbbbbbb-0000-4000-8000-000000000000', sql, 'A agent', upd) from tests.attacks order by tbl;
+reset role;
+select tests.act_as('a0000000-0000-4000-8000-000000000002');
+select tests.isolated(tbl, 'bbbbbbbb-0000-4000-8000-000000000000', sql, 'A manager', upd) from tests.attacks order by tbl;
+reset role;
+
+-- ── positive controls: the A admin does see A rows (a block-everything policy would fail) ──
+select tests.act_as('a0000000-0000-4000-8000-000000000001');
+select isnt_empty(format('select 1 from public.%I where company_id = %L', t, 'aaaaaaaa-0000-4000-8000-000000000000'),
+                  'A admin sees own ' || t)
+  from unnest(array['teams', 'memberships', 'devices', 'calls', 'transcript_segments', 'cards', 'card_timings',
+                    'playbook_entries', 'escalations', 'prompt_versions', 'model_routes', 'feature_flags', 'audit_log']) t;
+select throws_ok($$update public.playbook_entries set company_id = 'bbbbbbbb-0000-4000-8000-000000000000' where company_id = 'aaaaaaaa-0000-4000-8000-000000000000'$$,
+  '42501', null, 'A admin cannot move a row into company B');
+select throws_ok($$update public.companies set plan_state = 'active', trial_ends_at = '2099-01-01' where id = 'aaaaaaaa-0000-4000-8000-000000000000'$$,
+  '42501', null, 'an admin cannot activate a plan or extend the trial');
+select lives_ok($$update public.companies set settings = '{"ai_answers_allowed": false}' where id = 'aaaaaaaa-0000-4000-8000-000000000000'$$,
+  'an admin can change company settings');
+select throws_ok($$insert into public.plans (name, seat_limit, monthly_minutes) values ('x', 1, 1)$$, '42501', null, 'an admin cannot write plans');
+select throws_ok($$insert into public.platform_model_routes (stage, provider, model) values ('judge', 'fake', 'x')$$, '42501', null, 'an admin cannot write platform routes');
+reset role;
+
+-- ── locked columns and devices ──
+update public.devices set revoked_at = now() where user_id = 'a0000000-0000-4000-8000-000000000003';  -- admin revoked it
+select tests.act_as('a0000000-0000-4000-8000-000000000003');  -- agent
+select throws_ok($$update public.cards set text = 'rewritten' where company_id = 'aaaaaaaa-0000-4000-8000-000000000000'$$,
+  '42501', null, 'an agent cannot rewrite card text');
+select lives_ok($$update public.cards set feedback = 1 where company_id = 'aaaaaaaa-0000-4000-8000-000000000000'$$,
+  'an agent can rate their cards');
+select is_empty($$update public.devices set revoked_at = null returning 1$$, 'an agent cannot un-revoke a device');
+select is_empty($$delete from public.devices returning 1$$, 'an agent cannot delete a device');
+reset role;
+select isnt_empty($$select 1 from public.devices where user_id = 'a0000000-0000-4000-8000-000000000003' and revoked_at is not null$$,
+  'the revocation still stands');
+select tests.act_as('a0000000-0000-4000-8000-000000000003',
+  '{"sotto_role": "worker", "company_id": "aaaaaaaa-0000-4000-8000-000000000000", "call_id": "aaaaaaaa-0000-4000-8000-0000000000c1"}');
+select throws_ok($$update public.calls set agent_user_id = 'b0000000-0000-4000-8000-000000000003'$$,
+  '42501', null, 'the worker cannot hand its call to another user');
+select is_empty($$select 1 from public.audit_log$$, 'a worker token carries no user (admin/agent) permissions');
+select lives_ok($$update public.calls set status = 'ended' where id = 'aaaaaaaa-0000-4000-8000-0000000000c1'$$, 'the worker ends its call');
+select throws_ok($$insert into public.cards (id, company_id, call_id, type, source, text) values (gen_random_uuid(), 'aaaaaaaa-0000-4000-8000-000000000000', 'aaaaaaaa-0000-4000-8000-0000000000c1', 'answer', 'ai', 'late')$$,
+  '42501', null, 'the worker cannot write after its call ended');
+reset role;
+
+-- ── managers see their own team only ──
+insert into public.escalations (company_id, call_id, question, question_hash)
+  values ('aaaaaaaa-0000-4000-8000-000000000000', 'aaaaaaaa-0000-4000-8000-0000000000c3', 'South question?', 'south');
+select tests.act_as('a0000000-0000-4000-8000-000000000002');  -- manager, North
+select is_empty($$select 1 from public.escalations where question_hash = 'south'$$, 'a manager cannot read another team''s escalation');
+select is_empty($$update public.escalations set status = 'answered' where question_hash = 'south' returning 1$$, 'a manager cannot answer another team''s escalation');
+reset role;
+
+-- ── a member who leaves loses access ──
+delete from public.memberships where user_id = 'a0000000-0000-4000-8000-000000000004';
+select tests.act_as('a0000000-0000-4000-8000-000000000004');
+select is_empty($$select 1 from public.calls$$, 'a removed agent no longer sees their old calls');
 reset role;
 
 select * from finish();
