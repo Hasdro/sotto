@@ -67,7 +67,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [x] P1.5 scripts/check-boundaries.sh with fixtures — 7 rules, 8 failing + 1 passing fixture trees, repo clean (`bash scripts/tests/run.sh`)
 - [ ] P1.6 GitHub Actions CI + gitleaks
 - [!] P1.7 Local Supabase smoke test `local-only` — blocked in cloud: needs Docker + supabase CLI (Mac)
-- [ ] P1.8 CONSTRAINTS.md
+- [x] P1.8 CONSTRAINTS.md — floor + numbers (p95 1500, worker coverage 90%, AA contrast, 450 KB web JS, audits) each with a command; suppression guard in check-boundaries; linked from CLAUDE.md
 - [ ] P1.9 Roadmap + tracker refresh
 
 ### Phase 2

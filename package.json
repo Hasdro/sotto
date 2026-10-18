@@ -14,7 +14,7 @@
     "lint:worker": "cd apps/agent-worker && uv run --frozen ruff check . ../../scripts && uv run --frozen ruff format --check . ../../scripts",
     "format": "biome check --write . && cd apps/agent-worker && uv run --frozen ruff format . ../../scripts && uv run --frozen ruff check --fix --quiet . ../../scripts",
     "test": "pnpm -r --if-present test && pnpm run test:worker && pnpm run test:scripts",
-    "test:worker": "cd apps/agent-worker && uv run --frozen pytest -q",
+    "test:worker": "cd apps/agent-worker && uv run --frozen pytest -q && uv run --frozen python scripts/check_coverage.py",
     "test:scripts": "bash scripts/tests/run.sh",
     "replay": "cd apps/agent-worker && uv run --frozen python -m replay",
     "gen": "pnpm --filter @sotto/shared gen && cd apps/agent-worker && uv run --frozen python scripts/gen_card_model.py"

@@ -47,6 +47,8 @@ jobs:
         env:
           CI: "1"
           EXPO_OFFLINE: "1"
+      - name: Web bundle budget
+        run: python3 scripts/check_bundle_size.py apps/app/dist
 
   audit:
     name: dependency audit

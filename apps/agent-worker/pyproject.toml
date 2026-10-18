@@ -14,6 +14,7 @@ dev = [
   "jsonschema==4.26.0",
   "mypy==2.4.0",
   "pytest==9.1.1",
+  "pytest-cov==7.1.0",
   "ruff==0.17.1",
   "types-pyyaml==6.0.12.20260906",
   "types-jsonschema==4.26.0.20261006",
@@ -28,7 +29,7 @@ packages = ["sotto_worker"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers"
+addopts = "--strict-markers --cov=sotto_worker --cov=replay --cov-branch --cov-report=json:coverage.json --cov-report=term:skip-covered"
 
 [tool.ruff]
 extend = "../../ruff.toml"

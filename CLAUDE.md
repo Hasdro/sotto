@@ -55,6 +55,7 @@ If two documents disagree, stop, say which ones, and propose the fix as a decisi
   - New env vars go in `.env.example` with no value.
 - UI uses `packages/ui` tokens and components only. Check light and dark, 390 px and 1280 px, LTR and Arabic RTL.
 - Customer recordings and transcripts never go into git (see `test-calls/README.md`).
+- `CONSTRAINTS.md` is the quality bar (floor, numbers, exceptions). Read it before touching tests, lint, CI or thresholds.
 - Never lower a quality bar to get green:
   - no skipped or deleted tests;
   - no `@ts-ignore` or `# type: ignore` without a tracker entry;

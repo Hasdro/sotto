@@ -51,6 +51,11 @@ class Rule:
     message: str
     applies: Callable[[str], bool]  # relative posix path → should this file be checked?
     pattern: re.Pattern[str]
+    unless: re.Pattern[str] | None = None  # a matching line is allowed if this also matches
+
+
+# A suppression is allowed only when the same line names its tracker entry (CLAUDE.md hard rules).
+TRACKER_ID = re.compile(r"\bT-\d{3,}\b")
 
 
 def _parts(rel: str) -> list[str]:
@@ -142,6 +147,22 @@ RULES = [
 ]
 
 
+RULES.append(
+    Rule(
+        "suppression",
+        "no type-check suppressions or skipped/focused tests without a tracker ID (T-NNN)",
+        # This file spells the patterns out, so it is the one exemption.
+        lambda rel: _suffix(rel) in CODE and rel != "scripts/check_boundaries.py",
+        re.compile(
+            r"@ts-ignore|@ts-nocheck|@ts-expect-error|#\s*type:\s*ignore|#\s*pyright:\s*ignore"
+            r"|\b(?:it|test|describe)\.(?:skip|only|todo)\b|\bx(?:it|describe)\(|\bf(?:it|describe)\("
+            r"|pytest\.mark\.(?:skip|xfail)\b|pytest\.skip\(|unittest\.skip\b"
+        ),
+        unless=TRACKER_ID,
+    )
+)
+
+
 def files(root: Path) -> Iterator[tuple[Path, str]]:
     stack = [root]
     while stack:
@@ -169,7 +190,7 @@ def check(root: Path) -> list[str]:
             continue
         for number, line in enumerate(lines, start=1):
             for rule in rules:
-                if rule.pattern.search(line):
+                if rule.pattern.search(line) and not (rule.unless and rule.unless.search(line)):
                     findings.append(f"{rel}:{number}: [{rule.id}] {rule.message}")
     return findings
 
