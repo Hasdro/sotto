@@ -71,14 +71,14 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [x] P1.9 Roadmap + tracker refresh — ROADMAP "done when" lines rewritten from the acceptance tests; Phase 2 tasks annotated with what each needs
 
 ### Phase 2
-- [ ] P2.1 Contracts and fake adapters
-- [ ] P2.2 Model router (per stage, per company, deadlines, fallback)
-- [ ] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — code + contract tests work in the cloud with fakes and mocked HTTP; the live smoke test needs API keys `owner`
-- [ ] P2.4 Prompt registry (seed/prompts, scopes, variables)
-- [ ] P2.5 Pipeline: turn → trigger → playbook → suggest → stream
-- [ ] P2.6 R2 chain: backup, holding line, escalation record
-- [ ] P2.7 Telemetry events per card
-- [ ] P2.8 Replay harness + judge, p95 ≤ 1500 ms (needs P0.5 + keys) `owner` — harness can be built on synthetic calls first; the p95 gate needs real golden calls and keys
+- [x] P2.1 Contracts and fake adapters — Clock/FakeClock, LLM/STT protocols, FakeLLM; contract tests (pytest)
+- [x] P2.2 Model router (per stage, per company, deadlines, fallback) — absolute t0 deadline, backup race, circuit per (company, endpoint), R1 guard; 13 tests
+- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); STT adapters + live smoke test need a vendor choice + keys `owner`
+- [x] P2.4 Prompt registry (seed/prompts, scopes, variables) — scopes, publish/rollback, strict render, platform fallback; 8 tests
+- [x] P2.5 Pipeline: turn → trigger → playbook → suggest → stream — CallSession + trigger rules + playbook index (drafting on partials still TODO)
+- [x] P2.6 R2 chain: backup, holding line, escalation record — holding at t0+1400, late answer ≤ 5 s, one escalation per question; session tests
+- [x] P2.7 Telemetry events per card — CardTimingRecord per card + nearest-rank p50/p95
+- [~] P2.8 Replay harness + judge, p95 ≤ 1500 ms (needs P0.5 + keys) `owner` — SYNTHETIC replay done (p50 567, p95 1148 ms, agent cards 0); audio replay + judge wait for golden calls + keys
 - [!] P2.9 Local model (Ollama) benchmark `local-only` — blocked in cloud: needs Ollama (Mac)
 
 ### Phase 3
@@ -99,8 +99,8 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P4.7 Robustness cases
 
 ### Phase 5
-- [ ] P5.1 Schema
-- [ ] P5.2 RLS + isolation test matrix `local-only` (to run)
+- [x] P5.1 Schema — `supabase/migrations/20261018000000_tenancy.sql` (all ARCHITECTURE §3 tables)
+- [x] P5.2 RLS + isolation test matrix — 142 pgTAP assertions pass on local Postgres 16 (`pnpm test:db`) and in CI; a mutation check catches a leaky policy
 - [ ] P5.3 Auth + devices + revoke
 - [ ] P5.4 Invitations and roles UI
 - [ ] P5.5 Plans and trials
