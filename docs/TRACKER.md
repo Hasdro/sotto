@@ -64,7 +64,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [~] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner` — drafted (17 failure modes, no TBD; cost ≈ $0.02–0.04/min + carrier); in review, then the owner approves
 - [x] P1.3 Monorepo skeleton — `pnpm install && pnpm typecheck && pnpm test` green (vitest 28, jest-expo 3, pytest 30); web screenshots in `docs/evidence/p1.3/`
 - [x] P1.4 Commands + hooks working — CLAUDE.md table updated; Stop hook exits 2 on a broken type, 0 when clean (~8 s); format hook ~0.6 s
-- [x] P1.5 scripts/check-boundaries.sh with fixtures — 7 rules, 8 failing + 1 passing fixture trees, repo clean (`bash scripts/tests/run.sh`)
+- [x] P1.5 scripts/check-boundaries.sh with fixtures — 7 rule IDs (incl. the P1.8 suppression guard), 12 failing + 2 passing fixture trees, repo clean (`bash scripts/tests/run.sh`)
 - [x] P1.6 GitHub Actions CI + gitleaks — all 4 jobs green on PR https://github.com/Hasdro/sotto/pull/1 (run https://github.com/Hasdro/sotto/actions/runs/39166712190); pre-commit hook blocks a planted token (exit 1)
 - [!] P1.7 Local Supabase smoke test `local-only` — blocked in cloud: needs Docker + supabase CLI (Mac)
 - [x] P1.8 CONSTRAINTS.md — floor + numbers (p95 1500, worker coverage 90%, AA contrast, 450 KB web JS, audits) each with a command; suppression guard in check-boundaries; linked from CLAUDE.md

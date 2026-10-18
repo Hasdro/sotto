@@ -1,0 +1,68 @@
+# Phase 1 handoff — Architecture, skeleton, CI
+
+- **Status:** All cloud tasks are done.
+  - The exit gate waits on the owner: approval of `docs/ARCHITECTURE.md` (P1.2), with D-010 open to override.
+  - It also waits on P1.7, the local Supabase check on the Mac.
+  - PR: https://github.com/Hasdro/sotto/pull/1 (draft), branch `claude/friendly-gates-fbhqdv`, not merged yet.
+  - Phase 0 is not finished either. It runs on working assumptions (D-009); see the tracker.
+- **What exists now:**
+  - `apps/app`: Expo SDK 58 + expo-router.
+    - Themed hello screen in `app/index.tsx`.
+    - String table and theme hook in `lib/i18n.ts` and `lib/theme.ts`.
+    - jest-expo tests in `__tests__/`.
+  - `apps/agent-worker`: uv project, Python ≥ 3.12. CI tests on 3.12 and 3.13; the cloud box has 3.13.
+    - `sotto_worker/protocol/`: the generated card model plus `CardMessage.to_wire()`.
+    - `replay/`: the `pnpm replay` stub.
+    - `scripts/gen_card_model.py` and `scripts/check_coverage.py`.
+  - `packages/shared`: `src/card.ts`, the zod card protocol v1 and **the source of truth**.
+    - `schema/card.v1.schema.json` is generated from it.
+    - `fixtures/cards/{valid,invalid}` are used by both the TS and Python tests.
+  - `packages/ui`: `src/tokens.ts`, a placeholder light/dark palette that meets AA, plus spacing, radius, type and touch target. Phase 3 replaces the values but keeps the keys.
+  - `seed/models/default.yaml`: all 8 stages. It is the only place model IDs live, apart from adapters.
+  - `seed/prompts/`: the front-matter format plus `suggest.md`, validated by `tests/test_seed.py`.
+  - `supabase/`: `supabase init` config (Postgres 17). `migrations/` and `tests/` are empty.
+  - `scripts/`:
+    - `check-boundaries.sh` + `check_boundaries.py`, with 7 rule IDs;
+    - `check_bundle_size.py`;
+    - `tests/run.sh`, the fixture tests;
+    - `doctor.sh`.
+  - `.github/workflows/ci.yml` and `.githooks/pre-commit` (gitleaks).
+  - `CONSTRAINTS.md`: the quality bar.
+- **How to run it:**
+  - `pnpm install && (cd apps/agent-worker && uv sync)`. The `prepare` script sets `core.hooksPath=.githooks`.
+  - `pnpm typecheck`: tsc in 3 packages, then mypy. Expect exit 0.
+  - `pnpm lint`: Biome, then ruff, then `check-boundaries: ok`.
+  - `pnpm test`. Expect:
+    - vitest 14 + 14;
+    - jest-expo 3;
+    - pytest 35, then `coverage floors: ok`;
+    - `all boundary fixture tests passed`.
+  - `pnpm dev`: Expo dev server (press `w` for web).
+  - `pnpm --filter @sotto/app export:web`: static web build in `apps/app/dist`.
+  - `pnpm gen`: regenerates the JSON Schema and the pydantic model after any change to `card.ts`.
+  - `pnpm replay --all`: prints `replay: no golden calls yet (P0.5)…` and exits 0.
+- **Interfaces later phases depend on** (changing them needs a decision):
+  - The card protocol v1: `packages/shared/src/card.ts` and ARCHITECTURE §2. Optional fields may be absent or null, and the worker omits them.
+  - The seed formats: `seed/models/default.yaml` (stage → provider/model/first_token_ms/settings) and `seed/prompts/*.md` front matter (key, version, scope, stage, description, variables).
+  - The router, adapter, registry and token-minting contracts in ARCHITECTURE §2, and the table list in §3.
+  - The design token keys in `packages/ui/src/tokens.ts`.
+- **Exit gate evidence:**
+  - CI is green on all 4 jobs (typecheck/lint/test on Python 3.12 and 3.13, audit, gitleaks): https://github.com/Hasdro/sotto/actions/runs/39166712190.
+  - The clean-clone run passes (session log 2026-10-18).
+  - The Stop hook exits 2 on a deliberately broken type and 0 when clean (~8 s).
+  - The pre-commit hook blocks a planted token (exit 1).
+  - Web screenshots are in `docs/evidence/p1.3/`.
+- **Deviations from the phase brief:**
+  - D-010: the owner did not choose D-005; Claude recommended Expo under D-009.
+  - D-011: Biome instead of ESLint + Prettier.
+  - Phase 0 and Phase 1 share one cloud branch (D-009).
+  - `pnpm replay` exits 1 if golden calls exist but the harness does not, so it can never fake a pass.
+  - Extra boundary rules (no raw colours in the app, no provider keys in the app, the suppression guard) and coverage and bundle floors (CONSTRAINTS.md).
+- **Known issues / debt carried forward:** T-001, two Expo-tooling advisories ignored in `pnpm audit` until Expo patches them.
+- **Local-only items left:** P1.7 (`supabase start`, an empty migration, one pgTAP smoke test, then `supabase test db`). It needs Docker Desktop on the Mac.
+- **Advice for the next phase:**
+  - Expo's version API (`api.expo.dev`) and `docs.expo.dev` are blocked from cloud sessions. Install with versions from `node_modules/expo/bundledNativeModules.json`, and run `expo export` with `EXPO_OFFLINE=1`.
+  - `github.com` downloads are blocked in the cloud, but the Go proxy and PyPI work. For gitleaks, use `go install github.com/zricethezav/gitleaks/v8@v8.30.1`.
+  - React Native Testing Library v14 has an async `render`, so write `await render(...)`.
+  - Start Phase 2 with `/spec` → `spec/phase-2-engine.md`. P2.1, P2.2 and P2.4–P2.7 need no keys and no recordings.
+  - Keep the injectable clock from P2.1 everywhere. The 700 ms race and the 1500 ms holding line must be testable without sleeping.
