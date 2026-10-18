@@ -18,7 +18,12 @@
       "Bash(pnpm typecheck)",
       "Bash(pnpm replay *)",
       "Bash(uv run pytest *)",
-      "Bash(supabase test db)"
+      "Bash(supabase test db)",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm format)",
+      "Bash(pnpm gen)",
+      "Bash(bash scripts/check-boundaries.sh)",
+      "Bash(bash scripts/tests/run.sh)"
     ]
   },
   "hooks": {
@@ -27,11 +32,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f docs/TRACKER.md ] && { echo 'Sotto tracker — current state (run /next-task to start):'; sed -n '/^## Now/,/^## Phase board/p' docs/TRACKER.md | grep -v -e '^## Phase board' -e '<!--'; }; exit 0"
+            "command": "[ -f docs/TRACKER.md ] && { echo 'Sotto tracker \u2014 current state (run /next-task to start):'; sed -n '/^## Now/,/^## Phase board/p' docs/TRACKER.md | grep -v -e '^## Phase board' -e '<!--'; }; exit 0"
           },
           {
             "type": "command",
-            "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] && [ -f package.json ] && command -v pnpm >/dev/null && pnpm install --frozen-lockfile >/dev/null 2>&1; exit 0"
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = true ] && [ -f package.json ] && command -v pnpm >/dev/null && pnpm install --frozen-lockfile >/dev/null 2>&1; [ \"$CLAUDE_CODE_REMOTE\" = true ] && [ -f apps/agent-worker/uv.lock ] && command -v uv >/dev/null && (cd apps/agent-worker && uv sync --frozen >/dev/null 2>&1); exit 0"
           }
         ]
       }
@@ -42,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -f package.json ] && pnpm -s format --log-level warn >/dev/null 2>&1; exit 0"
+            "command": "[ -f package.json ] && pnpm -s format >/dev/null 2>&1; exit 0"
           }
         ]
       }

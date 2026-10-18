@@ -86,15 +86,21 @@ screenshots that prove the acceptance criteria.
 
 ## Commands
 
-Phase 1 fills in the real commands. Until then they do not exist; do not pretend they ran.
+Real since P1.3/P1.4. Run from the repo root.
 
 | Purpose | Command |
 |---|---|
 | Install everything | `pnpm install && (cd apps/agent-worker && uv sync)` |
-| Typecheck / lint / test (all) | `pnpm typecheck` · `pnpm lint` · `pnpm test` |
-| Worker tests | `cd apps/agent-worker && uv run pytest` |
+| Dev server (Expo; press `w` for web) | `pnpm dev` |
+| Typecheck (TS + mypy) | `pnpm typecheck` |
+| Lint (Biome + ruff + boundaries) | `pnpm lint` |
+| Format (Biome + ruff) | `pnpm format` |
+| Test (vitest, jest-expo, pytest, boundary fixtures) | `pnpm test` |
+| Worker tests only | `cd apps/agent-worker && uv run pytest` |
+| Regenerate card protocol (JSON Schema + pydantic) | `pnpm gen` |
+| Boundary checks | `bash scripts/check-boundaries.sh` |
 | Database tests (RLS) | `supabase test db` (needs Docker, local only) |
-| Latency + quality replay | `pnpm replay --all` |
+| Latency + quality replay | `pnpm replay --all` (stub until P2.8: exits 0 only when there are no golden calls) |
 | Environment check | `scripts/doctor.sh` |
 
 ## Git

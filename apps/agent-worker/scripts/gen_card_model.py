@@ -19,8 +19,6 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
-    # Generate to stdout from the worker dir, so the formatter reads the same pyproject
-    # settings wherever the output goes (the staleness test writes to a temp dir).
     result = subprocess.run(  # noqa: S603 - fixed argv
         [
             sys.executable,
@@ -58,9 +56,17 @@ def main() -> None:
         check=True,
         capture_output=True,
         text=True,
-        cwd=WORKER,
     )
-    args.output.write_text(result.stdout)
+    # Format with fixed settings (--isolated ignores config files) so the output never depends
+    # on where the generator runs or on later ruff config changes.
+    formatted = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--isolated", "--line-length", "100", "-"],
+        input=result.stdout,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    args.output.write_text(formatted.stdout)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,8 @@
       "!**/.venv",
       "!**/expo-env.d.ts",
       "!**/supabase/.temp",
-      "!packages/shared/schema"
+      "!packages/shared/schema",
+      "!scripts/tests/fixtures"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

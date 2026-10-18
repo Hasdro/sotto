@@ -62,9 +62,9 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 1
 - [x] P1.1 Decide D-005 Expo vs Flutter `owner` — Expo, D-010 (Claude's recommendation under D-009; owner may override before Phase 3)
 - [ ] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner`
-- [ ] P1.3 Monorepo skeleton
-- [ ] P1.4 Commands + hooks working
-- [ ] P1.5 scripts/check-boundaries.sh with fixtures
+- [x] P1.3 Monorepo skeleton — `pnpm install && pnpm typecheck && pnpm test` green (vitest 28, jest-expo 3, pytest 30); web screenshots in `docs/evidence/p1.3/`
+- [x] P1.4 Commands + hooks working — CLAUDE.md table updated; Stop hook exits 2 on a broken type, 0 when clean (~8 s); format hook ~0.6 s
+- [x] P1.5 scripts/check-boundaries.sh with fixtures — 7 rules, 8 failing + 1 passing fixture trees, repo clean (`bash scripts/tests/run.sh`)
 - [ ] P1.6 GitHub Actions CI + gitleaks
 - [!] P1.7 Local Supabase smoke test `local-only` — blocked in cloud: needs Docker + supabase CLI (Mac)
 - [ ] P1.8 CONSTRAINTS.md

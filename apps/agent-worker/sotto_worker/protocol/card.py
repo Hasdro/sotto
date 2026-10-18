@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictBool, StrictInt, StrictStr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+)
 
 
 class Label(RootModel[StrictStr]):
@@ -13,7 +21,7 @@ class Label(RootModel[StrictStr]):
 
 class Timing(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     turn_end_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
     stt_final_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
@@ -23,24 +31,24 @@ class Timing(BaseModel):
 
 class CardMessage(BaseModel):
     model_config = ConfigDict(
-        extra='forbid',
+        extra="forbid",
     )
     v: Literal[1]
     card_id: Annotated[
         StrictStr,
         Field(
-            pattern='^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            pattern="^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         ),
     ]
     call_id: Annotated[
         StrictStr,
         Field(
-            pattern='^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$'
+            pattern="^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         ),
     ]
     seq: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
-    type: Literal['answer', 'question', 'objection', 'warning', 'holding']
-    source: Literal['playbook', 'ai', 'backup', 'holding']
+    type: Literal["answer", "question", "objection", "warning", "holding"]
+    source: Literal["playbook", "ai", "backup", "holding"]
     label: Label | None = None
     delta: StrictStr
     done: StrictBool

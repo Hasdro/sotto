@@ -1,0 +1,12 @@
+# Shared ruff settings for all Python in the repo (worker and scripts/).
+line-length = 100
+target-version = "py312"
+# Deliberate violations used by scripts/tests/run.sh.
+extend-exclude = ["scripts/tests/fixtures"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "ASYNC", "PT"]
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101"]
+"scripts/*.py" = ["S603", "S607"]
