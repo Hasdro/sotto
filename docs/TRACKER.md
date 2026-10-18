@@ -52,12 +52,12 @@ Tags:
 Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 ### Phase 0
-- [~] P0.1 Interview the owner `owner`
-- [ ] P0.2 Write docs/BRIEF.md `owner`
-- [ ] P0.3 Draft the playbook (faq, objections, products, never-promise)
-- [ ] P0.4 Golden-call plan (test-calls/PLAN.md) `owner`
+- [!] P0.1 Interview the owner `owner` — deferred by the owner 2026-10-18 (D-009); answers replace `ASSUMED:` lines in BRIEF.md
+- [~] P0.2 Write docs/BRIEF.md `owner` — working assumptions written (D-009); waits for the owner to say "correct"
+- [!] P0.3 Draft the playbook (faq, objections, products, never-promise) `owner` — needs the real products, questions and objections; no invented content (D-009)
+- [~] P0.4 Golden-call plan (test-calls/PLAN.md) `owner` — draft written; waits for owner agreement and a date
 - [ ] P0.5 Label 10 golden calls `owner` (may finish later; blocks P2.8)
-- [ ] P0.6 Decisions from the interview
+- [~] P0.6 Decisions from the interview — D-009 recorded; more after the interview
 
 ### Phase 1
 - [ ] P1.1 Decide D-005 Expo vs Flutter `owner`
@@ -135,7 +135,9 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 Things only the owner can do, so the agent never waits silently.
 
-- [ ] Answer the Phase 0 interview
+- [ ] Answer the Phase 0 interview, or simply correct the `ASSUMED:` lines in `docs/BRIEF.md` (D-009)
+- [ ] Agree to `test-calls/PLAN.md` and set a recording date; check whether Yeastar can record split channels
+- [ ] Supply playbook content: products and prices, top 20 questions, top 10 objections, never-promise list (P0.3)
 - [ ] Record 10 golden calls with consent (separate customer and agent tracks)
 - [ ] Add 5–10 design references to `docs/design/refs/`
 - [ ] Install Docker Desktop: run `brew install --cask docker-desktop` in a terminal (it needs your password), then open Docker once

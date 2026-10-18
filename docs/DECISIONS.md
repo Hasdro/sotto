@@ -74,3 +74,14 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - A draft PR is opened early. The owner merges to `main`.
   - A new session continues an unmerged phase branch instead of starting a second one.
 - **Why:** Cloud and local sessions alternate. One branch per phase avoids diverging trackers. It also gives the owner one review point per phase.
+
+## D-009 — Build on working assumptions while the Phase 0 interview is deferred
+2026-10-18 · accepted (owner instruction: "skip the questions for now … go ahead with your own recommendation")
+- **Decision:**
+  - P0.1 (interview) and P0.3 (real playbook content) wait for the owner. `docs/BRIEF.md` holds working assumptions marked `ASSUMED:`; the items that must not be hard-wired are marked `OPEN:`.
+  - The Phase 0 exit gate is waived for starting Phase 1. Phase 1 needs only the BRIEF numbers, used for the cost estimate.
+  - Where a task needs an owner choice, Claude takes its own recommendation, records it as a decision, and lists it under *Waiting on owner* for confirmation.
+  - This session's cloud branch, `claude/friendly-gates-fbhqdv`, carries both the Phase 0 drafts and Phase 1 (refines D-008). The owner reviews them as one PR.
+- **Why:** The owner wants progress without blocking on the interview. Phase 1 (skeleton, CI, boundaries) does not depend on business facts. Every assumption sits behind a setting, the model router or the prompt registry (D-003), so the answers can change it later without a rewrite.
+- **Risk:** If a wrong assumption reaches code, rework follows. To limit that, assumptions only reach `seed/` data and settings, never logic.
+- **Rejected:** Waiting for the interview, which stalls all work. Inventing playbook content, which would tune the engine on guesses (see the phase-0 pitfalls).
