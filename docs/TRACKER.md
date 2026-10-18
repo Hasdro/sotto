@@ -82,16 +82,16 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [!] P2.9 Local model (Ollama) benchmark `local-only` — blocked in cloud: needs Ollama (Mac)
 
 ### Phase 3
-- [ ] P3.1 Two visual directions `owner`
-- [ ] P3.2 docs/DESIGN.md
-- [ ] P3.3 packages/ui + gallery
-- [ ] P3.4 Agent screens (mock)
-- [ ] P3.5 Manager/admin screens (mock)
+- [x] P3.1 Two visual directions `owner` — Claude chose "Prompter's box" (D-014, under D-013); owner reviews `docs/evidence/p3/`
+- [x] P3.2 docs/DESIGN.md — tokens, card anatomy, layouts, motion, RTL, a11y
+- [x] P3.3 packages/ui + gallery — components + `/gallery`; vitest 102 + jest 31; axe-core in CI still TODO
+- [x] P3.4 Agent screens (mock) — in-call screen live on the demo bridge (e2e screenshots `docs/evidence/demo/`), history, playbook; app jest 90
+- [~] P3.5 Manager/admin screens (mock) — inbox, team, prompts, models (with benchmark), settings; mock role switch TODO
 - [ ] P3.6 Visual QA loop `owner`
 
 ### Phase 4
 - [ ] P4.1 Telephony: LiveKit + SIP trunk `local-only` `owner`
-- [ ] P4.2 Token service (edge function)
+- [~] P4.2 Token service (edge function) — call-start policy pure + 12 tests (D-015); Deno entry + LiveKit signing adapter need the LiveKit account
 - [ ] P4.3 App calling: dev build, CallKit/ConnectionService, web `local-only`
 - [ ] P4.4 Worker in the room, customer track only
 - [ ] P4.5 Desktop + other softphone (optional)
@@ -108,7 +108,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P5.7 Security review
 
 ### Phase 6
-- [ ] P6.1 Registry + router read from DB
+- [x] P6.1 Registry + router read from DB — `sotto_worker/config/db.py` (PostgREST, worker JWT); mocked-HTTP tests
 - [ ] P6.2 Prompt studio
 - [ ] P6.3 Test on recordings
 - [ ] P6.4 Model settings + custom endpoints + R1 guard
@@ -116,11 +116,11 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P6.6 Admin permissions
 
 ### Phase 7
-- [ ] P7.1 Email adapter + outbox
+- [x] P7.1 Email adapter + outbox — retry 10 s/30 s/1/5/15 min + dead letter, Resend with Idempotency-Key; DB trigger enqueues one email per escalation
 - [ ] P7.2 Escalation flow → playbook
-- [ ] P7.3 CRM interface + fake
+- [x] P7.3 CRM interface + fake
 - [ ] P7.4 Zoho implementation `owner`
-- [ ] P7.5 After-call summary
+- [x] P7.5 After-call summary — summary stage + seed prompt + extract fallback (not yet wired to the CRM outbox)
 
 ### Phase 8
 - [ ] P8.1 Load test
@@ -153,11 +153,18 @@ Things only the owner can do, so the agent never waits silently.
   - Phase 8: Sentry
 - [ ] Cloud sessions: set the API keys as environment secrets, and allow network access to the vendors' domains
 - [ ] Trademark and domain check for "Sotto" (D-001)
+- [ ] Let Claude write `.env.example`. The deny rule `Read(./.env.*)` in `.claude/settings.json` also blocks `.env.example`. Suggested: add an allow rule for `./.env.example`. Until then `docs/ENV.md` lists the variables.
+- [ ] Try the demo on the Mac: `docs/RUN-ON-MAC.md` (`pnpm demo`). Optional: put `ANTHROPIC_API_KEY` in `.env` for real suggestions.
+- [ ] Review the design direction (D-014) and the screenshots in `docs/evidence/p3/` and `docs/evidence/demo/`
 - [ ] Approve or edit two Claude Code hook changes in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
   - **Stop hook:** send stdout to stderr, `{ pnpm -s typecheck && pnpm -s test; } 1>&2 || exit 2`, so Claude sees the tsc and pytest errors. Also exit 0 when the hook input has `"stop_hook_active": true`, so a machine without `uv` cannot trap the session.
   - **PostToolUse format hook:** today a Biome failure skips ruff with no notice. Run the two formatters independently.
 
 ## Known issues and tech debt
+
+- **T-002** (2026-10-18) The card protocol has no `turn_id`. The app links a holding card to its turn by counting `turn_end` messages, which works only because the bridge sends `turn_end` before that turn's cards. Add an optional `turn_id` to the card and `turn_end` (protocol v1, additive) before live calls (Phase 4).
+- **T-003** (2026-10-18) zod adds about 90 KB to the web bundle (426 KB of the 450 KB budget). Consider a zod/mini parser in `packages/shared`.
+- **T-004** (2026-10-18) Drafting on partial transcripts (ARCHITECTURE §4) is not implemented. Today the suggest request starts on the final transcript.
 
 - **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
   - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
