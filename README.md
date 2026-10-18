@@ -42,6 +42,9 @@ Live progress is in [`docs/TRACKER.md`](docs/TRACKER.md).
 | `docs/phases/` | Detailed brief per phase (0–8): tasks, acceptance, exit gate, pitfalls |
 | `docs/ENGINEERING.md` | Repo layout, interfaces, coding, testing, security standards |
 | `docs/ARCHITECTURE.md` | Architecture (draft, finalized in Phase 1) |
+| `docs/HANDOFF.md` | How sessions hand work to each other (checkpoints, cold-start test, phase handoffs) |
+| `docs/handoffs/` | One handoff file per finished phase |
+| `docs/RESEARCH.md` | The research behind the plan: market, stack, latency, UX, legal |
 | `docs/DECISIONS.md` | Numbered decisions with reasons |
 | `docs/REFERENCES.md` | Official documentation links per topic |
 | `docs/BRIEF.md` | Business brief, filled in during Phase 0 |

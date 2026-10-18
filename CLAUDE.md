@@ -24,6 +24,8 @@ Read `docs/WORKFLOW.md` once per session.
    - `docs/DESIGN.md` (UI, from Phase 3)
    - `docs/BRIEF.md` (business answers)
    - `docs/REFERENCES.md` (official docs)
+   - `docs/RESEARCH.md` (why the plan looks this way; background only)
+   - `docs/handoffs/phase-N.md` (what each finished phase left behind; read the latest one before a new phase)
 
 If two documents disagree, stop, say which ones, and propose the fix as a decision.
 
@@ -33,10 +35,12 @@ If two documents disagree, stop, say which ones, and propose the fix as a decisi
 - **During:**
   - Work on one task at a time, in the smallest verifiable slice, tests first.
   - Update `docs/TRACKER.md` whenever a task changes state, not only at the end.
-- **End:** run `/handoff` and confirm all of these:
+- **Checkpoint:** WIP-commit and push on the phase branch before risky work, about every 45 minutes, and when context passes ~60%. At ~70%, finish the slice, `/handoff`, and ask the owner for a fresh session (`docs/HANDOFF.md`).
+- **End:** run `/handoff` (protocol in `docs/HANDOFF.md`) and confirm all of these:
   - the tracker is updated (Now, task board, session log);
   - everything is committed and pushed;
-  - the next action is written so that a different session on a different machine can continue cold.
+  - the next action is written so that a different session on a different machine can continue cold (the cold-start test in `docs/HANDOFF.md`);
+  - when a phase exit gate is met, `docs/handoffs/phase-N.md` is written.
 - Never end a session with uncommitted work or a tracker that is out of date.
 
 ## Hard rules

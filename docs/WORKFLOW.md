@@ -149,6 +149,12 @@ Plan cloud sessions around the "yes" column. Phases 1–2 are mostly cloud-frien
 4. Commit and push. Run `git status` and confirm it is clean.
 5. Print a 5-line summary for the owner: done, evidence, next, what you need from them.
 
+The full protocol is in `docs/HANDOFF.md`:
+- **checkpoints** mid-task (WIP commits; hand off at ~70% context);
+- the **cold-start test** every handoff must pass;
+- **phase handoffs** in `docs/handoffs/phase-N.md` when an exit gate is met;
+- moving work between cloud and local.
+
 ## 10. Skills, commands and subagents in this repo
 
 They are vendored in `.claude/`, so they work identically in the cloud and locally (D-006).

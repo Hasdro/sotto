@@ -31,7 +31,7 @@ Tags:
 - **Branch:** main (start `phase-0-brief` when work begins)
 - **Environment last used:** none yet
 - **Blockers:** none
-- **Next action:** Run `/next-task`, then start the P0.1 interview using the `interview-me` skill.
+- **Next action:** Run `/next-task`, then start the P0.1 interview using the `interview-me` skill. Handoff rules: `docs/HANDOFF.md`.
 
 ## Phase board
 
@@ -164,7 +164,18 @@ _None yet._
 
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
-followed by the lines **Done**, **Evidence**, **Next** and **Notes**.
+followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-19 · local · Claude Opus 5.5 · setup (handoff kit)
+- **Done:**
+  - Added `docs/RESEARCH.md`, the planning research (market, stack, latency, UX, legal, interview questions), moved from the plan artifact into the repo.
+  - Added `docs/HANDOFF.md`: checkpoints, the cold-start test, and the phase handoff template in `docs/handoffs/`.
+  - Wired them into CLAUDE.md, `/next-task`, `/handoff`, WORKFLOW and the master prompt (new cloud first-run prompt).
+- **Evidence:** docs only; no code yet.
+- **Next:** first cloud session. Use the master prompt, start P0.1.
+- **Notes:**
+  - Docker Desktop and Xcode are still not installed on the Mac (checked 2026-10-19); Android Studio is.
+  - The first cloud session will get a `claude/…` branch; it must record that branch in Now.
 
 ### 2026-10-13 · local · Claude Opus 5.5 · setup (planning session)
 - **Done:**

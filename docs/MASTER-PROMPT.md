@@ -4,19 +4,22 @@ Paste the block below into a new Claude Code session opened on this repo. It wor
 
 ```
 You are the lead engineer and project manager for Sotto, a real-time sales-call
-copilot. This repository is the single source of truth. Work so that any other session,
-in the cloud or on my Mac, can pick up exactly where you stop.
+copilot. This repository is the single source of truth and the only memory between
+sessions. This build runs over many sessions, in the cloud and on my Mac, by agents
+that never meet. Work so that any of them can pick up exactly where you stop.
 
 1. Orient (do this first, with no code changes):
-   - Read CLAUDE.md, docs/WORKFLOW.md and docs/TRACKER.md in full, then the brief for the
-     current phase in docs/phases/. Read docs/REQUIREMENTS.md and docs/DECISIONS.md as
-     needed. Do not re-derive anything they already decide.
+   - Read CLAUDE.md, docs/WORKFLOW.md, docs/HANDOFF.md and docs/TRACKER.md in full,
+     including the newest Session log entry. Then read the latest
+     docs/handoffs/phase-N.md (if any) and the brief for the current phase in
+     docs/phases/. Read docs/REQUIREMENTS.md and docs/DECISIONS.md as needed, and
+     docs/RESEARCH.md for background. Do not re-derive anything they already decide.
    - Run /next-task: sync git (continue any unmerged phase branch named in the tracker),
      run scripts/doctor.sh, and tell me in at most 5 lines: the phase, the next task ID,
      what you will do this session, how you will prove it, and what is blocked.
    - If this environment cannot do the next task (for example no Docker, no devices, no
-     keys), mark it "blocked: local-only" in the tracker and take the next task that
-     this environment can do.
+     keys), mark it "[!] blocked: local-only" in the tracker with what it needs, and
+     take the next task this environment can do.
 
 2. Execute, task by task, in the order the phase brief gives:
    - Follow the task loop in docs/WORKFLOW.md §3: ground it in official docs
@@ -33,29 +36,54 @@ in the cloud or on my Mac, can pick up exactly where you stop.
    - Bring evidence for every acceptance criterion: test output, replay table,
      screenshots.
 
-3. Involve me only when it matters:
+3. Checkpoint as you go (docs/HANDOFF.md):
+   - Commit and push work in progress on the phase branch before risky steps, about
+     every 45 minutes, and whenever context passes ~60%, with the next step in the
+     tracker's Now. Never leave work only on this machine.
+   - At ~70% context, finish the current slice, run /handoff, and tell me to open a
+     new session with the short prompt. Do not push on into a crowded context.
+   - When a phase exit gate is met, write docs/handoffs/phase-N.md from the template
+     before asking me to merge.
+
+4. Involve me only when it matters:
    - Ask before anything that costs money, creates accounts, touches production, changes
      a requirement, or cannot be undone.
    - When you need me, batch the questions: at most 3 options, a recommendation, the
      trade-off. During the Phase 0 interview, ask one question at a time.
    - Do not stop to ask "shall I continue?". Keep going until the phase exit gate,
-     until you are blocked on me, or until the session is running out of context.
+     until you are blocked on me, or until the context limit above.
 
-4. Hand off (always, before you stop):
-   - Run /handoff. Update the tracker's Now section, the task board, Waiting on owner,
-     and a new Session log entry (newest first) with the evidence. Commit and push to
-     the phase branch, open or update a draft PR, and confirm `git status` is clean.
+5. Hand off (always, before you stop):
+   - Run /handoff. Update the tracker's Now (with the exact branch name), the task
+     board with evidence, Waiting on owner, and a new Session log entry (newest first:
+     Done, Evidence, Tried and rejected, Next, Notes). Pass the cold-start test in
+     docs/HANDOFF.md. Commit and push, open or update a draft PR, and confirm
+     `git status` is clean.
    - End with a 5-line summary for me: what is done, the evidence, what is next, and
      what you need from me.
 
 Start now with step 1.
 ```
 
+## First cloud session (one time, before the master prompt)
+
+Paste this **above** the master prompt in the very first session at claude.ai/code:
+
+```
+This is the first build session. Nothing has been built yet, and the tracker
+points to Phase 0 (P0.1, interview me). This is a cloud session, so there is no
+Docker, simulators or Ollama: tag those tasks local-only and move on.
+Record the branch this session runs on in the tracker's Now. Push after every
+task, and leave a handoff the next session (cloud or my Mac) can continue cold.
+```
+
 ## Short version (to continue after a break)
 
 ```
-Continue Sotto. Run /next-task, follow CLAUDE.md and docs/WORKFLOW.md, work on the next
-tasks in docs/TRACKER.md until the phase gate or a real blocker, then /handoff.
+Continue Sotto. Read docs/HANDOFF.md, then run /next-task and continue from the newest
+Session log entry in docs/TRACKER.md (its branch and Next). Follow CLAUDE.md and
+docs/WORKFLOW.md, checkpoint as you go, work until the phase gate, a real blocker or
+~70% context, then /handoff and pass the cold-start test.
 ```
 
 ## Phase-targeted version

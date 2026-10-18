@@ -11,7 +11,8 @@ Run the Sotto session start routine from docs/WORKFLOW.md §2. Make no code chan
    - If the working tree is dirty with changes you did not make, stop and ask.
 2. Run `bash scripts/doctor.sh` and note which capabilities are missing (Docker, simulators, keys, Ollama).
 3. Read in full:
-   - docs/TRACKER.md;
+   - docs/TRACKER.md, including the newest Session log entry (its Next, Tried and rejected, and Notes);
+   - the latest `docs/handoffs/phase-N.md` if one exists;
    - the current phase brief in docs/phases/;
    - any `spec/phase-N-*.md` and `tasks/todo.md` for the current phase.
 4. Pick the next task: the first `[ ]` or `[~]` task in the current phase that this environment can do.
