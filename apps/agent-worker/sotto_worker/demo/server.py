@@ -33,7 +33,8 @@ from sotto_worker.runtime import DEMO, Runtime
 from sotto_worker.scenarios import Scenario, load_all
 from sotto_worker.telemetry import CardTimingRecord, summarise
 
-LOCAL_DEV_PORTS = (8081, 19006)  # Expo dev server ports, for `expo start --web` against the bridge
+LOCAL_DEV_PORTS = (8081, 19006)
+WARM_TIMEOUT_S = 2.0  # Expo dev server ports, for `expo start --web` against the bridge
 
 
 class _Call:
@@ -46,6 +47,7 @@ class _Call:
         self._lock = asyncio.Lock()
         self.timings: list[CardTimingRecord] = []
         self.playback: asyncio.Task[None] | None = None
+        self.warmup: asyncio.Task[None] | None = None
         self.session = CallSession(
             call_id=self.call_id,
             company=runtime.company,
@@ -98,10 +100,12 @@ class _Call:
             await self.say(line.speaker, line.text, line.duration_ms)
 
     async def end(self) -> None:
-        if self.playback is not None:
-            self.playback.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self.playback
+        for task in (self.playback, self.warmup):
+            if task is not None and not task.done():
+                task.cancel()
+            if task is not None:
+                with contextlib.suppress(asyncio.CancelledError, TimeoutError, Exception):
+                    await task
         await self.session.close()
         if self.timings:
             s = summarise(self.timings)
@@ -127,8 +131,11 @@ class DemoServer:
         self.log = log
         self._scenarios = {s.id: s for s in load_all(DEMO / "calls")}
         self._server: Server | None = None
+        self._runtime: Runtime | None = None
 
     async def start(self, host: str, port: int) -> int:
+        # Build once, off the event loop: YAML, playbook and prompt files are read here.
+        self._runtime = await asyncio.to_thread(self._runtime_factory)
         self._server = await serve(
             self._handle,
             host,
@@ -187,7 +194,7 @@ class DemoServer:
         return Response(200, "OK", headers, body)
 
     async def _handle(self, ws: ServerConnection) -> None:
-        runtime = self._runtime_factory()
+        runtime = self._runtime or await asyncio.to_thread(self._runtime_factory)
         call: _Call | None = None
         await ws.send(
             json.dumps(
@@ -205,7 +212,8 @@ class DemoServer:
         async def begin() -> _Call:
             new = _Call(self, ws, runtime)
             await new.send({"type": "call_started", "call_id": new.call_id})
-            await new.session.warm()
+            # Warm model connections in the background; the call is usable at once.
+            new.warmup = asyncio.create_task(asyncio.wait_for(new.session.warm(), WARM_TIMEOUT_S))
             self.log(f"call started ({runtime.mode} models)")
             return new
 
