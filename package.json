@@ -18,7 +18,8 @@
     "test:scripts": "bash scripts/tests/run.sh",
     "replay": "cd apps/agent-worker && uv run --frozen python -m replay",
     "gen": "pnpm --filter @sotto/shared gen && cd apps/agent-worker && uv run --frozen python scripts/gen_card_model.py",
-    "demo": "node scripts/demo.mjs"
+    "demo": "node scripts/demo.mjs",
+    "test:db": "bash scripts/db-test.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

@@ -53,6 +53,20 @@ jobs:
       - name: Web bundle budget
         run: python3 scripts/check_bundle_size.py apps/app/dist
 
+  database:
+    name: migrations + RLS isolation (pgTAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install pgTAP for the runner's PostgreSQL
+        run: |
+          pg="$(ls /usr/lib/postgresql | sort -V | tail -1)"
+          sudo apt-get update -q
+          sudo apt-get install -y -q "postgresql-${pg}-pgtap"
+      - name: Migrations + pgTAP on a throwaway cluster
+        run: bash scripts/db-test.sh
+
   audit:
     name: dependency audit
     runs-on: ubuntu-latest
