@@ -65,7 +65,7 @@ async def test_loads_routes_prompts_and_playbook_with_the_worker_jwt() -> None:
     rest = SupabaseRest(
         url="https://proj.supabase.co", anon_key="anon", jwt="worker.jwt", client=_client(seen)
     )
-    config = await load_company_config(rest, COMPANY)
+    config = await load_company_config(rest, COMPANY, deployment="local")
     assert isinstance(config, CompanyConfig)
     assert {r.headers["Authorization"] for r in seen} == {"Bearer worker.jwt"}
     assert {r.headers["apikey"] for r in seen} == {"anon"}
@@ -115,3 +115,12 @@ async def test_http_errors_raise() -> None:
 
 def test_rows_round_trip_as_json() -> None:
     assert json.loads(json.dumps(ROWS))["model_routes"][0]["stage"] == "suggest"
+
+
+async def test_cloud_drops_a_private_company_endpoint_and_keeps_the_platform_default() -> None:
+    rest = SupabaseRest(
+        url="https://proj.supabase.co", anon_key="anon", jwt="j", client=_client([])
+    )
+    config = await load_company_config(rest, COMPANY, deployment="cloud", resolve=lambda _h: [])
+    assert "suggest" not in config.routing.overrides
+    assert config.rejected and "suggest" in config.rejected[0]

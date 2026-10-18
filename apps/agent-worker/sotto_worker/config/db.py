@@ -7,11 +7,18 @@ https://supabase.com/docs/guides/api (`/rest/v1/<table>?select=*&company_id=eq.<
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
 import httpx
 
+from sotto_worker.config.endpoints import (
+    Deployment,
+    EndpointRejected,
+    check_endpoint,
+    system_resolve,
+)
 from sotto_worker.playbook import PlaybookEntry, PlaybookIndex
 from sotto_worker.prompts import PromptRegistry, PromptVersion
 from sotto_worker.router import CompanyRouting, StageRoute
@@ -42,20 +49,35 @@ class CompanyConfig:
     routing: CompanyRouting
     prompts: tuple[PromptVersion, ...]
     playbook: PlaybookIndex
+    # Overrides dropped at load time (e.g. an unsafe endpoint); the platform default serves them.
+    rejected: tuple[str, ...] = ()
 
     def apply_prompts(self, registry: PromptRegistry) -> None:
         for prompt in self.prompts:
             registry.add(prompt, publish=True)
 
 
-async def load_company_config(rest: SupabaseRest, company_id: str) -> CompanyConfig:
+async def load_company_config(
+    rest: SupabaseRest,
+    company_id: str,
+    *,
+    deployment: Deployment = "cloud",
+    resolve: Callable[[str], list[str]] = system_resolve,
+) -> CompanyConfig:
     routes = await rest.select("model_routes", company_id)
     prompts = await rest.select("prompt_versions", company_id, status="eq.published")
     entries = await rest.select("playbook_entries", company_id)
 
     overrides: dict[str, StageRoute] = {}
     backup_disabled: set[str] = set()
+    rejected: list[str] = []
     for row in routes:
+        if row.get("base_url"):
+            try:
+                check_endpoint(row["base_url"], deployment=deployment, resolve=resolve)
+            except EndpointRejected as err:
+                rejected.append(f"{row['stage']}: {err}")
+                continue
         overrides[row["stage"]] = StageRoute(
             provider=row["provider"],
             model=row["model"],
@@ -95,4 +117,6 @@ async def load_company_config(rest: SupabaseRest, company_id: str) -> CompanyCon
     routing = CompanyRouting(
         company_id=company_id, overrides=overrides, backup_disabled=backup_disabled
     )
-    return CompanyConfig(routing=routing, prompts=versions, playbook=playbook)
+    return CompanyConfig(
+        routing=routing, prompts=versions, playbook=playbook, rejected=tuple(rejected)
+    )
