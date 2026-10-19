@@ -29,6 +29,7 @@ import { useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { cardStrings } from "../features/call/components/strings";
 import { directionOf, type Locale, t as translate } from "../lib/i18n";
+import { personaFor } from "../lib/role";
 
 const TYPES: readonly CardType[] = ["answer", "question", "objection", "warning", "holding"];
 
@@ -143,7 +144,12 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
               { key: "a", title: t("admin.team.name") },
               { key: "b", title: t("admin.team.role") },
             ]}
-            rows={[{ id: "1", cells: { a: t("nav.user"), b: <Badge label={t("role.agent")} /> } }]}
+            rows={[
+              {
+                id: "1",
+                cells: { a: personaFor("agent").name, b: <Badge label={t("role.agent")} /> },
+              },
+            ]}
           />
           <Toast title={t("call.escalated.title")} body={t("inbox.subtitle")} />
           <EmptyState

@@ -11,6 +11,8 @@ import { countByStatus, INBOX } from "../features/inbox/mock";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
+import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
+import { RoleSwitch } from "./RoleSwitch";
 
 type NavItem = { href: "/call" | "/history" | "/playbook" | "/inbox" | "/admin"; label: StringKey };
 
@@ -27,9 +29,18 @@ export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** The nav items the current role may open (R3). */
+function useNav(): readonly NavItem[] {
+  const { role } = useRole();
+  return NAV.filter((item) => ROLE_AREAS[role].includes(item.href));
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const wide = useIsWide();
   const { color } = useTheme();
+  const pathname = usePathname();
+  // Narrow screens have no sidebar; the switch sits above every page except the call itself.
+  const roleBar = !wide && !isActive(pathname, "/call");
   return (
     <View
       style={[
@@ -38,7 +49,19 @@ export function AppShell({ children }: { children: ReactNode }) {
       ]}
     >
       {wide ? <Sidebar /> : null}
-      <View style={styles.main}>{children}</View>
+      <View style={styles.main}>
+        {roleBar ? (
+          <View
+            style={[
+              styles.roleBar,
+              { backgroundColor: color.surface, borderBottomColor: color.border },
+            ]}
+          >
+            <RoleSwitch />
+          </View>
+        ) : null}
+        {children}
+      </View>
       {wide ? null : <BottomTabs />}
     </View>
   );
@@ -49,7 +72,10 @@ const openCount = countByStatus(INBOX).open;
 function Sidebar() {
   const { color } = useTheme();
   const { t } = useI18n();
+  const { role } = useRole();
   const pathname = usePathname();
+  const nav = useNav();
+  const persona = personaFor(role);
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -66,7 +92,7 @@ function Sidebar() {
         <Wordmark name={t("app.name")} />
       </View>
       <View role="navigation" accessibilityLabel={t("nav.label")} style={styles.sideNav}>
-        {NAV.map((item) => {
+        {nav.map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <Link key={item.href} href={item.href} asChild>
@@ -100,18 +126,21 @@ function Sidebar() {
         })}
       </View>
       <View style={styles.grow} />
+      <View style={styles.switchWrap}>
+        <RoleSwitch />
+      </View>
       <View style={[styles.user, { borderTopColor: color.border }]}>
         <View style={[styles.avatar, { backgroundColor: color.surfaceSunken }]}>
           <Text variant="label" weight="semibold">
-            {t("nav.user").slice(0, 1)}
+            {persona.name.slice(0, 1)}
           </Text>
         </View>
         <View>
           <Text variant="label" weight="semibold">
-            {t("nav.user")}
+            {persona.name}
           </Text>
           <Text variant="label" tone="muted">
-            {t("nav.role")}
+            {t(`role.${role}`)}
           </Text>
         </View>
       </View>
@@ -134,6 +163,7 @@ function BottomTabs() {
   const { color } = useTheme();
   const { t } = useI18n();
   const pathname = usePathname();
+  const nav = useNav();
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -148,7 +178,7 @@ function BottomTabs() {
         },
       ]}
     >
-      {NAV.map((item) => {
+      {nav.map((item) => {
         const active = isActive(pathname, item.href);
         return (
           <Link key={item.href} href={item.href} asChild>
@@ -212,6 +242,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  switchWrap: { paddingHorizontal: space.sm, marginBottom: space.lg },
+  roleBar: { borderBottomWidth: 1, paddingHorizontal: space.lg, paddingVertical: space.sm },
   user: {
     flexDirection: "row",
     alignItems: "center",

@@ -3,6 +3,7 @@ import { layout, minTouchTarget, space, Text, useTheme } from "@sotto/ui";
 import { Link, Slot, usePathname } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../../components/PageHeader";
+import { RoleGate } from "../../components/RoleGate";
 import type { StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
@@ -13,7 +14,15 @@ const TABS: readonly { href: string; label: StringKey }[] = [
   { href: "/admin/settings", label: "admin.settings" },
 ];
 
-export default function AdminLayout() {
+export default function AdminRoute() {
+  return (
+    <RoleGate area="/admin">
+      <AdminLayout />
+    </RoleGate>
+  );
+}
+
+function AdminLayout() {
   const { t } = useI18n();
   const { color } = useTheme();
   const pathname = usePathname();

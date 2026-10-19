@@ -77,7 +77,8 @@ describe("mock screens", () => {
   it("admin team shows members with roles", async () => {
     await open("/admin");
     expect(screen.getByText("Hana Saleh")).toBeOnTheScreen();
-    expect(screen.getByText("Company admin")).toBeOnTheScreen();
+    // Once in Hana's row and once in the demo role switch.
+    expect(screen.getAllByText("Company admin")).toHaveLength(2);
   });
 
   it("admin prompts lists versions", async () => {
@@ -100,5 +101,27 @@ describe("mock screens", () => {
     await fireEvent.press(screen.getByTestId("app-language-ar"));
     expect(screen.getByText("لغة التطبيق")).toBeOnTheScreen();
     expect(screen.getByRole("link", { name: /^السجل/ })).toBeOnTheScreen();
+  });
+
+  it("the demo role switch hides areas an agent may not open (R3)", async () => {
+    await open("/history");
+    await fireEvent.press(screen.getByTestId("role-switch-agent"));
+    for (const name of ["Call", "History", "Playbook"]) {
+      expect(screen.getByRole("link", { name: new RegExp(`^${name}`) })).toBeOnTheScreen();
+    }
+    expect(screen.queryByRole("link", { name: /^Inbox/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Admin/ })).toBeNull();
+    await fireEvent.press(screen.getByTestId("role-switch-manager"));
+    expect(screen.getByRole("link", { name: /^Inbox/ })).toBeOnTheScreen();
+    expect(screen.queryByRole("link", { name: /^Admin/ })).toBeNull();
+  });
+
+  it("a page outside the role's areas shows why instead of the page", async () => {
+    await open("/admin/prompts");
+    expect(screen.getByText("Published v4")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("role-switch-manager"));
+    expect(screen.queryByText("Published v4")).toBeNull();
+    expect(screen.getByText("Not available for this role")).toBeOnTheScreen();
+    expect(screen.getByText("This page isn't open to the Sales manager role.")).toBeOnTheScreen();
   });
 });

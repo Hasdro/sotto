@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppShell } from "../components/AppShell";
 import { LocaleProvider, useI18n } from "../lib/locale";
+import { RoleProvider } from "../lib/role";
 
 export default function RootLayout() {
   // Font keys must match packages/ui fontFamily (DESIGN.md §4).
@@ -19,7 +20,9 @@ export default function RootLayout() {
   if (!loaded && !error) return null;
   return (
     <LocaleProvider>
-      <Root />
+      <RoleProvider>
+        <Root />
+      </RoleProvider>
     </LocaleProvider>
   );
 }

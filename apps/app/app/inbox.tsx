@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
+import { RoleGate } from "../components/RoleGate";
 import { byStatus, countByStatus, INBOX, type InboxStatus } from "../features/inbox/mock";
 import { formatDateTime } from "../lib/format";
 import { useI18n } from "../lib/locale";
@@ -26,7 +27,15 @@ const TONE: Record<InboxStatus, BadgeTone> = {
   added: "answer",
 };
 
-export default function InboxScreen() {
+export default function InboxRoute() {
+  return (
+    <RoleGate area="/inbox">
+      <InboxScreen />
+    </RoleGate>
+  );
+}
+
+function InboxScreen() {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const [status, setStatus] = useState<InboxStatus>("open");
