@@ -68,7 +68,7 @@ def build_demo_runtime(
         stages.pop("suggest_backup", None)
         config = RoutingConfig(stages=stages)
         mode: Literal["fake", "live"] = "fake"
-        notes.append(f"fake models: set {key_env(primary)} in .env for real suggestions")
+        notes.append(f"fake models: add {key_env(primary)} (Admin → Keys & providers, or .env)")
     else:
         mode = "live"
         backup = config.stages.get("suggest_backup")
@@ -76,7 +76,7 @@ def build_demo_runtime(
             company = dataclasses.replace(
                 company, backup_disabled=(*company.backup_disabled, "suggest_backup")
             )
-            notes.append(f"backup off: set {key_env(backup)} in .env to enable it")
+            notes.append(f"backup off: add {key_env(backup)} (Admin → Keys & providers, or .env)")
     preload_adapters(config)  # SDK imports at start, never inside a live turn (R2 timers)
     router = ModelRouter(config, lambda route: make_llm(route, clock=clock, env=env), clock)
     return Runtime(

@@ -1,0 +1,37 @@
+# Sotto on one server (D-020): the app server behind Caddy (automatic HTTPS).
+# Started by deploy/install.sh; secrets come from /etc/sotto/sotto.env (generated there, never in git).
+services:
+  sotto:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file: /etc/sotto/sotto.env
+    environment:
+      SOTTO_TRUSTED_PROXY: "*"  # reachable only from Caddy and from this host's loopback
+    volumes:
+      - sotto-data:/data
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8787:8787"  # for a host web server (nginx) when Caddy is not used
+
+  caddy:
+    image: caddy:2.10
+    environment:
+      SOTTO_DOMAIN: ${SOTTO_DOMAIN:?set SOTTO_DOMAIN in /etc/sotto/sotto.env}  # only this, no secrets
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - sotto
+    restart: unless-stopped
+    profiles: ["caddy"]
+
+volumes:
+  sotto-data:
+  caddy-data:
+  caddy-config:
