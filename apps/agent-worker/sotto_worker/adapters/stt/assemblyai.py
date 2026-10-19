@@ -33,6 +33,9 @@ class AssemblyAISTT(WebSocketSTT):
     def headers(self) -> dict[str, str]:
         return {"Authorization": self._key}  # no "Bearer" prefix (vendor docs)
 
+    def finalize_messages(self, opts: STTOptions) -> list[str]:
+        return [json.dumps({"type": "ForceEndpoint"})]
+
     def end_messages(self, chunks_sent: int, opts: STTOptions) -> list[str]:
         return [json.dumps({"type": "Terminate"})]
 

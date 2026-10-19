@@ -400,3 +400,59 @@ async def test_assemblyai_splits_long_audio_and_pads_a_short_tail() -> None:
     _ = [e async for e in adapter.transcribe(long_then_short(), OPTS)]
     sizes = [len(m) for m in ws.sent if isinstance(m, bytes)]
     assert sizes == [32000, 32000, 1600]  # two 1000 ms messages, tail padded to 50 ms
+
+
+# ---------------- finalize (T-007) ----------------
+
+FINALIZE = {
+    "deepgram": {"type": "Finalize"},
+    "assemblyai": {"type": "ForceEndpoint"},
+    "speechmatics": {"message": "ForceEndOfUtterance"},
+}
+
+
+def _vendor(name: str, ws: FakeWS) -> STTAdapter:
+    classes = {
+        "deepgram": DeepgramSTT,
+        "assemblyai": AssemblyAISTT,
+        "speechmatics": SpeechmaticsSTT,
+        "elevenlabs": ElevenLabsSTT,
+    }
+    adapter: STTAdapter = classes[name](api_key=KEY, model="m", connect=connector(ws))
+    return adapter
+
+
+@pytest.mark.parametrize("vendor", ["deepgram", "assemblyai", "speechmatics", "elevenlabs"])
+async def test_finalize_sends_the_vendor_force_message_mid_stream(vendor: str) -> None:
+    started = json.dumps({"message": "RecognitionStarted"})
+    initial: list[str | type[WSClosed] | Exception] = (
+        [started] if vendor == "speechmatics" else [el("session_started")]
+    )
+    ws = FakeWS(initial=initial, after_end=[WSClosed], is_end=lambda m: False)
+    adapter = _vendor(vendor, ws)
+
+    async def stream() -> AsyncIterator[bytes]:
+        yield CHUNK * 3  # 60 ms: above AssemblyAI's 50 ms minimum, so it is sent at once
+        assert await adapter.finalize() is True
+        yield CHUNK * 3
+
+    [e async for e in adapter.transcribe(stream(), OPTS)]
+    texts = [json.loads(m) for m in ws.sent if isinstance(m, str)]
+    if vendor == "elevenlabs":
+        force = [m for m in texts if m["commit"] is True and m["audio_base_64"] == ""]
+        assert force, texts
+        # the forced commit sits between the two audio chunks, not at the end
+        assert texts.index(force[0]) == 1
+    else:
+        sent = ws.sent
+        index = sent.index(json.dumps(FINALIZE[vendor]))
+        audio_before = [m for m in sent[:index] if isinstance(m, bytes)]
+        assert len(audio_before) >= 1
+        assert any(isinstance(m, bytes) for m in sent[index:])
+        if vendor == "speechmatics":
+            assert all(not isinstance(m, str) or "Force" not in m for m in sent[:index])
+
+
+async def test_finalize_without_an_open_stream_is_a_no_op() -> None:
+    adapter = DeepgramSTT(api_key=KEY, model="nova-3", connect=connector(FakeWS([], [], _text)))
+    assert await adapter.finalize() is False

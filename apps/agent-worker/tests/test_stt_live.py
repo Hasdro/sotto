@@ -50,6 +50,42 @@ class FinalAtEnd:
             pass
         yield TranscriptEvent(opts.speaker, "hello there", True, 0, 100)
 
+    async def finalize(self) -> bool:
+        return False
+
+
+class FinalOnForce(FinalAtEnd):
+    """Emits the final as soon as it is forced, like a vendor's Finalize message (T-007)."""
+
+    def __init__(self) -> None:
+        import asyncio
+
+        self.forced = asyncio.Event()
+
+    async def transcribe(
+        self, audio: AsyncIterator[bytes], opts: STTOptions
+    ) -> AsyncIterator[TranscriptEvent]:
+        await self.forced.wait()
+        yield TranscriptEvent(opts.speaker, "hello there", True, 0, 100)
+        async for _ in audio:
+            pass
+
+    async def finalize(self) -> bool:
+        self.forced.set()
+        return True
+
+
+async def test_run_clip_forces_the_final_after_end_of_speech(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import replay.stt_live as live
+
+    monkeypatch.setattr(live, "TRAILING_SILENCE_MS", 600)
+    speech = b"\x00\x00" * (SAMPLE_RATE // 20)  # 50 ms
+    result = await run_clip(FinalOnForce(), "Hello there.", speech, finalize_after_ms=100)
+    assert result.final_latency_ms is not None
+    assert 80 <= result.final_latency_ms < 300  # forced at +100 ms, long before the silence ends
+
 
 async def test_run_clip_times_the_final_after_end_of_speech(
     monkeypatch: pytest.MonkeyPatch,
@@ -75,5 +111,5 @@ def test_format_results_marks_roles_and_missing_finals() -> None:
         {"deepgram": [ClipResult("Hi.", "hi", 210)], "assemblyai": [ClipResult("Hi.", "", None)]},
         {"deepgram": "primary", "assemblyai": "backup"},
     )
-    assert "deepgram      primary" in out
+    assert "deepgram            primary" in out
     assert "no final" in out

@@ -18,6 +18,7 @@ class STTAdapter(Protocol):
 ```
 - `audio`: raw PCM16 chunks of about 20–100 ms. The adapter re-chunks if a vendor needs it (AssemblyAI: 50–1000 ms per message).
 - Events: `TranscriptEvent(speaker=opts.speaker, text, final, start_ms, end_ms)`. Times are ms from the stream start. Partials have `final=False`; only finals feed the pipeline today (drafting on partials is T-004).
+- `finalize()` (T-007): while a stream is open, asks the vendor for the final transcript now (Deepgram `{"type":"Finalize"}`, AssemblyAI `{"type":"ForceEndpoint"}`, Speechmatics `{"message":"ForceEndOfUtterance"}`, ElevenLabs an empty `input_audio_chunk` with `commit: true`). Returns False when no stream is open. Our end-of-turn stage calls it, so finals do not wait for the vendor's silence rule.
 - When `audio` ends, the adapter sends the vendor's end-of-stream message, yields the remaining finals, and returns.
 - Vendor errors, or a socket closed early, raise `STTError` (the vendor name, never the key). Failover to the backup (F-02) is Phase 4 (P4.4), not this task.
 

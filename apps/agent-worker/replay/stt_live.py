@@ -31,6 +31,10 @@ from sotto_worker.runtime import SEED
 SAMPLE_RATE = 16000
 CHUNK_MS = 20
 TRAILING_SILENCE_MS = 2000
+# T-007: our end-of-turn stage decides "customer finished" about this long after the last word,
+# then asks the vendor for the final at once instead of waiting for the vendor's own silence rule.
+FINALIZE_AFTER_MS = 200
+BETWEEN_CLIPS_S = 1.5  # let the vendor release the previous session (Speechmatics free: 2 at once)
 PHRASES = (
     "What is the payment plan for the two bedroom apartment?",
     "Another company quoted us twenty percent less.",
@@ -70,11 +74,20 @@ async def paced(pcm: bytes, *, started: float, chunk_ms: int = CHUNK_MS) -> Asyn
         yield pcm[offset : offset + step]
 
 
-async def run_clip(adapter: STTAdapter, phrase: str, speech: bytes) -> ClipResult:
+async def run_clip(
+    adapter: STTAdapter, phrase: str, speech: bytes, *, finalize_after_ms: int | None = None
+) -> ClipResult:
     silence = b"\x00\x00" * (SAMPLE_RATE * TRAILING_SILENCE_MS // 1000)
     speech_ms = len(speech) * 1000 // (SAMPLE_RATE * 2)
     started = time.perf_counter()
     finals: list[tuple[float, str]] = []
+
+    async def force(after_ms: int) -> None:
+        release = started + (speech_ms + after_ms) / 1000
+        await asyncio.sleep(max(release - time.perf_counter(), 0))
+        await adapter.finalize()
+
+    forcing = None if finalize_after_ms is None else asyncio.create_task(force(finalize_after_ms))
     try:
         async for event in adapter.transcribe(
             paced(speech + silence, started=started), STTOptions(speaker="customer")
@@ -83,6 +96,10 @@ async def run_clip(adapter: STTAdapter, phrase: str, speech: bytes) -> ClipResul
                 finals.append((time.perf_counter(), event.text))
     except STTError as e:
         return ClipResult(phrase, "", None, str(e))
+    finally:
+        if forcing is not None:
+            forcing.cancel()
+            await asyncio.gather(forcing, return_exceptions=True)
     if not finals:
         return ClipResult(phrase, "", None)
     speech_end = started + speech_ms / 1000
@@ -122,8 +139,9 @@ def format_results(results: Mapping[str, Sequence[ClipResult]], roles: Mapping[s
         f"{TRAILING_SILENCE_MS} ms trailing silence)",
         "Final latency = end of speech -> final transcript. Budget (ARCHITECTURE §4): 350 ms "
         "for end-of-turn + final STT.",
+        f"'+final' rows: we force the final {FINALIZE_AFTER_MS} ms after the last word (T-007).",
         "",
-        f"{'vendor':<14}{'role':<10}{'clips':>6}{'final p50':>11}{'max':>8}{'WER':>7}  notes",
+        f"{'vendor':<20}{'role':<10}{'clips':>6}{'final p50':>11}{'max':>8}{'WER':>7}  notes",
     ]
     for vendor, clips in results.items():
         latencies = sorted(c.final_latency_ms for c in clips if c.final_latency_ms is not None)
@@ -133,7 +151,7 @@ def format_results(results: Mapping[str, Sequence[ClipResult]], roles: Mapping[s
         worst = f"{latencies[-1]} ms" if latencies else "-"
         note = errors[0] if errors else ("no final" if len(latencies) < len(clips) else "")
         lines.append(
-            f"{vendor:<14}{roles.get(vendor, ''):<10}{len(clips):>6}{p50:>11}{worst:>8}"
+            f"{vendor:<20}{roles.get(vendor.split()[0], ''):<10}{len(clips):>6}{p50:>11}{worst:>8}"
             f"{wer:>7.0%}  {note}"
         )
     lines += ["", "Transcripts:"]
@@ -162,16 +180,19 @@ async def run(env: Mapping[str, str]) -> int:
         if not env.get(key_name):
             print(f"skip {vendor}: {key_name} is not set")
             continue
-        adapter = make_stt(route, env=env)
-        results[vendor] = [
-            await run_clip(adapter, p, c) for p, c in zip(PHRASES, clips, strict=True)
-        ]
+        for mode, after in (("", None), (" +final", FINALIZE_AFTER_MS)):
+            adapter = make_stt(route, env=env)
+            runs = []
+            for p, c in zip(PHRASES, clips, strict=True):
+                runs.append(await run_clip(adapter, p, c, finalize_after_ms=after))
+                await asyncio.sleep(BETWEEN_CLIPS_S)
+            results[vendor + mode] = runs
     if not results:
         print("No STT keys set. Put at least one in .env (docs/PROVIDER-KEYS.md).")
         return 1
     print(format_results(results, roles))
     failed = [v for v, clips in results.items() if any(c.final_latency_ms is None for c in clips)]
-    return 1 if any(v in roles for v in failed) else 0
+    return 1 if any(v.split()[0] in roles for v in failed) else 0
 
 
 if __name__ == "__main__":

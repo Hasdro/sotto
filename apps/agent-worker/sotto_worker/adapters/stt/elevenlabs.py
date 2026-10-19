@@ -50,6 +50,9 @@ class ElevenLabsSTT(WebSocketSTT):
             }
         )
 
+    def finalize_messages(self, opts: STTOptions) -> list[str]:
+        return self.end_messages(0, opts)  # an empty chunk with commit: true closes the segment
+
     def end_messages(self, chunks_sent: int, opts: STTOptions) -> list[str]:
         return [
             json.dumps(

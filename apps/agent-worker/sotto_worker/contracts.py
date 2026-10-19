@@ -85,3 +85,7 @@ class STTAdapter(Protocol):
     def transcribe(
         self, audio: AsyncIterator[bytes], opts: STTOptions
     ) -> AsyncIterator[TranscriptEvent]: ...
+
+    async def finalize(self) -> bool:
+        """Force the final transcript now (our end-of-turn decided); False if no stream."""
+        ...

@@ -94,6 +94,7 @@ class WebSocketSTT:
         self._key = api_key
         self._base_url = base_url
         self._connect = connect or websockets_connect
+        self._live: tuple[WSConnection, STTOptions] | None = None  # the open stream, if any
 
     # --- vendor hooks -------------------------------------------------------------------------
     def url(self, opts: STTOptions) -> str:
@@ -111,12 +112,30 @@ class WebSocketSTT:
     def end_messages(self, chunks_sent: int, opts: STTOptions) -> list[str]:
         raise NotImplementedError
 
+    def finalize_messages(self, opts: STTOptions) -> list[str]:
+        """Ask the vendor for the final transcript now instead of after its own silence
+        detection (T-007). Sent when our end-of-turn stage decides the customer has finished."""
+        return []
+
     def parse(
         self, raw: str | bytes, opts: STTOptions, *, ending: bool
     ) -> tuple[list[TranscriptEvent], State]:
         raise NotImplementedError
 
     # --- runner -------------------------------------------------------------------------------
+    async def finalize(self) -> bool:
+        """Force the final transcript of the current utterance. False when no stream is open."""
+        live = self._live
+        if live is None:
+            return False
+        ws, opts = live
+        try:
+            for message in self.finalize_messages(opts):
+                await ws.send(message)
+        except Exception as e:
+            raise self._error(f"finalize failed ({type(e).__name__})") from None
+        return True
+
     def _error(self, detail: str) -> STTError:
         text = f"{self.provider}: {detail}"
         return STTError(text.replace(self._key, "***") if self._key else text)
@@ -161,6 +180,7 @@ class WebSocketSTT:
                         yield item
                     if state == "ready":
                         break
+            self._live = (ws, opts)
             sender = asyncio.create_task(self._pump(ws, audio, opts, ending))
             recv = asyncio.ensure_future(self._recv(ws))
             sender_checked = False
@@ -198,6 +218,7 @@ class WebSocketSTT:
                     return
                 recv = asyncio.ensure_future(self._recv(ws))
         finally:
+            self._live = None
             leftovers = [t for t in (recv, sender) if t is not None]
             for task in leftovers:
                 task.cancel()

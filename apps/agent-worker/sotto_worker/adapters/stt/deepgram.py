@@ -32,6 +32,9 @@ class DeepgramSTT(WebSocketSTT):
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Token {self._key}"}
 
+    def finalize_messages(self, opts: STTOptions) -> list[str]:
+        return [json.dumps({"type": "Finalize"})]
+
     def end_messages(self, chunks_sent: int, opts: STTOptions) -> list[str]:
         return [json.dumps({"type": "CloseStream"})]
 

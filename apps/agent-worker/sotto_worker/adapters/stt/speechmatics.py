@@ -43,6 +43,9 @@ class SpeechmaticsSTT(WebSocketSTT):
             )
         ]
 
+    def finalize_messages(self, opts: STTOptions) -> list[str]:
+        return [json.dumps({"message": "ForceEndOfUtterance"})]
+
     def end_messages(self, chunks_sent: int, opts: STTOptions) -> list[str]:
         return [json.dumps({"message": "EndOfStream", "last_seq_no": chunks_sent})]
 

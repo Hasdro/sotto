@@ -191,7 +191,8 @@ Things only the owner can do, so the agent never waits silently.
     2. then compare Deepgram Flux (built-in end of turn);
     3. drafting on partials (T-004).
   - Measure with `pnpm stt:live`.
-- **T-008** (2026-10-20) Speechmatics on the free plan returns "Concurrent Quota Exceeded" on the third sequential clip. The free plan allows 2 sessions, and closed sessions seem to linger. Check whether the session close is graceful, or add a pause, before using it as a backup.
+  - Step 1 done 2026-10-20 (night 2): `finalize()` on all four adapters; `pnpm stt:live` now also runs a "+final" pass that forces the final 200 ms after the last word. Deepgram p50 771 → 471 ms (max 502), AssemblyAI 625 → 330 ms (max 369; one word split "week. End"), Speechmatics ~280 ms either way. Remaining: call `finalize()` from the end-of-turn stage in the Phase 4 worker (P4.4), then steps 2–3.
+- **T-008** (2026-10-20) Speechmatics on the free plan returns "Concurrent Quota Exceeded" on the third sequential clip. The free plan allows 2 sessions, and closed sessions seem to linger. Check whether the session close is graceful, or add a pause, before using it as a backup. Resolved 2026-10-20 (night 2): a 1.5 s pause between clips in `stt:live` avoids it (6 of 6 clips OK). On real calls one session per call is fine; the free plan still caps us at 2 concurrent calls.
 - **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
   - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
   - GHSA-vfj7-8cjw-p6xm: braces via `metro-file-map`.

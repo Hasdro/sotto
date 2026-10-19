@@ -53,6 +53,18 @@ Next step after the owner picks:
 
 Both main candidates are accurate on clean speech. Both are slower than the 350 ms budget, because they wait for their own silence detection. The fix is on our side (tracker T-007).
 
+### With a forced final (T-007, same night)
+
+We now ask the vendor for the final 200 ms after the last word (Deepgram `Finalize`, AssemblyAI `ForceEndpoint`, Speechmatics `ForceEndOfUtterance`, ElevenLabs `commit`). Times still count from the end of speech, so they include our 200 ms wait.
+
+| Vendor | Vendor's own silence rule (p50 / max) | Forced final (p50 / max) |
+|---|---|---|
+| Deepgram | 771 / 1085 ms | **471 / 502 ms** |
+| AssemblyAI | 625 / 711 ms | **330 / 369 ms** (one word split: "week. End") |
+| Speechmatics | 279 / 435 ms | 286 / 479 ms |
+
+Speechmatics was the fastest in this test and accurate; with a 1.5 s pause between sessions its free-plan limit was not hit.
+
 ## Sources (vendor pages, 2026-10-20)
 
 - Deepgram pricing: https://deepgram.com/pricing
