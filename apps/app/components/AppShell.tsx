@@ -13,6 +13,7 @@ import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
+import { PlanBanner } from "./PlanBanner";
 import { RoleSwitch } from "./RoleSwitch";
 
 type NavItem = { href: "/call" | "/history" | "/playbook" | "/inbox" | "/admin"; label: StringKey };
@@ -61,6 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <RoleSwitch />
           </View>
         ) : null}
+        <PlanBanner />
         {children}
       </View>
       {wide ? null : <BottomTabs />}

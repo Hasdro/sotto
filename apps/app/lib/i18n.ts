@@ -118,6 +118,13 @@ const en = {
   "call.mockBadge": "Mock stream (dev only)",
   "call.approximate": "Approximate: speaker matching",
 
+  "plan.trial":
+    "Trial: {days} days left · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
+  "plan.trial.one":
+    "Trial: last day · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
+  "plan.expired":
+    "Your trial has ended. Sign-in still works, but calls are blocked. Your data is kept for 30 days.",
+  "plan.suspended": "This account is suspended. Calls are blocked; your data is kept for 30 days.",
   "history.title": "Call history",
   "history.subtitle": "Your recent calls with their transcripts and cards.",
   "history.cards": "Cards: {count}",
@@ -379,6 +386,13 @@ const ar: Record<StringKey, string> = {
   "call.mockBadge": "بث تجريبي (للتطوير فقط)",
   "call.approximate": "تقريبي: مطابقة الصوت",
 
+  "plan.trial":
+    "فترة تجريبية: باقٍ {days} يوماً · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
+  "plan.trial.one":
+    "فترة تجريبية: اليوم الأخير · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
+  "plan.expired":
+    "انتهت الفترة التجريبية. يمكنك تسجيل الدخول، لكن المكالمات متوقفة. نحتفظ ببياناتك 30 يوماً.",
+  "plan.suspended": "هذا الحساب موقوف. المكالمات متوقفة؛ نحتفظ ببياناتك 30 يوماً.",
   "history.title": "سجل المكالمات",
   "history.subtitle": "مكالماتك الأخيرة مع نصوصها والبطاقات.",
   "history.cards": "البطاقات: {count}",

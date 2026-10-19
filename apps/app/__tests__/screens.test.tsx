@@ -38,6 +38,13 @@ describe("mock screens", () => {
     }
   });
 
+  it("managers and admins see the trial banner with days, seats and minutes (R3)", async () => {
+    await open("/history");
+    expect(screen.getByTestId("plan-banner")).toHaveTextContent(
+      /Trial: 9 days left · 3 of 5 seats · 412 of 1,000 call minutes/,
+    );
+  });
+
   it("history lists past calls", async () => {
     await open("/history");
     expect(screen.getByText("Layla Haddad")).toBeOnTheScreen();
