@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from sotto_worker.adapters.factory import has_credentials, key_env, make_llm
+from sotto_worker.adapters.factory import has_credentials, key_env, make_llm, preload_adapters
 from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
 from sotto_worker.playbook import PlaybookIndex
@@ -55,6 +55,7 @@ def build_demo_runtime(
                 company, backup_disabled=(*company.backup_disabled, "suggest_backup")
             )
             notes.append(f"backup off: set {key_env(backup)} in .env to enable it")
+    preload_adapters(config)  # SDK imports at start, never inside a live turn (R2 timers)
     router = ModelRouter(config, lambda route: make_llm(route, clock=clock, env=env), clock)
     return Runtime(
         company=company,

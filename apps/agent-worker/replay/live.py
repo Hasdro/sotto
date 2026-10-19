@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -26,6 +28,8 @@ from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import build_demo_runtime
 from sotto_worker.scenarios import Scenario
 from sotto_worker.telemetry import CardTimingRecord, summarise
+
+WARM_TIMEOUT_S = 2.0
 
 
 @dataclass(frozen=True)
@@ -112,6 +116,10 @@ async def replay_live(
             on_escalation=on_escalation,
             on_timing=records.append,
         )
+        # Call start, as the demo server and the Phase 4 worker do: open the model connections
+        # (TLS, HTTP/2) before the first customer turn, so it doesn't pay connection setup.
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(session.warm(), WARM_TIMEOUT_S)
         for line in scenario.lines:
             t0 = clock.now_ms()
             await clock.sleep(final_after_t0_ms)

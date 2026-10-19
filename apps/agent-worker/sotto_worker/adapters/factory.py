@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from sotto_worker.adapters.llm.fake import FakeLLM
 from sotto_worker.clock import Clock
 from sotto_worker.contracts import LLMAdapter, LLMRequest
-from sotto_worker.router import StageRoute
+from sotto_worker.router import RoutingConfig, StageRoute
 
 API_KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
 PROVIDER_HOSTS = {"anthropic": "api.anthropic.com", "openai": "api.openai.com"}
@@ -34,6 +35,28 @@ def demo_fake_text(req: LLMRequest) -> str:
             return "ANSWER: أفهمك تماماً. ما الذي يجعل هذا القرار مريحاً لك؟"
         return "ANSWER: I hear you. What would make this feel like the right decision for you?"
     return "NO_SAFE_ANSWER"
+
+
+# Provider name -> adapter module. Imported lazily by make_llm, so a process only pays for the
+# SDKs it uses; preload_adapters moves that import to process start.
+ADAPTER_MODULES = {
+    "anthropic": "sotto_worker.adapters.llm.anthropic",
+    "openai": "sotto_worker.adapters.llm.openai",
+    "openai_compatible": "sotto_worker.adapters.llm.openai",
+}
+
+
+def preload_adapters(config: RoutingConfig) -> None:
+    """Import every provider SDK the config uses, at process start. An SDK import blocks for
+    0.6 to 1.1 s; inside a live turn that freezes the event loop past the t0+1400 holding line (R2)."""
+    for module in sorted(
+        {
+            ADAPTER_MODULES[r.provider]
+            for r in config.stages.values()
+            if r.provider in ADAPTER_MODULES
+        }
+    ):
+        importlib.import_module(module)
 
 
 def make_llm(route: StageRoute, *, clock: Clock, env: Mapping[str, str]) -> LLMAdapter:

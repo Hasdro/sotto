@@ -166,3 +166,37 @@ def test_default_routing_needs_no_anthropic_key() -> None:
         route = rt.router.resolve(stage, rt.company.routing())
         assert route.provider != "anthropic", stage
         assert has_credentials(route, {"GROQ_API_KEY": "g", "GEMINI_API_KEY": "m"}), stage
+
+
+def test_preload_imports_provider_modules_at_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Importing a provider SDK takes 0.6 to 1.1 s of blocking work. Done lazily inside the first
+    live turn it froze the event loop past the t0+1400 holding line (live replay 2026-10-20)."""
+    import importlib
+
+    from sotto_worker.adapters import factory
+    from sotto_worker.router import RoutingConfig
+
+    imported: list[str] = []
+    monkeypatch.setattr(importlib, "import_module", lambda name: imported.append(name))
+    config = RoutingConfig(
+        stages={
+            "suggest": StageRoute("openai_compatible", "m", base_url="https://api.groq.com/v1"),
+            "summary": StageRoute("anthropic", "m"),
+            "stt": StageRoute("fake", "f"),
+        }
+    )
+    factory.preload_adapters(config)
+    assert sorted(imported) == [
+        "sotto_worker.adapters.llm.anthropic",
+        "sotto_worker.adapters.llm.openai",
+    ]
+
+
+def test_demo_runtime_preloads_its_adapters(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sotto_worker.runtime as runtime
+
+    seen: list[set[str]] = []
+    monkeypatch.setattr(runtime, "preload_adapters", lambda config: seen.append(set(config.stages)))
+    build_demo_runtime(FakeClock(), {"GROQ_API_KEY": "g"})
+    assert seen
+    assert "suggest" in seen[0]
