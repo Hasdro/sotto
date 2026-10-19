@@ -60,7 +60,12 @@ MakeClient = Callable[..., TestClient]
 def make_client(static_dir: Path, store: Store) -> Iterator[MakeClient]:
     clients: list[TestClient] = []
 
-    def make(*, hosted: bool = False, env: dict[str, str] | None = None) -> TestClient:
+    def make(
+        *,
+        hosted: bool = False,
+        env: dict[str, str] | None = None,
+        runtime: Callable[[], Runtime] = fast_runtime,
+    ) -> TestClient:
         config = ServerConfig(
             static_dir=static_dir,
             access_code=CODE if hosted else None,
@@ -74,7 +79,7 @@ def make_client(static_dir: Path, store: Store) -> Iterator[MakeClient]:
             catalog=Catalog.load(SEED / "models" / "providers.yaml"),
             seed=RoutingConfig.load(SEED / "models" / "default.yaml"),
             env=env or {},
-            runtime_factory=fast_runtime,
+            runtime_factory=runtime,
         )
         base = PUBLIC if hosted else "http://127.0.0.1:8787"
         client = TestClient(app, base_url=base)

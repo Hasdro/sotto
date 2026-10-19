@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -17,7 +17,7 @@ from sotto_worker.adapters.factory import (
 )
 from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
-from sotto_worker.playbook import PlaybookIndex
+from sotto_worker.playbook import PlaybookEntry, PlaybookIndex
 from sotto_worker.prompts import PromptRegistry
 from sotto_worker.router import ModelRouter, RoutingConfig, StageRoute
 
@@ -46,10 +46,12 @@ def build_demo_runtime(
     *,
     force_fake: bool = False,
     config: RoutingConfig | None = None,
+    extra_playbook: Sequence[PlaybookEntry] = (),
 ) -> Runtime:
     """Live mode when the primary suggest provider has credentials; otherwise fake models.
     A backup without credentials is switched off for this run (R2 allows a disabled backup).
-    `config` is the seed routing plus the Keys & providers panel's choices (server, P6.7)."""
+    `config` is the seed routing plus the Keys & providers panel's choices (server, P6.7);
+    `extra_playbook` holds answers a manager added from the inbox (R2 step 5)."""
     config = config or RoutingConfig.load(SEED / "models" / "default.yaml")
     stt_routes = tuple(
         route
@@ -81,7 +83,9 @@ def build_demo_runtime(
     router = ModelRouter(config, lambda route: make_llm(route, clock=clock, env=env), clock)
     return Runtime(
         company=company,
-        playbook=PlaybookIndex.from_directory(DEMO / "playbook"),
+        playbook=PlaybookIndex(
+            [*PlaybookIndex.from_directory(DEMO / "playbook").entries, *extra_playbook]
+        ),
         prompts=PromptRegistry.from_seed(SEED / "prompts"),
         router=router,
         mode=mode,

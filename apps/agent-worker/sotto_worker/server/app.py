@@ -33,7 +33,7 @@ from sotto_worker.server.auth import COOKIE, SESSION_TTL_S, AccessGate
 from sotto_worker.server.calls import Call
 from sotto_worker.server.catalog import Catalog
 from sotto_worker.server.keytest import check_key
-from sotto_worker.server.store import Store
+from sotto_worker.server.store import EscalationError, Store
 
 LOCAL_DEV_PORTS = (8081, 19006)  # Expo dev server, for `expo start --web` against this server
 MAX_BODY = 8 * 1024
@@ -287,6 +287,30 @@ def create_app(
             return deny(HTTPStatus.NOT_FOUND, "no such call")
         return JSONResponse(call)
 
+    async def list_escalations(_request: Request) -> Response:
+        return JSONResponse({"escalations": store.escalations()})
+
+    async def answer_escalation(request: Request) -> Response:
+        answer = str((await body(request)).get("answer", ""))
+        try:
+            store.answer_escalation(
+                request.path_params["item_id"], answer, actor=client_of(request)
+            )
+        except EscalationError as e:
+            return deny(HTTPStatus.CONFLICT, str(e))
+        return JSONResponse({"escalations": store.escalations()})
+
+    async def add_escalation_to_playbook(request: Request) -> Response:
+        answer = str((await body(request)).get("answer", ""))
+        try:
+            store.add_to_playbook(request.path_params["item_id"], answer, actor=client_of(request))
+        except EscalationError as e:
+            return deny(HTTPStatus.CONFLICT, str(e))
+        return JSONResponse({"escalations": store.escalations()})
+
+    async def playbook_added(_request: Request) -> Response:
+        return JSONResponse({"entries": store.playbook_added()})
+
     async def audit(_request: Request) -> Response:
         return JSONResponse({"entries": store.audit()})
 
@@ -439,6 +463,18 @@ def create_app(
         Route("/api/calls", guarded(list_calls)),
         Route("/api/calls/{call_id}", guarded(get_call)),
         Route("/api/audit", guarded(audit)),
+        Route("/api/escalations", guarded(list_escalations)),
+        Route(
+            "/api/escalations/{item_id}/answer",
+            guarded(answer_escalation, mutating=True),
+            methods=["PUT"],
+        ),
+        Route(
+            "/api/escalations/{item_id}/playbook",
+            guarded(add_escalation_to_playbook, mutating=True),
+            methods=["POST"],
+        ),
+        Route("/api/playbook/added", guarded(playbook_added)),
         WebSocketRoute("/ws", ws_endpoint),
         WebSocketRoute("/", ws_endpoint),  # older builds connect to the bare origin
         Route("/{path:path}", static),

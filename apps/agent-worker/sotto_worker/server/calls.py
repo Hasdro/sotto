@@ -112,6 +112,8 @@ class Call:
         await self.send({"type": "card", "card": wire})
 
     async def _escalation(self, escalation: Escalation) -> None:
+        if self._store is not None:  # R2 step 4: the question lands in the manager's inbox
+            self._store.add_escalation(self.call_id, escalation.question, escalation.question_hash)
         self._remember({"kind": "escalation", "text": escalation.question, "at_ms": self._at()})
         await self.send({"type": "escalation", "question": escalation.question})
 

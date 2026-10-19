@@ -10,6 +10,8 @@ export type InboxItem = {
   askedAt: string;
   status: InboxStatus;
   answer?: string;
+  /** "server": escalated on this Sotto server (D-020); answers go to its API. */
+  source?: "sample" | "server";
 };
 
 export const INBOX: InboxItem[] = [

@@ -2,10 +2,20 @@
  * In-memory store for the inbox and playbook mocks, so answering an escalation shows up in the
  * playbook during a demo session (P7.2). Phase 5 replaces it with Supabase + approve_escalation().
  */
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { useI18n } from "../../lib/locale";
 import { INBOX } from "../inbox/mock";
 import { PLAYBOOK } from "../playbook/mock";
 import { addToPlaybook, type EscalationState, type FlowError, saveAnswer } from "./flow";
+import { escalationsApi, loadServerInbox } from "./server";
 
 type StoreValue = EscalationState & {
   save: (id: string, answer: string) => FlowError | null;
@@ -19,19 +29,52 @@ function today(): string {
 }
 
 export function EscalationStoreProvider({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const [state, setState] = useState<EscalationState>({ inbox: INBOX, playbook: PLAYBOOK });
-  const apply = useCallback((result: ReturnType<typeof saveAnswer>): FlowError | null => {
-    if (!result.ok) return result.error;
-    setState(result.state);
-    return null;
-  }, []);
+  const customer = t("history.outcome.practice");
+  const agent = t("call.speaker.agent");
+  // Questions escalated on this server go above the samples (D-020); no server: samples only.
+  const reload = useCallback(() => {
+    loadServerInbox({ customer, agent })
+      .then((server) => {
+        const ids = new Set(server.playbook.map((e) => e.id));
+        setState({
+          inbox: [...server.inbox, ...INBOX],
+          playbook: [...server.playbook, ...PLAYBOOK.filter((e) => !ids.has(e.id))],
+        });
+      })
+      .catch(() => {});
+  }, [customer, agent]);
+  useEffect(reload, [reload]);
+  const apply = useCallback(
+    (result: ReturnType<typeof saveAnswer>, sync?: () => Promise<unknown>): FlowError | null => {
+      if (!result.ok) return result.error;
+      setState(result.state);
+      // Same rules on both sides, so the server agrees; if it does not, show its truth.
+      sync?.().catch(reload);
+      return null;
+    },
+    [reload],
+  );
+  const fromServer = useCallback(
+    (id: string) => state.inbox.find((i) => i.id === id)?.source === "server",
+    [state],
+  );
   const save = useCallback(
-    (id: string, answer: string) => apply(saveAnswer(state, id, answer)),
-    [apply, state],
+    (id: string, answer: string) =>
+      apply(
+        saveAnswer(state, id, answer),
+        fromServer(id) ? () => escalationsApi.answer(id, answer.trim()) : undefined,
+      ),
+    [apply, state, fromServer],
   );
   const add = useCallback(
-    (id: string, answer: string) => apply(addToPlaybook(state, id, answer, today())),
-    [apply, state],
+    (id: string, answer: string) =>
+      apply(
+        addToPlaybook(state, id, answer, today()),
+        fromServer(id) ? () => escalationsApi.addToPlaybook(id, answer.trim()) : undefined,
+      ),
+    [apply, state, fromServer],
   );
   const value = useMemo(() => ({ ...state, save, add }), [state, save, add]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -17,6 +17,7 @@ from pathlib import Path
 from starlette.types import ASGIApp
 
 from sotto_worker.clock import RealClock
+from sotto_worker.playbook import PlaybookEntry
 from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import REPO_ROOT, SEED, Runtime, build_demo_runtime
 from sotto_worker.server.app import ServerConfig, create_app
@@ -76,7 +77,19 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
     def runtime() -> Runtime:
         keys = store.env_overlay(provider_env)
         routing = apply_overrides(seed, catalog, store.stage_overrides())
-        return build_demo_runtime(RealClock(), keys, force_fake=args.fake, config=routing)
+        added = [
+            PlaybookEntry(
+                id=f"inbox#{e['id']}",
+                kind="faq",
+                question=e["question"],
+                short_answer=e["answer"],
+                tags=("from-inbox",),
+            )
+            for e in store.playbook_added()
+        ]
+        return build_demo_runtime(
+            RealClock(), keys, force_fake=args.fake, config=routing, extra_playbook=added
+        )
 
     app = create_app(
         config,

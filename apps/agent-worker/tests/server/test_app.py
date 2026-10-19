@@ -3,6 +3,7 @@ app, access-code sign-in, and the Keys & providers API (P6.7)."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from typing import Any
 
@@ -332,3 +333,50 @@ def test_open_call_sockets_are_capped(
             second.receive_text()
     with client.websocket_connect("/ws") as again:  # the slot is free once the first closes
         assert json.loads(again.receive_text())["type"] == "hello"
+
+
+# --- escalations → inbox → playbook (R2 steps 4-5) -----------------------------------------
+
+
+def test_an_escalated_question_is_answered_added_and_used_by_the_next_call(
+    make_client: MakeClient, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sotto_worker.playbook import PlaybookEntry, PlaybookIndex
+    from tests.server.conftest import fast_runtime
+
+    def runtime_with_added() -> Any:
+        base = fast_runtime()
+        added = [
+            PlaybookEntry(f"inbox#{e['id']}", "faq", e["question"], e["answer"], tags=("x",))
+            for e in store.playbook_added()
+        ]
+        return dataclasses.replace(base, playbook=PlaybookIndex([*base.playbook.entries, *added]))
+
+    client = make_client(runtime=runtime_with_added)
+    question = "Can I pay the deposit in bitcoin?"
+    with client.websocket_connect("/ws") as ws:
+        ws.receive_text()
+        ws.send_text(json.dumps({"type": "say", "speaker": "customer", "text": question}))
+        collect(ws, 1, extra="escalation")
+        ws.send_text(json.dumps({"type": "end"}))
+        ws.receive_text()
+    [item] = client.get("/api/escalations").json()["escalations"]
+    assert (item["question"], item["status"]) == (question, "open")
+    url = f"/api/escalations/{item['id']}"
+    too_long = " ".join(["word"] * 26)
+    assert client.put(f"{url}/answer", json={"answer": too_long}, headers=JSON).json() == {
+        "error": "too_long"
+    }
+    answer = "We take bank transfer and cards only, not crypto."
+    r = client.post(f"{url}/playbook", json={"answer": answer}, headers=JSON)
+    assert r.json()["escalations"][0]["status"] == "added"
+    again = client.post(f"{url}/playbook", json={"answer": answer}, headers=JSON)
+    assert again.json() == {"error": "already_added"}
+    assert client.get("/api/playbook/added").json()["entries"][0]["answer"] == answer
+    with client.websocket_connect("/ws") as ws:  # the next call answers from the playbook
+        ws.receive_text()
+        ws.send_text(json.dumps({"type": "say", "speaker": "customer", "text": question}))
+        msgs = collect(ws, 1)
+    card = next(m["card"] for m in msgs if m["type"] == "card")
+    assert card["source"] == "playbook"
+    assert card["delta"].startswith("We take bank transfer")
