@@ -217,7 +217,7 @@ followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** a
   - `pnpm stt:live` smoke test using macOS `say` speech.
   - code-reviewer fixes.
 - **Evidence:**
-  - Worker pytest 241 passed (20 STT tests); `pnpm test`, `pnpm lint` and `pnpm typecheck` all exit 0.
+  - Worker pytest 242 passed (20 STT tests); `pnpm test`, `pnpm lint` and `pnpm typecheck` all exit 0.
   - `pnpm stt:live`:
 
     | Vendor | Final p50 | Max | WER |
