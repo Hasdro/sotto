@@ -26,13 +26,18 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** the owner tried the demo (2026-10-19) and asked to continue. No Claude models: free providers by default (D-016, Groq + Gemini). Phases 0–1 wait on the owner's answers; Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Owner answers:** the "Sotto Owner Decisions" page, https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. Read it with ArtifactData `get` collection `answers`, doc `owner`. Apply submitted answers to BRIEF.md and DECISIONS.md. The project map page is https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s; keep its phase data in step with this tracker.
-- **Next task:** without the owner: P3.5 role switch, P6.2 prompt studio UI, P7.2 inbox wiring. With keys: P2.3 live smoke test on Groq/Gemini; STT vendor test.
-- **Branch:** `claude/friendly-gates-fbhqdv` (all phases this run, D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** cloud, 2026-10-19 (no Docker, simulators, Ollama or API keys; local Postgres + pgTAP via apt when needed)
-- **Blockers:** live calls need owner accounts (LiveKit, SIP, STT vendor); real golden calls (P0.5); the owner's playbook content (P0.3)
-- **Next action:** read the newest session log entry → **Next**; run `pnpm install && (cd apps/agent-worker && uv sync) && pnpm test && pnpm replay --all && pnpm test:db` to confirm a green start.
+- **Phase:** the owner submitted the decisions page (2026-10-19 19:16Z). Answers are copied verbatim into `docs/OWNER-ANSWERS.md` and are **not yet applied**. Phases 2, 3, 5, 6 and 7 are partly done (see task board).
+- **Next task (first, local session):** apply `docs/OWNER-ANSWERS.md` → "What these change", items 1–10:
+  - DECISIONS (approvals; a new English-only decision);
+  - BRIEF;
+  - the owner-approved `.claude/settings.json` changes (`.env.example` allow rule, the two hook fixes), then write `.env.example`;
+  - the STT free pick-list including ElevenLabs.
+  Then the P2.3 live smoke test with the Groq/Gemini keys in the Mac's `.env`.
+- **Owner open items:** retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies.
+- **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
+- **Environment last used:** cloud, 2026-10-19. Next session is **local** (the owner keeps keys only in the Mac's `.env`).
+- **Blockers:** live calls need owner accounts (LiveKit, Yeastar trunk, STT vendor); the owner's playbook documents (P0.3); golden calls later (owner: "keep using the simulated test").
+- **Next action:** `git checkout claude/friendly-gates-fbhqdv && git pull`; then `pnpm install && (cd apps/agent-worker && uv sync) && pnpm test && pnpm replay --all`; read `docs/OWNER-ANSWERS.md`.
 
 ## Phase board
 
@@ -152,14 +157,18 @@ Things only the owner can do, so the agent never waits silently.
   - Phase 1/5: Supabase dev project
   - Phase 7: Resend/Postmark
   - Phase 8: Sentry
-- [ ] Cloud sessions: set the API keys as environment secrets, and allow network access to the vendors' domains
+- [-] Cloud sessions: set the API keys as environment secrets (owner: keys only in the Mac's `.env`), and allow network access to the vendors' domains
 - [ ] Trademark and domain check for "Sotto" (D-001)
-- [ ] Let Claude write `.env.example`. The deny rule `Read(./.env.*)` in `.claude/settings.json` also blocks `.env.example`. Suggested: add an allow rule for `./.env.example`. Until then `docs/ENV.md` lists the variables.
+- [x] Let Claude write `.env.example` (owner approved 2026-10-19; apply next session). The deny rule `Read(./.env.*)` in `.claude/settings.json` also blocks `.env.example`. Suggested: add an allow rule for `./.env.example`. Until then `docs/ENV.md` lists the variables.
 - [x] Try the demo on the Mac (owner, 2026-10-19: "looks nice")
-- [ ] Answer the decisions page: https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
+- [x] Answer the decisions page (submitted 2026-10-19; see `docs/OWNER-ANSWERS.md`): https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
 - [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com). Put them in cloud environment secrets and in `.env` on the Mac. Steps are on the project map page: https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
-- [ ] Review the design direction (D-014) and the screenshots in `docs/evidence/p3/` and `docs/evidence/demo/`
-- [ ] Approve or edit two Claude Code hook changes in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
+- [ ] Retention: how long to keep call audio (owner chose "also keep audio" without a duration)
+- [ ] Free tiers and customer data: choose before the first real customer call (owner: "not sure, explain more when it matters")
+- [ ] Yeastar admin details and whether it can send a SIP trunk to LiveKit (P4)
+- [ ] First 1–3 companies and agent counts
+- [x] Review the design direction (D-014; approved on the decisions page) and the screenshots in `docs/evidence/p3/` and `docs/evidence/demo/`
+- [x] Approve or edit two Claude Code hook changes (owner approved both 2026-10-19; apply next session) in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
   - **Stop hook:** send stdout to stderr, `{ pnpm -s typecheck && pnpm -s test; } 1>&2 || exit 2`, so Claude sees the tsc and pytest errors. Also exit 0 when the hook input has `"stop_hook_active": true`, so a machine without `uv` cannot trap the session.
   - **PostToolUse format hook:** today a Biome failure skips ruff with no notice. Run the two formatters independently.
 
@@ -184,6 +193,18 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-19 (evening) · cloud · Claude · handoff after owner answers
+- **Done:**
+  - The owner submitted the decisions page. Answers and notes are copied verbatim into `docs/OWNER-ANSWERS.md`, with a 10-item apply list.
+  - Waiting-on-owner list updated, with new open items.
+  - No code changes: the owner asked for a handoff only (session credit).
+- **Evidence:** CI green on ae405a7 (all 5 jobs); PR #1 mergeable, no comments.
+- **Tried and rejected:** applying the answers in this session. The owner asked to stop building; a local session applies them.
+- **Next:** `docs/OWNER-ANSWERS.md` → "What these change", items 1–10, in order; then the P2.3 live smoke test locally with the Groq/Gemini keys and a check of the model IDs in `seed/models/default.yaml`; then the STT pick-list for the owner.
+- **Notes:**
+  - English-only conflicts with nothing in R1–R6, but R5's Arabic RTL UI stays until the owner changes R5.
+  - Retention with audio needs a duration and a consent note; keep no-audio in code until answered.
 
 ### 2026-10-19 · cloud · Claude Opus 5.5 · owner pages, D-016 free providers, P3.5, P6.2, P7.2
 - **Done:**
