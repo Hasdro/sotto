@@ -14,6 +14,7 @@ from sotto_worker.contracts import STTOptions, TranscriptEvent
 # After the client's end-of-stream message, how long to wait for the last finals.
 END_TIMEOUT_S = 5.0
 OPEN_TIMEOUT_S = 5.0
+CLOSE_TIMEOUT_S = 2.0
 
 State = Literal["ready", "done"] | None
 
@@ -24,6 +25,10 @@ class STTError(RuntimeError):
 
 class WSClosed:
     """Marker: the server closed the socket (FakeWS in tests returns None for it too)."""
+
+
+class WSClosedAbnormally(Exception):
+    """The server closed the socket with an error code (bad key, quota, vendor failure)."""
 
 
 class WSConnection(Protocol):
@@ -47,12 +52,16 @@ class _WebsocketsConnection:
         await self._ws.send(message)
 
     async def recv(self) -> str | bytes | None:
-        from websockets.exceptions import ConnectionClosedOK
+        from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
         try:
             message: str | bytes = await self._ws.recv()
         except ConnectionClosedOK:
             return None
+        except ConnectionClosedError as e:
+            code = e.rcvd.code if e.rcvd else None
+            reason = e.rcvd.reason if e.rcvd else ""
+            raise WSClosedAbnormally(f"closed with code {code} {reason}".strip()) from None
         return message
 
     async def close(self) -> None:
@@ -71,6 +80,7 @@ class WebSocketSTT:
     default_model = ""
     wait_ready = False  # vendor needs a "started" reply before audio (Speechmatics, ElevenLabs)
     min_chunk_ms = 0  # vendor rejects tiny audio messages (AssemblyAI: 50 ms)
+    max_chunk_ms = 0  # vendor rejects large audio messages (AssemblyAI: 1000 ms); 0 = no limit
 
     def __init__(
         self,
@@ -108,7 +118,24 @@ class WebSocketSTT:
 
     # --- runner -------------------------------------------------------------------------------
     def _error(self, detail: str) -> STTError:
-        return STTError(f"{self.provider}: {detail}".replace(self._key, "***"))
+        text = f"{self.provider}: {detail}"
+        return STTError(text.replace(self._key, "***") if self._key else text)
+
+    async def _recv(self, ws: WSConnection) -> str | bytes | None:
+        try:
+            return await ws.recv()
+        except WSClosedAbnormally as e:
+            raise self._error(str(e)) from None
+
+    def _parse(
+        self, raw: str | bytes, opts: STTOptions, *, ending: bool
+    ) -> tuple[list[TranscriptEvent], State]:
+        try:
+            return self.parse(raw, opts, ending=ending)
+        except STTError:
+            raise
+        except Exception as e:  # malformed vendor message: one clear error, never a raw one
+            raise self._error(f"unreadable message ({type(e).__name__})") from None
 
     async def transcribe(
         self, audio: AsyncIterator[bytes], opts: STTOptions
@@ -117,41 +144,46 @@ class WebSocketSTT:
             ws = await self._connect(self.url(opts), self.headers())
         except Exception as e:
             raise self._error(f"connect failed ({type(e).__name__})") from None
-        ending = asyncio.Event()
+        ending = asyncio.Event()  # set once our end-of-stream messages are on the wire
         sender: asyncio.Task[None] | None = None
-        pending_tasks: list[asyncio.Future[str | bytes | None]] = []
+        recv: asyncio.Future[str | bytes | None] | None = None
+        loop = asyncio.get_running_loop()
         try:
             for message in self.start_messages(opts):
                 await ws.send(message)
             if self.wait_ready:
                 while True:
-                    raw = await ws.recv()
+                    raw = await self._recv(ws)
                     if raw is None:
                         raise self._error("connection closed before the session started")
-                    events, state = self.parse(raw, opts, ending=False)
+                    events, state = self._parse(raw, opts, ending=False)
                     for item in events:
                         yield item
                     if state == "ready":
                         break
             sender = asyncio.create_task(self._pump(ws, audio, opts, ending))
-            recv: asyncio.Future[str | bytes | None] = asyncio.ensure_future(ws.recv())
-            pending_tasks.append(recv)
+            recv = asyncio.ensure_future(self._recv(ws))
             sender_checked = False
+            deadline: float | None = None
             while True:
                 waiters: set[asyncio.Future[Any]] = {recv}
                 if not sender_checked:
                     waiters.add(sender)
-                timeout = END_TIMEOUT_S if ending.is_set() else None
+                if ending.is_set() and deadline is None:
+                    deadline = loop.time() + END_TIMEOUT_S  # one budget for the last finals
+                timeout = None if deadline is None else max(deadline - loop.time(), 0)
                 done, _ = await asyncio.wait(
                     waiters, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
                 )
                 if not done:
-                    return  # quiet for END_TIMEOUT_S after our end message: finished
+                    return  # END_TIMEOUT_S after our end message: finished
                 if sender in done and not sender_checked:
                     sender_checked = True
                     failure = sender.exception()
                     if failure is not None:
-                        raise self._error(f"sending audio failed ({type(failure).__name__})")
+                        raise self._error(
+                            f"sending audio failed ({type(failure).__name__})"
+                        ) from failure
                 if recv not in done:
                     continue
                 raw = recv.result()
@@ -159,22 +191,19 @@ class WebSocketSTT:
                     if ending.is_set():
                         return
                     raise self._error("connection closed")
-                events, state = self.parse(raw, opts, ending=ending.is_set())
+                events, state = self._parse(raw, opts, ending=ending.is_set())
                 for item in events:
                     yield item
                 if state == "done":
                     return
-                recv = asyncio.ensure_future(ws.recv())
-                pending_tasks.append(recv)
+                recv = asyncio.ensure_future(self._recv(ws))
         finally:
-            for task in pending_tasks:
+            leftovers = [t for t in (recv, sender) if t is not None]
+            for task in leftovers:
                 task.cancel()
-            if sender is not None and not sender.done():
-                sender.cancel()
-                with contextlib.suppress(asyncio.CancelledError, Exception):
-                    await sender
+            await asyncio.gather(*leftovers, return_exceptions=True)
             with contextlib.suppress(Exception):
-                await ws.close()
+                await asyncio.wait_for(ws.close(), CLOSE_TIMEOUT_S)
 
     async def _pump(
         self,
@@ -183,21 +212,32 @@ class WebSocketSTT:
         opts: STTOptions,
         ending: asyncio.Event,
     ) -> None:
-        min_bytes = opts.sample_rate * 2 * self.min_chunk_ms // 1000
+        bytes_per_ms = opts.sample_rate * 2 // 1000
+        min_bytes = bytes_per_ms * self.min_chunk_ms
+        max_bytes = bytes_per_ms * self.max_chunk_ms
         buffer = b""
         sent = 0
+
+        async def send(data: bytes) -> None:
+            nonlocal sent
+            await ws.send(self.audio_message(data, opts))
+            sent += 1
+
         async for chunk in audio:
+            if not chunk:
+                continue  # an empty binary frame means "end of stream" to some vendors
             buffer += chunk
-            if len(buffer) >= min_bytes:
-                await ws.send(self.audio_message(buffer, opts))
-                sent += 1
+            while max_bytes and len(buffer) > max_bytes:
+                await send(buffer[:max_bytes])
+                buffer = buffer[max_bytes:]
+            if len(buffer) >= max(min_bytes, 1):
+                await send(buffer)
                 buffer = b""
         if buffer:
-            await ws.send(self.audio_message(buffer, opts))
-            sent += 1
-        ending.set()
+            await send(buffer.ljust(min_bytes, b"\x00"))  # pad a short tail with silence
         for message in self.end_messages(sent, opts):
             await ws.send(message)
+        ending.set()
 
 
 def event(

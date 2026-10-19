@@ -83,5 +83,6 @@ class ElevenLabsSTT(WebSocketSTT):
         start = seconds_to_ms(words[0]["start"]) if words else 0
         end = seconds_to_ms(words[-1]["end"]) if words else start
         events = [event(opts, text, final=True, start_ms=start, end_ms=end)] if text.strip() else []
-        # After our closing commit, this is the last transcript the session will send.
-        return events, "done" if ending else None
+        # No "done" marker: a VAD commit in flight could be mistaken for the answer to our closing
+        # commit and drop the last words, so the stream ends on close or after END_TIMEOUT_S.
+        return events, None

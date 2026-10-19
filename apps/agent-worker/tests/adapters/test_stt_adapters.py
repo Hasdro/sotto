@@ -12,7 +12,7 @@ import pytest
 
 from sotto_worker.adapters.factory import make_stt
 from sotto_worker.adapters.stt.assemblyai import AssemblyAISTT
-from sotto_worker.adapters.stt.base import STTError, WSClosed
+from sotto_worker.adapters.stt.base import STTError, WSClosed, WSClosedAbnormally
 from sotto_worker.adapters.stt.deepgram import DeepgramSTT
 from sotto_worker.adapters.stt.elevenlabs import ElevenLabsSTT
 from sotto_worker.adapters.stt.speechmatics import SpeechmaticsSTT
@@ -29,13 +29,13 @@ class FakeWS:
 
     def __init__(
         self,
-        initial: list[str | type[WSClosed]],
+        initial: list[str | type[WSClosed] | Exception],
         after_end: list[str | type[WSClosed]],
         is_end: Callable[[str | bytes], bool],
     ) -> None:
         self.sent: list[str | bytes] = []
         self.closed = False
-        self._inbox: list[str | type[WSClosed]] = list(initial)
+        self._inbox: list[str | type[WSClosed] | Exception] = list(initial)
         self._after_end = after_end
         self._is_end = is_end
         self.url = ""
@@ -54,6 +54,8 @@ class FakeWS:
                 item = self._inbox.pop(0)
                 if item is WSClosed:
                     return None
+                if isinstance(item, Exception):
+                    raise item
                 assert isinstance(item, str)
                 return item
             await asyncio.sleep(0.001)
@@ -350,3 +352,51 @@ def test_make_stt_needs_the_key() -> None:
 
     with pytest.raises(MissingCredentials, match="ASSEMBLYAI_API_KEY"):
         make_stt(StageRoute("assemblyai", "u"), env={})
+
+
+async def test_abnormal_close_becomes_stt_error_without_the_key() -> None:
+    closed = WSClosedAbnormally(f"closed with code 1008 invalid key {KEY}")
+    ws = FakeWS(initial=[closed], after_end=[], is_end=lambda m: False)
+    adapter = DeepgramSTT(api_key=KEY, model="nova-3", connect=connector(ws))
+    with pytest.raises(STTError, match="deepgram: closed with code 1008") as err:
+        await collect(adapter)
+    assert KEY not in str(err.value)
+    assert ws.closed
+
+
+async def test_unreadable_vendor_message_becomes_stt_error() -> None:
+    ws = FakeWS(initial=["not json"], after_end=[], is_end=lambda m: False)
+    adapter = AssemblyAISTT(api_key=KEY, model="u", connect=connector(ws))
+    with pytest.raises(STTError, match=r"assemblyai: unreadable message \(JSONDecodeError\)"):
+        await collect(adapter)
+
+
+async def test_empty_chunks_are_never_sent() -> None:
+    ws = FakeWS(
+        initial=[], after_end=[WSClosed], is_end=lambda m: m == json.dumps({"type": "CloseStream"})
+    )
+    adapter = DeepgramSTT(api_key=KEY, model="nova-3", connect=connector(ws))
+
+    async def with_gaps() -> AsyncIterator[bytes]:
+        for chunk in (CHUNK, b"", CHUNK):
+            yield chunk
+
+    _ = [e async for e in adapter.transcribe(with_gaps(), OPTS)]
+    assert ws.sent == [CHUNK, CHUNK, json.dumps({"type": "CloseStream"})]
+
+
+async def test_assemblyai_splits_long_audio_and_pads_a_short_tail() -> None:
+    ws = FakeWS(
+        initial=[],
+        after_end=[json.dumps({"type": "Termination"})],
+        is_end=lambda m: m == json.dumps({"type": "Terminate"}),
+    )
+    adapter = AssemblyAISTT(api_key=KEY, model="u", connect=connector(ws))
+
+    async def long_then_short() -> AsyncIterator[bytes]:
+        yield b"\x01\x00" * 16000 * 2  # 2 s in one piece
+        yield b"\x01\x00" * 160  # 10 ms tail
+
+    _ = [e async for e in adapter.transcribe(long_then_short(), OPTS)]
+    sizes = [len(m) for m in ws.sent if isinstance(m, bytes)]
+    assert sizes == [32000, 32000, 1600]  # two 1000 ms messages, tail padded to 50 ms

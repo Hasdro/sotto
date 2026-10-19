@@ -19,6 +19,7 @@ class AssemblyAISTT(WebSocketSTT):
         "universal-streaming-english"  # capability table: used when no route names a model
     )
     min_chunk_ms = 50  # the API wants 50 to 1000 ms of audio per message
+    max_chunk_ms = 1000
 
     def url(self, opts: STTOptions) -> str:
         query = {
