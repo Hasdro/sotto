@@ -27,7 +27,7 @@ Tags:
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** owner answers applied (D-017, D-018, BRIEF, settings, `.env.example`). Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Next task:** P2.3. Run `pnpm replay:live` once `GROQ_API_KEY`/`GEMINI_API_KEY` are in `.env` at the repo root (none there on 2026-10-20). Then build the two STT adapters after the owner picks from `docs/STT-OPTIONS.md` (recommended: Deepgram primary, AssemblyAI backup).
+- **Next task:** P2.3 (STT adapters for all four vendors, D-019; P6.7 keys panel is planned). Run `pnpm replay:live` once `GROQ_API_KEY`/`GEMINI_API_KEY` are in `.env` at the repo root (none there on 2026-10-20). Then build the two STT adapters after the owner picks from `docs/STT-OPTIONS.md` (recommended: Deepgram primary, AssemblyAI backup).
 - **Without the owner:** axe accessibility checks in CI (P3.3), plan/trial banner (P3.5), P6.4 model settings with custom endpoints.
 - **Owner open items:** STT pick; keys into `.env`; retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies; playbook documents.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
@@ -75,7 +75,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 2
 - [x] P2.1 Contracts and fake adapters — Clock/FakeClock, LLM/STT protocols, FakeLLM; contract tests (pytest)
 - [x] P2.2 Model router (per stage, per company, deadlines, fallback) — absolute t0 deadline, backup race, circuit per (company, endpoint), R1 guard; 13 tests
-- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); `pnpm replay:live` built (model-ID check + live replay, 8 tests, security review clean); its live run waits for keys in `.env`; STT pick-list in `docs/STT-OPTIONS.md`, adapters wait for the owner's pick `owner`
+- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); `pnpm replay:live` built (model-ID check + live replay, 8 tests, security review clean); its live run waits for keys in `.env`; STT pick-list in `docs/STT-OPTIONS.md`; per D-019, STT adapters for all four vendors (Deepgram, AssemblyAI, Speechmatics, ElevenLabs), selectable by setting; keys from the owner (`docs/PROVIDER-KEYS.md`) `owner`
 - [x] P2.4 Prompt registry (seed/prompts, scopes, variables) — scopes, publish/rollback, strict render, platform fallback; 8 tests
 - [x] P2.5 Pipeline: turn → trigger → playbook → suggest → stream — CallSession + trigger rules + playbook index (drafting on partials still TODO)
 - [x] P2.6 R2 chain: backup, holding line, escalation record — holding at t0+1400, late answer ≤ 5 s, one escalation per question; session tests
@@ -116,6 +116,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P6.4 Model settings + custom endpoints + R1 guard
 - [ ] P6.5 Feature flags
 - [ ] P6.6 Admin permissions
+- [ ] P6.7 Keys & providers panel: add/test/replace keys with "Get a key" links, vendor per stage (owner request 2026-10-20, D-019)
 
 ### Phase 7
 - [x] P7.1 Email adapter + outbox — retry 10 s/30 s/1/5/15 min + dead letter, Resend with Idempotency-Key; DB trigger enqueues one email per escalation
@@ -159,7 +160,7 @@ Things only the owner can do, so the agent never waits silently.
 - [x] Try the demo on the Mac (owner, 2026-10-19: "looks nice")
 - [x] Answer the decisions page (submitted 2026-10-19; see `docs/OWNER-ANSWERS.md`): https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
 - [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com) in `.env` at the repo root on the Mac (`~/Documents/GitHub/sotto/.env`; copy `.env.example`). Only `.env` on the Mac (D-017). Not present on 2026-10-20.
-- [ ] Pick the speech-to-text vendors from `docs/STT-OPTIONS.md` (recommended: Deepgram primary, AssemblyAI backup) and add their keys to `.env`
+- [ ] Get the keys you choose (links and steps: `docs/PROVIDER-KEYS.md`) and put them in `.env`. Speech-to-text: pick any two of Deepgram, AssemblyAI, Speechmatics or ElevenLabs (recommended: Deepgram + AssemblyAI)
 - [ ] Retention: how long to keep call audio (owner chose "also keep audio" without a duration)
 - [ ] Free tiers and customer data: choose before the first real customer call (owner: "not sure, explain more when it matters")
 - [ ] Yeastar admin details and whether it can send a SIP trunk to LiveKit (P4)

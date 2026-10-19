@@ -211,3 +211,18 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Rejected:**
   - Removing Arabic from the UI now: that is an R5 change the owner did not ask for.
   - Removing the `auto` option: it is a per-company setting (R6), so it costs nothing to keep.
+
+## D-019 — The owner chooses vendors; keys come from the owner; an in-app keys panel
+2026-10-20 · accepted (owner: "regarding the model vendors, keep it option where I can select, you just take keys from me … in the final result I want an admin panel to be able to add these keys with help me link to them")
+- **Decision:**
+  - Vendor choice is the owner's (or a company admin's) for every stage, including speech-to-text. Claude recommends but never locks one in. Every vendor in `docs/PROVIDER-KEYS.md` sits behind the same adapter interface, so choosing one is a setting.
+  - **STT:** P2.3 builds real-time adapters for all four listed vendors (Deepgram, AssemblyAI, Speechmatics, ElevenLabs), not just two. The owner picks the primary and backup by setting, then adds the keys.
+  - Keys come only from the owner:
+    - today, as `.env` on the Mac (D-017);
+    - in the final product, through the **Keys & providers** admin panel (P6.7, added to R6). The panel has a "Get a key" link and how-to for every vendor, a connection test, and write-only encrypted storage.
+- **Why:** The owner wants to stay free to switch vendors and to manage keys himself without editing files.
+- **Effects:**
+  - R6 gains the panel requirement and an acceptance test.
+  - Phase 6 gains P6.7.
+  - `docs/PROVIDER-KEYS.md` is the source for the panel's provider catalogue.
+  - D-016's host binding moves from code into that catalogue in P6.7.

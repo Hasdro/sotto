@@ -110,6 +110,10 @@ change them without a code release.
 - A stage may only use a model whose last benchmark on the golden set meets R1 for that
   stage; the settings screen shows that benchmark next to each model.
 
+**Keys & providers panel** (owner request, 2026-10-20, D-019)
+- The platform owner and company admins add, test, replace and remove provider keys in the app. Each vendor has a "Get a key" link and short instructions.
+- Each stage's vendor is chosen in the same panel. Keys are write-only, encrypted, never shown again after saving, and only sent to their own vendor.
+
 **Modules**
 - Telephony, CRM (Zoho first; HubSpot/Salesforce later), email, and storage sit behind
   interfaces so a new provider is a new adapter, not a rewrite.
@@ -120,3 +124,4 @@ change them without a code release.
 - Add a new OpenAI-compatible endpoint (e.g. local Ollama URL) in the UI and run the replay with it.
 - Create prompt v2, test it on recordings, publish, then roll back to v1.
 - Grep check in CI: no provider SDK is imported outside `adapters/`; no model name string outside config/seed data.
+- Add a key in the Keys & providers panel, test it, select it for a stage; the next call uses it; the key never appears in any API response.

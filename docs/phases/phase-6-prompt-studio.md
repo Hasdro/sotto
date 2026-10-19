@@ -85,6 +85,29 @@ The settings screen shows each model's last benchmark. It blocks a live stage (t
 
 **Acceptance:** isolation tests are extended to the new tables.
 
+### P6.7 — Keys & providers panel (owner request, 2026-10-20, D-019)
+An admin screen where the owner (platform keys) and each company admin (company keys) add, test, replace and remove provider keys, and choose the vendor for every stage.
+
+- **One card per vendor** from a provider catalogue (`seed/providers/catalog.yaml`, built from `docs/PROVIDER-KEYS.md`). Each card shows:
+  - the vendor name and what it is used for (cards, backup, speech-to-text, calls, email);
+  - free tier and price notes, each with the date it was checked;
+  - a **"Get a key"** link straight to the vendor's key page, and a short how-to (the same steps as `docs/PROVIDER-KEYS.md`);
+  - a key field: write-only and masked after saving (last 4 characters only); **Test connection**; **Replace**; **Remove**.
+- **Vendor selection:** for every stage (STT main and backup, suggest, suggest backup, summary, judge), pick from the vendors that have a working key. The choice is a setting with no code release (R6). The R1 guard from P6.4 still applies to live stages.
+- **Storage:** keys are encrypted server-side (Supabase Vault). A key is never returned to the client, never logged, and only ever sent to its vendor's own host. That host binding (D-016) moves from `COMPATIBLE_KEY_HOSTS` into the catalogue.
+- **Who:**
+  - Platform keys and the platform defaults: the platform owner only.
+  - Company keys and company stage choices: company admins.
+  - Every change is in the audit log (R3).
+- **Migration:** platform keys move from `.env` to the panel. `.env` stays as the local-development fallback.
+- **Help:** a "How do I get this key?" drawer on every card, plus a link to the vendor's free-tier page. The links are checked by a CI job that reports dead links; the job does not fail the build.
+
+**Acceptance:**
+- An admin adds a Groq key in the panel, presses Test (green), and selects it for suggest. The next demo call uses it with no deploy.
+- Removing a key that a stage uses is blocked until another vendor is selected.
+- An API response never contains a key (test). Isolation tests cover the new tables, and company A can't see company B's keys.
+- `security-auditor` signs off.
+
 ## Exit gate
 - [ ] All R6 acceptance tests in REQUIREMENTS.md pass, with screenshots and replay output.
 - [ ] The boundaries check is still green: no model names or prompt text in code.
