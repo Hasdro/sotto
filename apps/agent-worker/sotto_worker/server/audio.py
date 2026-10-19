@@ -29,6 +29,10 @@ FLUSH_AFTER_MS = 1500  # if the vendor never sends a final after finalize, use w
 # Finals already in hand at our end of turn: wait this long for the forced final of the tail,
 # then go (Deepgram does not answer Finalize when no new audio is left to process).
 TAIL_WAIT_MS = 400
+# After our end of turn, a vendor may send the sentence as two finals (Deepgram answers Finalize
+# with the tail as its own result). Each final restarts this short settle timer; the turn goes
+# out when no further final arrives within it.
+SETTLE_MS = 150
 MIN_THRESHOLD = 350.0  # int16 RMS; the noise floor x NOISE_FACTOR when the room is louder
 NOISE_FACTOR = 3.0
 MAX_QUEUE = 500  # ~10 s of 20 ms frames: a stalled vendor never grows memory without bound
@@ -153,11 +157,11 @@ class CustomerAudio:
         with contextlib.suppress(STTError):
             await stt.finalize()
 
-    def _arm_flush(self) -> None:
+    def _arm_flush(self, wait: int | None = None) -> None:
         if self._flush_timer is not None:
             self._flush_timer.cancel()
-
-        wait = TAIL_WAIT_MS if self._pending else FLUSH_AFTER_MS
+        if wait is None:
+            wait = TAIL_WAIT_MS if self._pending else FLUSH_AFTER_MS
 
         async def later() -> None:
             await self._clock.sleep(wait)
@@ -205,8 +209,8 @@ class CustomerAudio:
             await self._on_partial(event.text)
             return
         self._pending.append(event)
-        if self._speech_end_ms is not None:  # our end of turn came first: this is the final
-            await self._flush()
+        if self._speech_end_ms is not None:  # our end of turn came first: settle, then send
+            self._arm_flush(SETTLE_MS)
 
     async def _flush(self) -> None:
         if self._flush_timer is not None and self._flush_timer is not asyncio.current_task():

@@ -75,11 +75,6 @@ export default function KeysScreen() {
       <Text variant="body" tone="muted">
         {t("admin.keys.subtitle")}
       </Text>
-      <Section title={t("admin.keys.stages")} hint={t("admin.keys.stagesHint")}>
-        {data.stages.map((stage) => (
-          <StageRow key={stage.id} stage={stage} providers={data.providers} onChange={update} />
-        ))}
-      </Section>
       <Section title={t("admin.keys.llm")}>
         {group("llm").map((p) => (
           <ProviderCard key={p.id} provider={p} onChange={update} />
@@ -88,6 +83,11 @@ export default function KeysScreen() {
       <Section title={t("admin.keys.stt")}>
         {group("stt").map((p) => (
           <ProviderCard key={p.id} provider={p} onChange={update} />
+        ))}
+      </Section>
+      <Section title={t("admin.keys.stages")} hint={t("admin.keys.stagesHint")}>
+        {data.stages.map((stage) => (
+          <StageRow key={stage.id} stage={stage} providers={data.providers} onChange={update} />
         ))}
       </Section>
     </Stack>
