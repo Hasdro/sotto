@@ -66,15 +66,16 @@ def ok(turns: list[Turn]) -> bool:
 
 def sign_in(url: str, code: str) -> str:
     """Returns the session cookie for a hosted server."""
+    if not url.startswith(("http://", "https://")):
+        raise ValueError("--url must be http(s)")
     request = urllib.request.Request(  # noqa: S310 - the owner's own server URL, http(s) only
         f"{url.rstrip('/')}/api/session",
         data=json.dumps({"code": code}).encode(),
         headers={"content-type": "application/json", "origin": url.rstrip("/")},
         method="POST",
     )
-    if not url.startswith(("http://", "https://")):
-        raise ValueError("--url must be http(s)")
-    with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 - checked above
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # direct, no proxy
+    with opener.open(request, timeout=10) as response:
         cookie = SimpleCookie(response.headers.get("set-cookie", ""))
     return cookie["sotto_session"].value
 
@@ -85,15 +86,15 @@ async def run(url: str, code: str | None) -> list[Turn]:
 
     with tempfile.TemporaryDirectory(prefix="sotto-spoken-") as tmp:
         clips = [synthesize(p, Path(tmp), i) for i, p in enumerate(PHRASES)]
-    headers = {"cookie": f"sotto_session={sign_in(url, code)}"} if code else {}
+    cookie = await asyncio.to_thread(sign_in, url, code) if code else None
+    headers = {"cookie": f"sotto_session={cookie}"} if cookie else {}
     ws_url = url.replace("https://", "wss://").replace("http://", "ws://").rstrip("/") + "/ws"
     events: list[tuple[float, dict[str, Any]]] = []
     ends: list[float] = []
     async with connect(ws_url, origin=Origin(url.rstrip("/")), additional_headers=headers) as ws:
         hello = json.loads(await ws.recv())
-        print(
-            f"server: {hello['company_name']} · {hello['mode']} models · STT {hello.get('stt_vendor')}"
-        )
+        stt = hello.get("stt_vendor")
+        print(f"server: {hello['company_name']} · {hello['mode']} models · STT {stt}")
         if not hello.get("stt_vendor"):
             raise SystemExit("this server has no speech-to-text key (Admin → Keys & providers)")
         await ws.send(json.dumps({"type": "audio_start", "sample_rate": SAMPLE_RATE}))

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import json
 import math
 import struct
 from collections.abc import AsyncIterator
@@ -297,3 +299,84 @@ async def test_backup_vendor_takes_over_when_the_primary_fails() -> None:
     assert made == ["primary", "backup"]
     assert "switching to the backup" in notices[0]
     assert turns == ["backup heard it"]
+
+
+# --- key test: speech vendors and edge cases ----------------------------------------------
+
+
+class _OneShotSTT:
+    provider = "deepgram"
+    model = "m"
+
+    def __init__(self, fail: bool) -> None:
+        self._fail = fail
+
+    async def transcribe(
+        self, audio: AsyncIterator[bytes], opts: STTOptions
+    ) -> AsyncIterator[TranscriptEvent]:
+        async for _ in audio:
+            if self._fail:
+                raise STTError("deepgram: closed with code 4001 bad key k-123456789")
+        nothing: tuple[TranscriptEvent, ...] = ()  # an async generator that yields nothing
+        for event in nothing:
+            yield event
+
+    async def finalize(self) -> bool:
+        return False
+
+
+@pytest.mark.parametrize("fail", [False, True])
+async def test_stt_key_test_opens_a_session(monkeypatch: pytest.MonkeyPatch, fail: bool) -> None:
+    import sotto_worker.server.keytest as keytest
+
+    monkeypatch.setattr(keytest, "make_stt", lambda route, env: _OneShotSTT(fail))
+    monkeypatch.setattr(keytest, "_silence", lambda: _frames(3))
+    result = await check_key(CATALOG.providers["deepgram"], "k-123456789")
+    assert result.ok is not fail
+    assert "k-123456789" not in result.detail
+
+
+async def _frames(n: int) -> AsyncIterator[bytes]:
+    for _ in range(n):
+        yield b"\x00\x00" * 320
+
+
+async def test_llm_key_test_handles_odd_answers() -> None:
+    seen: list[httpx.Request] = []
+    groq = CATALOG.providers["groq"]
+    assert not (await check_key(groq, "k", client=_client(500, {}, seen))).ok
+    weird = await check_key(groq, "k", client=_client(200, {"data": ["x", {"id": "m1"}]}, seen))
+    assert weird.models == ("m1",)
+    no_url = dataclasses.replace(CATALOG.providers["groq"], route={"provider": "x"}, test_url=None)
+    assert "no models endpoint" in (await check_key(no_url, "k")).detail
+    moved = dataclasses.replace(
+        groq, route={**groq.route, "base_url": "https://evil.example/v1"}, test_url=None
+    )
+    assert not (await check_key(moved, "k", client=_client(200, {}, seen))).ok  # D-016
+    assert all(r.url.host == "api.groq.com" for r in seen)
+
+
+# --- server start-up ----------------------------------------------------------------------
+
+
+def test_build_wires_a_local_server(tmp_path: Path, static_dir: Path) -> None:
+    from starlette.testclient import TestClient
+
+    from sotto_worker.server.__main__ import build, parser
+
+    args = parser().parse_args(["--fake", "--static", str(static_dir)])
+    config, app = build(args, {"SOTTO_DATA_DIR": str(tmp_path / "data")})
+    assert config.access_code is None
+    assert (tmp_path / "data" / "secret.key").exists()
+    with TestClient(app) as client:
+        assert client.get("/api/me").json() == {"auth_required": False, "signed_in": True}
+        with client.websocket_connect("/ws") as ws:
+            assert json.loads(ws.receive_text())["mode"] == "fake"
+
+
+def test_main_refuses_hosted_mode_without_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sotto_worker.server.__main__ import main
+
+    for name in ("SOTTO_ACCESS_CODE", "SOTTO_SECRET_KEY", "SOTTO_PUBLIC_ORIGIN"):
+        monkeypatch.delenv(name, raising=False)
+    assert main(["--host", "0.0.0.0"]) == 2  # noqa: S104 - the case under test
