@@ -29,6 +29,7 @@ import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
+import { useEscalations } from "../features/escalations/store";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 
@@ -42,6 +43,12 @@ function DemoCallScreen() {
   const { locale } = useI18n();
   const mock = params.mock === "1";
   const session = useCallSession({ mock, locale });
+  // An escalated question is now in the manager's inbox on the server: refresh the badge.
+  const { reload } = useEscalations();
+  const escalated = session.state.escalations.length;
+  useEffect(() => {
+    if (escalated > 0 && !mock) reload();
+  }, [escalated, mock, reload]);
   return <CallView session={session} mock={mock} />;
 }
 

@@ -14,7 +14,7 @@ import {
   TextField,
   useTheme,
 } from "@sotto/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
 import { RoleGate } from "../components/RoleGate";
@@ -42,7 +42,8 @@ export default function InboxRoute() {
 function InboxScreen() {
   const { t, locale } = useI18n();
   const { color } = useTheme();
-  const { inbox } = useEscalations();
+  const { inbox, reload } = useEscalations();
+  useEffect(reload, [reload]); // questions escalated since the app opened
   const [status, setStatus] = useState<InboxStatus>("open");
   const [added, setAdded] = useState<string | null>(null);
   const counts = countByStatus(inbox);

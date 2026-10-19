@@ -20,6 +20,8 @@ import { escalationsApi, loadServerInbox } from "./server";
 type StoreValue = EscalationState & {
   save: (id: string, answer: string) => FlowError | null;
   add: (id: string, answer: string) => FlowError | null;
+  /** Fetch this server's inbox again (after an escalation, or when the inbox opens). */
+  reload: () => void;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -76,7 +78,7 @@ export function EscalationStoreProvider({ children }: { children: ReactNode }) {
       ),
     [apply, state, fromServer],
   );
-  const value = useMemo(() => ({ ...state, save, add }), [state, save, add]);
+  const value = useMemo(() => ({ ...state, save, add, reload }), [state, save, add, reload]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
@@ -88,6 +90,7 @@ export function useEscalations(): StoreValue {
       playbook: PLAYBOOK,
       save: () => "not_found",
       add: () => "not_found",
+      reload: () => {},
     }
   );
 }
