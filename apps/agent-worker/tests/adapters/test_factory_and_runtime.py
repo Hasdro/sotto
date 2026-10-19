@@ -200,3 +200,13 @@ def test_demo_runtime_preloads_its_adapters(monkeypatch: pytest.MonkeyPatch) -> 
     build_demo_runtime(FakeClock(), {"GROQ_API_KEY": "g"})
     assert seen
     assert "suggest" in seen[0]
+
+
+def test_preload_refuses_a_provider_it_does_not_know() -> None:
+    """A new SDK adapter must be registered, or it silently goes back to a lazy in-turn import."""
+    from sotto_worker.adapters import factory
+    from sotto_worker.router import RoutingConfig
+
+    config = RoutingConfig(stages={"suggest": StageRoute("mistral", "m")})
+    with pytest.raises(ValueError, match="mistral"):
+        factory.preload_adapters(config)

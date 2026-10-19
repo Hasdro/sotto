@@ -50,13 +50,14 @@ def preload_adapters(config: RoutingConfig) -> None:
     """Import every provider SDK the config uses, at process start. An SDK import blocks for
     0.6 to 1.1 s; inside a live turn that freezes the event loop past the t0+1400 holding
     line (R2)."""
-    for module in sorted(
-        {
-            ADAPTER_MODULES[r.provider]
-            for r in config.stages.values()
-            if r.provider in ADAPTER_MODULES
-        }
-    ):
+    modules: set[str] = set()
+    for route in config.stages.values():
+        if route.provider == "fake":
+            continue
+        if route.provider not in ADAPTER_MODULES:
+            raise ValueError(f"unknown provider {route.provider!r}; add it to ADAPTER_MODULES")
+        modules.add(ADAPTER_MODULES[route.provider])
+    for module in sorted(modules):
         importlib.import_module(module)
 
 

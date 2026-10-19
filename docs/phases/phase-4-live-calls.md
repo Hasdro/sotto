@@ -71,8 +71,12 @@ An edge function `livekit-token` that mints per-call tokens:
 - It subscribes to the **customer participant's track only**, identified by its SIP participant attributes, not by guessing.
 - It runs the Phase 2 pipeline and sends cards over the data channel.
 - The app renders them using the Phase 3 component.
+- **No blocking work in a live turn (T-005):**
+  - the worker's prewarm hook calls `preload_adapters` for the platform config **and** for each company's routing;
+  - `session.warm()` runs at room join;
+  - HTTP keep-alive is set longer than the expected silence (or the worker re-warms after silence), so the first question after a long pause doesn't pay TLS setup again.
 
-**Acceptance:** cards appear during a real call.
+**Acceptance:** cards appear during a real call. The live replay with an 8 s gap before line 1 and between lines still has p95 ≤ 1500 ms.
 
 ### P4.5 — Desktop with another softphone (R4 row 2, optional)
 

@@ -27,13 +27,13 @@ Tags:
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** owner answers applied (D-017, D-018, BRIEF, settings, `.env.example`). Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Next task:** P2.3 (STT adapters for all four vendors, D-019; P6.7 keys panel is planned). Run `pnpm replay:live` once `GROQ_API_KEY`/`GEMINI_API_KEY` are in `.env` at the repo root (none there on 2026-10-20). Then build the two STT adapters after the owner picks from `docs/STT-OPTIONS.md` (recommended: Deepgram primary, AssemblyAI backup).
+- **Next task:** P2.3 STT adapters for the four vendors (D-019); Deepgram, AssemblyAI and Speechmatics keys are in `.env`, ElevenLabs is not. The live LLM smoke test passed on 2026-10-20 (p95 ~840 ms).
 - **Without the owner:** axe accessibility checks in CI (P3.3), plan/trial banner (P3.5), P6.4 model settings with custom endpoints.
 - **Owner open items:** STT pick; keys into `.env`; retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies; playbook documents.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
 - **Environment last used:** local Mac, 2026-10-20 (no Docker running, so `pnpm test:db` was not run; gitleaks now installed).
-- **Blockers:** keys not in `.env`; STT vendor choice; live calls need LiveKit + Yeastar trunk; playbook documents (P0.3).
-- **Next action:** `pnpm replay:live` (needs keys), or start P3.3 axe checks if the keys are still missing.
+- **Blockers:** live calls need LiveKit + the Yeastar trunk; playbook documents (P0.3); real recordings later.
+- **Next action:** `/spec` the STT adapter interface (streaming, finals, end-of-turn events), then build Deepgram first with mocked-WebSocket tests.
 
 ## Phase board
 
@@ -75,7 +75,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 2
 - [x] P2.1 Contracts and fake adapters — Clock/FakeClock, LLM/STT protocols, FakeLLM; contract tests (pytest)
 - [x] P2.2 Model router (per stage, per company, deadlines, fallback) — absolute t0 deadline, backup race, circuit per (company, endpoint), R1 guard; 13 tests
-- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); `pnpm replay:live` built (model-ID check + live replay, 8 tests, security review clean); its live run waits for keys in `.env`; STT pick-list in `docs/STT-OPTIONS.md`; per D-019, STT adapters for all four vendors (Deepgram, AssemblyAI, Speechmatics, ElevenLabs), selectable by setting; keys from the owner (`docs/PROVIDER-KEYS.md`) `owner`
+- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); `pnpm replay:live` built and run live 2026-10-20: all 5 model IDs ok; p50 549–613 / p95 837–848 ms, agent cards 0 (after fix d8b10d1); STT pick-list in `docs/STT-OPTIONS.md`; per D-019, STT adapters for all four vendors (Deepgram, AssemblyAI, Speechmatics, ElevenLabs), selectable by setting; keys from the owner (`docs/PROVIDER-KEYS.md`) `owner`
 - [x] P2.4 Prompt registry (seed/prompts, scopes, variables) — scopes, publish/rollback, strict render, platform fallback; 8 tests
 - [x] P2.5 Pipeline: turn → trigger → playbook → suggest → stream — CallSession + trigger rules + playbook index (drafting on partials still TODO)
 - [x] P2.6 R2 chain: backup, holding line, escalation record — holding at t0+1400, late answer ≤ 5 s, one escalation per question; session tests
@@ -160,7 +160,8 @@ Things only the owner can do, so the agent never waits silently.
 - [x] Try the demo on the Mac (owner, 2026-10-19: "looks nice")
 - [x] Answer the decisions page (submitted 2026-10-19; see `docs/OWNER-ANSWERS.md`): https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
 - [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com) in `.env` at the repo root on the Mac (`~/Documents/GitHub/sotto/.env`; copy `.env.example`). Only `.env` on the Mac (D-017). Not present on 2026-10-20.
-- [ ] Get the keys you choose (links and steps: `docs/PROVIDER-KEYS.md`) and put them in `.env`. Speech-to-text: pick any two of Deepgram, AssemblyAI, Speechmatics or ElevenLabs (recommended: Deepgram + AssemblyAI)
+- [x] Groq, Gemini, OpenRouter, Deepgram, AssemblyAI and Speechmatics keys in `.env` (2026-10-20). ElevenLabs is optional.
+- [ ] (done above) Get the keys you choose (links and steps: `docs/PROVIDER-KEYS.md`) and put them in `.env`. Speech-to-text: pick any two of Deepgram, AssemblyAI, Speechmatics or ElevenLabs (recommended: Deepgram + AssemblyAI)
 - [ ] Retention: how long to keep call audio (owner chose "also keep audio" without a duration)
 - [ ] Free tiers and customer data: choose before the first real customer call (owner: "not sure, explain more when it matters")
 - [ ] Yeastar admin details and whether it can send a SIP trunk to LiveKit (P4)
@@ -176,6 +177,13 @@ Things only the owner can do, so the agent never waits silently.
 - **T-003** (2026-10-18) zod adds about 90 KB to the web bundle (426 KB of the 450 KB budget). Consider a zod/mini parser in `packages/shared`.
 - **T-004** (2026-10-18) Drafting on partial transcripts (ARCHITECTURE §4) is not implemented. Today the suggest request starts on the final transcript.
 
+- **T-005** (2026-10-20) Blocking work on the live event loop defeats the R2 timers. Provider SDK imports (OpenAI ~0.6 s, Anthropic ~1.1 s) are now done at start (`preload_adapters`, d8b10d1). Still open (latency-guardian review, carried to P4.4 and P6.7):
+  - the Phase 4 worker entry must call preload, plus warm at room join;
+  - company-specific routes must be preloaded at call start;
+  - HTTP keep-alive (httpx default 5 s) must outlast silences, or the first question after a pause pays TLS setup again;
+  - `router.warm` must warm each stage separately (one `ModelFailsR1` skips both);
+  - playbook lookup runs twice per turn; pass the result through.
+- **T-006** (2026-10-20) On Groq the primary misses its 700 ms first-token deadline in about 18% of turns. The backup (Gemini) races but has not won yet. Watch this on real recordings, and consider a lower `reasoning_effort` or a non-reasoning model for `suggest` if p95 climbs.
 - **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
   - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
   - GHSA-vfj7-8cjw-p6xm: braces via `metro-file-map`.
@@ -191,6 +199,24 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-20 (later) · local · Claude Opus 5.5 · P2.3 live smoke test, R2 timer fix, D-019 plan
+- **Done:**
+  - Owner keys guide `docs/PROVIDER-KEYS.md`.
+  - D-019: the owner picks vendors, STT adapters will be built for all four vendors, and a Keys & providers panel is planned (P6.7, R6).
+  - Live smoke test run on Groq + Gemini.
+  - Fixed a real R2 bug: SDK imports inside the first live turn froze the holding-line timer.
+- **Evidence:**
+  - `pnpm replay:live` (real models):
+    - model IDs ok for trigger, suggest, suggest_backup, summary and judge;
+    - first run before the fix: p95 1761 ms with no holding line (FAIL);
+    - after the fix: p50 549 / p95 837 ms and p50 613 / p95 848 ms, agent cards 0, expectations PASS.
+  - Probe: importing the OpenAI SDK takes 603 ms and Anthropic's 1139 ms; the first client build takes 71 ms.
+  - Worker pytest 223; `pnpm test`, `pnpm lint` and `pnpm typecheck` all green.
+  - latency-guardian: PASS WITH NOTES (T-005).
+- **Tried and rejected:** blaming slow Groq responses. The missing holding line proved the event loop itself was blocked, and the probe confirmed it.
+- **Next:** P2.3 STT adapters (`/spec` first).
+- **Notes:** none of the keys were read or printed; only whether each is set was checked. ElevenLabs has no key, which is fine.
 
 ### 2026-10-20 · local · Claude Opus 5.5 · owner answers applied, P2.3 live smoke tooling
 - **Done:**
