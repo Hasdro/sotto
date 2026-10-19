@@ -2,8 +2,8 @@
 
 What it measures: everything after the final transcript (trigger, playbook, prompt, router race,
 holding line, streaming), plus a fixed simulated delay for end-of-turn + final STT. What it does
-NOT measure: real STT, network, or real model latency (use --live for real models). Every report
-says SYNTHETIC so nobody mistakes it for the golden-call gate (R1 acceptance).
+NOT measure: real STT, network, or real model latency (`pnpm replay:live` uses real models).
+Every report says SYNTHETIC so nobody mistakes it for the golden-call gate (R1 acceptance).
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from sotto_worker.pipeline.session import CallSession, Escalation
 from sotto_worker.protocol import CardMessage
 from sotto_worker.router import ModelRouter, RoutingConfig, StageRoute
 from sotto_worker.runtime import build_demo_runtime
-from sotto_worker.scenarios import Scenario
+from sotto_worker.scenarios import Scenario, ScriptLine
 from sotto_worker.telemetry import CardTimingRecord, LatencySummary, percentile, summarise
 
 R1_P95_MS = 1500
@@ -183,21 +183,7 @@ async def replay_synthetic(
             await session.on_transcript(event, t0_ms=t)
             await clock.advance(6000)
             t = clock.now_ms() - profile.final_after_t0_ms
-            new_cards = [c for c in cards if c.seq == 0][before:]
-            sources = {c.source for c in new_cards}
-            if line.speaker == "agent" and new_cards:
-                report.agent_triggered += len(new_cards)
-            label = f"{scenario.id}: {line.text[:40]!r}"
-            if line.expect == "no_card" and new_cards:
-                report.unmet_expectations.append(f"{label} expected no card, got {sorted(sources)}")
-            elif line.expect == "playbook" and sources != {"playbook"}:
-                report.unmet_expectations.append(
-                    f"{label} expected playbook, got {sorted(sources)}"
-                )
-            elif line.expect == "ai_or_holding" and not sources & {"ai", "backup", "holding"}:
-                report.unmet_expectations.append(
-                    f"{label} expected ai/holding, got {sorted(sources)}"
-                )
+            check_line(report, scenario, line, [c for c in cards if c.seq == 0][before:])
         await session.close()
         report.cards += len(records)
         report.escalations += len(escalations)
@@ -205,6 +191,22 @@ async def replay_synthetic(
         if records:
             report.per_call[scenario.id] = summarise(records)
     return report
+
+
+def check_line(
+    report: ReplayReport, scenario: Scenario, line: ScriptLine, new_cards: Sequence[CardMessage]
+) -> None:
+    """R4 (agent lines never trigger) and the scripted expectation for one line's new cards."""
+    sources = {c.source for c in new_cards}
+    if line.speaker == "agent" and new_cards:
+        report.agent_triggered += len(new_cards)
+    label = f"{scenario.id}: {line.text[:40]!r}"
+    if line.expect == "no_card" and new_cards:
+        report.unmet_expectations.append(f"{label} expected no card, got {sorted(sources)}")
+    elif line.expect == "playbook" and sources != {"playbook"}:
+        report.unmet_expectations.append(f"{label} expected playbook, got {sorted(sources)}")
+    elif line.expect == "ai_or_holding" and not sources & {"ai", "backup", "holding"}:
+        report.unmet_expectations.append(f"{label} expected ai/holding, got {sorted(sources)}")
 
 
 SOURCES = ("playbook", "ai", "backup", "holding")
@@ -219,10 +221,15 @@ def stage_values(records: Sequence[CardTimingRecord]) -> dict[str, list[int]]:
     }
 
 
-def format_report(report: ReplayReport, profile: LatencyProfile) -> str:
+def format_report(
+    report: ReplayReport, profile: LatencyProfile, *, header: str | None = None
+) -> str:
     lines = [
-        "SYNTHETIC replay (scripted text calls, fake models with seeded latency, simulated "
-        f"end-of-turn + STT {profile.final_after_t0_ms} ms). Not the golden-call R1 gate.",
+        header
+        or (
+            "SYNTHETIC replay (scripted text calls, fake models with seeded latency, simulated "
+            f"end-of-turn + STT {profile.final_after_t0_ms} ms). Not the golden-call R1 gate."
+        ),
         "",
         f"{'call':<22}{'cards':>6}{'p50 ms':>9}{'p95 ms':>9}{'max ms':>9}",
     ]

@@ -54,11 +54,9 @@ def make_llm(route: StageRoute, *, clock: Clock, env: Mapping[str, str]) -> LLMA
             if route.base_url:
                 _check_host(API_KEY_ENV["openai"], PROVIDER_HOSTS["openai"], route.base_url)
             key = _key(API_KEY_ENV["openai"], env)
-        elif route.api_key_env:
-            _check_key_host(route.api_key_env, route.base_url)
-            key = _key(route.api_key_env, env)
         else:
-            key = "unused"  # local or self-hosted endpoint without auth (Ollama, vLLM, …)
+            # None: local or self-hosted endpoint without auth (Ollama, vLLM, …)
+            key = platform_key(route, env) or "unused"
         return OpenAILLM(
             model=route.model, api_key=key, base_url=route.base_url, provider=route.provider
         )
@@ -70,6 +68,15 @@ def key_env(route: StageRoute) -> str | None:
     if route.provider == "openai_compatible":
         return route.api_key_env
     return API_KEY_ENV.get(route.provider)
+
+
+def platform_key(route: StageRoute, env: Mapping[str, str]) -> str | None:
+    """The platform key for an openai_compatible route, after checking that the route points at
+    the one host that key may be sent to (D-016). None when the route names no key."""
+    if not route.api_key_env:
+        return None
+    _check_key_host(route.api_key_env, route.base_url)
+    return _key(route.api_key_env, env)
 
 
 def has_credentials(route: StageRoute, env: Mapping[str, str]) -> bool:
