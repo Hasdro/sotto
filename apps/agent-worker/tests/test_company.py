@@ -27,3 +27,16 @@ def test_company_can_still_follow_the_customer_language(tmp_path: Path) -> None:
     profile = _profile(tmp_path, "card_language: auto\n")
     assert profile.language_for("كم السعر؟") == "ar"
     assert profile.language_for("What is the price?") == "en"
+
+
+def test_admin_settings_switch_ai_answers_and_backups() -> None:
+    from sotto_worker.runtime import DEMO, apply_settings
+
+    base = CompanyProfile.load(DEMO / "company.yaml")
+    off = apply_settings(base, {"ai_answers_allowed": False, "backup_allowed": False})
+    assert off.ai_answers_allowed is False
+    assert {"suggest_backup", "stt_backup"} <= set(off.backup_disabled)
+    back = apply_settings(off, {"backup_allowed": True, "card_language": "en"})
+    assert not {"suggest_backup", "stt_backup"} & set(back.backup_disabled)
+    assert back.card_language == "en"
+    assert apply_settings(base, {}) is base

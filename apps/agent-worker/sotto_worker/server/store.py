@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS playbook_added (
   answer TEXT NOT NULL,
   added_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,
@@ -71,6 +76,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
 """
 MAX_CALLS = 200  # demo history is a rolling window
 MAX_ANSWER_WORDS = 25  # R2: what the agent can say from one card (as approve_escalation())
+
+
+# Company settings the admin can change in the app (R2, R4, R6 feature flags); the demo company
+# file supplies the starting values.
+COMPANY_SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
+    "ai_answers_allowed": (bool, ()),
+    "backup_allowed": (bool, ()),
+    "agent_context": (bool, ()),
+    "card_language": (str, ("auto", "en", "ar")),
+}
 
 
 class EscalationError(ValueError):
@@ -240,6 +255,31 @@ class Store:
         out = dict(row)
         out["transcript"] = json.loads(out.pop("transcript_json"))
         return out
+
+    # --- company settings -----------------------------------------------------------------
+    def company_settings(self) -> dict[str, Any]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT key, value_json FROM settings WHERE key LIKE 'company.%'"
+            ).fetchall()
+        return {r["key"].removeprefix("company."): json.loads(r["value_json"]) for r in rows}
+
+    def set_company_settings(self, changes: dict[str, Any], *, actor: str = "") -> None:
+        for name, value in changes.items():
+            if name not in COMPANY_SETTINGS:
+                raise ValueError(f"unknown setting {name!r}")
+            kind, allowed = COMPANY_SETTINGS[name]
+            if type(value) is not kind or (allowed and value not in allowed):
+                raise ValueError(f"bad value for {name}")
+        with self._tx() as db:
+            for name, value in changes.items():
+                db.execute(
+                    "INSERT INTO settings (key, value_json, updated_at) VALUES (?, ?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, "
+                    "updated_at = excluded.updated_at",
+                    (f"company.{name}", json.dumps(value), _now()),
+                )
+                self._audit(db, "setting.set", f"{name} = {json.dumps(value)}", actor)
 
     # --- escalations → playbook (R2 steps 4-5) -------------------------------------------
     def add_escalation(self, call_id: str, question: str, question_hash: str) -> str | None:

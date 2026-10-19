@@ -1,19 +1,15 @@
 /** Admin: company settings (R2 AI answers and backup provider, R4 agent context) and app language. */
 import { Divider, Panel, SegmentedControl, Stack, space, Text, ToggleRow } from "@sotto/ui";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
+import { type CardLanguage, useCompanySettings } from "../../features/admin/settings";
 import type { Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
-type CardLanguage = "auto" | "en" | "ar";
-
 export default function SettingsScreen() {
   const { t, locale, setLocale } = useI18n();
-  // Mock company settings: local state until Phase 5 stores them per company.
-  const [aiAnswers, setAiAnswers] = useState(true);
-  const [backup, setBackup] = useState(true);
-  const [agentContext, setAgentContext] = useState(true);
-  const [cardLanguage, setCardLanguage] = useState<CardLanguage>("en"); // D-018: English by default
+  // Saved on the Sotto server when there is one (the next call uses them); local otherwise.
+  const { settings, change } = useCompanySettings();
   return (
     <Stack gap="xl" testID="admin-settings">
       <Text variant="body" tone="muted">
@@ -23,24 +19,24 @@ export default function SettingsScreen() {
         <ToggleRow
           label={t("admin.settings.aiAnswers")}
           description={t("admin.settings.aiAnswersHint")}
-          value={aiAnswers}
-          onValueChange={setAiAnswers}
+          value={settings.ai_answers_allowed}
+          onValueChange={(v) => change({ ai_answers_allowed: v })}
           testID="toggle-ai"
         />
         <Divider />
         <ToggleRow
           label={t("admin.settings.backup")}
           description={t("admin.settings.backupHint")}
-          value={backup}
-          onValueChange={setBackup}
+          value={settings.backup_allowed}
+          onValueChange={(v) => change({ backup_allowed: v })}
           testID="toggle-backup"
         />
         <Divider />
         <ToggleRow
           label={t("admin.settings.agentContext")}
           description={t("admin.settings.agentContextHint")}
-          value={agentContext}
-          onValueChange={setAgentContext}
+          value={settings.agent_context}
+          onValueChange={(v) => change({ agent_context: v })}
         />
         <Divider />
         <View style={styles.field}>
@@ -54,8 +50,8 @@ export default function SettingsScreen() {
               { value: "en", label: t("admin.settings.cardLanguage.en") },
               { value: "ar", label: t("admin.settings.cardLanguage.ar") },
             ]}
-            value={cardLanguage}
-            onChange={setCardLanguage}
+            value={settings.card_language}
+            onChange={(v) => change({ card_language: v })}
           />
         </View>
       </Section>

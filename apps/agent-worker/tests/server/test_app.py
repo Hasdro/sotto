@@ -380,3 +380,20 @@ def test_an_escalated_question_is_answered_added_and_used_by_the_next_call(
     card = next(m["card"] for m in msgs if m["type"] == "card")
     assert card["source"] == "playbook"
     assert card["delta"].startswith("We take bank transfer")
+
+
+def test_company_settings_are_validated_saved_and_audited(make_client: MakeClient) -> None:
+    client = make_client()
+    start = client.get("/api/company/settings").json()["settings"]
+    assert start == {
+        "ai_answers_allowed": True,
+        "backup_allowed": True,
+        "agent_context": True,
+        "card_language": "auto",
+    }
+    r = client.put("/api/company/settings", json={"ai_answers_allowed": False}, headers=JSON)
+    assert r.json()["settings"]["ai_answers_allowed"] is False
+    for bad in ({"card_language": "fr"}, {"ai_answers_allowed": "no"}, {"is_admin": True}):
+        assert client.put("/api/company/settings", json=bad, headers=JSON).status_code == 400
+    [entry] = client.get("/api/audit").json()["entries"]
+    assert entry["detail"].startswith("ai_answers_allowed = false")

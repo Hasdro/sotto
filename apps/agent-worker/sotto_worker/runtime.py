@@ -6,7 +6,7 @@ import dataclasses
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from sotto_worker.adapters.factory import (
     has_credentials,
@@ -40,6 +40,24 @@ class Runtime:
     env: Mapping[str, str] = field(default_factory=dict, repr=False)
 
 
+BACKUP_STAGES = ("suggest_backup", "stt_backup")
+
+
+def apply_settings(company: CompanyProfile, settings: Mapping[str, Any]) -> CompanyProfile:
+    """The company file plus what the admin changed in the app (server store, D-020)."""
+    changes: dict[str, Any] = {}
+    for name in ("ai_answers_allowed", "agent_context", "card_language"):
+        if name in settings:
+            changes[name] = settings[name]
+    if settings.get("backup_allowed") is False:  # R2: an admin can switch backups off
+        changes["backup_disabled"] = tuple({*company.backup_disabled, *BACKUP_STAGES})
+    elif settings.get("backup_allowed") is True:
+        changes["backup_disabled"] = tuple(
+            s for s in company.backup_disabled if s not in BACKUP_STAGES
+        )
+    return dataclasses.replace(company, **changes) if changes else company
+
+
 def build_demo_runtime(
     clock: Clock,
     env: Mapping[str, str],
@@ -47,21 +65,24 @@ def build_demo_runtime(
     force_fake: bool = False,
     config: RoutingConfig | None = None,
     extra_playbook: Sequence[PlaybookEntry] = (),
+    settings: Mapping[str, Any] | None = None,
 ) -> Runtime:
     """Live mode when the primary suggest provider has credentials; otherwise fake models.
     A backup without credentials is switched off for this run (R2 allows a disabled backup).
     `config` is the seed routing plus the Keys & providers panel's choices (server, P6.7);
-    `extra_playbook` holds answers a manager added from the inbox (R2 step 5)."""
+    `extra_playbook` holds answers a manager added from the inbox (R2 step 5); `settings` the
+    admin's company settings (ai_answers_allowed, backup_allowed, agent_context, card_language)."""
     config = config or RoutingConfig.load(SEED / "models" / "default.yaml")
+    company = apply_settings(CompanyProfile.load(DEMO / "company.yaml"), settings or {})
     stt_routes = tuple(
         route
         for stage in ("stt", "stt_backup")
-        if (route := config.stages.get(stage)) is not None
+        if stage not in company.backup_disabled
+        and (route := config.stages.get(stage)) is not None
         and (name := stt_key_env(route)) is not None
         and env.get(name)
         and not force_fake
     )
-    company = CompanyProfile.load(DEMO / "company.yaml")
     notes: list[str] = []
     primary = config.stages["suggest"]
     if force_fake or not has_credentials(primary, env):

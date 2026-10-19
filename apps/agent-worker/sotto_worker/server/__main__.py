@@ -88,7 +88,12 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
             for e in store.playbook_added()
         ]
         return build_demo_runtime(
-            RealClock(), keys, force_fake=args.fake, config=routing, extra_playbook=added
+            RealClock(),
+            keys,
+            force_fake=args.fake,
+            config=routing,
+            extra_playbook=added,
+            settings=store.company_settings(),
         )
 
     app = create_app(

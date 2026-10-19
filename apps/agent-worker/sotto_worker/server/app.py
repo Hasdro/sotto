@@ -25,6 +25,7 @@ from starlette.routing import Route, WebSocketRoute
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from sotto_worker.company import CompanyProfile
 from sotto_worker.protocol.demo import DemoClientMessage
 from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import DEMO, Runtime
@@ -89,6 +90,13 @@ def create_app(
     """`seed` is the default routing; `env` the process environment (server-level keys);
     `runtime_factory` builds a fresh runtime per call from seed + panel keys and choices."""
     scenarios: dict[str, Scenario] = {s.id: s for s in load_all(DEMO / "calls")}
+    company = CompanyProfile.load(DEMO / "company.yaml")
+    default_settings: dict[str, Any] = {
+        "ai_answers_allowed": company.ai_answers_allowed,
+        "backup_allowed": not company.backup_disabled,
+        "agent_context": company.agent_context,
+        "card_language": company.card_language if company.card_language in ("en", "ar") else "auto",
+    }
     static_root = config.static_dir.resolve() if config.static_dir else None
 
     def origin_ok(origin: str | None) -> bool:
@@ -287,6 +295,16 @@ def create_app(
             return deny(HTTPStatus.NOT_FOUND, "no such call")
         return JSONResponse(call)
 
+    def settings_payload() -> dict[str, Any]:
+        return {"settings": {**default_settings, **store.company_settings()}}
+
+    async def get_settings(_request: Request) -> Response:
+        return JSONResponse(settings_payload())
+
+    async def put_settings(request: Request) -> Response:
+        store.set_company_settings(await body(request), actor=client_of(request))
+        return JSONResponse(settings_payload())
+
     async def list_escalations(_request: Request) -> Response:
         return JSONResponse({"escalations": store.escalations()})
 
@@ -463,6 +481,8 @@ def create_app(
         Route("/api/calls", guarded(list_calls)),
         Route("/api/calls/{call_id}", guarded(get_call)),
         Route("/api/audit", guarded(audit)),
+        Route("/api/company/settings", guarded(get_settings)),
+        Route("/api/company/settings", guarded(put_settings, mutating=True), methods=["PUT"]),
         Route("/api/escalations", guarded(list_escalations)),
         Route(
             "/api/escalations/{item_id}/answer",
