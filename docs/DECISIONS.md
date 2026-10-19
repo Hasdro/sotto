@@ -183,3 +183,31 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - Cerebras: its permanent free tier ended in mid-2026.
   - A local model as the primary: laptop latency misses R1 (P2.9 measures it).
 
+
+## D-017 — Owner approves the decisions made on his behalf
+2026-10-19 · accepted (owner, on the decisions page: https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6, db `answers/owner` v23; copied in `docs/OWNER-ANSWERS.md`)
+- **Decision:**
+  - D-009, D-010, D-011, D-012, D-013, D-014 and D-015 are **owner-approved**. They were accepted provisionally under D-009 or D-013; they are now final.
+  - `docs/ARCHITECTURE.md` is **owner-approved** as the Phase 1 architecture (closes P1.2).
+  - D-016 is confirmed as the owner's own choice: Groq is the primary LLM and Google Gemini Flash is the backup (R2). Both are free tiers.
+- **Applies with these owner answers** (details in `docs/BRIEF.md`):
+  - Keys are handed over in `.env` on the Mac only, never as cloud-environment secrets. Live-provider tests (P2.3 and later) therefore run in local sessions; cloud sessions stay on fake models.
+  - The budget while building is $0: free tiers only. The test phone line still needs an explicit ask.
+- **Why:** The owner submitted the page on 2026-10-19 with every recommendation kept on these items.
+- **Old entries are not edited** (the rule above). Read this entry with D-009 to D-016.
+
+## D-018 — English only for calls and cards; the UI keeps Arabic RTL
+2026-10-19 · accepted (owner: languages "Mostly English", note *"Consider it only English"*; card language "Always English")
+- **Decision:**
+  - Customer speech is **English**. STT is chosen and benchmarked for English only. There is no Gulf Arabic or mid-sentence code-switching requirement.
+  - Cards are **always English**. The platform default for `card_language` becomes `en` (it was `auto`, which meant "the customer's language"). The setting stays per company, so a company can still choose otherwise later without a code change.
+  - The holding line and the "not in playbook" label keep their Arabic text in seed data, but they are not used while cards are English.
+  - **The UI keeps Arabic RTL.** R5 requires right-to-left support. The owner's answer is about call and card language, not the interface, and changing a requirement needs the owner. R5 stays as written until the owner explicitly changes it.
+  - The demo company (`seed/demo/`, fictional) keeps its Arabic scenario as an RTL showcase; it is not product data.
+- **Effects:**
+  - BRIEF: languages, card language and the numbers table (language split) are updated.
+  - P2.3: the STT pick-list targets English real-time streaming.
+  - The playbook lookup's Arabic normalisation stays; it costs nothing and supports a future Arabic company.
+- **Rejected:**
+  - Removing Arabic from the UI now: that is an R5 change the owner did not ask for.
+  - Removing the `auto` option: it is a per-company setting (R6), so it costs nothing to keep.
