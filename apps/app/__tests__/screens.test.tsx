@@ -77,8 +77,7 @@ describe("mock screens", () => {
   it("admin team shows members with roles", async () => {
     await open("/admin");
     expect(screen.getByText("Hana Saleh")).toBeOnTheScreen();
-    // Once in Hana's row and once in the demo role switch.
-    expect(screen.getAllByText("Company admin")).toHaveLength(2);
+    expect(screen.getByText("Company admin")).toBeOnTheScreen();
   });
 
   it("admin prompts lists versions", async () => {
