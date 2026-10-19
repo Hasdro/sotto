@@ -4,7 +4,7 @@ Put these in `.env` at the repo root. `.env` is git-ignored; never commit it. Ev
 
 Platform keys for OpenAI-compatible providers are bound to their provider's host in `apps/agent-worker/sotto_worker/adapters/factory.py` (`COMPATIBLE_KEY_HOSTS`), so a company-configured endpoint can never receive one (D-016). The old `OPENAI_COMPATIBLE_API_KEY` is no longer read: an endpoint with no key name gets no secret.
 
-> `.env.example` should hold this list (CLAUDE.md), but Claude's permission settings deny every `.env.*` path, including `.env.example`. Until the owner narrows that rule (tracker → *Waiting on owner*), this file is the list.
+`.env.example` at the repo root holds the same names with no values (owner-approved 2026-10-19). Keep the two in sync: a new variable goes in both, with no value.
 
 | Variable | Used by | What happens without it |
 |---|---|---|
