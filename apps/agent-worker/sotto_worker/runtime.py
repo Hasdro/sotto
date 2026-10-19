@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from sotto_worker.adapters.factory import has_credentials, key_env, make_llm, preload_adapters
+from sotto_worker.adapters.factory import (
+    has_credentials,
+    key_env,
+    make_llm,
+    preload_adapters,
+    stt_key_env,
+)
 from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
 from sotto_worker.playbook import PlaybookIndex
@@ -29,14 +35,30 @@ class Runtime:
     router: ModelRouter
     mode: Literal["fake", "live"]
     notes: tuple[str, ...] = ()
+    # Real-time STT for a spoken customer track, primary first (empty: no STT key set).
+    stt_routes: tuple[StageRoute, ...] = ()
+    env: Mapping[str, str] = field(default_factory=dict, repr=False)
 
 
 def build_demo_runtime(
-    clock: Clock, env: Mapping[str, str], *, force_fake: bool = False
+    clock: Clock,
+    env: Mapping[str, str],
+    *,
+    force_fake: bool = False,
+    config: RoutingConfig | None = None,
 ) -> Runtime:
     """Live mode when the primary suggest provider has credentials; otherwise fake models.
-    A backup without credentials is switched off for this run (R2 allows a disabled backup)."""
-    config = RoutingConfig.load(SEED / "models" / "default.yaml")
+    A backup without credentials is switched off for this run (R2 allows a disabled backup).
+    `config` is the seed routing plus the Keys & providers panel's choices (server, P6.7)."""
+    config = config or RoutingConfig.load(SEED / "models" / "default.yaml")
+    stt_routes = tuple(
+        route
+        for stage in ("stt", "stt_backup")
+        if (route := config.stages.get(stage)) is not None
+        and (name := stt_key_env(route)) is not None
+        and env.get(name)
+        and not force_fake
+    )
     company = CompanyProfile.load(DEMO / "company.yaml")
     notes: list[str] = []
     primary = config.stages["suggest"]
@@ -64,4 +86,6 @@ def build_demo_runtime(
         router=router,
         mode=mode,
         notes=tuple(notes),
+        stt_routes=stt_routes,
+        env=env,
     )

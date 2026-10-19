@@ -182,3 +182,37 @@ describe("sessionReducer", () => {
     expect(s.notice).toMatchObject({ kind: "error" });
   });
 });
+
+describe("spoken customer track (D-020)", () => {
+  const CALL_ID = "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c";
+  const live = sessionReducer(initialSessionState, {
+    type: "server",
+    msg: { type: "call_started", call_id: CALL_ID },
+    now: 1,
+  });
+
+  it("shows partial words until the customer's final line arrives", () => {
+    const hearing = sessionReducer(live, {
+      type: "server",
+      msg: { type: "partial", speaker: "customer", text: "what is the" },
+      now: 2,
+    });
+    expect(hearing.partial).toBe("what is the");
+    const done = sessionReducer(hearing, {
+      type: "server",
+      msg: { type: "transcript", speaker: "customer", text: "What is the price?", at_ms: 900 },
+      now: 3,
+    });
+    expect(done.partial).toBeNull();
+    expect(done.transcript.at(-1)?.text).toBe("What is the price?");
+  });
+
+  it("turns a server notice into an info toast", () => {
+    const next = sessionReducer(live, {
+      type: "server",
+      msg: { type: "notice", message: "switching to the backup vendor" },
+      now: 5,
+    });
+    expect(next.notice).toMatchObject({ kind: "info", text: "switching to the backup vendor" });
+  });
+});

@@ -13,6 +13,7 @@ import {
   type SocketFactory,
 } from "./bridge";
 import { demoEnabled } from "./devGate";
+import { type MicError, type MicHandle, MicUnavailable, startMic } from "./mic";
 import { connectMockBridge } from "./mock-stream";
 import { initialSessionState, type SessionState, type Speaker, sessionReducer } from "./session";
 
@@ -26,7 +27,12 @@ export type CallSession = {
   end: () => boolean;
   retry: () => void;
   dismissNotice: (id: number) => void;
+  /** Spoken customer track (D-020): "off", "starting", "on", or why it could not start. */
+  mic: MicState;
+  toggleMic: () => void;
 };
+
+export type MicState = "off" | "starting" | "on" | MicError;
 
 export function useCallSession(opts: {
   mock: boolean;
@@ -74,6 +80,38 @@ export function useCallSession(opts: {
 
   const send = useCallback((msg: DemoClientMessage) => bridge.current?.send(msg) ?? false, []);
 
+  const [mic, setMic] = useState<MicState>("off");
+  const micHandle = useRef<MicHandle | null>(null);
+  const stopMic = useCallback(() => {
+    micHandle.current?.stop();
+    micHandle.current = null;
+    setMic((m) => (m === "on" || m === "starting" ? "off" : m));
+  }, []);
+  const toggleMic = useCallback(() => {
+    if (micHandle.current) {
+      stopMic();
+      send({ type: "audio_stop" });
+      return;
+    }
+    if (!send({ type: "audio_start", sample_rate: 16000 })) return;
+    setMic("starting");
+    startMic((pcm) => bridge.current?.sendAudio(pcm))
+      .then((handle) => {
+        micHandle.current = handle;
+        setMic("on");
+      })
+      .catch((err: unknown) => {
+        send({ type: "audio_stop" });
+        setMic(err instanceof MicUnavailable ? err.reason : "unsupported");
+      });
+  }, [send, stopMic]);
+  // The microphone never outlives the call or the connection.
+  const callOver = state.phase !== "live" || state.connection !== "open";
+  useEffect(() => {
+    if (callOver) stopMic();
+  }, [callOver, stopMic]);
+  useEffect(() => stopMic, [stopMic]);
+
   return {
     state,
     start: useCallback((scenarioId) => send({ type: "start", scenario_id: scenarioId }), [send]),
@@ -81,5 +119,7 @@ export function useCallSession(opts: {
     end: useCallback(() => send({ type: "end" }), [send]),
     retry: useCallback(() => setAttempt((n) => n + 1), []),
     dismissNotice: useCallback((id) => dispatch({ type: "dismiss_notice", id }), []),
+    mic,
+    toggleMic,
   };
 }

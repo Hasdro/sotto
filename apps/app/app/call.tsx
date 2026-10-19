@@ -20,10 +20,10 @@ import {
 } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CardStack } from "../features/call/components/CardStack";
-import { Composer } from "../features/call/components/Composer";
+import { Composer, type MicControl } from "../features/call/components/Composer";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
@@ -92,6 +92,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
 
   const cards = selectCards(state.cards);
   const live = state.phase === "live";
+  const vendor = state.hello.stt_vendor ?? null;
+  const mic: MicControl | null =
+    vendor && !mock && Platform.OS === "web"
+      ? { state: session.mic, vendor, onToggle: session.toggleMic }
+      : null;
   const header = (
     <CallHeader
       company={state.hello.company_name}
@@ -129,8 +134,14 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
     <View style={[styles.toast, wide ? styles.toastWide : null]} pointerEvents="none">
       <Toast
         testID="toast"
-        title={t(notice.kind === "escalation" ? "call.escalated.title" : "call.error.title")}
-        body={notice.kind === "escalation" ? notice.text : t("call.error.body")}
+        title={t(
+          notice.kind === "escalation"
+            ? "call.escalated.title"
+            : notice.kind === "info"
+              ? "call.notice.title"
+              : "call.error.title",
+        )}
+        body={notice.kind === "error" ? t("call.error.body") : notice.text}
       />
     </View>
   ) : null;
@@ -149,7 +160,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           <View style={styles.sideScroll}>
             <TranscriptPane lines={state.transcript} scroll />
           </View>
-          <Composer onSay={session.say} disabled={!live} />
+          <Composer onSay={session.say} disabled={!live} mic={mic} partial={state.partial} />
         </View>
       </View>
     );
@@ -167,7 +178,9 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
         </ScrollView>
         {toast}
       </View>
-      {live ? <Composer onSay={session.say} disabled={false} compact /> : null}
+      {live ? (
+        <Composer onSay={session.say} disabled={false} compact mic={mic} partial={state.partial} />
+      ) : null}
     </View>
   );
 }

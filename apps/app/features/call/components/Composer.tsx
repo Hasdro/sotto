@@ -13,10 +13,17 @@ import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useI18n } from "../../../lib/locale";
 import type { Speaker } from "../session";
+import type { MicState } from "../useCallSession";
+
+export type MicControl = { state: MicState; vendor: string; onToggle: () => void };
 
 type Props = {
   onSay: (speaker: Speaker, text: string) => boolean;
   disabled: boolean;
+  /** Present when the server has speech-to-text and this device can share its microphone. */
+  mic?: MicControl | null;
+  /** Words heard so far in the customer's current sentence. */
+  partial?: string | null;
   /** Phone width: one row, with a tap-to-switch speaker chip instead of the segmented control. */
   compact?: boolean;
 };
@@ -25,7 +32,7 @@ type Props = {
  * Stands in for the microphone in the demo: type what the customer (or you) said. It sits at the
  * bottom of the screen so it is reachable with one thumb (DESIGN.md §5).
  */
-export function Composer({ onSay, disabled, compact = false }: Props) {
+export function Composer({ onSay, disabled, compact = false, mic = null, partial = null }: Props) {
   const { t } = useI18n();
   const { color } = useTheme();
   const [speaker, setSpeaker] = useState<Speaker>("customer");
@@ -61,8 +68,51 @@ export function Composer({ onSay, disabled, compact = false }: Props) {
       testID="composer-send"
     />
   );
+  const micOn = mic?.state === "on" || mic?.state === "starting";
+  const micRow = mic ? (
+    <View style={styles.micRow}>
+      <Button
+        label={t(micOn ? "call.mic.stop" : "call.mic.start")}
+        variant={micOn ? "danger" : "secondary"}
+        onPress={mic.onToggle}
+        disabled={disabled}
+        testID="mic-toggle"
+        leading={
+          <View
+            style={[styles.chipDot, { backgroundColor: micOn ? color.onDanger : color.primary }]}
+          />
+        }
+      />
+      <Text
+        variant="label"
+        tone={mic.state === "denied" || mic.state === "unsupported" ? "danger" : "muted"}
+        style={styles.micHint}
+      >
+        {mic.state === "denied"
+          ? t("call.mic.denied")
+          : mic.state === "unsupported"
+            ? t("call.mic.unsupported")
+            : micOn
+              ? t("call.mic.on", { vendor: mic.vendor })
+              : t("call.mic.hint")}
+      </Text>
+    </View>
+  ) : null;
+  const hearing = partial ? (
+    <Text
+      variant="label"
+      tone="muted"
+      numberOfLines={2}
+      testID="partial"
+      accessibilityLiveRegion="polite"
+    >
+      {t("call.hearing", { text: partial })}
+    </Text>
+  ) : null;
   return (
     <View style={[styles.wrap, { borderTopColor: color.border, backgroundColor: color.surface }]}>
+      {hearing}
+      {micRow}
       {compact ? (
         <View style={styles.row}>
           <Pressable
@@ -127,4 +177,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   chipDot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
+  micRow: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },
+  micHint: { flexShrink: 1 },
 });

@@ -55,6 +55,8 @@ function session(state: SessionState): CallSession {
     end: jest.fn(() => true),
     retry: jest.fn(),
     dismissNotice: jest.fn(),
+    mic: "off",
+    toggleMic: jest.fn(),
   };
 }
 

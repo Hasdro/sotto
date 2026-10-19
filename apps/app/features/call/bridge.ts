@@ -6,20 +6,19 @@
  * Phase 4 replaces this transport with the LiveKit data channel; the session reducer stays.
  */
 import {
-  DEMO_DEFAULT_PORT,
   type DemoClientMessage,
   DemoClientMessage as DemoClientSchema,
   type DemoServerMessage,
   parseDemoServerMessage,
 } from "@sotto/shared";
+import { DEFAULT_SOCKET_URL, socketUrl } from "../../lib/server";
 import type { Connection } from "./session";
 
-export const DEFAULT_BRIDGE_URL = `ws://127.0.0.1:${DEMO_DEFAULT_PORT}`;
+export const DEFAULT_BRIDGE_URL = DEFAULT_SOCKET_URL;
 
-/** The bridge URL from EXPO_PUBLIC_DEMO_BRIDGE_URL (inlined at build time), else the default. */
+/** The server socket: EXPO_PUBLIC_DEMO_BRIDGE_URL, else this page's own server, else local. */
 export function bridgeUrl(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_DEMO_BRIDGE_URL;
-  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_BRIDGE_URL;
+  return socketUrl();
 }
 
 /** Parses one raw frame. Returns null (and logs why) for anything that is not a valid v1 message. */
@@ -41,6 +40,8 @@ export type BridgeHandlers = {
 export type Bridge = {
   /** Validates and sends. Returns false if the message is invalid or the socket is not open. */
   send: (msg: DemoClientMessage) => boolean;
+  /** Raw customer audio (PCM16 mono 16 kHz) after an `audio_start`. False if not open. */
+  sendAudio: (pcm: ArrayBuffer) => boolean;
   close: () => void;
 };
 
@@ -50,7 +51,7 @@ type SocketLike = {
   onclose: ((ev: unknown) => void) | null;
   onerror: ((ev: unknown) => void) | null;
   onmessage: ((ev: { data: unknown }) => void) | null;
-  send: (data: string) => void;
+  send: (data: string | ArrayBuffer) => void;
   close: () => void;
 };
 
@@ -83,7 +84,7 @@ export function connectBridge(
   } catch (err) {
     console.warn("[demo-bridge] could not open the socket", err);
     handlers.onStatus("offline");
-    return { send: () => false, close: () => {} };
+    return { send: () => false, sendAudio: () => false, close: () => {} };
   }
   // "open" is reported when the server says hello (the session reducer does that); a socket that
   // opens but never greets stays "connecting".
@@ -103,6 +104,11 @@ export function connectBridge(
       const frame = encodeClientMessage(msg);
       if (frame === null || socket.readyState !== OPEN) return false;
       socket.send(frame);
+      return true;
+    },
+    sendAudio(pcm) {
+      if (socket.readyState !== OPEN) return false;
+      socket.send(pcm);
       return true;
     },
     close() {

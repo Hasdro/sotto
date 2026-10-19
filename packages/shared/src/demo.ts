@@ -16,6 +16,9 @@ export const DemoClientMessage = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("start"), scenario_id: z.string().min(1).nullish() }),
   z.strictObject({ type: z.literal("say"), speaker, text }),
   z.strictObject({ type: z.literal("end") }),
+  /** The customer speaks into this device's microphone: binary PCM16 mono frames follow (D-020). */
+  z.strictObject({ type: z.literal("audio_start"), sample_rate: z.literal(16000) }),
+  z.strictObject({ type: z.literal("audio_stop") }),
 ]);
 export type DemoClientMessage = z.infer<typeof DemoClientMessage>;
 
@@ -29,6 +32,8 @@ export const DemoServerMessage = z.discriminatedUnion("type", [
     /** "live" when a real model is configured (API key present), else "fake". */
     mode: z.enum(["fake", "live"]),
     scenarios: z.array(DemoScenario),
+    /** The speech-to-text vendor for a spoken customer track; null when no STT key is set. */
+    stt_vendor: z.string().min(1).nullish(),
   }),
   z.strictObject({ type: z.literal("call_started"), call_id: z.uuid() }),
   z.strictObject({
@@ -45,6 +50,10 @@ export const DemoServerMessage = z.discriminatedUnion("type", [
     /** Set when the turn may produce a card; matches CardMessage.turn_id. */
     turn_id: z.uuid().nullish(),
   }),
+  /** Words heard so far in the current customer sentence (spoken track only; not final). */
+  z.strictObject({ type: z.literal("partial"), speaker, text: z.string().max(2000) }),
+  /** Something the agent should know but that is not an error (e.g. switched to backup STT). */
+  z.strictObject({ type: z.literal("notice"), message: z.string().min(1).max(500) }),
   z.strictObject({ type: z.literal("card"), card: CardMessage }),
   z.strictObject({ type: z.literal("escalation"), question: text }),
   z.strictObject({ type: z.literal("call_ended"), call_id: z.uuid() }),

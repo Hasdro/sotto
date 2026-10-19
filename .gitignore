@@ -31,3 +31,6 @@ ios/Pods/
 
 # local Claude settings
 .claude/settings.local.json
+
+# Sotto server data (local key vault, call history)
+.sotto-data/

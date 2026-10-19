@@ -1,1 +1,1 @@
-"""Local demo bridge (D-013): `pnpm demo` serves the web app and a WebSocket on 127.0.0.1."""
+"""Local demo (`pnpm demo`): the Sotto server in local mode (D-013, D-020)."""

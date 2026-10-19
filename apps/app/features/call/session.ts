@@ -21,7 +21,12 @@ export type TranscriptEntry = {
   atMs: number;
 };
 
-export type Notice = { id: number; kind: "escalation" | "error"; text: string; at: number };
+export type Notice = {
+  id: number;
+  kind: "escalation" | "error" | "info";
+  text: string;
+  at: number;
+};
 
 export type Hello = Extract<DemoServerMessage, { type: "hello" }>;
 
@@ -36,6 +41,8 @@ export type SessionState = {
   transcript: readonly TranscriptEntry[];
   cards: CardsState;
   escalations: readonly { question: string; at: number }[];
+  /** Words heard so far in the customer's current sentence (spoken track); null when none. */
+  partial: string | null;
   /** The latest toast; the screen hides it after motion.toastMs. */
   notice: Notice | null;
   /** Monotonic id source for transcript entries and notices. */
@@ -60,6 +67,7 @@ export const initialSessionState: SessionState = {
   transcript: [],
   cards: initialCardsState,
   escalations: [],
+  partial: null,
   notice: null,
   nextId: 1,
 };
@@ -108,11 +116,23 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
         transcript: [],
         cards: cardsReducer(state.cards, { type: "reset" }),
         escalations: [],
+        partial: null,
         notice: null,
       };
-    case "transcript":
+    case "transcript": {
       if (state.phase !== "live") return state;
-      return appendLine(state, { speaker: msg.speaker, text: msg.text, atMs: msg.at_ms });
+      const line = appendLine(state, { speaker: msg.speaker, text: msg.text, atMs: msg.at_ms });
+      return msg.speaker === "customer" ? { ...line, partial: null } : line;
+    }
+    case "partial":
+      if (state.phase !== "live" || msg.speaker !== "customer") return state;
+      return { ...state, partial: msg.text.length > 0 ? msg.text : null };
+    case "notice":
+      return {
+        ...state,
+        notice: { id: state.nextId, kind: "info", text: msg.message, at: now },
+        nextId: state.nextId + 1,
+      };
     case "turn_end":
       if (state.phase !== "live") return state;
       return {
@@ -143,7 +163,7 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
     }
     case "call_ended":
       if (state.callId !== null && msg.call_id !== state.callId) return state;
-      return { ...state, phase: "ended", endedAt: now };
+      return { ...state, phase: "ended", endedAt: now, partial: null };
     case "error":
       return {
         ...state,

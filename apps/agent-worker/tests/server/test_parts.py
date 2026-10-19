@@ -1,0 +1,299 @@
+"""Server parts (D-020, P6.7): vault, store, catalogue, key test, end-of-turn VAD, spoken track."""
+
+from __future__ import annotations
+
+import asyncio
+import math
+import struct
+from collections.abc import AsyncIterator
+from pathlib import Path
+
+import httpx
+import pytest
+
+from sotto_worker.adapters.stt.base import STTError
+from sotto_worker.clock import RealClock
+from sotto_worker.contracts import STTOptions, TranscriptEvent
+from sotto_worker.router import RoutingConfig, StageRoute
+from sotto_worker.runtime import SEED
+from sotto_worker.server.__main__ import hosted_problems, local_secret
+from sotto_worker.server.audio import FRAME_MS, CustomerAudio, EndOfTurnVAD
+from sotto_worker.server.auth import AccessGate
+from sotto_worker.server.catalog import Catalog, apply_overrides
+from sotto_worker.server.keytest import check_key
+from sotto_worker.server.store import Store
+from sotto_worker.server.vault import Vault, VaultError
+
+CATALOG = Catalog.load(SEED / "models" / "providers.yaml")
+SEED_ROUTING = RoutingConfig.load(SEED / "models" / "default.yaml")
+
+
+# --- vault + store -------------------------------------------------------------------------
+
+
+def test_vault_round_trip_and_binding() -> None:
+    vault = Vault("k" * 40)
+    blob = vault.encrypt("GROQ_API_KEY", "secret-1")
+    assert b"secret-1" not in blob
+    assert vault.decrypt("GROQ_API_KEY", blob) == "secret-1"
+    assert vault.encrypt("GROQ_API_KEY", "secret-1") != blob  # fresh nonce each time
+    with pytest.raises(VaultError):
+        vault.decrypt("OPENAI_API_KEY", blob)  # cannot be moved to another vendor's slot
+    with pytest.raises(VaultError):
+        Vault("z" * 40).decrypt("GROQ_API_KEY", blob)
+    with pytest.raises(ValueError, match="at least"):
+        Vault("short")
+
+
+def test_store_keeps_keys_encrypted_on_disk(tmp_path: Path) -> None:
+    store = Store(tmp_path / "s.db", Vault("k" * 40))
+    store.set_key("GROQ_API_KEY", "gsk_plaintext_never_on_disk")
+    store.close()
+    for f in tmp_path.iterdir():
+        assert b"gsk_plaintext_never_on_disk" not in f.read_bytes()
+    again = Store(tmp_path / "s.db", Vault("k" * 40))
+    assert again.env_overlay({"X": "1"}) == {
+        "X": "1",
+        "GROQ_API_KEY": "gsk_plaintext_never_on_disk",
+    }
+    wrong = Store(tmp_path / "s.db", Vault("w" * 40))
+    assert "GROQ_API_KEY" not in wrong.env_overlay({})  # unreadable: behaves as not set
+    again.close()
+    wrong.close()
+
+
+def test_store_test_results_reset_when_the_key_changes(tmp_path: Path) -> None:
+    store = Store(tmp_path / "s.db", Vault("k" * 40))
+    store.set_key("GROQ_API_KEY", "a" * 20)
+    store.record_test("GROQ_API_KEY", True, "ok", ["m1"])
+    assert store.key_statuses()["GROQ_API_KEY"].models == ("m1",)
+    store.set_key("GROQ_API_KEY", "b" * 20)
+    status = store.key_statuses()["GROQ_API_KEY"]
+    assert (status.test_ok, status.models) == (None, ())
+    store.close()
+
+
+# --- catalogue -----------------------------------------------------------------------------
+
+
+def test_panel_choice_keeps_stage_limits_and_uses_the_vendor_template() -> None:
+    config = apply_overrides(SEED_ROUTING, CATALOG, {"suggest": ("gemini", "gemini-x")})
+    route = config.stages["suggest"]
+    assert route.provider == "openai_compatible"
+    assert route.api_key_env == "GEMINI_API_KEY"
+    assert route.base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+    assert route.first_token_ms == SEED_ROUTING.stages["suggest"].first_token_ms
+    assert route.settings["reasoning_effort"] == "none"
+    assert route.settings["max_tokens"] == SEED_ROUTING.stages["suggest"].settings["max_tokens"]
+
+
+@pytest.mark.parametrize(
+    ("stage", "provider", "model"),
+    [("suggest", "deepgram", "m"), ("stt", "groq", "m"), ("turn", "groq", "m"),
+     ("suggest", "nope", "m"), ("suggest", "groq", "two words"), ("suggest", "groq", "")],
+)  # fmt: skip
+def test_panel_choice_is_validated(stage: str, provider: str, model: str) -> None:
+    with pytest.raises(ValueError, match=r"stage|provider|cannot serve|model"):
+        CATALOG.route_for(stage, provider, model, None)
+
+
+def test_every_seed_route_maps_back_to_a_catalogue_vendor() -> None:
+    for stage in CATALOG.stages:
+        assert CATALOG.provider_for_route(SEED_ROUTING.stages[stage]) is not None, stage
+
+
+# --- key test ------------------------------------------------------------------------------
+
+
+def _client(status: int, body: object, seen: list[httpx.Request]) -> httpx.AsyncClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(status, json=body)
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+async def test_llm_key_test_lists_models_from_the_vendor_host_only() -> None:
+    seen: list[httpx.Request] = []
+    body = {"data": [{"id": "models/gemini-a"}, {"id": "gemini-b"}]}
+    result = await check_key(
+        CATALOG.providers["gemini"], "key-123456", client=_client(200, body, seen)
+    )
+    assert result.ok
+    assert result.models == ("gemini-a", "gemini-b")
+    assert seen[0].url.host == "generativelanguage.googleapis.com"
+    assert seen[0].headers["authorization"] == "Bearer key-123456"
+
+
+async def test_llm_key_test_reports_a_rejected_key_without_echoing_it() -> None:
+    result = await check_key(
+        CATALOG.providers["anthropic"], "sk-ant-secret", client=_client(401, {}, [])
+    )
+    assert not result.ok
+    assert "rejected" in result.detail
+    assert "sk-ant-secret" not in result.detail
+
+
+# --- access gate ---------------------------------------------------------------------------
+
+
+def test_session_tokens_expire_and_cannot_be_forged() -> None:
+    gate = AccessGate("code-1234", "s" * 40)
+    token = gate.issue(now=1000)
+    assert gate.valid(token, now=1001)
+    assert not gate.valid(token, now=1000 + 13 * 3600)
+    assert not gate.valid(token.replace("v1.", "v1.9"), now=1001)
+    assert not AccessGate("code-1234", "t" * 40).valid(token, now=1001)
+    assert AccessGate(None, "s" * 40).valid(None)
+
+
+def test_hosted_mode_refuses_to_start_without_its_secrets(tmp_path: Path) -> None:
+    assert hosted_problems("127.0.0.1", {}) == []
+    assert len(hosted_problems("0.0.0.0", {})) == 3  # noqa: S104 - the case under test
+    good = {
+        "SOTTO_ACCESS_CODE": "longenough",
+        "SOTTO_SECRET_KEY": "x" * 40,
+        "SOTTO_PUBLIC_ORIGIN": "https://a.example",
+    }
+    assert hosted_problems("0.0.0.0", good) == []  # noqa: S104
+    first = local_secret(tmp_path)
+    assert local_secret(tmp_path) == first
+    assert (tmp_path / "secret.key").stat().st_mode & 0o077 == 0
+
+
+# --- end of turn + spoken track ------------------------------------------------------------
+
+
+def tone(ms: int, amplitude: int = 4000) -> bytes:
+    n = 16 * ms
+    return b"".join(
+        struct.pack("<h", int(amplitude * math.sin(2 * math.pi * 220 * i / 16000)))
+        for i in range(n)
+    )
+
+
+def silence(ms: int) -> bytes:
+    return b"\x00\x00" * 16 * ms
+
+
+def frames(pcm: bytes) -> list[bytes]:
+    size = 32 * FRAME_MS
+    return [pcm[i : i + size] for i in range(0, len(pcm), size)]
+
+
+def test_vad_marks_speech_start_and_end_of_turn() -> None:
+    vad = EndOfTurnVAD()
+    changes = [vad.feed(f) for f in frames(silence(200) + tone(600) + silence(400))]
+    assert changes.count("start") == 1
+    assert changes.count("end") == 1
+    end_at = changes.index("end") * FRAME_MS
+    assert 800 + 280 <= end_at <= 800 + 320  # 300 ms of quiet after the last word
+
+
+def test_vad_ignores_clicks_shorter_than_speech() -> None:
+    vad = EndOfTurnVAD()
+    assert [c for c in (vad.feed(f) for f in frames(tone(60) + silence(500))) if c] == []
+
+
+class ScriptedSTT:
+    """Emits a final for whatever it heard when forced (or at the end), like a vendor."""
+
+    provider = "scripted"
+    model = "m"
+
+    def __init__(self, text: str = "what is the price", fail: bool = False) -> None:
+        self._text = text
+        self._fail = fail
+        self.finalized = 0
+        self._forced = asyncio.Event()
+
+    async def transcribe(
+        self, audio: AsyncIterator[bytes], opts: STTOptions
+    ) -> AsyncIterator[TranscriptEvent]:
+        if self._fail:
+            raise STTError("scripted: closed with code 4001")
+        yield TranscriptEvent(opts.speaker, "what is", False, 0, 0)
+        reader = asyncio.ensure_future(self._drain(audio))
+        await self._forced.wait()
+        yield TranscriptEvent(opts.speaker, self._text, True, 0, 100)
+        await reader
+
+    async def _drain(self, audio: AsyncIterator[bytes]) -> None:
+        async for _ in audio:
+            pass
+
+    async def finalize(self) -> bool:
+        self.finalized += 1
+        self._forced.set()
+        return True
+
+
+async def _speak(audio: CustomerAudio, pcm: bytes) -> None:
+    for f in frames(pcm):
+        audio.push(f)
+        await asyncio.sleep(FRAME_MS / 1000)
+
+
+async def test_spoken_turn_is_forced_final_with_t0_at_end_of_speech() -> None:
+    clock = RealClock()
+    turns: list[tuple[TranscriptEvent, int, int]] = []
+    partials: list[str] = []
+    stt = ScriptedSTT()
+
+    async def on_turn(event: TranscriptEvent, t0: int) -> None:
+        turns.append((event, t0, clock.now_ms()))
+
+    async def on_partial(text: str) -> None:
+        partials.append(text)
+
+    async def on_notice(_m: str) -> None:
+        pass
+
+    audio = CustomerAudio(
+        routes=[StageRoute("scripted", "m")], clock=clock, on_turn=on_turn,
+        on_partial=on_partial, on_notice=on_notice, make=lambda _r: stt,
+    )  # fmt: skip
+    audio.start()
+    await _speak(audio, silence(100) + tone(500) + silence(500))
+    await asyncio.sleep(0.05)
+    await audio.stop()
+    assert stt.finalized == 1
+    assert partials == ["what is"]
+    [(event, t0, delivered)] = turns
+    assert event.text == "what is the price"
+    assert event.speaker == "customer"
+    assert event.end_ms == t0
+    assert 250 <= delivered - t0 <= 600  # 300 ms end-of-turn wait + scheduling, not vendor VAD
+
+
+async def test_backup_vendor_takes_over_when_the_primary_fails() -> None:
+    clock = RealClock()
+    notices: list[str] = []
+    turns: list[str] = []
+    made: list[str] = []
+    backup = ScriptedSTT("backup heard it")
+
+    def make(route: StageRoute) -> ScriptedSTT:
+        made.append(route.provider)
+        return ScriptedSTT(fail=True) if route.provider == "primary" else backup
+
+    async def on_turn(event: TranscriptEvent, _t0: int) -> None:
+        turns.append(event.text)
+
+    async def on_partial(_t: str) -> None:
+        pass
+
+    async def on_notice(message: str) -> None:
+        notices.append(message)
+
+    audio = CustomerAudio(
+        routes=[StageRoute("primary", "m"), StageRoute("backup", "m")], clock=clock,
+        on_turn=on_turn, on_partial=on_partial, on_notice=on_notice, make=make,
+    )  # fmt: skip
+    audio.start()
+    await _speak(audio, tone(400) + silence(400))
+    await asyncio.sleep(0.05)
+    await audio.stop()
+    assert made == ["primary", "backup"]
+    assert "switching to the backup" in notices[0]
+    assert turns == ["backup heard it"]

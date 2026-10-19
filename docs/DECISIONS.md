@@ -226,3 +226,21 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - Phase 6 gains P6.7.
   - `docs/PROVIDER-KEYS.md` is the source for the panel's provider catalogue.
   - D-016's host binding moves from code into that catalogue in P6.7.
+
+## D-020 — A hosted Sotto server for the demo, with the keys panel and a spoken customer track
+2026-10-20 (night) · accepted by Claude under the owner's standing instruction for this run ("even if you need my decision and it is something reversible go ahead with your recommendation"); owner reviews in the morning
+- **Context:** The owner wants a demo that works and a backend hosted on his own server (`us3`), plus the Keys & providers panel (D-019). The D-013 bridge was localhost-only by design and used a WebSocket-only server that cannot take request bodies.
+- **Decision:**
+  - The demo bridge becomes **the Sotto server** (`apps/agent-worker/sotto_worker/server/`), on **Starlette + uvicorn**. It serves the web app, runs calls over `/ws` (typed, scripted, or **spoken** customer audio from the browser microphone → real-time STT → the real pipeline), and the admin API for the keys panel and call history.
+  - **Two modes.** Local (`pnpm demo`): localhost only, no access code, data in `.sotto-data/` (git-ignored). Hosted (`deploy/`): refuses to start without `SOTTO_ACCESS_CODE`, `SOTTO_SECRET_KEY` and `SOTTO_PUBLIC_ORIGIN`. Behind Caddy (automatic HTTPS), with a signed HttpOnly, Secure, SameSite=Strict session cookie, an origin check on sockets and state changes, and login rate limiting.
+  - **Keys:** write-only. Each key is encrypted with AES-256-GCM, with the key name as associated data. The master secret is `SOTTO_SECRET_KEY`, kept in the server's env file and never in the DB or git. Storage is SQLite (`SOTTO_DATA_DIR`). Keys are never returned by any API. Each key is only sent to its own vendor host (D-016). Panel keys take precedence over env keys. This **extends D-017**: keys may now also live encrypted on the owner's server, entered by the owner in the panel.
+  - **Vendor per stage:** the panel picks a vendor and a model per stage from `seed/models/providers.yaml`. The stage's deadlines and limits stay from the seed. The next call uses the change (R6), with no deploy.
+  - **End of turn on a spoken track is ours (T-007):** an energy VAD ends the turn after 300 ms of quiet, `finalize()` forces the vendor's final, and t0 (R1) is the end of speech. The primary STT falls back to the backup on error (R2).
+  - **Sample data only.** The hosted demo uses the fictional demo company and its sample playbook. No real customer calls go through it until the owner answers the free-tier data question (BRIEF OPEN).
+- **Supersedes:** D-013's "never deploy the bridge", but only for this hardened server. The rest of D-013 stands.
+- **Not decided here:** production auth stays Supabase (Phase 5), and live telephony stays LiveKit (Phase 4). The SQLite store is replaced by Supabase tables in Phases 5–6; the API shapes are meant to survive.
+- **Rejected:**
+  - Keeping the websockets-only server: it cannot take request bodies for the admin API.
+  - A Node backend: the pipeline is Python.
+  - Copying the Mac `.env` to the server: that breaks D-017's spirit; the owner enters keys in the panel instead.
+- **Reversible:** delete `deploy/` and run local only. The server code is also the local demo.

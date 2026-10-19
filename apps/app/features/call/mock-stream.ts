@@ -257,6 +257,7 @@ export function connectMockBridge(
       if (msg.type === "end") play([{ after: 10, data: { type: "call_ended", call_id: CALL_ID } }]);
       return true;
     },
+    sendAudio: () => false, // the mock has no speech-to-text
     close() {
       closed = true;
       for (const t of timers) clearTimeout(t);

@@ -6,6 +6,7 @@ import { useFonts } from "expo-font";
 import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, View } from "react-native";
+import { AccessGate } from "../components/AccessGate";
 import { AppShell } from "../components/AppShell";
 import { EscalationStoreProvider } from "../features/escalations/store";
 import { PromptStoreProvider } from "../features/prompts/store";
@@ -51,9 +52,11 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
       style={[styles.root, { direction: dir, backgroundColor: color.background }]}
     >
       <StatusBar style="auto" />
-      <AppShell>
-        <Slot />
-      </AppShell>
+      <AccessGate>
+        <AppShell>
+          <Slot />
+        </AppShell>
+      </AccessGate>
     </View>
   );
 }

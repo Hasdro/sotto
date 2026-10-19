@@ -47,8 +47,37 @@ class DemoClientMessage3(BaseModel):
     type: Literal["end"]
 
 
-class DemoClientMessage(RootModel[DemoClientMessage1 | DemoClientMessage2 | DemoClientMessage3]):
-    root: DemoClientMessage1 | DemoClientMessage2 | DemoClientMessage3
+class DemoClientMessage4(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    type: Literal["audio_start"]
+    sample_rate: Literal[16000]
+
+
+class DemoClientMessage5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    type: Literal["audio_stop"]
+
+
+class DemoClientMessage(
+    RootModel[
+        DemoClientMessage1
+        | DemoClientMessage2
+        | DemoClientMessage3
+        | DemoClientMessage4
+        | DemoClientMessage5
+    ]
+):
+    root: (
+        DemoClientMessage1
+        | DemoClientMessage2
+        | DemoClientMessage3
+        | DemoClientMessage4
+        | DemoClientMessage5
+    )
 
 
 class Scenario(BaseModel):
@@ -57,6 +86,10 @@ class Scenario(BaseModel):
     )
     id: Annotated[StrictStr, Field(min_length=1)]
     title: Annotated[StrictStr, Field(min_length=1)]
+
+
+class SttVendor(RootModel[StrictStr]):
+    root: Annotated[StrictStr, Field(min_length=1)]
 
 
 class DemoServerMessage1(BaseModel):
@@ -68,6 +101,7 @@ class DemoServerMessage1(BaseModel):
     company_name: Annotated[StrictStr, Field(min_length=1)]
     mode: Literal["fake", "live"]
     scenarios: list[Scenario]
+    stt_vendor: SttVendor | None = None
 
 
 class DemoServerMessage2(BaseModel):
@@ -111,6 +145,23 @@ class DemoServerMessage4(BaseModel):
     turn_id: TurnId | None = None
 
 
+class DemoServerMessage5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    type: Literal["partial"]
+    speaker: Literal["customer", "agent"]
+    text: Annotated[StrictStr, Field(max_length=2000)]
+
+
+class DemoServerMessage6(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    type: Literal["notice"]
+    message: Annotated[StrictStr, Field(max_length=500, min_length=1)]
+
+
 class Label(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(min_length=1)]
 
@@ -152,7 +203,7 @@ class Card(BaseModel):
     timing: Timing | None = None
 
 
-class DemoServerMessage5(BaseModel):
+class DemoServerMessage7(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -160,7 +211,7 @@ class DemoServerMessage5(BaseModel):
     card: Card
 
 
-class DemoServerMessage6(BaseModel):
+class DemoServerMessage8(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -168,7 +219,7 @@ class DemoServerMessage6(BaseModel):
     question: Annotated[StrictStr, Field(max_length=2000, min_length=1)]
 
 
-class DemoServerMessage7(BaseModel):
+class DemoServerMessage9(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -181,7 +232,7 @@ class DemoServerMessage7(BaseModel):
     ]
 
 
-class DemoServerMessage8(BaseModel):
+class DemoServerMessage10(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -199,6 +250,8 @@ class DemoServerMessage(
         | DemoServerMessage6
         | DemoServerMessage7
         | DemoServerMessage8
+        | DemoServerMessage9
+        | DemoServerMessage10
     ]
 ):
     root: (
@@ -210,4 +263,6 @@ class DemoServerMessage(
         | DemoServerMessage6
         | DemoServerMessage7
         | DemoServerMessage8
+        | DemoServerMessage9
+        | DemoServerMessage10
     )

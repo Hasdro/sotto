@@ -14,7 +14,7 @@ const valid = JSON.stringify({
 class FakeSocket {
   static last: FakeSocket | null = null;
   readyState = 0;
-  sent: string[] = [];
+  sent: (string | ArrayBuffer)[] = [];
   closed = false;
   onopen: ((ev: unknown) => void) | null = null;
   onclose: ((ev: unknown) => void) | null = null;
@@ -23,7 +23,7 @@ class FakeSocket {
   constructor(public url: string) {
     FakeSocket.last = this;
   }
-  send(data: string) {
+  send(data: string | ArrayBuffer) {
     this.sent.push(data);
   }
   close() {
@@ -45,8 +45,8 @@ describe("demo bridge client", () => {
   });
   afterEach(() => warn.mockRestore());
 
-  it("defaults to the local bridge port", () => {
-    expect(DEFAULT_BRIDGE_URL).toBe("ws://127.0.0.1:8787");
+  it("defaults to the local server port", () => {
+    expect(DEFAULT_BRIDGE_URL).toBe("ws://127.0.0.1:8787/ws");
     expect(bridgeUrl()).toBe(DEFAULT_BRIDGE_URL);
   });
 

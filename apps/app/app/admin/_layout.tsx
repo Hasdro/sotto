@@ -11,6 +11,7 @@ const TABS: readonly { href: string; label: StringKey }[] = [
   { href: "/admin", label: "admin.team" },
   { href: "/admin/prompts", label: "admin.prompts" },
   { href: "/admin/models", label: "admin.models" },
+  { href: "/admin/keys", label: "admin.keys" },
   { href: "/admin/settings", label: "admin.settings" },
 ];
 

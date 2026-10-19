@@ -158,6 +158,11 @@ def has_credentials(route: StageRoute, env: Mapping[str, str]) -> bool:
     return name is None or bool(env.get(name, ""))
 
 
+def check_key_host(name: str, base_url: str | None) -> None:
+    """Raise unless `base_url` is the one https host the platform key `name` may go to."""
+    _check_key_host(name, base_url)
+
+
 def _check_key_host(name: str, base_url: str | None) -> None:
     host = COMPATIBLE_KEY_HOSTS.get(name)
     if host is None:
