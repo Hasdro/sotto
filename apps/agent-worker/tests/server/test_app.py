@@ -243,7 +243,7 @@ def test_test_button_records_the_result_and_models(
 def test_stage_choice_is_validated_saved_and_reset(make_client: MakeClient) -> None:
     client = make_client()
     stages = {s["id"]: s for s in client.get("/api/providers").json()["stages"]}
-    assert stages["stt"]["provider_id"] == "deepgram"
+    assert stages["stt"]["provider_id"] == "assemblyai"
     assert stages["stt"]["source"] == "default"
     assert stages["suggest"]["provider_id"] == "groq"
     r = client.put(

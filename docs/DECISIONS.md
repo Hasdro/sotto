@@ -244,3 +244,19 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - A Node backend: the pipeline is Python.
   - Copying the Mac `.env` to the server: that breaks D-017's spirit; the owner enters keys in the panel instead.
 - **Reversible:** delete `deploy/` and run local only. The server code is also the local demo.
+
+## D-021 — Default speech-to-text: AssemblyAI main, Speechmatics backup (was Deepgram + AssemblyAI)
+2026-10-21 · accepted by Claude under the owner's overnight instruction (reversible in Admin → Keys & providers; the owner reviews)
+- **Evidence:** `pnpm spoken:live` on the full spoken path (browser-style 20 ms PCM → VAD 300 ms → forced final → pipeline), live keys, same five sentences:
+
+  | Vendor | Transcript after end of speech | Whole sentences |
+  |---|---|---|
+  | AssemblyAI | ~500–535 ms | 5/5 |
+  | Speechmatics | ~520–555 ms | 5/5 |
+  | Deepgram | ~715–970 ms | 4/5 (answers Finalize with the sentence split in two; the tail can arrive after the turn) |
+
+- **Decision:** the seed default becomes AssemblyAI (main) and Speechmatics (backup). They are different companies (R2), the fastest two measured, and AssemblyAI has the cheapest paid rate ($0.15/h). Deepgram stays fully supported and selectable.
+- **Caveats:**
+  - Speechmatics' free plan allows 2 concurrent sessions, which is fine as a backup for a demo.
+  - The audio is synthetic, so P2.8 golden calls must confirm these results on real voices before the pilot.
+- **Supersedes:** the STT-OPTIONS recommendation of Deepgram as primary (2026-10-20).

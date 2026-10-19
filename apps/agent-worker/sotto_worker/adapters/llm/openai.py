@@ -15,9 +15,20 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx2
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, DefaultAsyncHttpxClient
 
 from sotto_worker.contracts import LLMChunk, LLMRequest, ModelCapabilities
+
+# T-005: keep idle HTTPS connections for 2 minutes (the SDK default is 5 s), so the first
+# question after a pause in the conversation does not pay a new TLS handshake.
+KEEPALIVE_S = 120.0
+
+
+def keepalive_client() -> httpx2.AsyncClient:
+    limits = httpx2.Limits(
+        max_connections=1000, max_keepalive_connections=100, keepalive_expiry=KEEPALIVE_S
+    )
+    return DefaultAsyncHttpxClient(limits=limits)
 
 
 class OpenAILLM:
@@ -40,7 +51,7 @@ class OpenAILLM:
             base_url=base_url,
             timeout=timeout_s,
             max_retries=0,
-            http_client=http_client,
+            http_client=http_client or keepalive_client(),
         )
 
     async def warm(self) -> None:

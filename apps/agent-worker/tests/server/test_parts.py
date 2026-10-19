@@ -203,7 +203,7 @@ class ScriptedSTT:
     provider = "scripted"
     model = "m"
 
-    def __init__(self, text: str = "what is the price", fail: bool = False) -> None:
+    def __init__(self, text: str = "what is the price?", fail: bool = False) -> None:
         self._text = text
         self._fail = fail
         self.finalized = 0
@@ -217,7 +217,7 @@ class ScriptedSTT:
         yield TranscriptEvent(opts.speaker, "what is", False, 0, 0)
         reader = asyncio.ensure_future(self._drain(audio))
         await self._forced.wait()
-        yield TranscriptEvent(opts.speaker, self._text, True, 0, 100)
+        yield TranscriptEvent(opts.speaker, self._text, True, 0, 100)  # stream ms
         await reader
 
     async def _drain(self, audio: AsyncIterator[bytes]) -> None:
@@ -262,7 +262,7 @@ async def test_spoken_turn_is_forced_final_with_t0_at_end_of_speech() -> None:
     assert stt.finalized == 1
     assert partials == ["what is"]
     [(event, t0, delivered)] = turns
-    assert event.text == "what is the price"
+    assert event.text == "what is the price?"
     assert event.speaker == "customer"
     assert event.end_ms == t0
     assert 250 <= delivered - t0 <= 600  # 300 ms end-of-turn wait + scheduling, not vendor VAD
@@ -273,7 +273,7 @@ async def test_backup_vendor_takes_over_when_the_primary_fails() -> None:
     notices: list[str] = []
     turns: list[str] = []
     made: list[str] = []
-    backup = ScriptedSTT("backup heard it")
+    backup = ScriptedSTT("backup heard it.")
 
     def make(route: StageRoute) -> ScriptedSTT:
         made.append(route.provider)
@@ -298,7 +298,7 @@ async def test_backup_vendor_takes_over_when_the_primary_fails() -> None:
     await audio.stop()
     assert made == ["primary", "backup"]
     assert "switching to the backup" in notices[0]
-    assert turns == ["backup heard it"]
+    assert turns == ["backup heard it."]
 
 
 # --- key test: speech vendors and edge cases ----------------------------------------------
@@ -380,3 +380,73 @@ def test_main_refuses_hosted_mode_without_secrets(monkeypatch: pytest.MonkeyPatc
     for name in ("SOTTO_ACCESS_CODE", "SOTTO_SECRET_KEY", "SOTTO_PUBLIC_ORIGIN"):
         monkeypatch.delenv(name, raising=False)
     assert main(["--host", "0.0.0.0"]) == 2  # noqa: S104 - the case under test
+
+
+async def test_unfinished_sentence_waits_for_its_tail_and_late_tails_never_join_the_next_turn() -> (
+    None
+):
+    """Deepgram answers Finalize with the sentence split in two finals; the tail must stay with
+    its own turn, and a tail that arrives after the turn went out is dropped, not prepended."""
+    clock = RealClock()
+    turns: list[str] = []
+
+    class SplitFinals(ScriptedSTT):
+        def __init__(self) -> None:
+            super().__init__()
+            self.forced_n = 0
+
+        async def transcribe(
+            self, audio: AsyncIterator[bytes], opts: STTOptions
+        ) -> AsyncIterator[TranscriptEvent]:
+            reader = asyncio.ensure_future(self._drain(audio))
+            await self._forced.wait()
+            yield TranscriptEvent(opts.speaker, "is parking included with the", True, 0, 600)
+            await asyncio.sleep(0.2)  # the tail comes 200 ms later: past SETTLE, inside TAIL
+            yield TranscriptEvent(opts.speaker, "apartment?", True, 600, 700)
+            await asyncio.sleep(0.8)  # a stray late tail of the same audio after the turn went
+            yield TranscriptEvent(opts.speaker, "apartment", True, 650, 1100)  # end has silence
+            await reader
+
+    async def on_turn(event: TranscriptEvent, _t0: int) -> None:
+        turns.append(event.text)
+
+    async def nothing(_t: str) -> None:
+        pass
+
+    audio = CustomerAudio(
+        routes=[StageRoute("scripted", "m")], clock=clock, on_turn=on_turn,
+        on_partial=nothing, on_notice=nothing, make=lambda _r: SplitFinals(),
+    )  # fmt: skip
+    audio.start()
+    await _speak(audio, tone(700) + silence(1800))
+    await asyncio.sleep(0.05)
+    await audio.stop()
+    assert turns == ["is parking included with the apartment?"]
+
+
+async def test_a_live_call_rewarms_its_model_connections(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sotto_worker.server import calls as calls_module
+    from tests.server.conftest import fast_runtime
+
+    monkeypatch.setattr(calls_module, "KEEP_WARM_EVERY_S", 0.01)
+    sent: list[dict[str, object]] = []
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    call = calls_module.Call(
+        runtime=fast_runtime(), send=send, store=None, title="t", log=lambda _s: None
+    )
+    warmed = 0
+
+    async def warm() -> None:
+        nonlocal warmed
+        warmed += 1
+
+    monkeypatch.setattr(call.session, "warm", warm)
+    await call.begin()
+    await asyncio.sleep(0.08)
+    await call.end()
+    assert warmed >= 3  # the start-up warm plus repeats
+    assert call.keep_warm is not None
+    assert call.keep_warm.done()

@@ -34,6 +34,7 @@ At the BRIEF's year-1 volume (7,500 call minutes a day ≈ 125 h a day), Deepgra
 
 ## Recommendation
 
+- *(Superseded by measurement, D-021: AssemblyAI main + Speechmatics backup. Original recommendation below.)*
 - **Primary: Deepgram.** It has the largest free credit, no expiry, high concurrency and a built-in end-of-turn option. It is already on your account list.
 - **Backup: AssemblyAI.** It is a different company, has a $50 free credit and the cheapest paid rate.
 - **ElevenLabs:** not now. The free plan has about 2.5 real-time hours a month and no commercial license. Worth a benchmark later if accuracy on our recordings justifies $0.39/h.
@@ -64,6 +65,18 @@ We now ask the vendor for the final 200 ms after the last word (Deepgram `Finali
 | Speechmatics | 279 / 435 ms | 286 / 479 ms |
 
 Speechmatics was the fastest in this test and accurate; with a 1.5 s pause between sessions its free-plan limit was not hit.
+
+## Spoken path, end to end (2026-10-21, `pnpm spoken:live`)
+
+The full path: browser-style audio → our VAD (300 ms of quiet) → forced final → card. The table shows the time from the end of each spoken sentence to its transcript. Cards from the playbook follow within 1 ms. Details are in D-021.
+
+| Vendor | Transcript | Whole sentences |
+|---|---|---|
+| AssemblyAI | ~500–535 ms | 5/5 |
+| Speechmatics | ~520–555 ms | 5/5 |
+| Deepgram | ~715–970 ms | 4/5 (splits a sentence when forced) |
+
+**Default since D-021:** AssemblyAI main, Speechmatics backup. You can change it any time in Admin → Keys & providers.
 
 ## Sources (vendor pages, 2026-10-20)
 

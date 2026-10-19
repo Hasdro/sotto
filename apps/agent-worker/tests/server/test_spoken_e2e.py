@@ -34,13 +34,14 @@ class ForcedFinals:
 
     def __init__(self) -> None:
         self._forced: asyncio.Queue[None] = asyncio.Queue()
+        self.heard_ms = 0  # audio received so far, like a vendor's stream clock
 
     async def transcribe(
         self, audio: AsyncIterator[bytes], opts: STTOptions
     ) -> AsyncIterator[TranscriptEvent]:
         async def drain() -> None:
-            async for _ in audio:
-                pass
+            async for chunk in audio:
+                self.heard_ms += len(chunk) // 32
 
         reader = asyncio.ensure_future(drain())
         try:
@@ -50,7 +51,9 @@ class ForcedFinals:
                 if waiter not in done:
                     waiter.cancel()
                     return
-                yield TranscriptEvent(opts.speaker, "What is the payment plan?", True, 0, 100)
+                end = max(self.heard_ms - 300, 0)  # speech ended at our VAD cut
+                start = max(end - 500, 0)  # each clip is 0.5 s of speech
+                yield TranscriptEvent(opts.speaker, "What is the payment plan?", True, start, end)
         finally:
             reader.cancel()
 

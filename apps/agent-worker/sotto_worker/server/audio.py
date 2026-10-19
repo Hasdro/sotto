@@ -12,6 +12,7 @@ import array
 import asyncio
 import contextlib
 import math
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
@@ -33,6 +34,12 @@ TAIL_WAIT_MS = 400
 # with the tail as its own result). Each final restarts this short settle timer; the turn goes
 # out when no further final arrives within it.
 SETTLE_MS = 150
+# Text that does not end a sentence yet ("…for the two bedroom") is likely to get its tail as a
+# separate final: wait the longer tail window for it.
+SENTENCE_END = re.compile(r"[.?!؟]\s*$")
+# A final whose audio STARTED before the previous turn's end of speech is that turn's late tail
+# (vendors report a forced final's end including the silence, so the start is what counts); it
+# must never be glued onto the next turn.
 MIN_THRESHOLD = 350.0  # int16 RMS; the noise floor x NOISE_FACTOR when the room is louder
 NOISE_FACTOR = 3.0
 MAX_QUEUE = 500  # ~10 s of 20 ms frames: a stalled vendor never grows memory without bound
@@ -122,6 +129,10 @@ class CustomerAudio:
         self._vad = EndOfTurnVAD()
         self._buffer = b""
         self._pending: list[TranscriptEvent] = []
+        self._stream_ms = 0  # audio pushed so far, on the vendor's clock (ms from stream start)
+        self._stream_base = 0  # where the current vendor's stream started (backup after failover)
+        self._speech_end_stream: int | None = None  # our last end of turn, on the stream clock
+        self._last_turn_stream_end: int | None = None  # end of the last turn sent (stream clock)
         self._speech_start_ms: int | None = None
         self._speech_end_ms: int | None = None  # set at our end of turn, cleared on flush
         self._stt: STTAdapter | None = None
@@ -139,6 +150,7 @@ class CustomerAudio:
             frame, self._buffer = self._buffer[:frame_bytes], self._buffer[frame_bytes:]
             with contextlib.suppress(asyncio.QueueFull):
                 self._queue.put_nowait(frame)
+            self._stream_ms += FRAME_MS
             self._on_vad(self._vad.feed(frame))
 
     def _on_vad(self, change: str | None) -> None:
@@ -148,6 +160,7 @@ class CustomerAudio:
             self._speech_end_ms = None
         elif change == "end":
             self._speech_end_ms = now - END_SILENCE_MS  # the last voiced frame
+            self._speech_end_stream = self._stream_ms - END_SILENCE_MS
             stt = self._stt
             if stt is not None:
                 asyncio.get_running_loop().create_task(self._finalize(stt))
@@ -189,6 +202,7 @@ class CustomerAudio:
         for index, route in enumerate(self._routes):
             try:
                 self._stt = self._make(route)
+                self._stream_base = self._stream_ms - self._queue.qsize() * FRAME_MS
                 self.vendor = route.provider
                 async for event in self._stt.transcribe(
                     self._frames(), STTOptions(speaker="customer", sample_rate=SAMPLE_RATE)
@@ -208,9 +222,13 @@ class CustomerAudio:
         if not event.final:
             await self._on_partial(event.text)
             return
+        last = self._last_turn_stream_end
+        if last is not None and self._stream_base + event.start_ms < last:
+            return  # the late tail of a turn already sent
         self._pending.append(event)
         if self._speech_end_ms is not None:  # our end of turn came first: settle, then send
-            self._arm_flush(SETTLE_MS)
+            done = SENTENCE_END.search(event.text) is not None
+            self._arm_flush(SETTLE_MS if done else TAIL_WAIT_MS)
 
     async def _flush(self) -> None:
         if self._flush_timer is not None and self._flush_timer is not asyncio.current_task():
@@ -223,6 +241,9 @@ class CustomerAudio:
         end = self._speech_end_ms if self._speech_end_ms is not None else self._clock.now_ms()
         start = self._speech_start_ms if self._speech_start_ms is not None else end
         self._speech_end_ms = None
+        if self._speech_end_stream is not None:
+            self._last_turn_stream_end = self._speech_end_stream
+            self._speech_end_stream = None
         if text:
             await self._on_turn(
                 TranscriptEvent(

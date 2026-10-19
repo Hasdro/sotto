@@ -22,6 +22,7 @@ from sotto_worker.server.store import Store
 from sotto_worker.telemetry import CardTimingRecord, summarise
 
 WARM_TIMEOUT_S = 2.0
+KEEP_WARM_EVERY_S = 25.0  # T-005: re-warm model connections through long pauses in a call
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 
 
@@ -47,6 +48,7 @@ class Call:
         self.transcript: list[dict[str, Any]] = []
         self.playback: asyncio.Task[None] | None = None
         self.warmup: asyncio.Task[None] | None = None
+        self.keep_warm: asyncio.Task[None] | None = None
         self.audio: CustomerAudio | None = None
         self._ended = False
         self.session = CallSession(
@@ -67,7 +69,14 @@ class Call:
         await self.send({"type": "call_started", "call_id": self.call_id})
         # Warm model connections in the background; the call is usable at once.
         self.warmup = asyncio.create_task(asyncio.wait_for(self.session.warm(), WARM_TIMEOUT_S))
+        self.keep_warm = asyncio.create_task(self._keep_warm())
         self._log(f"call started ({self._runtime.mode} models)")
+
+    async def _keep_warm(self) -> None:
+        while True:
+            await asyncio.sleep(KEEP_WARM_EVERY_S)
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(self.session.warm(), WARM_TIMEOUT_S)
 
     def _at(self) -> int:
         return max(self._clock.now_ms() - self._started_ms, 0)
@@ -164,7 +173,7 @@ class Call:
             return
         self._ended = True
         await self.audio_stop()
-        for task in (self.playback, self.warmup):
+        for task in (self.playback, self.warmup, self.keep_warm):
             if task is not None and not task.done():
                 task.cancel()
             if task is not None:

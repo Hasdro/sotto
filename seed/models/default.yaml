@@ -14,14 +14,16 @@
 version: 1
 stages:
   stt:
-    # Real-time English STT (D-018). The owner picks the vendor (D-019); options and prices are in
-    # docs/STT-OPTIONS.md. Any of: deepgram, assemblyai, speechmatics, elevenlabs.
-    provider: deepgram
-    model: nova-3
-  stt_backup:
-    # A different company from the primary, so one outage cannot take out both (R2, F-02).
+    # Real-time English STT (D-018). The owner picks the vendor (D-019) in Admin → Keys &
+    # providers; options and prices are in docs/STT-OPTIONS.md. Any of: deepgram, assemblyai,
+    # speechmatics, elevenlabs. AssemblyAI by measurement (D-021): whole sentences ~520 ms after
+    # the end of speech on the spoken path, and the cheapest paid rate.
     provider: assemblyai
     model: universal-streaming-english
+  stt_backup:
+    # A different company from the primary, so one outage cannot take out both (R2, F-02).
+    provider: speechmatics
+    model: standard
   turn:
     provider: fake          # TODO(P2.5): LiveKit end-of-turn model
     model: fake-turn

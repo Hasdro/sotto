@@ -13,9 +13,18 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx2
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, DefaultAsyncHttpxClient
 
 from sotto_worker.contracts import LLMChunk, LLMRequest, ModelCapabilities
+
+KEEPALIVE_S = 120.0  # T-005: see adapters/llm/openai.py
+
+
+def keepalive_client() -> httpx2.AsyncClient:
+    limits = httpx2.Limits(
+        max_connections=1000, max_keepalive_connections=100, keepalive_expiry=KEEPALIVE_S
+    )
+    return DefaultAsyncHttpxClient(limits=limits)
 
 
 class AnthropicLLM:
@@ -34,7 +43,10 @@ class AnthropicLLM:
         self.capabilities = capabilities or ModelCapabilities(streaming=True, prompt_caching=True)
         # max_retries=0: the router owns retries and the backup race (R2).
         self._client = AsyncAnthropic(
-            api_key=api_key, timeout=timeout_s, max_retries=0, http_client=http_client
+            api_key=api_key,
+            timeout=timeout_s,
+            max_retries=0,
+            http_client=http_client or keepalive_client(),
         )
 
     async def warm(self) -> None:

@@ -156,3 +156,14 @@ async def test_openai_compatible_omits_reasoning_effort_when_unset() -> None:
     )
     "".join([c.text async for c in llm.stream(REQ)])
     assert "reasoning_effort" not in rec.json()
+
+
+def test_llm_clients_keep_idle_connections_through_conversation_pauses() -> None:
+    """T-005: the SDK default keeps idle HTTPS connections 5 s; a pause in a call then costs a
+    new TLS handshake on the next question. Both adapters keep them for KEEPALIVE_S."""
+    from sotto_worker.adapters.llm import anthropic as anthropic_adapter
+    from sotto_worker.adapters.llm import openai as openai_adapter
+
+    for module in (openai_adapter, anthropic_adapter):
+        pool = module.keepalive_client()._transport._pool
+        assert pool._keepalive_expiry == module.KEEPALIVE_S >= 60
