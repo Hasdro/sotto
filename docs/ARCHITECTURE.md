@@ -298,3 +298,18 @@ Sources:
 - **prod:** separate Supabase and LiveKit projects in the region chosen for data residency (BRIEF `OPEN`, before P8.4).
 
 Secrets per environment are listed in ENGINEERING §5.
+
+## Demo server (D-020, 2026-10-20)
+
+Until Phases 4–5 land (LiveKit calls, Supabase auth), the product runs as one Python process, `apps/agent-worker/sotto_worker/server/` (Starlette + uvicorn):
+- serves the exported web app;
+- runs calls over `/ws` using the demo protocol (`packages/shared/src/demo.ts`). The customer is a script, typed text, or the browser microphone. The microphone path is: PCM16 at 16 kHz → energy VAD (300 ms end of turn) → STT `finalize()` → the same `CallSession` pipeline as production;
+- provides the admin API, stored in SQLite under `SOTTO_DATA_DIR`:
+  - Keys & providers (keys encrypted with AES-256-GCM, write-only);
+  - per-stage vendor and model;
+  - company settings;
+  - escalations → playbook;
+  - call history;
+  - audit log.
+
+Local mode is `pnpm demo`. Hosted mode is `deploy/`: Docker, Caddy HTTPS, and an access code. The API shapes are designed to carry over when Supabase replaces SQLite.

@@ -26,14 +26,12 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** overnight run 2026-10-20 (owner asleep, standing instruction to build all it can). D-020: the Sotto server (hosted demo), Keys & providers panel (P6.7), spoken customer track, deploy kit.
-- **Next task:** History backed by the server's call log; then T-009 levers (Speechmatics as main STT + Flash-Lite, measured with `pnpm spoken:live`).
-- **Without the owner:** P3.3 axe in CI, P3.5 trial banner, P6.4 model settings polish.
-- **Owner, in the morning:** run `deploy/push.sh root@104.168.48.116` (Claude's shell access to us3 was blocked by the safety classifier); add keys in Admin → Keys & providers; retention duration; free-tier data choice; Yeastar (P4); first companies; playbook documents.
-- **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-20 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker locally).
-- **Blockers:** live calls need LiveKit + the Yeastar trunk; playbook documents (P0.3); real recordings later.
-- **Next action:** `pnpm demo` (local) or `deploy/README.md` (server); then T-004 in `sotto_worker/server/audio.py` + `pipeline/session.py`.
+- **Phase:** cross-phase demo build (D-020): the Sotto server = hosted demo with keys panel (P6.7), spoken customer track, R2 inbox loop, company settings, deploy kit. Phases 2/3/5/6/7 partly done (task board).
+- **Next task:** owner deploys to us3 (`deploy/README.md`); for Claude: P3.3 axe in CI (needs Playwright, reversible devDependency), then the playbook editor (P3.5) and T-009 follow-ups.
+- **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1 — CI green on 4885565+.
+- **Environment last used:** local Mac, 2026-10-20 ~04:00 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker locally, so the Docker image itself is unbuilt — layout rehearsed only).
+- **Blockers:** Claude cannot reach us3 (both ssh attempts blocked by the auto-mode classifier); live phone calls need LiveKit + Yeastar; real playbook documents (P0.3); golden recordings (P2.8).
+- **Next action:** `pnpm demo` → http://127.0.0.1:8787 (try Call with "Speak as the customer", Admin → Keys & providers, Inbox); server: `deploy/push.sh root@104.168.48.116`, then `pnpm spoken:live --url https://104-168-48-116.sslip.io --code <code>`.
 
 ## Phase board
 
@@ -45,7 +43,7 @@ Tags:
 | 3 Design system and screens | mostly done (role switch, axe CI, owner QA pending) | same | `docs/evidence/p3/`, `docs/evidence/demo/` |
 | 4 Live calls | todo | – | – |
 | 5 Tenants, roles, trials | schema + RLS done; auth/UI pending | same | 284 pgTAP assertions |
-| 6 Prompt studio, model settings | todo | – | – |
+| 6 Prompt studio, model settings | in progress: P6.7 keys panel done, P6.5 partial (demo server) | same | `tests/server/` 62 passed |
 | 7 Escalations, Zoho CRM | todo | – | – |
 | 8 Hardening, release, pilot | todo | – | – |
 
@@ -162,6 +160,8 @@ Things only the owner can do, so the agent never waits silently.
 - [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com) in `.env` at the repo root on the Mac (`~/Documents/GitHub/sotto/.env`; copy `.env.example`). Only `.env` on the Mac (D-017). Not present on 2026-10-20.
 - [x] Groq, Gemini, OpenRouter, Deepgram, AssemblyAI and Speechmatics keys in `.env` (2026-10-20). ElevenLabs is optional.
 - [ ] (done above) Get the keys you choose (links and steps: `docs/PROVIDER-KEYS.md`) and put them in `.env`. Speech-to-text: pick any two of Deepgram, AssemblyAI, Speechmatics or ElevenLabs (recommended: Deepgram + AssemblyAI)
+- [ ] **Deploy the demo to us3** (Claude was blocked from ssh): `cd ~/Documents/GitHub/sotto && deploy/push.sh root@104.168.48.116`. It prints the HTTPS address and a one-time access code. Then add your keys in Admin → Keys & providers. Full guide: `deploy/README.md`.
+- [ ] Review D-020 (hosted server, keys encrypted on the server) and D-021 (AssemblyAI main + Speechmatics backup STT, by measurement); both reversible.
 - [ ] Retention: how long to keep call audio (owner chose "also keep audio" without a duration)
 - [ ] Free tiers and customer data: choose before the first real customer call (owner: "not sure, explain more when it matters")
 - [ ] Yeastar admin details and whether it can send a SIP trunk to LiveKit (P4)
@@ -194,6 +194,8 @@ Things only the owner can do, so the agent never waits silently.
   - Step 1 done 2026-10-20 (night 2): `finalize()` on all four adapters; `pnpm stt:live` now also runs a "+final" pass that forces the final 200 ms after the last word. Deepgram p50 771 → 471 ms (max 502), AssemblyAI 625 → 330 ms (max 369; one word split "week. End"), Speechmatics ~280 ms either way. Remaining: call `finalize()` from the end-of-turn stage in the Phase 4 worker (P4.4), then steps 2–3.
 - **T-009** (2026-10-20) **R1 on the spoken path, AI cards.** `pnpm spoken:live` (Deepgram, live models): playbook cards 0.6–0.7 s after the end of speech, but an off-playbook question's AI card took 1.8–2.1 s (the holding line still came at 1.34 s). Cause: the request starts only at the final transcript (~650 ms: 300 ms VAD quiet + forced final + 150 ms settle), then gpt-oss-20b first token 0.5–1.1 s. Bench of first token on the real prompt (10 turns each): Groq gpt-oss-20b p50 501 / max 706 ms; Gemini 2.5 Flash-Lite p50 488 / max 764 (always answers); Gemini 2.5 Flash mostly NO_SAFE_ANSWER; Gemini 3.1 Flash-Lite p50 2.7 s; Groq qwen3.8-27b no answers. Tried 2026-10-20: drafting the turn from the partial at our VAD end (T-004 idea) — **rejected on data**: at the 300 ms cut the partial lacks the last 1–3 words on every vendor (Deepgram "Another company quoted us" for "…us 20% less."; AssemblyAI "Is parking included with"; Speechmatics "What would you tell"), so cards would answer the wrong question. **Fixed 2026-10-20 (same night):** (1) T-005 keep-alive: model clients keep idle HTTPS connections 120 s (SDK default 5 s) and a live call re-warms them every 25 s; (2) late tails of a forced final are matched to their turn by audio start time, and an unfinished sentence waits 400 ms for its tail; (3) D-021 AssemblyAI main STT. Result, `pnpm spoken:live` ×3: off-playbook AI card **831 / 948 / 1168 ms** after the end of speech (was 1.8–2.1 s), playbook cards ~0.5 s, all sentences whole. Earlier levers kept for later: the fastest final (Speechmatics ~280 ms in `stt:live`; set STT main to Speechmatics in the panel and measure with `pnpm spoken:live`), a faster first token (Gemini 2.5 Flash-Lite), the end-of-turn model (P2.5) instead of fixed quiet, and speculative suggest that is only shown when the final matches the draft. Also seen: a long pause between two sentences ends the turn (silence-only VAD); the end-of-turn model (P2.5) fixes that.
 - **T-008** (2026-10-20) Speechmatics on the free plan returns "Concurrent Quota Exceeded" on the third sequential clip. The free plan allows 2 sessions, and closed sessions seem to linger. Check whether the session close is graceful, or add a pause, before using it as a backup. Resolved 2026-10-20 (night 2): a 1.5 s pause between clips in `stt:live` avoids it (6 of 6 clips OK). On real calls one session per call is fine; the free plan still caps us at 2 concurrent calls.
+- **T-010** (2026-10-20) Not yet verified on a real server: the Docker image build, Caddy certificate issuance on sslip.io, and the install script on us3's OS (Claude had no access). The first `deploy/push.sh` run is the test; read its output.
+- **T-011** (2026-10-20) Silence-only end of turn (300 ms) splits a customer's two-sentence turn with a pause; replace with the end-of-turn model (P2.5). Partial transcripts at the cut miss 1–3 words on every vendor, so drafting from partials was rejected (T-009).
 - **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
   - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
   - GHSA-vfj7-8cjw-p6xm: braces via `metro-file-map`.
@@ -209,6 +211,22 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-20 (03:00–04:00, same overnight run) · local · Claude Opus 5.5 · R1 spoken path, security fixes, R2 inbox loop, settings, trial banner
+- **Done:**
+  - Spoken path inside R1: keep-alive 120 s + per-call re-warm (T-005), late forced-final tails matched by audio start time, D-021 AssemblyAI main STT.
+  - Prompt suggest v2: yes/no questions about what the company offers are company facts (no invented "yes, we welcome pets").
+  - security-auditor review of the server + deploy kit: 0 critical / 1 high / 2 medium / 6 low, all fixed (see P6.7 line).
+  - R2 loop on the server: escalations → Inbox → answer / add to playbook → the next call answers from it (P7.2).
+  - Company settings saved on the server and applied per call (P6.5 partial); trial banner (P3.5); History from the server's call log; mic permission states; display name for the STT vendor.
+- **Evidence:**
+  - `pnpm spoken:live` ×3 (AssemblyAI, live models): off-playbook AI card 831 / 948 / 1168 ms after end of speech (was 1.8–2.1 s); playbook cards ~0.5 s; all sentences whole.
+  - `pnpm replay:live`: p50 578, p95 1069 ms, R1/R4/expectations PASS. `pnpm replay --all`: p95 1148 ms PASS; R2 drill PASS.
+  - Browser QA (local): typed call, live AI card 0.51 s; holding line + escalation → Inbox → added → reworded question answered "From your playbook"; Keys page at 375 px dark and Arabic RTL; hosted-mode sign-in (wrong code refused, right code opens the app, socket connects); CSP on, no console errors.
+  - Worker pytest ~300 passed, coverage floors ok; app jest 158 passed; CI green (3.12, 3.13, audit, pgTAP, secrets scan).
+- **Tried and rejected:** drafting the turn from partials (data: partials lack the last 1–3 words at the cut); Gemini 3.1 Flash-Lite (2.7 s first token); Qwen on Groq (no answers).
+- **Next:** owner deploy (T-010); P3.3 axe CI; playbook editor; end-of-turn model (T-011).
+- **Notes:** local `.sotto-data/sotto.db` was reset to empty after testing (no keys were ever stored there; `secret.key` kept).
 
 ### 2026-10-20 (overnight, 02:00–04:00+) · local · Claude Opus 5.5 · T-007, D-020 server + P6.7 keys panel + deploy kit
 - **Done:**
