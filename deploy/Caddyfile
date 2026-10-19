@@ -2,6 +2,9 @@
 # (works without buying a domain) or sotto.yourcompany.com (point its DNS A record here first).
 {$SOTTO_DOMAIN} {
 	encode zstd gzip
+	request_body /api/* {
+		max_size 16KB
+	}
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		Permissions-Policy "microphone=(self), camera=()"

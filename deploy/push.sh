@@ -18,7 +18,9 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 echo "==> Building the web app"
-CI=1 EXPO_PUBLIC_SOTTO_DEMO=1 pnpm --filter @sotto/app export:web >/dev/null
+# The hosted app talks to its own origin: an EXPO_PUBLIC_DEMO_BRIDGE_URL from a local .env must
+# not be baked into the build.
+CI=1 EXPO_PUBLIC_SOTTO_DEMO=1 EXPO_PUBLIC_DEMO_BRIDGE_URL= pnpm --filter @sotto/app export:web >/dev/null
 
 echo "==> Packing $(git rev-parse --short HEAD)"
 tmp=$(mktemp -d)

@@ -163,6 +163,13 @@ def check_key_host(name: str, base_url: str | None) -> None:
     _check_key_host(name, base_url)
 
 
+def check_platform_host(provider: str, url: str) -> None:
+    """Raise unless `url` is the https host of a first-party provider (openai, anthropic)."""
+    if provider not in PROVIDER_HOSTS:
+        raise ValueError(f"no fixed host for provider {provider!r}")
+    _check_host(API_KEY_ENV[provider], PROVIDER_HOSTS[provider], url)
+
+
 def _check_key_host(name: str, base_url: str | None) -> None:
     host = COMPATIBLE_KEY_HOSTS.get(name)
     if host is None:

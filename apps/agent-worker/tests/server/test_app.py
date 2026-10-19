@@ -267,3 +267,68 @@ def test_stage_choice_is_validated_saved_and_reset(make_client: MakeClient) -> N
     r = client.delete("/api/stages/stt", headers=JSON)
     stt = next(s for s in r.json()["stages"] if s["id"] == "stt")
     assert stt["source"] == "default"
+
+
+# --- security review fixes (2026-10-21) ----------------------------------------------------
+
+
+def test_oversized_sign_in_bodies_are_refused_before_they_are_read(make_client: MakeClient) -> None:
+    client = make_client(hosted=True)
+    big = b'{"code": "' + b"x" * 20_000 + b'"}'
+    r = client.post(
+        "/api/session", content=big, headers={"origin": PUBLIC, "content-type": "application/json"}
+    )
+    assert r.status_code == 400
+
+    def chunks() -> Any:
+        yield b'{"code": "'
+        for _ in range(10):
+            yield b"x" * 4096  # no Content-Length: the stream itself is capped
+
+    r = client.post("/api/session", content=chunks(), headers={"origin": PUBLIC})
+    assert r.status_code == 400
+
+
+def test_every_response_carries_the_security_headers(make_client: MakeClient) -> None:
+    client = make_client(hosted=True)
+    for path in ("/", "/api/me", "/api/providers", "/missing.js"):
+        headers = client.get(path).headers
+        assert "frame-ancestors 'none'" in headers["content-security-policy"], path
+        assert headers["x-content-type-options"] == "nosniff"
+
+
+def test_changing_the_access_code_signs_everyone_out(store: Store) -> None:
+    from sotto_worker.server.auth import AccessGate
+    from tests.server.conftest import SECRET
+
+    token = AccessGate(CODE, SECRET).issue()
+    assert AccessGate(CODE, SECRET).valid(token)
+    assert not AccessGate("a-new-code-99", SECRET).valid(token)
+
+
+def test_sign_out_needs_the_site_origin(make_client: MakeClient) -> None:
+    client = make_client(hosted=True)
+    assert (
+        client.delete("/api/session", headers={"origin": "https://evil.example"}).status_code == 403
+    )
+    assert client.delete("/api/session", headers={"origin": PUBLIC}).status_code == 200
+
+
+def test_the_audit_log_names_the_client(make_client: MakeClient) -> None:
+    client = make_client()
+    client.put("/api/providers/groq/key", json={"key": SECRET_KEY_VALUE}, headers=JSON)
+    [entry] = client.get("/api/audit").json()["entries"]
+    assert entry["detail"] == "GROQ_API_KEY (from testclient)"
+
+
+def test_open_call_sockets_are_capped(
+    make_client: MakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(app_module, "MAX_LIVE_CALLS", 1)
+    client = make_client()
+    with client.websocket_connect("/ws") as first:
+        assert json.loads(first.receive_text())["type"] == "hello"
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws") as second:
+            second.receive_text()
+    with client.websocket_connect("/ws") as again:  # the slot is free once the first closes
+        assert json.loads(again.receive_text())["type"] == "hello"

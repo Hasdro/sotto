@@ -92,7 +92,7 @@ class Store:
         self._db.close()
 
     # --- keys -----------------------------------------------------------------------------
-    def set_key(self, key_env: str, value: str) -> None:
+    def set_key(self, key_env: str, value: str, *, actor: str = "") -> None:
         blob = self._vault.encrypt(key_env, value)
         with self._tx() as db:
             db.execute(
@@ -102,13 +102,13 @@ class Store:
                 "test_detail = NULL, models_json = NULL",
                 (key_env, blob, _now()),
             )
-            self._audit(db, "key.set", key_env)
+            self._audit(db, "key.set", key_env, actor)
 
-    def delete_key(self, key_env: str) -> bool:
+    def delete_key(self, key_env: str, *, actor: str = "") -> bool:
         with self._tx() as db:
             gone = db.execute("DELETE FROM provider_keys WHERE key_env = ?", (key_env,)).rowcount
             if gone:
-                self._audit(db, "key.delete", key_env)
+                self._audit(db, "key.delete", key_env, actor)
         return bool(gone)
 
     def record_test(self, key_env: str, ok: bool, detail: str, models: list[str]) -> None:
@@ -150,7 +150,7 @@ class Store:
         return env
 
     # --- stage routes ---------------------------------------------------------------------
-    def set_stage(self, stage: str, provider_id: str, model: str) -> None:
+    def set_stage(self, stage: str, provider_id: str, model: str, *, actor: str = "") -> None:
         with self._tx() as db:
             db.execute(
                 "INSERT INTO stage_routes (stage, provider_id, model, updated_at) "
@@ -159,12 +159,12 @@ class Store:
                 "updated_at = excluded.updated_at",
                 (stage, provider_id, model, _now()),
             )
-            self._audit(db, "stage.set", f"{stage} -> {provider_id} {model}")
+            self._audit(db, "stage.set", f"{stage} -> {provider_id} {model}", actor)
 
-    def reset_stage(self, stage: str) -> None:
+    def reset_stage(self, stage: str, *, actor: str = "") -> None:
         with self._tx() as db:
             db.execute("DELETE FROM stage_routes WHERE stage = ?", (stage,))
-            self._audit(db, "stage.reset", stage)
+            self._audit(db, "stage.reset", stage, actor)
 
     def stage_overrides(self) -> dict[str, tuple[str, str]]:
         with self._lock:
@@ -219,7 +219,9 @@ class Store:
         return out
 
     # --- audit ----------------------------------------------------------------------------
-    def _audit(self, db: sqlite3.Connection, action: str, detail: str) -> None:
+    def _audit(self, db: sqlite3.Connection, action: str, detail: str, actor: str = "") -> None:
+        if actor:
+            detail = f"{detail} (from {actor})"
         db.execute(
             "INSERT INTO audit_log (at, action, detail) VALUES (?, ?, ?)", (_now(), action, detail)
         )

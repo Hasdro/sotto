@@ -7,11 +7,15 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from urllib.parse import urlsplit
 
 import httpx
 
-from sotto_worker.adapters.factory import STT_VENDORS, check_key_host, make_stt
+from sotto_worker.adapters.factory import (
+    STT_VENDORS,
+    check_key_host,
+    check_platform_host,
+    make_stt,
+)
 from sotto_worker.adapters.stt.base import STTError
 from sotto_worker.contracts import STTOptions
 from sotto_worker.router import StageRoute
@@ -49,10 +53,12 @@ async def _check_llm(provider: Provider, key: str, client: httpx.AsyncClient | N
     url = provider.models_url()
     if url is None:
         return KeyCheck(False, "this vendor has no models endpoint to test")
-    if provider.route.get("provider") == "openai_compatible":
-        check_key_host(provider.key_env, str(provider.route.get("base_url")))
-    elif urlsplit(url).scheme != "https":
-        return KeyCheck(False, "test URL must be https")
+    # The key may only go to its own vendor host (D-016): check the URL we actually call.
+    kind = str(provider.route.get("provider"))
+    if kind == "openai_compatible":
+        check_key_host(provider.key_env, url)
+    else:
+        check_platform_host(kind, url)
     if provider.route.get("provider") == "anthropic":
         headers = {"x-api-key": key, "anthropic-version": ANTHROPIC_VERSION}
     else:

@@ -7,7 +7,10 @@ services:
       dockerfile: deploy/Dockerfile
     env_file: /etc/sotto/sotto.env
     environment:
-      SOTTO_TRUSTED_PROXY: "*"  # reachable only from Caddy and from this host's loopback
+      # Only this compose network may set X-Forwarded-For: Caddy, or the host's nginx via the
+      # network gateway (the nginx snippet in install.sh sends $remote_addr, never the client's).
+      SOTTO_TRUSTED_PROXY: "172.31.253.0/24"
+    networks: [sotto]
     volumes:
       - sotto-data:/data
     restart: unless-stopped
@@ -15,7 +18,8 @@ services:
       - "127.0.0.1:8787:8787"  # for a host web server (nginx) when Caddy is not used
 
   caddy:
-    image: caddy:2.10
+    image: caddy:2.10@sha256:c3d7ee5d2b11f9dc54f947f68a734c84e9c9666c92c88a7f30b9cba5da182adb
+    networks: [sotto]
     environment:
       SOTTO_DOMAIN: ${SOTTO_DOMAIN:?set SOTTO_DOMAIN in /etc/sotto/sotto.env}  # only this, no secrets
     ports:
@@ -30,6 +34,12 @@ services:
       - sotto
     restart: unless-stopped
     profiles: ["caddy"]
+
+networks:
+  sotto:
+    ipam:
+      config:
+        - subnet: 172.31.253.0/24
 
 volumes:
   sotto-data:

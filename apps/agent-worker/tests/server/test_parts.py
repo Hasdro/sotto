@@ -9,6 +9,7 @@ import math
 import struct
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -450,3 +451,92 @@ async def test_a_live_call_rewarms_its_model_connections(monkeypatch: pytest.Mon
     assert warmed >= 3  # the start-up warm plus repeats
     assert call.keep_warm is not None
     assert call.keep_warm.done()
+
+
+def test_sign_in_attempts_are_capped_per_client_and_for_everyone() -> None:
+    from sotto_worker.server import auth
+
+    gate = AccessGate("code-1234", "s" * 40)
+    assert all(gate.begin_attempt("a", now=100) for _ in range(auth.MAX_FAILURES))
+    assert not gate.begin_attempt("a", now=101)
+    gate.succeeded("b")  # nothing to take back: harmless
+    sprayed = [gate.begin_attempt(f"ip-{i}", now=102) for i in range(auth.MAX_FAILURES_ALL)]
+    assert not all(sprayed)  # spraying addresses hits the global cap
+    assert gate.begin_attempt("a", now=100 + auth.FAILURE_WINDOW_S + 200)  # the window passes
+
+
+def test_a_right_code_does_not_count_as_a_failure() -> None:
+    gate = AccessGate("code-1234", "s" * 40)
+    for _ in range(20):
+        assert gate.begin_attempt("a", now=100)
+        assert gate.check_code("code-1234")
+        gate.succeeded("a")
+
+
+async def test_audio_faster_than_real_time_is_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sotto_worker.server import calls as calls_module
+    from tests.server.conftest import fast_runtime
+
+    pushed: list[int] = []
+
+    class Sink:
+        def push(self, pcm: bytes) -> None:
+            pushed.append(len(pcm))
+
+    async def send(_m: dict[str, object]) -> None:
+        pass
+
+    call = calls_module.Call(
+        runtime=fast_runtime(), send=send, store=None, title="t", log=lambda _s: None
+    )
+    monkeypatch.setattr(call, "audio", Sink())  # a sink stands in for CustomerAudio
+    for _ in range(200):  # 200 x 20 ms = 4 s of audio, sent instantly
+        call.audio_frame(b"\x00" * 640)
+    assert sum(pushed) <= calls_module.AUDIO_BYTES_PER_S * calls_module.AUDIO_BURST_S + 640
+    await call.session.close()
+
+
+async def test_key_test_refuses_a_first_party_url_on_another_host() -> None:
+    openai = dataclasses.replace(
+        CATALOG.providers["openai"], test_url="https://evil.example/v1/models"
+    )
+    seen: list[httpx.Request] = []
+    result = await check_key(openai, "sk-1234567890", client=_client(200, {}, seen))
+    assert not result.ok
+    assert seen == []
+
+
+def test_hosted_mode_needs_https_unless_explicitly_allowed() -> None:
+    env = {
+        "SOTTO_ACCESS_CODE": "longenough",
+        "SOTTO_SECRET_KEY": "x" * 40,
+        "SOTTO_PUBLIC_ORIGIN": "http://10.0.0.5:8787",
+    }
+    assert hosted_problems("0.0.0.0", env)  # noqa: S104 - the case under test
+    assert hosted_problems("0.0.0.0", {**env, "SOTTO_ALLOW_HTTP": "1"}) == []  # noqa: S104
+
+
+def test_call_runtimes_only_see_provider_keys(
+    tmp_path: Path, static_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sotto_worker.server.__main__ import build, parser
+
+    args = parser().parse_args(["--fake", "--static", str(static_dir)])
+    env = {
+        "SOTTO_DATA_DIR": str(tmp_path / "d"),
+        "SOTTO_SECRET_KEY": "x" * 40,
+        "GROQ_API_KEY": "gsk-test-not-real",
+        "UNRELATED": "1",
+    }
+    import sotto_worker.server.__main__ as main_module
+
+    seen: list[dict[str, str]] = []
+    from sotto_worker.runtime import build_demo_runtime as real
+
+    def spy(clock: Any, keys: Any, **kw: Any) -> Any:
+        seen.append(dict(keys))
+        return real(clock, keys, **kw)
+
+    monkeypatch.setattr(main_module, "build_demo_runtime", spy)
+    build(args, env)
+    assert seen[0] == {"GROQ_API_KEY": "gsk-test-not-real"}

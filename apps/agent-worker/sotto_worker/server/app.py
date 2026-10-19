@@ -22,6 +22,7 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route, WebSocketRoute
+from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from sotto_worker.protocol.demo import DemoClientMessage
@@ -37,6 +38,19 @@ from sotto_worker.server.store import Store
 LOCAL_DEV_PORTS = (8081, 19006)  # Expo dev server, for `expo start --web` against this server
 MAX_BODY = 8 * 1024
 MAX_AUDIO_FRAME = 64 * 1024
+MAX_LIVE_CALLS = 5  # open call sockets on this server (vendor spend, CPU)
+# Pages and API: no framing, no sniffing, scripts and sockets from this origin only. React Native
+# Web injects <style> tags, hence 'unsafe-inline' for styles only.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; "
+        "media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+}
 
 
 @dataclass
@@ -71,7 +85,7 @@ def create_app(
     seed: RoutingConfig,
     env: Mapping[str, str],
     runtime_factory: RuntimeFactory,
-) -> Starlette:
+) -> ASGIApp:
     """`seed` is the default routing; `env` the process environment (server-level keys);
     `runtime_factory` builds a fresh runtime per call from seed + panel keys and choices."""
     scenarios: dict[str, Scenario] = {s.id: s for s in load_all(DEMO / "calls")}
@@ -81,6 +95,9 @@ def create_app(
         # Non-browser clients send no Origin; browsers always do on cross-site requests.
         return origin is None or origin.rstrip("/") in config.allowed_origins()
 
+    def client_of(request: Request | WebSocket) -> str:
+        return request.client.host if request.client else "?"
+
     def signed_in(request: Request | WebSocket) -> bool:
         return gate.valid(request.cookies.get(COOKIE))
 
@@ -88,9 +105,15 @@ def create_app(
         return JSONResponse({"error": message}, status_code=status)
 
     async def body(request: Request) -> dict[str, Any]:
-        raw = await request.body()
-        if len(raw) > MAX_BODY:
+        """The JSON body, read only up to MAX_BODY: a huge upload never reaches memory."""
+        declared = request.headers.get("content-length")
+        if declared is not None and (not declared.isdigit() or int(declared) > MAX_BODY):
             raise ValueError("request too large")
+        raw = b""
+        async for chunk in request.stream():
+            raw += chunk
+            if len(raw) > MAX_BODY:
+                raise ValueError("request too large")
         data = json.loads(raw or b"{}")
         if not isinstance(data, dict):
             raise ValueError("expected a JSON object")
@@ -133,16 +156,18 @@ def create_app(
     async def sign_in(request: Request) -> Response:
         if not origin_ok(request.headers.get("origin")):
             return deny(HTTPStatus.FORBIDDEN, "origin not allowed")
-        client = request.client.host if request.client else "?"
-        if gate.blocked(client):
+        client = client_of(request)
+        # Counted before the body is read, so parallel guesses all count (rate limit).
+        if not gate.begin_attempt(client):
             return deny(HTTPStatus.TOO_MANY_REQUESTS, "too many attempts; wait 10 minutes")
         try:
             code = str((await body(request)).get("code", ""))
         except (ValueError, json.JSONDecodeError):
             return deny(HTTPStatus.BAD_REQUEST, 'send {"code": "…"}')
-        if not gate.check_code(client, code):
+        if not gate.check_code(code):
             await asyncio.sleep(0.5)  # slows guessing a little more
             return deny(HTTPStatus.UNAUTHORIZED, "wrong access code")
+        gate.succeeded(client)
         response = JSONResponse({"signed_in": True})
         response.set_cookie(
             COOKIE,
@@ -155,7 +180,9 @@ def create_app(
         )
         return response
 
-    async def sign_out(_request: Request) -> Response:
+    async def sign_out(request: Request) -> Response:
+        if not origin_ok(request.headers.get("origin")):
+            return deny(HTTPStatus.FORBIDDEN, "origin not allowed")
         response = JSONResponse({"signed_in": False})
         response.delete_cookie(COOKIE, path="/")
         return response
@@ -215,13 +242,13 @@ def create_app(
         key = str((await body(request)).get("key", "")).strip()
         if not (8 <= len(key) <= 400) or not key.isascii() or any(c.isspace() for c in key):
             raise ValueError("that does not look like an API key (8 to 400 characters, no spaces)")
-        store.set_key(provider.key_env, key)
+        store.set_key(provider.key_env, key, actor=client_of(request))
         config.log(f"key saved for {provider.name}")
         return JSONResponse(providers_payload())
 
     async def delete_key(request: Request) -> Response:
         provider = provider_from(request)
-        store.delete_key(provider.key_env)
+        store.delete_key(provider.key_env, actor=client_of(request))
         return JSONResponse(providers_payload())
 
     async def test_provider(request: Request) -> Response:
@@ -241,14 +268,14 @@ def create_app(
         data = await body(request)
         provider_id, model = str(data.get("provider_id", "")), str(data.get("model", ""))
         catalog.route_for(stage, provider_id, model, seed.stages.get(stage))  # validates
-        store.set_stage(stage, provider_id, model.strip())
+        store.set_stage(stage, provider_id, model.strip(), actor=client_of(request))
         return JSONResponse(providers_payload())
 
     async def reset_stage(request: Request) -> Response:
         stage = request.path_params["stage"]
         if stage not in catalog.stages:
             raise ValueError("unknown stage")
-        store.reset_stage(stage)
+        store.reset_stage(stage, actor=client_of(request))
         return JSONResponse(providers_payload())
 
     async def list_calls(_request: Request) -> Response:
@@ -268,6 +295,18 @@ def create_app(
         if not origin_ok(ws.headers.get("origin")) or not signed_in(ws):
             await ws.close(code=1008)
             return
+        if live_calls[0] >= MAX_LIVE_CALLS:
+            await ws.close(code=1013)  # try again later
+            return
+        live_calls[0] += 1
+        try:
+            await serve_call(ws)
+        finally:
+            live_calls[0] -= 1
+
+    live_calls = [0]
+
+    async def serve_call(ws: WebSocket) -> None:
         await ws.accept()
         runtime = await asyncio.to_thread(runtime_factory)
         stt_id = runtime.stt_routes[0].provider if runtime.stt_routes else None
@@ -369,10 +408,7 @@ def create_app(
             target,
             media_type=mimetypes.guess_type(target.name)[0] or "application/octet-stream",
             headers={
-                "Cache-Control": "public, max-age=31536000, immutable" if hashed else "no-store",
-                "X-Content-Type-Options": "nosniff",
-                "Referrer-Policy": "same-origin",
-                "X-Frame-Options": "DENY",
+                "Cache-Control": "public, max-age=31536000, immutable" if hashed else "no-store"
             },
         )
 
@@ -407,4 +443,29 @@ def create_app(
         WebSocketRoute("/", ws_endpoint),  # older builds connect to the bare origin
         Route("/{path:path}", static),
     ]
-    return Starlette(routes=routes, lifespan=lifespan)
+    app = Starlette(routes=routes, lifespan=lifespan)
+    return SecurityHeaders(app)
+
+
+class SecurityHeaders:
+    """ASGI wrapper: SECURITY_HEADERS on every HTTP response (pages, API, errors)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        extra = [(k.lower().encode(), v.encode()) for k, v in SECURITY_HEADERS.items()]
+
+        async def send_with_headers(message: Any) -> None:
+            if message["type"] == "http.response.start":
+                present = {name.lower() for name, _ in message.get("headers", [])}
+                message["headers"] = [
+                    *message.get("headers", []),
+                    *[(k, v) for k, v in extra if k not in present],
+                ]
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

@@ -1,5 +1,9 @@
 """Access to the hosted demo (D-020): one access code → a signed, expiring, HttpOnly session
-cookie. Phase 5 replaces this with Supabase Auth and roles; the cookie never carries a role."""
+cookie. Phase 5 replaces this with Supabase Auth and roles; the cookie never carries a role.
+
+The session key is derived from SOTTO_SECRET_KEY *and* the access code, so changing the code
+signs everyone out without touching the key vault. Sign-in attempts are counted before the
+request body is read (parallel guesses all count) per client and in total."""
 
 from __future__ import annotations
 
@@ -7,12 +11,14 @@ import base64
 import hashlib
 import hmac
 import time
-from collections import deque
+from collections import OrderedDict, deque
 
 COOKIE = "sotto_session"
 SESSION_TTL_S = 12 * 3600
 MAX_FAILURES = 10  # per client, per window
+MAX_FAILURES_ALL = 100  # all clients together, per window (address spraying)
 FAILURE_WINDOW_S = 600
+MAX_TRACKED_CLIENTS = 10_000
 
 
 def _sign(secret: bytes, payload: str) -> str:
@@ -23,8 +29,10 @@ def _sign(secret: bytes, payload: str) -> str:
 class AccessGate:
     def __init__(self, access_code: str | None, secret: str) -> None:
         self._code = access_code or None
-        self._secret = hashlib.sha256(("sotto-session:" + secret).encode()).digest()
-        self._failures: dict[str, deque[float]] = {}
+        material = b"sotto-session:" + secret.encode() + b"\0" + (access_code or "").encode()
+        self._secret = hashlib.sha256(material).digest()
+        self._attempts: OrderedDict[str, deque[float]] = OrderedDict()
+        self._all: deque[float] = deque()
 
     @property
     def required(self) -> bool:
@@ -46,21 +54,39 @@ class AccessGate:
             return False
         return expires.isdigit() and int(expires) > (now or time.time())
 
-    def blocked(self, client: str, now: float | None = None) -> bool:
-        t = now or time.time()
-        recent = self._failures.get(client)
-        if not recent:
-            return False
-        while recent and recent[0] < t - FAILURE_WINDOW_S:
-            recent.popleft()
-        return len(recent) >= MAX_FAILURES
+    def _prune(self, q: deque[float], t: float) -> None:
+        while q and q[0] < t - FAILURE_WINDOW_S:
+            q.popleft()
 
-    def check_code(self, client: str, code: str, now: float | None = None) -> bool:
+    def begin_attempt(self, client: str, now: float | None = None) -> bool:
+        """Counts a sign-in attempt as a failure up front; False when the client (or everyone
+        together) is over the limit. `succeeded` takes the count back for a right code."""
         if self._code is None:
             return True
-        ok = hmac.compare_digest(code.encode(), self._code.encode())
-        if not ok:
-            self._failures.setdefault(client, deque()).append(now or time.time())
-            if len(self._failures) > 10_000:  # bound memory under a spray of client addresses
-                self._failures.clear()
-        return ok
+        t = now or time.time()
+        self._prune(self._all, t)
+        recent = self._attempts.get(client)
+        if recent is not None:
+            self._prune(recent, t)
+        if len(self._all) >= MAX_FAILURES_ALL or (recent and len(recent) >= MAX_FAILURES):
+            return False
+        if recent is None:
+            recent = self._attempts[client] = deque()
+            while len(self._attempts) > MAX_TRACKED_CLIENTS:
+                self._attempts.popitem(last=False)  # forget the oldest client, not everyone
+        self._attempts.move_to_end(client)
+        recent.append(t)
+        self._all.append(t)
+        return True
+
+    def succeeded(self, client: str) -> None:
+        recent = self._attempts.get(client)
+        if recent:
+            recent.pop()
+        if self._all:
+            self._all.pop()
+
+    def check_code(self, code: str) -> bool:
+        if self._code is None:
+            return True
+        return hmac.compare_digest(code.encode(), self._code.encode())

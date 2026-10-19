@@ -14,7 +14,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from starlette.applications import Starlette
+from starlette.types import ASGIApp
 
 from sotto_worker.clock import RealClock
 from sotto_worker.router import RoutingConfig
@@ -46,12 +46,14 @@ def hosted_problems(host: str, env: Mapping[str, str]) -> list[str]:
         problems.append("SOTTO_ACCESS_CODE (at least 8 characters)")
     if len(env.get("SOTTO_SECRET_KEY", "")) < MIN_SECRET_CHARS:
         problems.append(f"SOTTO_SECRET_KEY (at least {MIN_SECRET_CHARS} characters)")
-    if not env.get("SOTTO_PUBLIC_ORIGIN", "").startswith(("https://", "http://")):
-        problems.append("SOTTO_PUBLIC_ORIGIN (e.g. https://sotto.example.com)")
+    origin = env.get("SOTTO_PUBLIC_ORIGIN", "")
+    plain_http_ok = env.get("SOTTO_ALLOW_HTTP") == "1"  # rehearsals on a private network only
+    if not (origin.startswith("https://") or (plain_http_ok and origin.startswith("http://"))):
+        problems.append("SOTTO_PUBLIC_ORIGIN (https://…; cookies need HTTPS)")
     return problems
 
 
-def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfig, Starlette]:
+def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfig, ASGIApp]:
     hosted = args.host not in LOOPBACK
     data_dir = Path(env.get("SOTTO_DATA_DIR") or DEFAULT_DATA)
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -68,8 +70,11 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
         log=lambda s: print(s, flush=True),
     )
 
+    # Only provider keys reach a call's runtime, never SOTTO_SECRET_KEY or the access code.
+    provider_env = {name: env[name] for name in catalog.key_envs if env.get(name)}
+
     def runtime() -> Runtime:
-        keys = store.env_overlay(env)
+        keys = store.env_overlay(provider_env)
         routing = apply_overrides(seed, catalog, store.stage_overrides())
         return build_demo_runtime(RealClock(), keys, force_fake=args.fake, config=routing)
 
@@ -79,7 +84,7 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
         store=store,
         catalog=catalog,
         seed=seed,
-        env=env,
+        env=provider_env,
         runtime_factory=runtime,
     )
     first = runtime()

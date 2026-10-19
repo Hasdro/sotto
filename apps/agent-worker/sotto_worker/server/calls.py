@@ -23,6 +23,9 @@ from sotto_worker.telemetry import CardTimingRecord, summarise
 
 WARM_TIMEOUT_S = 2.0
 KEEP_WARM_EVERY_S = 25.0  # T-005: re-warm model connections through long pauses in a call
+AUDIO_BYTES_PER_S = 32_000  # PCM16 mono 16 kHz
+AUDIO_BURST_S = 1.5  # a client may run this far ahead of real time; more is dropped
+MAX_TRANSCRIPT = 500  # entries kept per call (the store keeps the same)
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 
 
@@ -46,7 +49,9 @@ class Call:
         self._lock = asyncio.Lock()
         self.timings: list[CardTimingRecord] = []
         self.transcript: list[dict[str, Any]] = []
-        self._card_text: dict[str, str] = {}  # card_id -> text so far (cards stream in deltas)
+        self._card_text: dict[str, str] = {}
+        self._audio_allowance = AUDIO_BYTES_PER_S * AUDIO_BURST_S
+        self._audio_at = self._clock.now_ms()  # card_id -> text so far (cards stream in deltas)
         self.playback: asyncio.Task[None] | None = None
         self.warmup: asyncio.Task[None] | None = None
         self.keep_warm: asyncio.Task[None] | None = None
@@ -93,7 +98,7 @@ class Call:
         if wire.get("done"):
             self._card_text.pop(card_id, None)
             if text.strip():
-                self.transcript.append(
+                self._remember(
                     {
                         "kind": "card",
                         "type": wire.get("type"),
@@ -107,9 +112,7 @@ class Call:
         await self.send({"type": "card", "card": wire})
 
     async def _escalation(self, escalation: Escalation) -> None:
-        self.transcript.append(
-            {"kind": "escalation", "text": escalation.question, "at_ms": self._at()}
-        )
+        self._remember({"kind": "escalation", "text": escalation.question, "at_ms": self._at()})
         await self.send({"type": "escalation", "question": escalation.question})
 
     def _timing(self, record: CardTimingRecord) -> None:
@@ -123,9 +126,7 @@ class Call:
     async def turn(self, event: TranscriptEvent, t0_ms: int) -> None:
         """A finished turn: show it, then run the pipeline with t0 = end of speech (R1)."""
         at = max(event.end_ms - self._started_ms, 0)
-        self.transcript.append(
-            {"kind": "line", "speaker": event.speaker, "text": event.text, "at_ms": at}
-        )
+        self._remember({"kind": "line", "speaker": event.speaker, "text": event.text, "at_ms": at})
         await self.send(
             {"type": "transcript", "speaker": event.speaker, "text": event.text, "at_ms": at}
         )
@@ -177,8 +178,24 @@ class Call:
         return True
 
     def audio_frame(self, pcm: bytes) -> None:
-        if self.audio is not None:
-            self.audio.push(pcm)
+        """Real-time audio only: a client streaming faster than 1.5x real time has the excess
+        dropped, so one socket cannot burn CPU or vendor minutes."""
+        if self.audio is None:
+            return
+        now = self._clock.now_ms()
+        cap = AUDIO_BYTES_PER_S * AUDIO_BURST_S
+        refill = (now - self._audio_at) * AUDIO_BYTES_PER_S / 1000
+        self._audio_allowance = min(cap, self._audio_allowance + refill)
+        self._audio_at = now
+        if len(pcm) > self._audio_allowance:
+            return
+        self._audio_allowance -= len(pcm)
+        self.audio.push(pcm)
+
+    def _remember(self, entry: dict[str, Any]) -> None:
+        self.transcript.append(entry)
+        if len(self.transcript) > MAX_TRANSCRIPT:
+            del self.transcript[0]
 
     async def audio_stop(self) -> None:
         if self.audio is not None:

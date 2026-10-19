@@ -48,7 +48,7 @@ if [ ! -f "$ENV_FILE" ]; then
   umask 077
   cat >"$ENV_FILE" <<ENV
 # Sotto server secrets (D-020). Keep this file private. Losing SOTTO_SECRET_KEY means re-entering
-# provider keys in Admin → Keys & providers; changing SOTTO_ACCESS_CODE signs everyone out.
+# provider keys in Admin → Keys & providers. Changing SOTTO_ACCESS_CODE signs everyone out.
 SOTTO_DOMAIN=$domain
 SOTTO_PUBLIC_ORIGIN=https://$domain
 SOTTO_ACCESS_CODE=$code
@@ -103,7 +103,7 @@ else
       proxy_set_header Upgrade \$http_upgrade;
       proxy_set_header Connection "upgrade";
       proxy_set_header Host \$host;
-      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-For \$remote_addr;
       proxy_set_header X-Forwarded-Proto \$scheme;
       proxy_read_timeout 3600s;
     }
