@@ -20,8 +20,9 @@ class CompanyProfile:
     call_goal: str
     holding_line: dict[str, str]
     escalation_label: dict[str, str]
-    # "en", "ar", or anything else for "same language as the customer".
-    card_language: str = "auto"
+    # "en", "ar", or anything else (e.g. "auto") for "same language as the customer".
+    # Platform default is English (D-018); a company can still choose otherwise.
+    card_language: str = "en"
     ai_answers_allowed: bool = True
     agent_context: bool = True
     backup_disabled: tuple[str, ...] = ()

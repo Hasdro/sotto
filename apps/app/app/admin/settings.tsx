@@ -13,7 +13,7 @@ export default function SettingsScreen() {
   const [aiAnswers, setAiAnswers] = useState(true);
   const [backup, setBackup] = useState(true);
   const [agentContext, setAgentContext] = useState(true);
-  const [cardLanguage, setCardLanguage] = useState<CardLanguage>("auto");
+  const [cardLanguage, setCardLanguage] = useState<CardLanguage>("en"); // D-018: English by default
   return (
     <Stack gap="xl" testID="admin-settings">
       <Text variant="body" tone="muted">
