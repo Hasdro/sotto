@@ -63,7 +63,7 @@ async def check_model_ids(
                 )
             except httpx.HTTPStatusError as e:
                 listed[route.base_url] = f"HTTP {e.response.status_code}"
-            except httpx.HTTPError as e:
+            except (httpx.HTTPError, ValueError) as e:  # ValueError: key/host mismatch, bad JSON
                 listed[route.base_url] = type(e).__name__
         ids = listed[route.base_url]
         status = ids if isinstance(ids, str) else ("ok" if route.model in ids else "missing")

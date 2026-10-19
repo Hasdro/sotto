@@ -122,3 +122,14 @@ def test_live_cli_refuses_without_the_primary_key(
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     assert main(["--live"]) == 1
     assert "GROQ_API_KEY is not set" in capsys.readouterr().out
+
+
+async def test_model_check_reports_a_key_bound_to_another_host() -> None:
+    server = ModelsServer()
+    config = RoutingConfig(
+        stages={"suggest": _route("m", "https://evil.example/v1", "GROQ_API_KEY")}
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(server)) as client:
+        results = await check_model_ids(config, {"GROQ_API_KEY": "gk"}, client)
+    assert results[0].status == "ValueError"
+    assert server.requests == []
