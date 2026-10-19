@@ -26,14 +26,14 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** owner answers applied (D-017, D-018, BRIEF, settings, `.env.example`). Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Next task:** P2.3 STT adapters for the four vendors (D-019); Deepgram, AssemblyAI and Speechmatics keys are in `.env`, ElevenLabs is not. The live LLM smoke test passed on 2026-10-20 (p95 ~840 ms).
+- **Phase:** P2.3 adapters done: LLM (Groq/Gemini live-tested) and real-time STT for Deepgram, AssemblyAI, Speechmatics and ElevenLabs (D-019). Phases 2, 3, 5, 6 and 7 are partly done (see task board).
+- **Next task:** T-007, cut STT final latency. Add `finalize()` to the STT adapters (Deepgram `Finalize`, AssemblyAI force-endpoint, Speechmatics `ForceEndOfUtterance`, ElevenLabs commit), called by the end-of-turn stage (P2.5/P4.4); then measure with `pnpm stt:live`.
 - **Without the owner:** axe accessibility checks in CI (P3.3), plan/trial banner (P3.5), P6.4 model settings with custom endpoints.
 - **Owner open items:** STT pick; keys into `.env`; retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies; playbook documents.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-20 (no Docker running, so `pnpm test:db` was not run; gitleaks now installed).
+- **Environment last used:** local Mac, 2026-10-20 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker running).
 - **Blockers:** live calls need LiveKit + the Yeastar trunk; playbook documents (P0.3); real recordings later.
-- **Next action:** `/spec` the STT adapter interface (streaming, finals, end-of-turn events), then build Deepgram first with mocked-WebSocket tests.
+- **Next action:** check each vendor's docs for its force-finalize message (source-driven-development), then TDD `finalize()` in `adapters/stt/`.
 
 ## Phase board
 
@@ -75,7 +75,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 2
 - [x] P2.1 Contracts and fake adapters — Clock/FakeClock, LLM/STT protocols, FakeLLM; contract tests (pytest)
 - [x] P2.2 Model router (per stage, per company, deadlines, fallback) — absolute t0 deadline, backup race, circuit per (company, endpoint), R1 guard; 13 tests
-- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); `pnpm replay:live` built and run live 2026-10-20: all 5 model IDs ok; p50 549–613 / p95 837–848 ms, agent cards 0 (after fix d8b10d1); STT pick-list in `docs/STT-OPTIONS.md`; per D-019, STT adapters for all four vendors (Deepgram, AssemblyAI, Speechmatics, ElevenLabs), selectable by setting; keys from the owner (`docs/PROVIDER-KEYS.md`) `owner`
+- [x] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×4. LLM: `pnpm replay:live` on Groq + Gemini, model IDs ok, p95 837–848 ms. STT: Deepgram, AssemblyAI, Speechmatics and ElevenLabs over raw WebSockets (spec/phase-2-stt.md), 20 tests, code-review fixes eb8ebdb. `pnpm stt:live`: Deepgram p50 829 ms WER 0%, AssemblyAI p50 667 ms WER 0%; Speechmatics free plan hit its concurrency quota (T-008); ElevenLabs has no key. The owner picks vendors by setting (D-019)
 - [x] P2.4 Prompt registry (seed/prompts, scopes, variables) — scopes, publish/rollback, strict render, platform fallback; 8 tests
 - [x] P2.5 Pipeline: turn → trigger → playbook → suggest → stream — CallSession + trigger rules + playbook index (drafting on partials still TODO)
 - [x] P2.6 R2 chain: backup, holding line, escalation record — holding at t0+1400, late answer ≤ 5 s, one escalation per question; session tests
@@ -184,6 +184,14 @@ Things only the owner can do, so the agent never waits silently.
   - `router.warm` must warm each stage separately (one `ModelFailsR1` skips both);
   - playbook lookup runs twice per turn; pass the result through.
 - **T-006** (2026-10-20) On Groq the primary misses its 700 ms first-token deadline in about 18% of turns. The backup (Gemini) races but has not won yet. Watch this on real recordings, and consider a lower `reasoning_effort` or a non-reasoning model for `suggest` if p95 climbs.
+- **T-007** (2026-10-20) **R1 risk: STT final latency.**
+  - Problem: synthetic speech gives 0.6–0.9 s from end of speech to the final transcript (Deepgram p50 829 ms, AssemblyAI 667 ms). The ARCHITECTURE §4 budget is 350 ms for end-of-turn + final STT. Add model first-token time (~430 ms) and the total p50 is about 1.2 s, so p95 is likely over 1.5 s on real calls.
+  - Plan:
+    1. a `finalize()` per adapter, triggered by our own end-of-turn decision (VAD + turn model), instead of waiting for the vendor's endpointing;
+    2. then compare Deepgram Flux (built-in end of turn);
+    3. drafting on partials (T-004).
+  - Measure with `pnpm stt:live`.
+- **T-008** (2026-10-20) Speechmatics on the free plan returns "Concurrent Quota Exceeded" on the third sequential clip. The free plan allows 2 sessions, and closed sessions seem to linger. Check whether the session close is graceful, or add a pause, before using it as a backup.
 - **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
   - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
   - GHSA-vfj7-8cjw-p6xm: braces via `metro-file-map`.
@@ -199,6 +207,32 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-20 (night) · local · Claude Opus 5.5 · P2.3 STT adapters ×4, `pnpm stt:live`
+- **Done:**
+  - Spec `spec/phase-2-stt.md`, from each vendor's official docs.
+  - Real-time STT adapters for Deepgram, AssemblyAI, Speechmatics and ElevenLabs, on one WebSocket runner (no vendor SDKs).
+  - `make_stt` binds each key to its vendor's host, over wss only, in a header.
+  - New `stt_backup` stage; the seed default is Deepgram primary + AssemblyAI backup (switchable, D-019).
+  - `pnpm stt:live` smoke test using macOS `say` speech.
+  - code-reviewer fixes.
+- **Evidence:**
+  - Worker pytest 241 passed (20 STT tests); `pnpm test`, `pnpm lint` and `pnpm typecheck` all exit 0.
+  - `pnpm stt:live`:
+
+    | Vendor | Final p50 | Max | WER |
+    |---|---|---|---|
+    | Deepgram | 829 ms | 892 ms | 0% |
+    | AssemblyAI | 667 ms | 733 ms | 0% |
+
+    Speechmatics: 2 of 3 clips, then a quota error (T-008).
+- **Tried and rejected:**
+  - Default model names in `replay/stt_live.py`: the boundary check forbids them, so they live in the adapters (a56bdd1).
+  - ElevenLabs treating the first commit after our end as "done": a VAD commit in flight could drop the last words.
+- **Next:** T-007, a force-finalize at our end-of-turn to bring STT finals under the 350 ms budget.
+- **Notes:**
+  - Lesson: the earlier `pnpm lint | grep` filter hid a boundary failure. Check exit codes, not filtered output.
+  - The audio is synthetic, so accuracy here is not the benchmark (P2.8).
 
 ### 2026-10-20 (later) · local · Claude Opus 5.5 · P2.3 live smoke test, R2 timer fix, D-019 plan
 - **Done:**

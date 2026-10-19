@@ -42,6 +42,17 @@ Next step after the owner picks:
 1. The owner creates the two accounts and puts the keys in `.env` on the Mac (`DEEPGRAM_API_KEY`, `ASSEMBLYAI_API_KEY`).
 2. Claude builds the two STT adapters (P2.3) and benchmarks them on the synthetic replay. The real benchmark follows when golden calls exist (P0.5).
 
+## First live measurement (2026-10-20, `pnpm stt:live`, synthetic speech)
+
+| Vendor | Final transcript after end of speech (p50 / max) | Word errors |
+|---|---|---|
+| Deepgram (nova-3) | 829 / 892 ms | 0% |
+| AssemblyAI (universal-streaming-english) | 667 / 733 ms | 0% |
+| Speechmatics (standard) | 458–500 ms; the 3rd clip hit the free plan's concurrency limit | (2 of 3 clips) |
+| ElevenLabs | not run (no key) | – |
+
+Both main candidates are accurate on clean speech. Both are slower than the 350 ms budget, because they wait for their own silence detection. The fix is on our side (tracker T-007).
+
 ## Sources (vendor pages, 2026-10-20)
 
 - Deepgram pricing: https://deepgram.com/pricing
