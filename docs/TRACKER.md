@@ -110,7 +110,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 ### Phase 6
 - [x] P6.1 Registry + router read from DB — `sotto_worker/config/db.py` (PostgREST, worker JWT); mocked-HTTP tests
-- [ ] P6.2 Prompt studio
+- [~] P6.2 Prompt studio — app: list → detail with scope, versions, draft editor with the variable catalogue and strict unknown-variable check, line diff vs live, publish and one-click rollback, on an in-memory store (`features/prompts/`, evidence `docs/evidence/p6.2/`). Pending: read/write `prompt_versions` in Supabase (audited by the DB trigger) and variable autocomplete inside the editor
 - [ ] P6.3 Test on recordings
 - [ ] P6.4 Model settings + custom endpoints + R1 guard
 - [ ] P6.5 Feature flags

@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppShell } from "../components/AppShell";
 import { EscalationStoreProvider } from "../features/escalations/store";
+import { PromptStoreProvider } from "../features/prompts/store";
 import { LocaleProvider, useI18n } from "../lib/locale";
 import { RoleProvider } from "../lib/role";
 
@@ -23,7 +24,9 @@ export default function RootLayout() {
     <LocaleProvider>
       <RoleProvider>
         <EscalationStoreProvider>
-          <Root />
+          <PromptStoreProvider>
+            <Root />
+          </PromptStoreProvider>
         </EscalationStoreProvider>
       </RoleProvider>
     </LocaleProvider>

@@ -5,6 +5,7 @@ import AdminLayout from "../app/admin/_layout";
 import TeamScreen from "../app/admin/index";
 import ModelsScreen from "../app/admin/models";
 import PromptsScreen from "../app/admin/prompts";
+import PromptDetailScreen from "../app/admin/prompts/[key]";
 import SettingsScreen from "../app/admin/settings";
 import CallDetailScreen from "../app/history/[id]";
 import HistoryScreen from "../app/history/index";
@@ -19,7 +20,8 @@ const routes = {
   inbox: InboxScreen,
   "admin/_layout": AdminLayout,
   "admin/index": TeamScreen,
-  "admin/prompts": PromptsScreen,
+  "admin/prompts/index": PromptsScreen,
+  "admin/prompts/[key]": PromptDetailScreen,
   "admin/models": ModelsScreen,
   "admin/settings": SettingsScreen,
 };
@@ -149,5 +151,27 @@ describe("mock screens", () => {
     expect(
       screen.getByText("Keep it to 25 words so the agent can say it from one card."),
     ).toBeOnTheScreen();
+  });
+
+  it("prompt studio: draft, publish, then roll back with one click (R6)", async () => {
+    await open("/admin/prompts/suggest");
+    expect(screen.getByText("Calls use v4")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("publish-5"));
+    expect(screen.getByText("Calls use v5")).toBeOnTheScreen();
+
+    await fireEvent.changeText(
+      screen.getByTestId("prompt-editor"),
+      "Company: {{company.name}}\nDeal: {{crm.deal.stage}}",
+    );
+    expect(screen.getByText("Not in this prompt's variables: crm.deal.stage")).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId("prompt-editor"), "Company: {{company.name}}");
+    await fireEvent.press(screen.getByTestId("var-company.tone"));
+    await fireEvent.press(screen.getByTestId("save-draft"));
+    expect(screen.getByText("+ Company: {{company.name}}{{company.tone}}")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("publish-6"));
+    expect(screen.getByText("Calls use v6")).toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByTestId("rollback-4"));
+    expect(screen.getByText("Calls use v4")).toBeOnTheScreen();
   });
 });

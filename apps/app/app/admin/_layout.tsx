@@ -38,7 +38,8 @@ function AdminLayout() {
           accessibilityLabel={t("admin.tabs")}
         >
           {TABS.map((tab) => {
-            const active = pathname === tab.href;
+            const active =
+              tab.href === "/admin" ? pathname === tab.href : pathname.startsWith(tab.href);
             return (
               <Link key={tab.href} href={tab.href} asChild>
                 <Pressable
