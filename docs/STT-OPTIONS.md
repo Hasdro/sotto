@@ -66,7 +66,7 @@ We now ask the vendor for the final 200 ms after the last word (Deepgram `Finali
 
 Speechmatics was the fastest in this test and accurate; with a 1.5 s pause between sessions its free-plan limit was not hit.
 
-## Spoken path, end to end (2026-10-21, `pnpm spoken:live`)
+## Spoken path, end to end (2026-10-20, `pnpm spoken:live`)
 
 The full path: browser-style audio → our VAD (300 ms of quiet) → forced final → card. The table shows the time from the end of each spoken sentence to its transcript. Cards from the playbook follow within 1 ms. Details are in D-021.
 

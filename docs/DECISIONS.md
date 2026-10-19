@@ -246,7 +246,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Reversible:** delete `deploy/` and run local only. The server code is also the local demo.
 
 ## D-021 — Default speech-to-text: AssemblyAI main, Speechmatics backup (was Deepgram + AssemblyAI)
-2026-10-21 · accepted by Claude under the owner's overnight instruction (reversible in Admin → Keys & providers; the owner reviews)
+2026-10-20 · accepted by Claude under the owner's overnight instruction (reversible in Admin → Keys & providers; the owner reviews)
 - **Evidence:** `pnpm spoken:live` on the full spoken path (browser-style 20 ms PCM → VAD 300 ms → forced final → pipeline), live keys, same five sentences:
 
   | Vendor | Transcript after end of speech | Whole sentences |
