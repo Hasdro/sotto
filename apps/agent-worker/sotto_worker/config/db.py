@@ -25,6 +25,7 @@ from sotto_worker.router import CompanyRouting, StageRoute
 from sotto_worker.router.config import BACKUP_STAGE
 
 DB_TIMEOUT_S = 2.0  # ENGINEERING §6
+PLATFORM_KEYED_PROVIDERS = frozenset({"anthropic", "openai"})
 
 
 class SupabaseRest:
@@ -72,6 +73,11 @@ async def load_company_config(
     backup_disabled: set[str] = set()
     rejected: list[str] = []
     for row in routes:
+        if row["provider"] in PLATFORM_KEYED_PROVIDERS:
+            # These adapters use the platform's own key; a company brings its own endpoint and key
+            # through openai_compatible instead (company secrets: Phase 6, D-016).
+            rejected.append(f"{row['stage']}: provider {row['provider']!r} needs a company key")
+            continue
         if row.get("base_url"):
             try:
                 check_endpoint(row["base_url"], deployment=deployment, resolve=resolve)

@@ -40,6 +40,23 @@ def test_live_stages_have_a_first_token_deadline_within_r2() -> None:
         assert 0 < deadline <= 700, f"{name}: R2 switches to backup after 700 ms"
 
 
+def test_backup_is_a_different_provider_host_than_the_primary() -> None:
+    # R2: one provider outage must not take out both the primary and the backup.
+    stages = _models()["stages"]
+    primary, backup = stages["suggest"], stages["suggest_backup"]
+    assert (primary["provider"], primary.get("base_url")) != (
+        backup["provider"],
+        backup.get("base_url"),
+    )
+
+
+def test_compatible_stages_name_their_key_and_use_https() -> None:
+    for name, cfg in _models()["stages"].items():
+        if cfg["provider"] == "openai_compatible" and cfg.get("api_key_env"):
+            assert str(cfg["base_url"]).startswith("https://"), name
+            assert re.fullmatch(r"[A-Z][A-Z0-9_]*_API_KEY", cfg["api_key_env"]), name
+
+
 def _prompt_files() -> list[Path]:
     files = sorted((SEED / "prompts").glob("*.md"))
     files = [f for f in files if f.name != "README.md"]

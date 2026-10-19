@@ -111,3 +111,48 @@ async def test_openai_compatible_endpoint_uses_base_url_and_max_tokens() -> None
     assert body["max_tokens"] == 80
     assert "max_completion_tokens" not in body
     assert llm.provider == "openai_compatible"
+
+
+GROQ_REASONING_BODY = (
+    b'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":'
+    b'[{"index":0,"delta":{"reasoning":"Price objection."},"finish_reason":null}]}\n\n'
+    b'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m","choices":'
+    b'[{"index":0,"delta":{"content":"ANSWER: Fair."},"finish_reason":null}]}\n\n'
+    b"data: [DONE]\n\n"
+)
+
+
+async def test_openai_compatible_passes_reasoning_effort_and_drops_reasoning_text() -> None:
+    # Groq streams gpt-oss reasoning in `delta.reasoning`; only `content` may reach the card.
+    rec = Recorder(GROQ_REASONING_BODY)
+    llm = OpenAILLM(
+        model="m",
+        api_key="g",
+        base_url="https://api.groq.com/openai/v1",
+        provider="openai_compatible",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(rec)),
+    )
+    req = LLMRequest(
+        system="s",
+        messages=[Message(role="user", content="u")],
+        max_tokens=300,
+        settings={"reasoning_effort": "low"},
+    )
+    assert "".join([c.text async for c in llm.stream(req)]) == "ANSWER: Fair."
+    body = rec.json()
+    assert body["reasoning_effort"] == "low"
+    assert body["max_tokens"] == 300
+    assert rec.requests[0].headers["authorization"] == "Bearer g"
+
+
+async def test_openai_compatible_omits_reasoning_effort_when_unset() -> None:
+    rec = Recorder(OPENAI_BODY)
+    llm = OpenAILLM(
+        model="m",
+        api_key="unused",
+        base_url="http://127.0.0.1:11434/v1",
+        provider="openai_compatible",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(rec)),
+    )
+    "".join([c.text async for c in llm.stream(REQ)])
+    assert "reasoning_effort" not in rec.json()

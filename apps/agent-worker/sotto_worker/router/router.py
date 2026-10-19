@@ -76,8 +76,8 @@ class ModelRouter:
         self._config = config
         self._factory = factory
         self._clock = clock
-        self._adapters: dict[tuple[str, str, str | None], LLMAdapter] = {}
-        self._circuits: dict[tuple[str, str, str, str | None], _Circuit] = {}
+        self._adapters: dict[tuple[str, str, str | None, str | None], LLMAdapter] = {}
+        self._circuits: dict[tuple[str, str, str, str | None, str | None], _Circuit] = {}
 
     def resolve(self, stage: Stage, company: CompanyRouting) -> StageRoute:
         route = company.overrides.get(stage) or self._config.stages.get(stage)
@@ -87,7 +87,8 @@ class ModelRouter:
 
     def adapter_for(self, stage: Stage, company: CompanyRouting) -> LLMAdapter:
         route = self.resolve(stage, company)
-        key = (route.provider, route.model, route.base_url)
+        # api_key_env is part of the identity: same endpoint, different key = different adapter.
+        key = (route.provider, route.model, route.base_url, route.api_key_env)
         adapter = self._adapters.get(key)
         if adapter is None:
             adapter = self._adapters[key] = self._factory(route)
@@ -112,7 +113,7 @@ class ModelRouter:
         return backup
 
     def _circuit(self, company: CompanyRouting, route: StageRoute) -> _Circuit:
-        key = (company.company_id, route.provider, route.model, route.base_url)
+        key = (company.company_id, route.provider, route.model, route.base_url, route.api_key_env)
         circuit = self._circuits.get(key)
         if circuit is None:
             circuit = self._circuits[key] = _Circuit(self._clock)

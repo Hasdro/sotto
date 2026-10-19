@@ -163,3 +163,23 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - `supabase/functions` is a pnpm workspace package (`@sotto/functions`). Each function's decisions live in a pure module (for example `livekit-token/policy.ts`) with vitest tests.
   - The Deno entry point only loads rows (caller JWT, so RLS applies), calls the policy, and talks to providers through `_shared/adapters/`.
 - **Why:** Cloud sessions have no Deno or Supabase runtime. Pure policies keep the security decisions tested in CI: membership, plan or trial, device revocation, destination allowlist, rate limit and least-privilege grants.
+
+## D-016 — No Claude models; free OpenAI-compatible providers by default, keys bound to their host
+2026-10-19 · accepted (owner: "I won't use Claude model so keep the llm vendor open … I'll start using free AI providers")
+- **Decision:**
+  - `seed/models/default.yaml` routes every LLM stage to free OpenAI-compatible providers. Groq (open gpt-oss models) is the primary for `trigger`, `suggest` and `summary`; Google Gemini, through its OpenAI endpoint, is the R2 backup and the judge. Nothing needs an Anthropic key. The Anthropic and OpenAI adapters stay, so any company can still choose them (R6).
+  - A route names its platform key with `api_key_env`. `adapters/factory.py` sends each platform key only to its provider's host over https (`COMPATIBLE_KEY_HOSTS`). Rows from the database can't set `api_key_env`, and a route without one gets no secret.
+  - This closes older gaps found in a security review. `OPENAI_COMPATIBLE_API_KEY` used to go to any `openai_compatible` base URL, including one a company admin chose; it is no longer read. A company row with provider `openai` and its own base URL used to receive `OPENAI_API_KEY`.
+  - The `openai` and `anthropic` adapters now refuse any base URL other than their official host. Company rows (`model_routes`) may not use them until per-company secrets exist (Phase 6), because those adapters run on the platform's key.
+  - The router caches adapters and circuits per key name too, so a keyless company copy of a platform route can never share its adapter.
+- **Why:**
+  - The owner doesn't use Claude and wants to start free.
+  - Groq has the fastest free first token, which matters most for R1. Gemini is a different company, so one outage can't take out both (R2).
+- **Risks:**
+  - Free tiers have rate limits (about 30 requests a minute on Groq) and may train on inputs (the Gemini free tier). They are for development and test calls only. Before real customer calls, switch to paid no-training tiers; that is a settings change.
+  - Model IDs change. P2.3 checks them on the golden set, and a renamed model shows up as holding lines, never as a crash.
+- **Rejected:**
+  - OpenRouter free models as the primary: a 50-requests-a-day cap.
+  - Cerebras: its permanent free tier ended in mid-2026.
+  - A local model as the primary: laptop latency misses R1 (P2.9 measures it).
+

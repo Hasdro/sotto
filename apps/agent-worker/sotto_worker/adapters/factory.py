@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from urllib.parse import urlsplit
 
 from sotto_worker.adapters.llm.fake import FakeLLM
 from sotto_worker.clock import Clock
@@ -10,6 +11,14 @@ from sotto_worker.contracts import LLMAdapter, LLMRequest
 from sotto_worker.router import StageRoute
 
 API_KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
+PROVIDER_HOSTS = {"anthropic": "api.anthropic.com", "openai": "api.openai.com"}
+# Platform keys for OpenAI-compatible providers, each bound to the one host it may be sent to,
+# so a company-chosen endpoint (Phase 6) can never receive a platform key (D-016).
+COMPATIBLE_KEY_HOSTS = {
+    "GROQ_API_KEY": "api.groq.com",
+    "GEMINI_API_KEY": "generativelanguage.googleapis.com",
+    "OPENROUTER_API_KEY": "openrouter.ai",
+}
 
 
 class MissingCredentials(RuntimeError):
@@ -35,30 +44,58 @@ def make_llm(route: StageRoute, *, clock: Clock, env: Mapping[str, str]) -> LLMA
     if route.provider == "anthropic":
         from sotto_worker.adapters.llm.anthropic import AnthropicLLM
 
-        return AnthropicLLM(model=route.model, api_key=_key(route.provider, env))
+        if route.base_url:
+            _check_host(API_KEY_ENV["anthropic"], PROVIDER_HOSTS["anthropic"], route.base_url)
+        return AnthropicLLM(model=route.model, api_key=_key(API_KEY_ENV["anthropic"], env))
     if route.provider in ("openai", "openai_compatible"):
         from sotto_worker.adapters.llm.openai import OpenAILLM
 
-        key = (
-            _key(route.provider, env)
-            if route.provider == "openai"
-            else env.get("OPENAI_COMPATIBLE_API_KEY", "unused")
-        )
+        if route.provider == "openai":
+            if route.base_url:
+                _check_host(API_KEY_ENV["openai"], PROVIDER_HOSTS["openai"], route.base_url)
+            key = _key(API_KEY_ENV["openai"], env)
+        elif route.api_key_env:
+            _check_key_host(route.api_key_env, route.base_url)
+            key = _key(route.api_key_env, env)
+        else:
+            key = "unused"  # local or self-hosted endpoint without auth (Ollama, vLLM, …)
         return OpenAILLM(
             model=route.model, api_key=key, base_url=route.base_url, provider=route.provider
         )
     raise ValueError(f"unknown provider {route.provider!r}")
 
 
-def _key(provider: str, env: Mapping[str, str]) -> str:
-    name = API_KEY_ENV[provider]
+def key_env(route: StageRoute) -> str | None:
+    """The env var a route needs, or None when it needs no secret."""
+    if route.provider == "openai_compatible":
+        return route.api_key_env
+    return API_KEY_ENV.get(route.provider)
+
+
+def has_credentials(route: StageRoute, env: Mapping[str, str]) -> bool:
+    name = key_env(route)
+    return name is None or bool(env.get(name, ""))
+
+
+def _check_key_host(name: str, base_url: str | None) -> None:
+    host = COMPATIBLE_KEY_HOSTS.get(name)
+    if host is None:
+        raise ValueError(f"{name} is not a known provider key; add it to COMPATIBLE_KEY_HOSTS")
+    _check_host(name, host, base_url)
+
+
+def _check_host(name: str, host: str, base_url: str | None) -> None:
+    parts = urlsplit(base_url or "")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError(f"{name}: base_url must not carry user info")
+    if parts.hostname != host:
+        raise ValueError(f"{name} may only be sent to {host}, not {parts.hostname or 'no host'}")
+    if parts.scheme != "https":
+        raise ValueError(f"{name} may only be sent over https")
+
+
+def _key(name: str, env: Mapping[str, str]) -> str:
     value = env.get(name, "")
     if not value:
         raise MissingCredentials(f"{name} is not set")
     return value
-
-
-def has_credentials(provider: str, env: Mapping[str, str]) -> bool:
-    if provider in ("fake", "openai_compatible"):
-        return True
-    return bool(env.get(API_KEY_ENV.get(provider, ""), ""))

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from sotto_worker.adapters.factory import has_credentials, make_llm
+from sotto_worker.adapters.factory import has_credentials, key_env, make_llm
 from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
 from sotto_worker.playbook import PlaybookIndex
@@ -40,21 +40,21 @@ def build_demo_runtime(
     company = CompanyProfile.load(DEMO / "company.yaml")
     notes: list[str] = []
     primary = config.stages["suggest"]
-    if force_fake or not has_credentials(primary.provider, env):
+    if force_fake or not has_credentials(primary, env):
         fake = StageRoute(provider="fake", model="demo-fake", first_token_ms=primary.first_token_ms)
         stages = {**config.stages, "suggest": fake}
         stages.pop("suggest_backup", None)
         config = RoutingConfig(stages=stages)
         mode: Literal["fake", "live"] = "fake"
-        notes.append("fake models: set ANTHROPIC_API_KEY in .env for real suggestions")
+        notes.append(f"fake models: set {key_env(primary)} in .env for real suggestions")
     else:
         mode = "live"
         backup = config.stages.get("suggest_backup")
-        if backup is not None and not has_credentials(backup.provider, env):
+        if backup is not None and not has_credentials(backup, env):
             company = dataclasses.replace(
                 company, backup_disabled=(*company.backup_disabled, "suggest_backup")
             )
-            notes.append(f"backup off: no credentials for {backup.provider}")
+            notes.append(f"backup off: set {key_env(backup)} in .env to enable it")
     router = ModelRouter(config, lambda route: make_llm(route, clock=clock, env=env), clock)
     return Runtime(
         company=company,

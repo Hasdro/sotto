@@ -3,9 +3,12 @@
 # (scripts/check-boundaries.sh). Companies override it from the DB in Phase 6.
 #
 # provider: the adapter name under sotto_worker/adapters/ (anthropic, openai, openai_compatible, fake, ...)
+# api_key_env: for openai_compatible, the env var with the platform key; it is only ever sent to
+#   that provider's own host (adapters/factory.py COMPATIBLE_KEY_HOSTS).
 # first_token_ms: deadline for the first streamed token; after it the router races the backup (R2).
 #
-# Status 2026-10-18: model IDs are working defaults (D-009). P2.3 benchmarks them on the golden set
+# Status 2026-10-19: free providers by default, no Anthropic key needed (D-016); model IDs are
+# working defaults (D-009). P2.3 benchmarks them on the golden set
 # before any stage goes live; a stage whose benchmark misses R1 must not use the model.
 version: 1
 stages:
@@ -16,33 +19,49 @@ stages:
     provider: fake          # TODO(P2.5): LiveKit end-of-turn model
     model: fake-turn
   trigger:
-    provider: anthropic
-    model: claude-haiku-5-5
+    provider: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-20b
     first_token_ms: 400
     settings:
-      thinking: { type: disabled }
+      max_tokens: 200
+      reasoning_effort: low
   suggest:
-    provider: anthropic
-    model: claude-haiku-5-5
+    # Groq free tier (D-016): open model on Groq's own chips; fastest first token we can get free.
+    provider: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-20b
     first_token_ms: 700
     settings:
-      max_tokens: 120
+      max_tokens: 300        # gpt-oss counts its (low-effort) reasoning tokens in this limit
       temperature: 0.2
-      thinking: { type: disabled }   # no hidden reasoning before the first visible word (R1)
+      reasoning_effort: low  # keep hidden reasoning short so the first visible word stays early (R1)
   suggest_backup:
-    provider: openai
-    model: gpt-5.4-mini     # verify the current ID at https://platform.openai.com/docs/models in P2.3
+    # A different company from the primary, so one outage cannot take out both (R2).
+    provider: openai_compatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: gemini-2.5-flash  # verify the current ID with GET {base_url}models in P2.3
     first_token_ms: 700
     settings:
       max_tokens: 120
       temperature: 0.2
-      reasoning_effort: minimal
+      reasoning_effort: none # no thinking before the first visible word (R1)
   summary:
-    provider: anthropic
-    model: claude-sonnet-5-5
+    provider: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-120b
+    settings:
+      reasoning_effort: medium
   embed:
     provider: fake          # TODO(P2.4): embeddings provider for playbook lookup
     model: fake-embed
   judge:
-    provider: anthropic
-    model: claude-sonnet-5-5
+    # A different model family from the suggester, so the judge does not grade its own style.
+    provider: openai_compatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: gemini-2.5-flash

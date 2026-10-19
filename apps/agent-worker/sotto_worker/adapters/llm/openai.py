@@ -4,6 +4,8 @@ vLLM, LM Studio, Groq, OpenRouter, …) via `base_url` (R6).
 Docs: https://platform.openai.com/docs/api-reference/chat/create (stream=true) and
 https://github.com/ollama/ollama/blob/main/docs/openai.md. Checked against openai 3.35.1.
 OpenAI models take `max_completion_tokens`; compatible servers get the classic `max_tokens`.
+`reasoning_effort` is passed when the route sets it (Groq gpt-oss, Gemini's OpenAI endpoint).
+Reasoning streamed in `delta.reasoning` is dropped: only `content` reaches the card.
 """
 
 from __future__ import annotations
@@ -58,6 +60,8 @@ class OpenAILLM:
         else:
             kwargs["max_tokens"] = req.max_tokens
             kwargs["temperature"] = req.temperature
+            if "reasoning_effort" in req.settings:
+                kwargs["reasoning_effort"] = req.settings["reasoning_effort"]
         stream = await self._client.chat.completions.create(**kwargs)
         async for chunk in stream:
             if chunk.choices and chunk.choices[0].delta.content:

@@ -26,10 +26,11 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** autonomous overnight run (D-013) finished. The local demo works (`pnpm demo`, `docs/RUN-ON-MAC.md`). Phases 0–1 wait on owner review; Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Next task:** after the owner tries the demo, P2.3 STT adapters (vendor choice) or P4.1 live calls (accounts). Without the owner: P3.5 role switch, P6.2 prompt studio UI, P7.2 escalation → playbook flow.
+- **Phase:** the owner tried the demo (2026-10-19) and asked to continue. No Claude models: free providers by default (D-016, Groq + Gemini). Phases 0–1 wait on the owner's answers; Phases 2, 3, 5, 6 and 7 are partly done (see task board).
+- **Owner answers:** the "Sotto Owner Decisions" page, https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. Read it with ArtifactData `get` collection `answers`, doc `owner`. Apply submitted answers to BRIEF.md and DECISIONS.md. The project map page is https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s; keep its phase data in step with this tracker.
+- **Next task:** without the owner: P3.5 role switch, P6.2 prompt studio UI, P7.2 inbox wiring. With keys: P2.3 live smoke test on Groq/Gemini; STT vendor test.
 - **Branch:** `claude/friendly-gates-fbhqdv` (all phases this run, D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** cloud, 2026-10-18 (local Postgres 16 + pgTAP installed by apt in-session; no Docker, simulators, Ollama or API keys)
+- **Environment last used:** cloud, 2026-10-19 (no Docker, simulators, Ollama or API keys; local Postgres + pgTAP via apt when needed)
 - **Blockers:** live calls need owner accounts (LiveKit, SIP, STT vendor); real golden calls (P0.5); the owner's playbook content (P0.3)
 - **Next action:** read the newest session log entry → **Next**; run `pnpm install && (cd apps/agent-worker && uv sync) && pnpm test && pnpm replay --all && pnpm test:db` to confirm a green start.
 
@@ -73,7 +74,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 2
 - [x] P2.1 Contracts and fake adapters — Clock/FakeClock, LLM/STT protocols, FakeLLM; contract tests (pytest)
 - [x] P2.2 Model router (per stage, per company, deadlines, fallback) — absolute t0 deadline, backup race, circuit per (company, endpoint), R1 guard; 13 tests
-- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); STT adapters + live smoke test need a vendor choice + keys `owner`
+- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); STT adapters + live smoke test need a vendor choice + keys `owner`
 - [x] P2.4 Prompt registry (seed/prompts, scopes, variables) — scopes, publish/rollback, strict render, platform fallback; 8 tests
 - [x] P2.5 Pipeline: turn → trigger → playbook → suggest → stream — CallSession + trigger rules + playbook index (drafting on partials still TODO)
 - [x] P2.6 R2 chain: backup, holding line, escalation record — holding at t0+1400, late answer ≤ 5 s, one escalation per question; session tests
@@ -146,7 +147,7 @@ Things only the owner can do, so the agent never waits silently.
   - then run `sudo xcode-select -s /Applications/Xcode.app && sudo xcodebuild -license accept`.
 - [ ] Open Android Studio once and let it install the Android SDK and an emulator
 - [ ] Accounts, when their phase arrives:
-  - Phase 2: Anthropic, OpenAI, 2 STT vendors
+  - Phase 2: Groq + Google AI Studio (free, D-016); 3 STT vendors for the comparison (Deepgram, Speechmatics, AssemblyAI; free credits)
   - Phase 4: LiveKit Cloud + SIP trunk, Apple Developer, Google Play
   - Phase 1/5: Supabase dev project
   - Phase 7: Resend/Postmark
@@ -154,7 +155,9 @@ Things only the owner can do, so the agent never waits silently.
 - [ ] Cloud sessions: set the API keys as environment secrets, and allow network access to the vendors' domains
 - [ ] Trademark and domain check for "Sotto" (D-001)
 - [ ] Let Claude write `.env.example`. The deny rule `Read(./.env.*)` in `.claude/settings.json` also blocks `.env.example`. Suggested: add an allow rule for `./.env.example`. Until then `docs/ENV.md` lists the variables.
-- [ ] Try the demo on the Mac: `docs/RUN-ON-MAC.md` (`pnpm demo`). Optional: put `ANTHROPIC_API_KEY` in `.env` for real suggestions.
+- [x] Try the demo on the Mac (owner, 2026-10-19: "looks nice")
+- [ ] Answer the decisions page: https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
+- [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com). Put them in cloud environment secrets and in `.env` on the Mac. Steps are on the project map page: https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
 - [ ] Review the design direction (D-014) and the screenshots in `docs/evidence/p3/` and `docs/evidence/demo/`
 - [ ] Approve or edit two Claude Code hook changes in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
   - **Stop hook:** send stdout to stderr, `{ pnpm -s typecheck && pnpm -s test; } 1>&2 || exit 2`, so Claude sees the tsc and pytest errors. Also exit 0 when the hook input has `"stop_hook_active": true`, so a machine without `uv` cannot trap the session.

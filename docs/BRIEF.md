@@ -37,7 +37,7 @@ Claude interviews you in Phase 0 (`docs/phases/phase-0-brief.md`, task P0.1) and
 
 ## Models and prompts
 - Default providers per stage; which companies need local / open-source models?
-  - ASSUMED: Anthropic is the primary for suggestions and OpenAI is the backup (R2). STT uses two vendors chosen by the P2.3 benchmark. Exact model IDs live only in `seed/models/default.yaml`.
+  - OWNER (2026-10-19): no Claude/Anthropic models; start on free providers and keep the vendor open (D-016). Default: Groq (open models) is the primary for suggestions and Google Gemini the backup (R2). STT uses two vendors chosen by the P2.3 benchmark. Exact model IDs live only in `seed/models/default.yaml`.
   - ASSUMED: none of the first companies needs a local model. The OpenAI-compatible adapter is still built (R6).
 - Who may edit prompts: platform owner only, or company admins too?
   - ASSUMED: both, per R3. The platform owner edits platform-level prompts; company admins edit their company, team and campaign levels.

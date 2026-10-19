@@ -17,7 +17,7 @@ Customer phone ──PSTN──▶ SIP trunk (Yeastar or carrier) ──SIP─�
         ▼                                                          ├─ end-of-turn model
  Supabase: Postgres + RLS, Auth, Storage, Edge Functions           ├─ playbook index (pgvector)
    ├─ livekit-token (mints room tokens, dispatches the worker,     ├─ model router → LLM adapters
-   │   dials the customer)                                         │    (Anthropic, OpenAI, OpenAI-compatible)
+   │   dials the customer)                                         │    (OpenAI-compatible: Groq, Gemini, …)
    ├─ escalation-email (outbox → email adapter)                    ├─ prompt registry
    └─ admin actions (audited)                                      └─ telemetry (card_timings)
 ```

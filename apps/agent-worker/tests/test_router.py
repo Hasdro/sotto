@@ -245,3 +245,21 @@ async def test_cancelling_the_stream_leaves_no_tasks_behind() -> None:
         await task
     await clock.advance(10)
     assert asyncio.all_tasks() == {asyncio.current_task()}
+
+
+def test_adapters_with_different_key_names_are_never_shared() -> None:
+    # A company route identical to the platform's except for its key must get its own adapter,
+    # or one tenant's keyless adapter (or the platform key) leaks to the other (D-016).
+    groq = "https://api.groq.com/openai/v1"
+    platform = StageRoute("openai_compatible", "m", base_url=groq, api_key_env="GROQ_API_KEY")
+    company_copy = StageRoute("openai_compatible", "m", base_url=groq)
+    seen: list[StageRoute] = []
+
+    def factory(route: StageRoute) -> LLMAdapter:
+        seen.append(route)
+        return FakeLLM(clock=FakeClock(), model=route.model, text="ok")
+
+    router = ModelRouter(RoutingConfig(stages={"summary": platform}), factory, FakeClock())
+    router.adapter_for("summary", CompanyRouting("a", overrides={"summary": company_copy}))
+    router.adapter_for("summary", CompanyRouting("b"))
+    assert [r.api_key_env for r in seen] == [None, "GROQ_API_KEY"]

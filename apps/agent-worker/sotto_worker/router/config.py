@@ -20,6 +20,9 @@ class StageRoute:
     settings: dict[str, Any] = field(default_factory=dict)
     # For openai_compatible endpoints (Ollama, vLLM, LM Studio, Groq, OpenRouter, …).
     base_url: str | None = None
+    # Name of the platform env var holding this endpoint's key (seed only, never from the DB);
+    # the adapter factory sends it only to that provider's own host.
+    api_key_env: str | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,7 @@ class RoutingConfig:
                 first_token_ms=cfg.get("first_token_ms"),
                 settings=dict(cfg.get("settings") or {}),
                 base_url=cfg.get("base_url"),
+                api_key_env=cfg.get("api_key_env"),
             )
         return cls(stages=stages)
 

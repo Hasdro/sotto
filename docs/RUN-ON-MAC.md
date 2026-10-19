@@ -40,14 +40,17 @@ The demo company, **Palm Grove Realty (demo)**, is fictional (`seed/demo/`). You
 
 ## 3. Real AI suggestions (optional)
 
-Without a key, the demo uses fake models. For real ones, create a file named `.env` in the repo folder with:
+Without a key, the demo uses fake models. Real ones are free (D-016):
+
+1. Create a Groq key at console.groq.com (free, no card). Optional: a Google AI Studio key at aistudio.google.com for the backup model.
+2. Create a file named `.env` in the repo folder (`touch .env && open -e .env`) with:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...        # optional: backup model (R2)
+GROQ_API_KEY=gsk_...
+GEMINI_API_KEY=...           # optional: backup model (R2)
 ```
 
-Run `pnpm demo` again. The terminal says `live models`. Never commit `.env`; git ignores it already. The full list of variables is in `docs/ENV.md`.
+Run `pnpm demo` again. The terminal says `live models`. If a provider renames a model, cards fall back to the holding line; tell Claude and it updates `seed/models/default.yaml`. Never commit `.env`; git ignores it already. The full list of variables is in `docs/ENV.md`.
 
 ## 4. Checks you can run
 

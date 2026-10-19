@@ -21,7 +21,17 @@ ROWS = {
             "base_url": "http://10.0.0.5:8000/v1",
             "settings": {"max_tokens": 90},
             "backup_allowed": False,
+            # A company row must never name a platform key (D-016); the loader ignores it.
+            "api_key_env": "GROQ_API_KEY",
         },
+        # Platform-keyed providers would run on (or leak) the platform's key: rejected (D-016).
+        {
+            "stage": "summary",
+            "provider": "openai",
+            "model": "x",
+            "base_url": "https://attacker.example/v1",
+        },
+        {"stage": "judge", "provider": "anthropic", "model": "x"},
     ],
     "prompt_versions": [
         {
@@ -78,6 +88,9 @@ async def test_loads_routes_prompts_and_playbook_with_the_worker_jwt() -> None:
     )
     assert "suggest_backup" in config.routing.backup_disabled
     assert config.playbook.lookup("is there parking") is not None
+    assert "summary" not in config.routing.overrides
+    assert "judge" not in config.routing.overrides
+    assert [r.split(":")[0] for r in config.rejected] == ["summary", "judge"]
 
 
 async def test_company_prompt_overrides_the_platform_seed() -> None:
@@ -102,7 +115,8 @@ async def test_router_uses_the_db_override_for_the_next_call() -> None:
     base = RoutingConfig.load(REPO_ROOT / "seed" / "models" / "default.yaml")
     router = ModelRouter(base, lambda r: pytest.fail("not built"), FakeClock())
     assert router.resolve("suggest", config.routing).model == "llama-local"
-    assert router.resolve("summary", config.routing).provider == "anthropic"  # platform default
+    assert router.resolve("suggest", config.routing).api_key_env is None
+    assert router.resolve("summary", config.routing) == base.stages["summary"]  # platform default
 
 
 async def test_http_errors_raise() -> None:
