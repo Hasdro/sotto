@@ -101,7 +101,11 @@ Real since P1.3/P1.4. Run from the repo root.
 | Regenerate card protocol (JSON Schema + pydantic) | `pnpm gen` |
 | Boundary checks | `bash scripts/check-boundaries.sh` |
 | Database tests (RLS) | `supabase test db` (needs Docker, local only) |
-| Latency + quality replay | `pnpm replay --all` (stub until P2.8: exits 0 only when there are no golden calls) |
+| Latency + quality replay | `pnpm replay --all` (synthetic until P2.8 golden calls); `pnpm replay:live` with real keys |
+| STT vendors, live | `pnpm stt:live` (Mac `say`, keys in `.env`) |
+| Spoken path, end to end | `pnpm spoken:live [--url https://… --code …]` against a running server |
+| Local demo / server | `pnpm demo` (D-020 server in local mode) |
+| Deploy to the owner's server | `deploy/push.sh root@<ip> [domain]` (see `deploy/README.md`) |
 | Environment check | `scripts/doctor.sh` |
 
 ## Git

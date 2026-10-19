@@ -2,7 +2,9 @@
 
 **You choose the vendors; Claude only takes the keys.** Every vendor below plugs into the same slot, so you can switch later without new code (R6, D-019).
 
-**Where keys go today:** `.env` at the repo root on your Mac (D-017). Create it once:
+**Where keys go:**
+- **In the app (recommended, D-020):** go to Admin → **Keys & providers**. Each vendor has a "Get a key" link, the steps, a field to paste the key, and a **Test** button. Below the vendors, pick which vendor does each job. Keys are encrypted on the Sotto server and never shown again. On your hosted server this is the only place for keys.
+- **Or `.env` on your Mac** for the local demo (D-017). Create it once:
 
 ```bash
 cd ~/Documents/GitHub/sotto && cp -n .env.example .env && open -e .env
@@ -10,7 +12,7 @@ cd ~/Documents/GitHub/sotto && cp -n .env.example .env && open -e .env
 
 Paste each key after its `=`, save, and tell Claude "the X key is set". Never paste a key into chat, a page, an email or a screenshot.
 
-**Later:** the admin panel's **Keys & providers** screen (P6.7) replaces `.env`. It has the same "Get a key" links and a "Test connection" button for each vendor.
+The panel's vendor list, links and steps come from `seed/models/providers.yaml`, and this page explains the same steps in more detail.
 
 Links were checked on 2026-10-20. Vendors move their menus, so if a link lands on a dashboard, use the menu path given.
 
