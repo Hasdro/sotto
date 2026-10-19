@@ -1,7 +1,8 @@
 /** Mock call history (Phase 3, no real data). Fictional customers of the demo company. */
 import type { CardSource, CardType } from "@sotto/shared";
 
-export type Outcome = "meeting" | "followUp" | "lost";
+/** "practice": a call made on the demo server (D-020), not a real customer. */
+export type Outcome = "meeting" | "followUp" | "lost" | "practice";
 
 export type PastCard = { type: CardType; source: CardSource; text: string; atMs: number };
 export type PastLine = { speaker: "customer" | "agent"; text: string; atMs: number };

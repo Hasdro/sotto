@@ -46,6 +46,7 @@ class Call:
         self._lock = asyncio.Lock()
         self.timings: list[CardTimingRecord] = []
         self.transcript: list[dict[str, Any]] = []
+        self._card_text: dict[str, str] = {}  # card_id -> text so far (cards stream in deltas)
         self.playback: asyncio.Task[None] | None = None
         self.warmup: asyncio.Task[None] | None = None
         self.keep_warm: asyncio.Task[None] | None = None
@@ -87,14 +88,28 @@ class Call:
 
     async def _card(self, card: CardMessage) -> None:
         wire = json.loads(card.to_wire())
+        card_id = str(wire.get("card_id"))
+        text = self._card_text.get(card_id, "") + str(wire.get("delta") or "")
         if wire.get("done"):
-            self.transcript.append(
-                {"kind": "card", "source": wire.get("source"), "at_ms": self._at()}
-            )
+            self._card_text.pop(card_id, None)
+            if text.strip():
+                self.transcript.append(
+                    {
+                        "kind": "card",
+                        "type": wire.get("type"),
+                        "source": wire.get("source"),
+                        "text": text.strip(),
+                        "at_ms": self._at(),
+                    }
+                )
+        else:
+            self._card_text[card_id] = text
         await self.send({"type": "card", "card": wire})
 
     async def _escalation(self, escalation: Escalation) -> None:
-        self.transcript.append({"kind": "escalation", "text": escalation.question})
+        self.transcript.append(
+            {"kind": "escalation", "text": escalation.question, "at_ms": self._at()}
+        )
         await self.send({"type": "escalation", "question": escalation.question})
 
     def _timing(self, record: CardTimingRecord) -> None:
@@ -108,7 +123,9 @@ class Call:
     async def turn(self, event: TranscriptEvent, t0_ms: int) -> None:
         """A finished turn: show it, then run the pipeline with t0 = end of speech (R1)."""
         at = max(event.end_ms - self._started_ms, 0)
-        self.transcript.append({"kind": "line", "speaker": event.speaker, "text": event.text})
+        self.transcript.append(
+            {"kind": "line", "speaker": event.speaker, "text": event.text, "at_ms": at}
+        )
         await self.send(
             {"type": "transcript", "speaker": event.speaker, "text": event.text, "at_ms": at}
         )

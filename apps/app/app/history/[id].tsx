@@ -16,6 +16,7 @@ import { StyleSheet, View } from "react-native";
 import { cardStrings, clock } from "../../features/call/components/strings";
 import { findCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
+import { useServerCall } from "../../features/history/server";
 import { formatDateTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 import { useIsWide } from "../../lib/responsive";
@@ -24,7 +25,9 @@ export default function CallDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, locale } = useI18n();
   const wide = useIsWide();
-  const call = findCall(String(id));
+  const sample = findCall(String(id));
+  const fromServer = useServerCall(String(id), sample !== undefined);
+  const call = sample ?? (typeof fromServer === "string" ? undefined : fromServer);
   const back = (
     <Button
       variant="ghost"
@@ -32,6 +35,9 @@ export default function CallDetailScreen() {
       onPress={() => router.push("/history")}
     />
   );
+  if (!call && fromServer === "loading") {
+    return <Screen style={styles.center}>{null}</Screen>;
+  }
   if (!call) {
     return (
       <Screen style={styles.center}>
@@ -91,9 +97,11 @@ export default function CallDetailScreen() {
         </Text>
         <View style={styles.metaRow}>
           <Badge tone={OUTCOME_TONE[call.outcome]} label={t(`history.outcome.${call.outcome}`)} />
-          <Text variant="body" tone="muted">
-            {call.company}
-          </Text>
+          {call.company ? (
+            <Text variant="body" tone="muted">
+              {call.company}
+            </Text>
+          ) : null}
           <Text variant="body" tone="muted">
             {formatDateTime(call.startedAt, locale)}
           </Text>

@@ -129,6 +129,9 @@ const en = {
   "history.outcome.meeting": "Meeting booked",
   "history.outcome.followUp": "Follow-up",
   "history.outcome.lost": "Not interested",
+  "history.outcome.practice": "Practice call",
+  "history.yours": "Calls on this server",
+  "history.samples": "Sample calls",
 
   "playbook.title": "Playbook",
   "playbook.subtitle": "Approved answers. Sotto uses these first.",
@@ -386,6 +389,9 @@ const ar: Record<StringKey, string> = {
   "history.outcome.meeting": "تم حجز موعد",
   "history.outcome.followUp": "متابعة",
   "history.outcome.lost": "غير مهتم",
+  "history.outcome.practice": "مكالمة تدريبية",
+  "history.yours": "المكالمات على هذا الخادم",
+  "history.samples": "مكالمات نموذجية",
 
   "playbook.title": "الدليل",
   "playbook.subtitle": "إجابات معتمدة. يستخدمها سوتو أولًا.",

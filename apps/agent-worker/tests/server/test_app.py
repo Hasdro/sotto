@@ -61,11 +61,15 @@ def test_typed_question_gets_a_playbook_card_and_is_kept_in_history(
     assert calls[0]["title"] == "Typed call"
     assert calls[0]["cards"] == 1
     detail = client.get(f"/api/calls/{calls[0]['id']}").json()
-    assert detail["transcript"][0] == {
-        "kind": "line",
-        "speaker": "customer",
-        "text": "What's the payment plan?",
-    }
+    line, shown = detail["transcript"][:2]
+    assert (line["kind"], line["speaker"], line["text"]) == (
+        "line",
+        "customer",
+        "What's the payment plan?",
+    )
+    assert shown["kind"] == "card"
+    assert shown["source"] == "playbook"
+    assert shown["text"] == cards[0]["delta"] + "".join(c["delta"] for c in cards[1:])
 
 
 def test_scenario_playback_never_carries_agent_cards(make_client: MakeClient) -> None:
