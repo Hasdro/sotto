@@ -307,13 +307,13 @@ async def test_a_streaming_answer_is_closed_by_its_hard_deadline() -> None:
 
 async def test_prompt_is_split_into_a_cacheable_company_prefix_and_the_turn() -> None:
     h = make()
-    await h.say("customer", "Do you allow pets in the building?", at_ms=1000)
+    await h.say("customer", "Can I keep my cat in the building?", at_ms=1000)
     await h.say("customer", "Is there a school nearby?", at_ms=9000)
     first, second = h.primary.requests[0], h.primary.requests[1]
     assert first.system == second.system == first.cacheable_prefix
     assert "Palm Grove Realty (demo)" in first.system
-    assert "pets" not in first.system
-    assert "pets" in first.messages[0].content
+    assert "cat" not in first.system.split()
+    assert "cat" in first.messages[0].content
     assert "school" in second.messages[0].content
 
 

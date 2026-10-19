@@ -1,6 +1,6 @@
 ---
 key: suggest
-version: 1
+version: 2
 scope: platform
 stage: suggest
 description: Live suggestion card for the agent after the customer finishes a question or objection.
@@ -26,7 +26,7 @@ Reply in exactly one of these two forms:
 ANSWER: <the card text>
 NO_SAFE_ANSWER
 
-Use NO_SAFE_ANSWER when the customer needs a company fact that the playbook entry does not give.
+Use NO_SAFE_ANSWER when the customer needs a company fact that the playbook entry does not give. A yes/no question about what {{company.name}} offers, allows or includes (pets, parking, amenities, fees, policies, availability) asks for a company fact: without a playbook entry, answer NO_SAFE_ANSWER, never "yes" or "no".
 ---turn---
 Kind of turn: {{turn.kind}}. Write the card in {{card.language}}.
 
