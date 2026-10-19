@@ -270,7 +270,9 @@ def create_app(
             return
         await ws.accept()
         runtime = await asyncio.to_thread(runtime_factory)
-        stt_vendor = runtime.stt_routes[0].provider if runtime.stt_routes else None
+        stt_id = runtime.stt_routes[0].provider if runtime.stt_routes else None
+        vendor = catalog.providers.get(stt_id) if stt_id else None
+        stt_vendor = vendor.name if vendor else stt_id  # display name, e.g. "AssemblyAI"
         await ws.send_text(
             json.dumps(
                 {

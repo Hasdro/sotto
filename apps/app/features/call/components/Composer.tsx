@@ -92,9 +92,11 @@ export function Composer({ onSay, disabled, compact = false, mic = null, partial
           ? t("call.mic.denied")
           : mic.state === "unsupported"
             ? t("call.mic.unsupported")
-            : micOn
-              ? t("call.mic.on", { vendor: mic.vendor })
-              : t("call.mic.hint")}
+            : mic.state === "starting"
+              ? t("call.mic.starting")
+              : micOn
+                ? t("call.mic.on", { vendor: mic.vendor })
+                : t("call.mic.hint")}
       </Text>
     </View>
   ) : null;

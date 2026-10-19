@@ -82,25 +82,38 @@ export function useCallSession(opts: {
 
   const [mic, setMic] = useState<MicState>("off");
   const micHandle = useRef<MicHandle | null>(null);
+  // Odd while a start waits for the browser's permission prompt. Bumped on every stop, so a
+  // permission granted after the user pressed stop (or after the call ended) is let go at once.
+  const micAttempt = useRef(0);
   const stopMic = useCallback(() => {
+    if (micAttempt.current % 2 === 1) micAttempt.current += 1; // cancel a pending start
     micHandle.current?.stop();
     micHandle.current = null;
     setMic((m) => (m === "on" || m === "starting" ? "off" : m));
   }, []);
   const toggleMic = useCallback(() => {
-    if (micHandle.current) {
+    if (micHandle.current || micAttempt.current % 2 === 1) {
       stopMic();
       send({ type: "audio_stop" });
       return;
     }
     if (!send({ type: "audio_start", sample_rate: 16000 })) return;
+    micAttempt.current += 1; // odd: starting
+    const attempt = micAttempt.current;
     setMic("starting");
     startMic((pcm) => bridge.current?.sendAudio(pcm))
       .then((handle) => {
+        if (micAttempt.current !== attempt) {
+          handle.stop(); // stopped while the browser was asking for permission
+          return;
+        }
+        micAttempt.current += 1; // even: settled
         micHandle.current = handle;
         setMic("on");
       })
       .catch((err: unknown) => {
+        if (micAttempt.current !== attempt) return;
+        micAttempt.current += 1;
         send({ type: "audio_stop" });
         setMic(err instanceof MicUnavailable ? err.reason : "unsupported");
       });
