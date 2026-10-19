@@ -123,4 +123,31 @@ describe("mock screens", () => {
     expect(screen.getByText("Not available for this role")).toBeOnTheScreen();
     expect(screen.getByText("This page isn't open to the Sales manager role.")).toBeOnTheScreen();
   });
+
+  it("a manager answers an inbox question and it lands in the playbook (R2 step 5)", async () => {
+    await open("/inbox");
+    await fireEvent.changeText(
+      screen.getByTestId("answer-q-31"),
+      "No: card or bank transfer only.",
+    );
+    expect(screen.getByText("6 of 25 words")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("add-q-31"));
+    expect(
+      screen.getByText("Added to the playbook: Can I pay the deposit in bitcoin?"),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole("link", { name: /^Playbook/ }));
+    await fireEvent.changeText(screen.getByTestId("playbook-search"), "bitcoin");
+    expect(screen.getByText("Answers: 1")).toBeOnTheScreen();
+    expect(screen.getByText("No: card or bank transfer only.")).toBeOnTheScreen();
+  });
+
+  it("the inbox refuses an answer too long to say from one card", async () => {
+    await open("/inbox");
+    const long = Array.from({ length: 26 }, () => "word").join(" ");
+    await fireEvent.changeText(screen.getByTestId("answer-q-30"), long);
+    await fireEvent.press(screen.getByTestId("add-q-30"));
+    expect(
+      screen.getByText("Keep it to 25 words so the agent can say it from one card."),
+    ).toBeOnTheScreen();
+  });
 });

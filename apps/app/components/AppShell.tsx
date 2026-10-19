@@ -7,7 +7,8 @@ import { Link, usePathname } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { countByStatus, INBOX } from "../features/inbox/mock";
+import { useEscalations } from "../features/escalations/store";
+import { countByStatus } from "../features/inbox/mock";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
@@ -67,7 +68,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-const openCount = countByStatus(INBOX).open;
+function useOpenCount(): number {
+  return countByStatus(useEscalations().inbox).open;
+}
 
 function Sidebar() {
   const { color } = useTheme();
@@ -75,6 +78,7 @@ function Sidebar() {
   const { role } = useRole();
   const pathname = usePathname();
   const nav = useNav();
+  const openCount = useOpenCount();
   const persona = personaFor(role);
   const insets = useSafeAreaInsets();
   return (
@@ -164,6 +168,7 @@ function BottomTabs() {
   const { t } = useI18n();
   const pathname = usePathname();
   const nav = useNav();
+  const openCount = useOpenCount();
   const insets = useSafeAreaInsets();
   return (
     <View

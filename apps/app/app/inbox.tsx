@@ -2,6 +2,7 @@
 import {
   Badge,
   type BadgeTone,
+  Button,
   EmptyState,
   layout,
   Panel,
@@ -10,13 +11,16 @@ import {
   SegmentedControl,
   space,
   Text,
+  TextField,
   useTheme,
 } from "@sotto/ui";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
 import { RoleGate } from "../components/RoleGate";
-import { byStatus, countByStatus, INBOX, type InboxStatus } from "../features/inbox/mock";
+import { type FlowError, MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
+import { useEscalations } from "../features/escalations/store";
+import { byStatus, countByStatus, type InboxItem, type InboxStatus } from "../features/inbox/mock";
 import { formatDateTime } from "../lib/format";
 import { useI18n } from "../lib/locale";
 
@@ -38,12 +42,25 @@ export default function InboxRoute() {
 function InboxScreen() {
   const { t, locale } = useI18n();
   const { color } = useTheme();
+  const { inbox } = useEscalations();
   const [status, setStatus] = useState<InboxStatus>("open");
-  const counts = countByStatus(INBOX);
-  const items = byStatus(INBOX, status);
+  const [added, setAdded] = useState<string | null>(null);
+  const counts = countByStatus(inbox);
+  const items = byStatus(inbox, status);
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="inbox" style={styles.page}>
       <PageHeader title={t("inbox.title")} subtitle={t("inbox.subtitle")} />
+      {added ? (
+        <Text
+          variant="body"
+          weight="medium"
+          tone="primary"
+          accessibilityLiveRegion="polite"
+          style={styles.added}
+        >
+          {t("inbox.answer.added", { question: added })}
+        </Text>
+      ) : null}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -85,7 +102,9 @@ function InboxScreen() {
               <Text variant="label" tone="muted">
                 {formatDateTime(item.askedAt, locale)}
               </Text>
-              {item.answer ? (
+              {item.status !== "added" ? (
+                <AnswerEditor item={item} onAdded={() => setAdded(item.question)} />
+              ) : item.answer ? (
                 <View
                   style={[
                     styles.answer,
@@ -106,7 +125,59 @@ function InboxScreen() {
   );
 }
 
+/** Answer a question, then add it to the playbook (the manager's approval, R2 step 5). */
+function AnswerEditor({ item, onAdded }: { item: InboxItem; onAdded: () => void }) {
+  const { t } = useI18n();
+  const { save, add } = useEscalations();
+  const [draft, setDraft] = useState(item.answer ?? "");
+  const [error, setError] = useState<FlowError | null>(null);
+  const words = wordCount(draft);
+  const message = (e: FlowError) => t(`inbox.error.${e}`, { max: MAX_ANSWER_WORDS });
+  return (
+    <View style={styles.editor}>
+      <TextField
+        label={t("inbox.answer.label")}
+        value={draft}
+        onChangeText={(text) => {
+          setDraft(text);
+          setError(null);
+        }}
+        multiline
+        testID={`answer-${item.id}`}
+      />
+      <Text variant="label" tone={words > MAX_ANSWER_WORDS ? "negative" : "muted"}>
+        {t("inbox.answer.words", { n: words, max: MAX_ANSWER_WORDS })}
+      </Text>
+      {error ? (
+        <Text variant="label" tone="negative" accessibilityLiveRegion="polite">
+          {message(error)}
+        </Text>
+      ) : null}
+      <View style={styles.actions}>
+        <Button
+          label={t("inbox.answer.save")}
+          variant="secondary"
+          onPress={() => setError(save(item.id, draft))}
+          testID={`save-${item.id}`}
+        />
+        <Button
+          label={t("inbox.answer.add")}
+          onPress={() => {
+            const e = add(item.id, draft);
+            setError(e);
+            if (!e) onAdded();
+          }}
+          testID={`add-${item.id}`}
+        />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  added: { marginBottom: space.md },
+  editor: { marginTop: space.sm, gap: space.xs },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.xs },
   page: { paddingTop: space.xl },
   filterWrap: { flexGrow: 0 },
   filter: { marginBottom: space.lg },

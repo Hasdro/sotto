@@ -13,7 +13,8 @@ import {
 import { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
-import { PLAYBOOK, searchPlaybook } from "../features/playbook/mock";
+import { useEscalations } from "../features/escalations/store";
+import { searchPlaybook } from "../features/playbook/mock";
 import { formatDate } from "../lib/format";
 import { useI18n } from "../lib/locale";
 
@@ -21,7 +22,8 @@ export default function PlaybookScreen() {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const [query, setQuery] = useState("");
-  const results = useMemo(() => searchPlaybook(PLAYBOOK, query), [query]);
+  const { playbook } = useEscalations();
+  const results = useMemo(() => searchPlaybook(playbook, query), [playbook, query]);
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="playbook" style={styles.page}>
       <PageHeader title={t("playbook.title")} subtitle={t("playbook.subtitle")} />
