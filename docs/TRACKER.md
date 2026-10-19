@@ -26,25 +26,21 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** the owner submitted the decisions page (2026-10-19 19:16Z). Answers are copied verbatim into `docs/OWNER-ANSWERS.md` and are **not yet applied**. Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Next task (first, local session):** apply `docs/OWNER-ANSWERS.md` → "What these change", items 1–10:
-  - DECISIONS (approvals; a new English-only decision);
-  - BRIEF;
-  - the owner-approved `.claude/settings.json` changes (`.env.example` allow rule, the two hook fixes), then write `.env.example`;
-  - the STT free pick-list including ElevenLabs.
-  Then the P2.3 live smoke test with the Groq/Gemini keys in the Mac's `.env`.
-- **Owner open items:** retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies.
+- **Phase:** owner answers applied (D-017, D-018, BRIEF, settings, `.env.example`). Phases 2, 3, 5, 6 and 7 are partly done (see task board).
+- **Next task:** P2.3. Run `pnpm replay:live` once `GROQ_API_KEY`/`GEMINI_API_KEY` are in `.env` at the repo root (none there on 2026-10-20). Then build the two STT adapters after the owner picks from `docs/STT-OPTIONS.md` (recommended: Deepgram primary, AssemblyAI backup).
+- **Without the owner:** axe accessibility checks in CI (P3.3), plan/trial banner (P3.5), P6.4 model settings with custom endpoints.
+- **Owner open items:** STT pick; keys into `.env`; retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies; playbook documents.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** cloud, 2026-10-19. Next session is **local** (the owner keeps keys only in the Mac's `.env`).
-- **Blockers:** live calls need owner accounts (LiveKit, Yeastar trunk, STT vendor); the owner's playbook documents (P0.3); golden calls later (owner: "keep using the simulated test").
-- **Next action:** `git checkout claude/friendly-gates-fbhqdv && git pull`; then `pnpm install && (cd apps/agent-worker && uv sync) && pnpm test && pnpm replay --all`; read `docs/OWNER-ANSWERS.md`.
+- **Environment last used:** local Mac, 2026-10-20 (no Docker running, so `pnpm test:db` was not run; gitleaks now installed).
+- **Blockers:** keys not in `.env`; STT vendor choice; live calls need LiveKit + Yeastar trunk; playbook documents (P0.3).
+- **Next action:** `pnpm replay:live` (needs keys), or start P3.3 axe checks if the keys are still missing.
 
 ## Phase board
 
 | Phase | Status | Branch / PR | Exit gate evidence |
 |---|---|---|---|
-| 0 Brief, playbook, golden calls | on assumptions (D-009); waits on owner | `claude/friendly-gates-fbhqdv` · [PR #1](https://github.com/Hasdro/sotto/pull/1) | – |
-| 1 Architecture, skeleton, CI | cloud done; gate waits on owner approval + P1.7 | `claude/friendly-gates-fbhqdv` · [PR #1](https://github.com/Hasdro/sotto/pull/1) | CI green ([run](https://github.com/Hasdro/sotto/actions/runs/39166712190)); `docs/handoffs/phase-1.md` |
+| 0 Brief, playbook, golden calls | owner answers applied 2026-10-19 (BRIEF, D-017/D-018); playbook docs + golden calls later | `claude/friendly-gates-fbhqdv` · [PR #1](https://github.com/Hasdro/sotto/pull/1) | – |
+| 1 Architecture, skeleton, CI | architecture owner-approved (D-017); gate waits on P1.7 (Docker) | `claude/friendly-gates-fbhqdv` · [PR #1](https://github.com/Hasdro/sotto/pull/1) | CI green ([run](https://github.com/Hasdro/sotto/actions/runs/39166712190)); `docs/handoffs/phase-1.md` |
 | 2 Engine, router, registry, replay | mostly done (STT, audio replay, Ollama pending) | `claude/friendly-gates-fbhqdv` · PR #1 | synthetic replay p95 1148 ms, outage drill PASS |
 | 3 Design system and screens | mostly done (role switch, axe CI, owner QA pending) | same | `docs/evidence/p3/`, `docs/evidence/demo/` |
 | 4 Live calls | todo | – | – |
@@ -58,16 +54,16 @@ Tags:
 Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 ### Phase 0
-- [!] P0.1 Interview the owner `owner` — deferred by the owner 2026-10-18 (D-009); answers replace `ASSUMED:` lines in BRIEF.md
-- [~] P0.2 Write docs/BRIEF.md `owner` — working assumptions written (D-009); waits for the owner to say "correct"
+- [x] P0.1 Interview the owner `owner` — replaced by the decisions page; answers submitted 2026-10-19 (`docs/OWNER-ANSWERS.md`)
+- [x] P0.2 Write docs/BRIEF.md `owner` — owner answers applied 2026-10-20 (commit 04f883c); remaining `OPEN:` items are listed under Waiting on owner
 - [!] P0.3 Draft the playbook (faq, objections, products, never-promise) `owner` — needs the real products, questions and objections; no invented content (D-009)
 - [~] P0.4 Golden-call plan (test-calls/PLAN.md) `owner` — draft written; waits for owner agreement and a date
 - [ ] P0.5 Label 10 golden calls `owner` (may finish later; blocks P2.8)
-- [~] P0.6 Decisions from the interview — D-009 recorded; more after the interview
+- [x] P0.6 Decisions from the interview — D-017 (approvals), D-018 (English only)
 
 ### Phase 1
-- [x] P1.1 Decide D-005 Expo vs Flutter `owner` — Expo, D-010 (Claude's recommendation under D-009; owner may override before Phase 3)
-- [~] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner` — written and revised after an adversarial review; 19 failure modes with no TBD; cost ≈ $0.02–0.05/min plus carrier (up to $0.30/min on Twilio UAE mobile). Waits for the owner to approve.
+- [x] P1.1 Decide D-005 Expo vs Flutter `owner` — Expo, D-010 (owner-approved, D-017)
+- [x] P1.2 Finalize ARCHITECTURE.md (failure modes, cost per minute) `owner` — written and revised after an adversarial review; 19 failure modes with no TBD; cost ≈ $0.02–0.05/min plus carrier (up to $0.30/min on Twilio UAE mobile). Owner-approved 2026-10-19 (D-017).
 - [x] P1.3 Monorepo skeleton — `pnpm install && pnpm typecheck && pnpm test` green (vitest 28, jest-expo 3, pytest 30); web screenshots in `docs/evidence/p1.3/`
 - [x] P1.4 Commands + hooks working — CLAUDE.md table updated; Stop hook exits 2 on a broken type, 0 when clean (~8 s); format hook ~0.6 s
 - [x] P1.5 scripts/check-boundaries.sh with fixtures — 7 rule IDs (incl. the P1.8 suppression guard), 12 failing + 2 passing fixture trees, repo clean (`bash scripts/tests/run.sh`)
@@ -79,7 +75,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 2
 - [x] P2.1 Contracts and fake adapters — Clock/FakeClock, LLM/STT protocols, FakeLLM; contract tests (pytest)
 - [x] P2.2 Model router (per stage, per company, deadlines, fallback) — absolute t0 deadline, backup race, circuit per (company, endpoint), R1 guard; 13 tests
-- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); STT adapters + live smoke test need a vendor choice + keys `owner`
+- [~] P2.3 Real adapters: anthropic, openai, openai_compatible, STT ×2 — LLM adapters done (mocked-HTTP tests); defaults are Groq + Gemini with host-bound keys (D-016); `pnpm replay:live` built (model-ID check + live replay, 8 tests, security review clean); its live run waits for keys in `.env`; STT pick-list in `docs/STT-OPTIONS.md`, adapters wait for the owner's pick `owner`
 - [x] P2.4 Prompt registry (seed/prompts, scopes, variables) — scopes, publish/rollback, strict render, platform fallback; 8 tests
 - [x] P2.5 Pipeline: turn → trigger → playbook → suggest → stream — CallSession + trigger rules + playbook index (drafting on partials still TODO)
 - [x] P2.6 R2 chain: backup, holding line, escalation record — holding at t0+1400, late answer ≤ 5 s, one escalation per question; session tests
@@ -162,13 +158,14 @@ Things only the owner can do, so the agent never waits silently.
 - [x] Let Claude write `.env.example` (owner approved 2026-10-19; apply next session). The deny rule `Read(./.env.*)` in `.claude/settings.json` also blocks `.env.example`. Suggested: add an allow rule for `./.env.example`. Until then `docs/ENV.md` lists the variables.
 - [x] Try the demo on the Mac (owner, 2026-10-19: "looks nice")
 - [x] Answer the decisions page (submitted 2026-10-19; see `docs/OWNER-ANSWERS.md`): https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
-- [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com). Put them in cloud environment secrets and in `.env` on the Mac. Steps are on the project map page: https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
+- [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com) in `.env` at the repo root on the Mac (`~/Documents/GitHub/sotto/.env`; copy `.env.example`). Only `.env` on the Mac (D-017). Not present on 2026-10-20.
+- [ ] Pick the speech-to-text vendors from `docs/STT-OPTIONS.md` (recommended: Deepgram primary, AssemblyAI backup) and add their keys to `.env`
 - [ ] Retention: how long to keep call audio (owner chose "also keep audio" without a duration)
 - [ ] Free tiers and customer data: choose before the first real customer call (owner: "not sure, explain more when it matters")
 - [ ] Yeastar admin details and whether it can send a SIP trunk to LiveKit (P4)
 - [ ] First 1–3 companies and agent counts
 - [x] Review the design direction (D-014; approved on the decisions page) and the screenshots in `docs/evidence/p3/` and `docs/evidence/demo/`
-- [x] Approve or edit two Claude Code hook changes (owner approved both 2026-10-19; apply next session) in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
+- [x] Approve or edit two Claude Code hook changes (owner approved both 2026-10-19; applied 2026-10-20, commit d22c2cc) in `.claude/settings.json`. A review subagent suggested them; agents do not change their own hook config on a subagent's word.
   - **Stop hook:** send stdout to stderr, `{ pnpm -s typecheck && pnpm -s test; } 1>&2 || exit 2`, so Claude sees the tsc and pytest errors. Also exit 0 when the hook input has `"stop_hook_active": true`, so a machine without `uv` cannot trap the session.
   - **PostToolUse format hook:** today a Biome failure skips ruff with no notice. Run the two formatters independently.
 
@@ -193,6 +190,32 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-20 · local · Claude Opus 5.5 · owner answers applied, P2.3 live smoke tooling
+- **Done:**
+  - Applied `docs/OWNER-ANSWERS.md` items 1–9:
+    - D-017 (owner approvals of D-009–D-016 and the architecture) and D-018 (English-only calls and cards; the UI keeps Arabic RTL per R5);
+    - BRIEF rewritten from the answers;
+    - cards default to English in the worker and the admin screen;
+    - `.claude/settings.json` hook fixes, and `.env.example` readable;
+    - `.env.example` created;
+    - `docs/STT-OPTIONS.md` pick-list, checked on the vendors' own pages.
+  - Built `pnpm replay:live` (P2.3): checks the model IDs against each provider's `/models`, then replays the demo calls on real models with a real clock.
+  - Item 10: the build map page updated to show the answers.
+- **Evidence:**
+  - Worker pytest 219 passed.
+  - `pnpm test`, `pnpm lint` and `pnpm typecheck` all green.
+  - Synthetic replay p50 567 / p95 1148 ms, agent cards 0, outage drill p95 1285 ms PASS.
+  - Stop hook: exit 2 with the tsc error shown on a planted type error; exit 0 when clean; exit 0 when `stop_hook_active`.
+  - security-auditor review of the live smoke test: no key can reach another host or be printed. One robustness note fixed (821543e).
+- **Tried and rejected:**
+  - Only adding an allow rule for `.env.example`. Deny rules win over allow rules, so the broad `.env.*` deny was replaced by explicit names (`.env`, `.env.local`, `.env.*.local`, `.env.development`/`.production`/`.staging`/`.test`/`.prod`/`.dev`).
+  - `pnpm -s` in the Stop hook. It hides the tsc output entirely, so the hook now captures the output and prints the last 80 lines on failure.
+- **Next:** `pnpm replay:live` once the keys are in `.env`; the STT adapters after the owner's pick; without the owner, P3.3 axe checks.
+- **Notes:**
+  - There is no `.env` in the repo on this Mac. Keys were not looked for anywhere else.
+  - `pnpm test:db` was not run: Docker isn't running.
+  - The live replay builds OpenAI clients per scenario without closing them. That is fine for a one-off CLI; revisit if it becomes long-running.
 
 ### 2026-10-19 (evening) · cloud · Claude · handoff after owner answers
 - **Done:**

@@ -3,8 +3,8 @@
 Submitted by the owner on the "Sotto Owner Decisions" page
 (https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6, db `answers/owner`, version 23,
 submitted 2026-10-19T19:16Z). Copied here verbatim so a local session can apply them
-without the artifact. **Not yet applied** to BRIEF.md, DECISIONS.md or `.claude/settings.json`;
-that is the first task of the next session (see TRACKER → Now).
+without the artifact. **Applied 2026-10-20** (items 1–10): D-017, D-018, BRIEF.md,
+`.claude/settings.json`, `.env.example`, `docs/STT-OPTIONS.md`, and the build map page.
 
 Owner notes are quoted exactly. Everything else is the option label the owner picked.
 
