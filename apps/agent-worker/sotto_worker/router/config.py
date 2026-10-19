@@ -48,7 +48,7 @@ class RoutingConfig:
 
 
 # Which stage backs up which (R2). Only live suggestions have a model backup today.
-BACKUP_STAGE: dict[Stage, Stage] = {"suggest": "suggest_backup"}
+BACKUP_STAGE: dict[Stage, Stage] = {"suggest": "suggest_backup", "stt": "stt_backup"}
 
 
 @dataclass(frozen=True)

@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from sotto_worker.adapters.llm.fake import FakeLLM
 from sotto_worker.clock import Clock
-from sotto_worker.contracts import LLMAdapter, LLMRequest
+from sotto_worker.contracts import LLMAdapter, LLMRequest, STTAdapter
 from sotto_worker.router import RoutingConfig, StageRoute
 
 API_KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
@@ -43,6 +43,21 @@ ADAPTER_MODULES = {
     "anthropic": "sotto_worker.adapters.llm.anthropic",
     "openai": "sotto_worker.adapters.llm.openai",
     "openai_compatible": "sotto_worker.adapters.llm.openai",
+    "deepgram": "sotto_worker.adapters.stt.deepgram",
+    "assemblyai": "sotto_worker.adapters.stt.assemblyai",
+    "speechmatics": "sotto_worker.adapters.stt.speechmatics",
+    "elevenlabs": "sotto_worker.adapters.stt.elevenlabs",
+}
+# STT vendor -> (adapter class, platform key, the only hosts that key may be sent to), D-016/D-019.
+STT_VENDORS: dict[str, tuple[str, str, frozenset[str]]] = {
+    "deepgram": ("DeepgramSTT", "DEEPGRAM_API_KEY", frozenset({"api.deepgram.com"})),
+    "assemblyai": ("AssemblyAISTT", "ASSEMBLYAI_API_KEY", frozenset({"streaming.assemblyai.com"})),
+    "speechmatics": (
+        "SpeechmaticsSTT",
+        "SPEECHMATICS_API_KEY",
+        frozenset({"eu.rt.speechmatics.com", "global.rt.speechmatics.com"}),
+    ),
+    "elevenlabs": ("ElevenLabsSTT", "ELEVENLABS_API_KEY", frozenset({"api.elevenlabs.io"})),
 }
 
 
@@ -86,6 +101,34 @@ def make_llm(route: StageRoute, *, clock: Clock, env: Mapping[str, str]) -> LLMA
             model=route.model, api_key=key, base_url=route.base_url, provider=route.provider
         )
     raise ValueError(f"unknown provider {route.provider!r}")
+
+
+def make_stt(route: StageRoute, *, env: Mapping[str, str]) -> STTAdapter:
+    """A real-time STT adapter for a route. The vendor's key only ever goes to its own host,
+    over wss, in a header (never in the URL)."""
+    if route.provider not in STT_VENDORS:
+        raise ValueError(f"unknown STT provider {route.provider!r}")
+    class_name, key_name, hosts = STT_VENDORS[route.provider]
+    if route.base_url:
+        parts = urlsplit(route.base_url)
+        if parts.scheme != "wss":
+            raise ValueError(f"{key_name} may only be sent over wss")
+        if parts.username is not None or parts.password is not None:
+            raise ValueError(f"{key_name}: base_url must not carry user info")
+        if parts.hostname not in hosts:
+            allowed = " or ".join(sorted(hosts))
+            raise ValueError(f"{key_name} may only be sent to {allowed}, not {parts.hostname}")
+    module = importlib.import_module(ADAPTER_MODULES[route.provider])
+    adapter_class = getattr(module, class_name)
+    adapter: STTAdapter = adapter_class(
+        api_key=_key(key_name, env), model=route.model, base_url=route.base_url
+    )
+    return adapter
+
+
+def stt_key_env(route: StageRoute) -> str | None:
+    vendor = STT_VENDORS.get(route.provider)
+    return vendor[1] if vendor else None
 
 
 def key_env(route: StageRoute) -> str | None:

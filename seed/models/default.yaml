@@ -2,7 +2,8 @@
 # This file and the adapters' capability tables are the ONLY places model names may appear
 # (scripts/check-boundaries.sh). Companies override it from the DB in Phase 6.
 #
-# provider: the adapter name under sotto_worker/adapters/ (anthropic, openai, openai_compatible, fake, ...)
+# provider: the adapter name under sotto_worker/adapters/ (anthropic, openai, openai_compatible,
+#   deepgram, assemblyai, speechmatics, elevenlabs, fake, ...)
 # api_key_env: for openai_compatible, the env var with the platform key; it is only ever sent to
 #   that provider's own host (adapters/factory.py COMPATIBLE_KEY_HOSTS).
 # first_token_ms: deadline for the first streamed token; after it the router races the backup (R2).
@@ -13,8 +14,14 @@
 version: 1
 stages:
   stt:
-    provider: fake          # TODO(P2.3): choose primary + backup vendor by benchmark (Arabic/English code-switching)
-    model: fake-stt
+    # Real-time English STT (D-018). The owner picks the vendor (D-019); options and prices are in
+    # docs/STT-OPTIONS.md. Any of: deepgram, assemblyai, speechmatics, elevenlabs.
+    provider: deepgram
+    model: nova-3
+  stt_backup:
+    # A different company from the primary, so one outage cannot take out both (R2, F-02).
+    provider: assemblyai
+    model: universal-streaming-english
   turn:
     provider: fake          # TODO(P2.5): LiveKit end-of-turn model
     model: fake-turn

@@ -7,9 +7,12 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
-Stage = Literal["stt", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed", "judge"]
+Stage = Literal[
+    "stt", "stt_backup", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed", "judge"
+]
 STAGES: tuple[Stage, ...] = (
-    "stt", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed", "judge",
+    "stt", "stt_backup", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed",
+    "judge",
 )  # fmt: skip
 LIVE_STAGES: frozenset[Stage] = frozenset({"trigger", "suggest", "suggest_backup"})
 Speaker = Literal["customer", "agent"]
@@ -68,7 +71,17 @@ class TranscriptEvent:
     end_ms: int
 
 
+@dataclass(frozen=True)
+class STTOptions:
+    speaker: Speaker  # the track this stream belongs to: set by the room, never guessed (R4)
+    sample_rate: int = 16000  # PCM16 mono little-endian
+    language: str = "en"  # D-018
+
+
 class STTAdapter(Protocol):
     provider: str
+    model: str
 
-    def transcribe(self, audio: AsyncIterator[bytes]) -> AsyncIterator[TranscriptEvent]: ...
+    def transcribe(
+        self, audio: AsyncIterator[bytes], opts: STTOptions
+    ) -> AsyncIterator[TranscriptEvent]: ...

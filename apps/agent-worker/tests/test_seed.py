@@ -10,7 +10,17 @@ import yaml
 from tests.conftest import REPO_ROOT
 
 SEED = REPO_ROOT / "seed"
-STAGES = {"stt", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed", "judge"}
+STAGES = {
+    "stt",
+    "stt_backup",
+    "turn",
+    "trigger",
+    "suggest",
+    "suggest_backup",
+    "summary",
+    "embed",
+    "judge",
+}
 LIVE_STAGES = {"trigger", "suggest", "suggest_backup"}
 SCOPES = {"platform", "company", "team", "campaign"}
 VARIABLE = re.compile(r"{{\s*([a-z0-9_.]+)\s*}}")
