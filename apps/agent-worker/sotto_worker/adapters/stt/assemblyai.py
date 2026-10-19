@@ -15,6 +15,9 @@ DEFAULT_URL = "wss://streaming.assemblyai.com/v3/ws"
 
 class AssemblyAISTT(WebSocketSTT):
     provider = "assemblyai"
+    default_model = (
+        "universal-streaming-english"  # capability table: used when no route names a model
+    )
     min_chunk_ms = 50  # the API wants 50 to 1000 ms of audio per message
 
     def url(self, opts: STTOptions) -> str:

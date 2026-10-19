@@ -24,6 +24,7 @@ ERROR_TYPES = frozenset(
 
 class ElevenLabsSTT(WebSocketSTT):
     provider = "elevenlabs"
+    default_model = "scribe_v2_realtime"  # capability table: used when no route names a model
     wait_ready = True  # audio only after session_started
 
     def url(self, opts: STTOptions) -> str:

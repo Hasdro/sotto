@@ -14,6 +14,7 @@ MAX_DELAY_S = 0.7  # the lowest the API allows: finals as early as possible (R1)
 
 class SpeechmaticsSTT(WebSocketSTT):
     provider = "speechmatics"
+    default_model = "standard"  # capability table: used when no route names a model
     wait_ready = True  # audio only after RecognitionStarted
 
     def url(self, opts: STTOptions) -> str:

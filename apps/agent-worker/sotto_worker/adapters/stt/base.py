@@ -68,6 +68,7 @@ async def websockets_connect(url: str, headers: dict[str, str]) -> WSConnection:
 
 class WebSocketSTT:
     provider = "base"
+    default_model = ""
     wait_ready = False  # vendor needs a "started" reply before audio (Speechmatics, ElevenLabs)
     min_chunk_ms = 0  # vendor rejects tiny audio messages (AssemblyAI: 50 ms)
 

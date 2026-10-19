@@ -126,6 +126,12 @@ def make_stt(route: StageRoute, *, env: Mapping[str, str]) -> STTAdapter:
     return adapter
 
 
+def stt_default_model(vendor: str) -> str:
+    class_name = STT_VENDORS[vendor][0]
+    module = importlib.import_module(ADAPTER_MODULES[vendor])
+    return str(getattr(module, class_name).default_model)
+
+
 def stt_key_env(route: StageRoute) -> str | None:
     vendor = STT_VENDORS.get(route.provider)
     return vendor[1] if vendor else None

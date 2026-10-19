@@ -14,6 +14,7 @@ DEFAULT_URL = "wss://api.deepgram.com/v1/listen"
 
 class DeepgramSTT(WebSocketSTT):
     provider = "deepgram"
+    default_model = "nova-3"  # capability table: used when no route names a model
 
     def url(self, opts: STTOptions) -> str:
         query = {

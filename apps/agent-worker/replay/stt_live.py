@@ -22,7 +22,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from sotto_worker.adapters.factory import STT_VENDORS, make_stt
+from sotto_worker.adapters.factory import STT_VENDORS, make_stt, stt_default_model
 from sotto_worker.adapters.stt.base import STTError
 from sotto_worker.contracts import STTAdapter, STTOptions
 from sotto_worker.router import RoutingConfig, StageRoute
@@ -36,13 +36,6 @@ PHRASES = (
     "Another company quoted us twenty percent less.",
     "Can I see the show apartment this weekend?",
 )
-# Default model per vendor when the seed does not route it (the owner may route any vendor).
-DEFAULT_MODELS = {
-    "deepgram": "nova-3",
-    "assemblyai": "universal-streaming-english",
-    "speechmatics": "standard",
-    "elevenlabs": "scribe_v2_realtime",
-}
 
 
 @dataclass(frozen=True)
@@ -114,8 +107,8 @@ def synthesize(phrase: str, directory: Path, index: int) -> bytes:
 
 
 def vendor_routes(config: RoutingConfig) -> dict[str, StageRoute]:
-    """Every STT vendor: the seed's route when it routes that vendor, else the default model."""
-    routes = {v: StageRoute(provider=v, model=m) for v, m in DEFAULT_MODELS.items()}
+    """Every STT vendor: the seed's route when it routes that vendor, else the adapter's default."""
+    routes = {v: StageRoute(provider=v, model=stt_default_model(v)) for v in STT_VENDORS}
     for stage in ("stt", "stt_backup"):
         route = config.stages.get(stage)
         if route is not None and route.provider in STT_VENDORS:
