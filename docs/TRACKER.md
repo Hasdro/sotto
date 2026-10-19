@@ -26,14 +26,14 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** P2.3 adapters done: LLM (Groq/Gemini live-tested) and real-time STT for Deepgram, AssemblyAI, Speechmatics and ElevenLabs (D-019). Phases 2, 3, 5, 6 and 7 are partly done (see task board).
-- **Next task:** T-007, cut STT final latency. Add `finalize()` to the STT adapters (Deepgram `Finalize`, AssemblyAI force-endpoint, Speechmatics `ForceEndOfUtterance`, ElevenLabs commit), called by the end-of-turn stage (P2.5/P4.4); then measure with `pnpm stt:live`.
-- **Without the owner:** axe accessibility checks in CI (P3.3), plan/trial banner (P3.5), P6.4 model settings with custom endpoints.
-- **Owner open items:** STT pick; keys into `.env`; retention audio duration; free-tier data choice before real customers; Yeastar admin details (P4); first companies; playbook documents.
+- **Phase:** overnight run 2026-10-21 (owner asleep, standing instruction to build all it can). D-020: the Sotto server (hosted demo), Keys & providers panel (P6.7), spoken customer track, deploy kit.
+- **Next task:** T-004 drafting on partials for the spoken path (AI cards there are ~1.2–2.1 s; see T-009), then History backed by the server's call log.
+- **Without the owner:** P3.3 axe in CI, P3.5 trial banner, P6.4 model settings polish.
+- **Owner, in the morning:** run `deploy/push.sh root@104.168.48.116` (Claude's shell access to us3 was blocked by the safety classifier); add keys in Admin → Keys & providers; retention duration; free-tier data choice; Yeastar (P4); first companies; playbook documents.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-20 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker running).
+- **Environment last used:** local Mac, 2026-10-21 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker locally).
 - **Blockers:** live calls need LiveKit + the Yeastar trunk; playbook documents (P0.3); real recordings later.
-- **Next action:** check each vendor's docs for its force-finalize message (source-driven-development), then TDD `finalize()` in `adapters/stt/`.
+- **Next action:** `pnpm demo` (local) or `deploy/README.md` (server); then T-004 in `sotto_worker/server/audio.py` + `pipeline/session.py`.
 
 ## Phase board
 
@@ -116,7 +116,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P6.4 Model settings + custom endpoints + R1 guard
 - [ ] P6.5 Feature flags
 - [ ] P6.6 Admin permissions
-- [ ] P6.7 Keys & providers panel: add/test/replace keys with "Get a key" links, vendor per stage (owner request 2026-10-20, D-019)
+- [x] P6.7 Keys & providers panel: add/test/replace keys with "Get a key" links, vendor per stage (owner request 2026-10-20, D-019) — server API + Admin → Keys & providers (D-020); AES-GCM write-only vault, per-vendor test (all 5 owner keys test OK live), per-stage vendor + model, audit log; tests in `tests/server/` and `apps/app/__tests__/keys.test.tsx`. Pending: security-auditor sign-off; Supabase storage in Phase 5/6
 
 ### Phase 7
 - [x] P7.1 Email adapter + outbox — retry 10 s/30 s/1/5/15 min + dead letter, Resend with Idempotency-Key; DB trigger enqueues one email per escalation
@@ -192,6 +192,7 @@ Things only the owner can do, so the agent never waits silently.
     3. drafting on partials (T-004).
   - Measure with `pnpm stt:live`.
   - Step 1 done 2026-10-20 (night 2): `finalize()` on all four adapters; `pnpm stt:live` now also runs a "+final" pass that forces the final 200 ms after the last word. Deepgram p50 771 → 471 ms (max 502), AssemblyAI 625 → 330 ms (max 369; one word split "week. End"), Speechmatics ~280 ms either way. Remaining: call `finalize()` from the end-of-turn stage in the Phase 4 worker (P4.4), then steps 2–3.
+- **T-009** (2026-10-21) **R1 on the spoken path, AI cards.** `pnpm spoken:live` (Deepgram, live models): playbook cards 0.6–0.7 s after the end of speech, but an off-playbook question's AI card took 1.8–2.1 s (the holding line still came at 1.34 s). Cause: the request starts only at the final transcript (~650 ms: 300 ms VAD quiet + forced final + 150 ms settle), then gpt-oss-20b first token 0.5–1.1 s. Bench of first token on the real prompt (10 turns each): Groq gpt-oss-20b p50 501 / max 706 ms; Gemini 2.5 Flash-Lite p50 488 / max 764 (always answers); Gemini 2.5 Flash mostly NO_SAFE_ANSWER; Gemini 3.1 Flash-Lite p50 2.7 s; Groq qwen3.8-27b no answers. Fix: draft at our VAD end on the partial transcript (T-004); option: Flash-Lite as backup (owner's choice in the panel). Also seen: a long pause between two sentences ends the turn (silence-only VAD); the end-of-turn model (P2.5) fixes that.
 - **T-008** (2026-10-20) Speechmatics on the free plan returns "Concurrent Quota Exceeded" on the third sequential clip. The free plan allows 2 sessions, and closed sessions seem to linger. Check whether the session close is graceful, or add a pause, before using it as a backup. Resolved 2026-10-20 (night 2): a 1.5 s pause between clips in `stt:live` avoids it (6 of 6 clips OK). On real calls one session per call is fine; the free plan still caps us at 2 concurrent calls.
 - **T-001** (2026-10-18) `pnpm audit` ignores two high advisories that have no patched version and are reachable only through Expo build tooling:
   - GHSA-86w9-cpqp-85rv: node-forge via `@expo/cli`;
@@ -208,6 +209,28 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-21 (overnight) · local · Claude Opus 5.5 · T-007, D-020 server + P6.7 keys panel + deploy kit
+- **Done:**
+  - T-007 step 1: `finalize()` on all four STT adapters; `stt:live` runs a forced-final pass. T-008 resolved by a pause between sessions.
+  - D-020: the D-013 bridge became the Sotto server (Starlette + uvicorn) — web app, calls over `/ws` (typed, scripted or **spoken**), admin API. Local mode = `pnpm demo`; hosted mode needs an access code, secret and public origin.
+  - P6.7 Keys & providers: encrypted write-only keys, "Get a key" links and steps from `seed/models/providers.yaml`, Test (models list / real-time session), vendor + model per stage, audit log, call history.
+  - Spoken customer track: browser mic → PCM16 16 kHz → energy VAD (300 ms) → `finalize()` → settle 150 ms → pipeline with t0 = end of speech; primary STT falls back to the backup.
+  - App: Admin → Keys & providers, access-code sign-in, "Speak as the customer" on web, partial "Hearing: …" line, info toasts.
+  - `pnpm spoken:live [--url --code]`: R1 on the spoken path, locally or against the hosted server.
+  - `deploy/`: Dockerfile, compose (Caddy HTTPS via sslip.io), `install.sh` (server), `push.sh` (Mac), README.
+- **Evidence:**
+  - `pnpm stt:live` forced final: Deepgram p50 771 → 471 ms, AssemblyAI 625 → 330 ms (STT-OPTIONS.md).
+  - Panel Test on the owner's keys: Deepgram, AssemblyAI, Speechmatics, Groq (11 models), Gemini (63 models) all OK.
+  - `pnpm spoken:live` local, live models: 5/5 cards, playbook cards 0.6–0.7 s; AI card see T-009.
+  - `pnpm replay:live`: p50 609, p95 880 ms, R1 PASS, R4 PASS.
+  - Worker pytest 290 passed, coverage floors ok; app jest 145 passed; lint, typecheck green.
+  - Hosted-mode rehearsal of the image layout (clean export, no-dev install): `/api/me` auth_required, 401 without the code, 403 from a foreign origin, sign-in OK.
+- **Tried and rejected:** see D-020 (websockets-only server; Node backend; copying `.env` to the server). Flushing a turn on the first post-end final split sentences ("apartment?" leaked into the next turn) → settle window.
+- **Next:** owner deploys; T-004 drafting on partials (T-009); History from the server call log.
+- **Notes:**
+  - Claude could not reach us3: both `ssh` attempts were blocked by the auto-mode classifier ("Production Reads"), so the deploy kit is ready but not yet run on the server.
+  - Lesson (again): twice a `;`-chained command committed after a failed check (36cfc84, a5a25c4; both fixed or rerun clean right after). Commits now go through a gate script that stops on any failed step.
 
 ### 2026-10-20 (night) · local · Claude Opus 5.5 · P2.3 STT adapters ×4, `pnpm stt:live`
 - **Done:**
