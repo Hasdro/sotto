@@ -125,6 +125,12 @@ CREATE TABLE IF NOT EXISTS usage (
   reported_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS usage_company_time ON usage(company_id, started_at);
+CREATE TABLE IF NOT EXISTS call_starts (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS company_keys (
   company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   key_env TEXT NOT NULL,
@@ -973,6 +979,17 @@ class CloudStore:
             )
 
     # --- usage (reported by the apps after each call) --------------------------------------------
+    def start_call(self, who: Principal, call_id: str) -> None:
+        """The server's own record of when a call began: reported minutes cannot exceed the real
+        time since then (security review M4)."""
+        call_id = _clean(call_id, "call_id", 64)
+        with self._tx() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO call_starts(id, company_id, user_id, started_at)"
+                " VALUES (?,?,?,?)",
+                (f"{who.company}:{call_id}", who.company, who.user_id, now_ms()),
+            )
+
     def report_usage(self, who: Principal, data: dict[str, Any], platform: str) -> str:
         def num(key: str, hi: int, *, optional: bool = False) -> int | None:
             v = data.get(key)
@@ -988,13 +1005,18 @@ class CloudStore:
             raise CloudError("invalid", "started_at is too old")
         call_id = _clean(data.get("call_id") or uuid.uuid4(), "call_id", 64)
         usage_id = f"{who.company}:{call_id}"  # one company's ids can never shadow another's
+        duration = num("duration_s", 6 * 3600) or 0
+        began = self._q("SELECT started_at FROM call_starts WHERE id = ?", (usage_id,))
+        if began:
+            started = int(began[0]["started_at"])
+            duration = min(duration, max(0, (t - started) // 1000) + 30)
         row = (
             usage_id,
             who.company,
             who.user_id,
             who.device_id,
             started,
-            num("duration_s", 6 * 3600),
+            duration,
             num("cards", 10_000),
             num("playbook_cards", 10_000),
             num("ai_cards", 10_000),

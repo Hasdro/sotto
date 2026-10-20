@@ -16,7 +16,7 @@ import {
   parseDemoServerMessage,
 } from "@sotto/shared";
 import { Platform } from "react-native";
-import { cloudApi } from "../../lib/cloud";
+import { CloudError, cloudApi } from "../../lib/cloud";
 import { type DeviceEntry, saveDeviceCall } from "../../lib/deviceHistory";
 import type { Bridge, BridgeHandlers } from "./bridge";
 
@@ -41,6 +41,19 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     }
     remember(msg);
     handlers.onMessage(msg);
+    if (msg.type === "call_started") registerStart(msg.call_id);
+  };
+  // The server notes when the call began (minutes are capped by its own clock) and can still
+  // refuse it if the plan ended since the bundle was loaded.
+  const registerStart = (callId: string) => {
+    cloudApi("/api/v1/calls/start", { method: "POST", body: { call_id: callId } }).catch(
+      (err: unknown) => {
+        if (err instanceof CloudError && err.status === 402) {
+          emit({ type: "notice", message: `Calls are paused: ${err.message}. Ask your admin.` });
+          bridge.handle({ type: "end" });
+        }
+      },
+    );
   };
   const remember = (msg: DemoServerMessage) => {
     if (msg.type === "call_started") {

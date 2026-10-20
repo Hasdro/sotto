@@ -176,3 +176,27 @@ def test_m1_the_owner_console_lives_on_its_own_origin(store: CloudStore, seed: S
     assert wrong.status_code == 403
     ok = on_owner.post("/api/owner/login", json=creds, headers={"origin": owner_origin})
     assert ok.status_code == 200
+
+
+def test_m4_reported_minutes_cannot_exceed_the_servers_own_clock(
+    client: TestClient, sign_up: SignUp
+) -> None:
+    s = sign_up()
+    assert (
+        client.post("/api/v1/calls/start", json={"call_id": "c-1"}, headers=s["auth"]).status_code
+        == 200
+    )
+    now = int(time.time() * 1000)
+    call = {
+        "call_id": "c-1",
+        "started_at": now - 3_600_000,
+        "duration_s": 3600,
+        "cards": 0,
+        "playbook_cards": 0,
+        "ai_cards": 0,
+        "holding_lines": 0,
+        "escalations": 0,
+    }
+    client.post("/api/v1/usage", json=call, headers=s["auth"])
+    # The call began on the server a moment ago: at most ~30 s count, not the claimed hour.
+    assert client.get("/api/v1/me", headers=s["auth"]).json()["company"]["minutes_used"] == 1

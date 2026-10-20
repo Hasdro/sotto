@@ -359,12 +359,15 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             return fail(HTTPStatus.BAD_GATEWAY, "vendor", f"{vendor} refused the key; test it")
 
     @app_route
-    async def call_start(_request: Request, who: Principal) -> Response:
+    async def call_start(request: Request, who: Principal) -> Response:
         state = plan_state(
             store.company_row(who.company), store.minutes_used(who.company), int(time.time() * 1000)
         )
         if not state["can_call"]:
             raise CloudError("plan_blocked", state["blocked_reason"] or "calls are blocked")
+        call_id = (await body(request)).get("call_id")
+        if call_id:
+            store.start_call(who, str(call_id))
         return JSONResponse({"ok": True, "plan": state})
 
     @app_route
