@@ -397,3 +397,34 @@ def test_company_settings_are_validated_saved_and_audited(make_client: MakeClien
         assert client.put("/api/company/settings", json=bad, headers=JSON).status_code == 400
     [entry] = client.get("/api/audit").json()["entries"]
     assert entry["detail"].startswith("ai_answers_allowed = false")
+
+
+# --- playbook editor (P3.5) ----------------------------------------------------------------
+
+
+def test_managers_add_edit_and_delete_their_own_playbook_answers(make_client: MakeClient) -> None:
+    client = make_client()
+    start = client.get("/api/playbook").json()["entries"]
+    files = [e for e in start if e["source"] == "file"]
+    assert files
+    assert any(e["question"] == "What is the payment plan?" for e in files)
+    body = {"question": "Do you allow pets?", "answer": "One cat or small dog.", "tags": ["pets"]}
+    r = client.post("/api/playbook", json=body, headers=JSON)
+    [mine] = [e for e in r.json()["entries"] if e["source"] == "custom"]
+    assert (mine["question"], mine["answer"], mine["tags"]) == (
+        "Do you allow pets?",
+        "One cat or small dog.",
+        ["pets"],
+    )
+    edited = {**body, "answer": "One cat or small dog, with building approval."}
+    r = client.put(f"/api/playbook/{mine['id']}", json=edited, headers=JSON)
+    assert next(e for e in r.json()["entries"] if e["id"] == mine["id"])["answer"].endswith(
+        "approval."
+    )
+    too_long = {**body, "answer": " ".join(["word"] * 26)}
+    assert client.post("/api/playbook", json=too_long, headers=JSON).json() == {"error": "too_long"}
+    assert client.delete(f"/api/playbook/{files[0]['id']}").status_code == 409  # file: read-only
+    r = client.delete(f"/api/playbook/{mine['id']}")
+    assert not [e for e in r.json()["entries"] if e["source"] == "custom"]
+    actions = [e["action"] for e in client.get("/api/audit").json()["entries"]]
+    assert actions[:3] == ["playbook.delete", "playbook.edit", "playbook.add"]

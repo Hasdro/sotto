@@ -4,8 +4,11 @@ export type PlaybookEntry = {
   question: string;
   answer: string;
   tags: string[];
-  /** ISO date. */
+  /** ISO date; empty for entries from the playbook file (no edit date). */
   updated: string;
+  /** Where it lives on the Sotto server (D-020); absent for sample entries. Only "custom" and
+   * "inbox" entries are editable; "file" entries come from the company's playbook documents. */
+  source?: "file" | "inbox" | "custom";
 };
 
 export const PLAYBOOK: PlaybookEntry[] = [

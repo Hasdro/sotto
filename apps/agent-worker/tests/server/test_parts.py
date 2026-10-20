@@ -540,3 +540,36 @@ def test_call_runtimes_only_see_provider_keys(
     monkeypatch.setattr(main_module, "build_demo_runtime", spy)
     build(args, env)
     assert seen[0] == {"GROQ_API_KEY": "gsk-test-not-real"}
+
+
+def test_the_next_call_uses_the_managers_own_answers(
+    tmp_path: Path, static_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sotto_worker.server.__main__ as main_module
+    from sotto_worker.server.__main__ import build, parser
+
+    runtimes: list[Any] = []
+    from sotto_worker.runtime import build_demo_runtime as real
+
+    def spy(*args: Any, **kw: Any) -> Any:
+        runtime = real(*args, **kw)
+        runtimes.append(runtime)
+        return runtime
+
+    monkeypatch.setattr(main_module, "build_demo_runtime", spy)
+    args = parser().parse_args(["--fake", "--static", str(static_dir)])
+    env = {"SOTTO_DATA_DIR": str(tmp_path / "d"), "SOTTO_SECRET_KEY": "x" * 40}
+    _config, app = build(args, env)
+    from starlette.testclient import TestClient
+
+    with TestClient(app) as client:
+        client.post(
+            "/api/playbook",
+            json={"question": "Do you allow pets in the building?", "answer": "One cat or dog."},
+            headers={"content-type": "application/json"},
+        )
+        with client.websocket_connect("/ws") as ws:
+            ws.receive_text()
+    hit = runtimes[-1].playbook.lookup("Are pets allowed in the building?")
+    assert hit is not None
+    assert hit.entry.short_answer == "One cat or dog."

@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS playbook_added (
   answer TEXT NOT NULL,
   added_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS playbook_custom (
+  id TEXT PRIMARY KEY,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
@@ -352,6 +359,100 @@ class Store:
                 "ORDER BY added_at DESC"
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # --- playbook editor (P3.5): manager-written answers and inbox answers -----------------
+    @staticmethod
+    def _valid_entry(question: str, answer: str, tags: list[str]) -> tuple[str, str, list[str]]:
+        question, answer = question.strip(), answer.strip()
+        if not 3 <= len(question) <= 300:
+            raise EscalationError("question")
+        words = len(answer.split())
+        if words == 0:
+            raise EscalationError("empty")
+        if words > MAX_ANSWER_WORDS:
+            raise EscalationError("too_long")
+        clean = [t.strip()[:30] for t in tags if isinstance(t, str) and t.strip()][:8]
+        return question, answer, clean
+
+    def editable_playbook(self) -> list[dict[str, Any]]:
+        """Entries the manager can edit: their own ("custom:…") and inbox answers ("inbox:…")."""
+        with self._lock:
+            custom = self._db.execute(
+                "SELECT id, question, answer, tags_json, updated_at FROM playbook_custom"
+            ).fetchall()
+            inbox = self._db.execute(
+                "SELECT escalation_id, question, answer, added_at FROM playbook_added"
+            ).fetchall()
+        out = [
+            {
+                "id": f"custom:{r['id']}",
+                "question": r["question"],
+                "answer": r["answer"],
+                "tags": json.loads(r["tags_json"]),
+                "source": "custom",
+                "updated_at": r["updated_at"],
+            }
+            for r in custom
+        ] + [
+            {
+                "id": f"inbox:{r['escalation_id']}",
+                "question": r["question"],
+                "answer": r["answer"],
+                "tags": ["from-inbox"],
+                "source": "inbox",
+                "updated_at": r["added_at"],
+            }
+            for r in inbox
+        ]
+        return sorted(out, key=lambda e: -int(e["updated_at"]))
+
+    def add_custom(self, question: str, answer: str, tags: list[str], *, actor: str = "") -> str:
+        question, answer, tags = self._valid_entry(question, answer, tags)
+        entry_id = str(uuid.uuid4())
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO playbook_custom (id, question, answer, tags_json, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (entry_id, question, answer, json.dumps(tags), _now()),
+            )
+            self._audit(db, "playbook.add", question[:80], actor)
+        return f"custom:{entry_id}"
+
+    def update_entry(
+        self, entry_id: str, question: str, answer: str, tags: list[str], *, actor: str = ""
+    ) -> None:
+        question, answer, tags = self._valid_entry(question, answer, tags)
+        kind, _, key = entry_id.partition(":")
+        with self._tx() as db:
+            if kind == "custom":
+                n = db.execute(
+                    "UPDATE playbook_custom SET question = ?, answer = ?, tags_json = ?, "
+                    "updated_at = ? WHERE id = ?",
+                    (question, answer, json.dumps(tags), _now(), key),
+                ).rowcount
+            elif kind == "inbox":
+                n = db.execute(
+                    "UPDATE playbook_added SET question = ?, answer = ?, added_at = ? "
+                    "WHERE escalation_id = ?",
+                    (question, answer, _now(), key),
+                ).rowcount
+            else:
+                n = 0
+            if not n:
+                raise EscalationError("not_found")
+            self._audit(db, "playbook.edit", question[:80], actor)
+
+    def delete_entry(self, entry_id: str, *, actor: str = "") -> None:
+        kind, _, key = entry_id.partition(":")
+        table = {"custom": ("playbook_custom", "id"), "inbox": ("playbook_added", "escalation_id")}
+        if kind not in table:
+            raise EscalationError("not_found")
+        name, column = table[kind]
+        with self._tx() as db:
+            n = db.execute(f"DELETE FROM {name} WHERE {column} = ?", (key,)).rowcount  # noqa: S608 - fixed names
+            if not n:
+                raise EscalationError("not_found")
+            self._audit(db, "playbook.delete", entry_id, actor)
 
     # --- audit ----------------------------------------------------------------------------
     def _audit(self, db: sqlite3.Connection, action: str, detail: str, actor: str = "") -> None:

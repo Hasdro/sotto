@@ -26,6 +26,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from sotto_worker.company import CompanyProfile
+from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.protocol.demo import DemoClientMessage
 from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import DEMO, Runtime
@@ -91,6 +92,7 @@ def create_app(
     `runtime_factory` builds a fresh runtime per call from seed + panel keys and choices."""
     scenarios: dict[str, Scenario] = {s.id: s for s in load_all(DEMO / "calls")}
     company = CompanyProfile.load(DEMO / "company.yaml")
+    file_playbook = PlaybookIndex.from_directory(DEMO / "playbook").entries
     default_settings: dict[str, Any] = {
         "ai_answers_allowed": company.ai_answers_allowed,
         "backup_allowed": not company.backup_disabled,
@@ -326,6 +328,55 @@ def create_app(
             return deny(HTTPStatus.CONFLICT, str(e))
         return JSONResponse({"escalations": store.escalations()})
 
+    def playbook_payload() -> dict[str, Any]:
+        mine = store.editable_playbook()
+        files = [
+            {
+                "id": f"file:{e.id}",
+                "question": e.question,
+                "answer": e.short_answer,
+                "tags": list(e.tags),
+                "source": "file",
+                "updated_at": None,
+            }
+            for e in file_playbook
+        ]
+        return {"entries": [*mine, *files]}
+
+    async def get_playbook(_request: Request) -> Response:
+        return JSONResponse(playbook_payload())
+
+    def entry_fields(data: dict[str, Any]) -> tuple[str, str, list[str]]:
+        tags = data.get("tags") or []
+        if not isinstance(tags, list):
+            raise ValueError("tags must be a list")
+        return str(data.get("question", "")), str(data.get("answer", "")), tags
+
+    async def add_entry(request: Request) -> Response:
+        question, answer, tags = entry_fields(await body(request))
+        try:
+            store.add_custom(question, answer, tags, actor=client_of(request))
+        except EscalationError as e:
+            return deny(HTTPStatus.CONFLICT, str(e))
+        return JSONResponse(playbook_payload())
+
+    async def edit_entry(request: Request) -> Response:
+        question, answer, tags = entry_fields(await body(request))
+        try:
+            store.update_entry(
+                request.path_params["entry_id"], question, answer, tags, actor=client_of(request)
+            )
+        except EscalationError as e:
+            return deny(HTTPStatus.CONFLICT, str(e))
+        return JSONResponse(playbook_payload())
+
+    async def delete_entry(request: Request) -> Response:
+        try:
+            store.delete_entry(request.path_params["entry_id"], actor=client_of(request))
+        except EscalationError as e:
+            return deny(HTTPStatus.CONFLICT, str(e))
+        return JSONResponse(playbook_payload())
+
     async def playbook_added(_request: Request) -> Response:
         return JSONResponse({"entries": store.playbook_added()})
 
@@ -495,6 +546,10 @@ def create_app(
             methods=["POST"],
         ),
         Route("/api/playbook/added", guarded(playbook_added)),
+        Route("/api/playbook", guarded(get_playbook)),
+        Route("/api/playbook", guarded(add_entry, mutating=True), methods=["POST"]),
+        Route("/api/playbook/{entry_id}", guarded(edit_entry, mutating=True), methods=["PUT"]),
+        Route("/api/playbook/{entry_id}", guarded(delete_entry, mutating=True), methods=["DELETE"]),
         WebSocketRoute("/ws", ws_endpoint),
         WebSocketRoute("/", ws_endpoint),  # older builds connect to the bare origin
         Route("/{path:path}", static),

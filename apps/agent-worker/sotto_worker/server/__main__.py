@@ -77,15 +77,15 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
     def runtime() -> Runtime:
         keys = store.env_overlay(provider_env)
         routing = apply_overrides(seed, catalog, store.stage_overrides())
-        added = [
+        added = [  # the manager's own answers and inbox answers (P3.5, R2 step 5)
             PlaybookEntry(
-                id=f"inbox#{e['id']}",
+                id=e["id"],
                 kind="faq",
                 question=e["question"],
                 short_answer=e["answer"],
-                tags=("from-inbox",),
+                tags=tuple(e["tags"]),
             )
-            for e in store.playbook_added()
+            for e in store.editable_playbook()
         ]
         return build_demo_runtime(
             RealClock(),
