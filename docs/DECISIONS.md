@@ -299,3 +299,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Supersedes:**
   - D-020's hosted call path for production use. Server-side `/ws` calls remain for `pnpm demo` only.
   - The Supabase plan in Phase 5, for auth and tenancy on this server.
+- **Amendment (2026-10-20, security review T-017):**
+  - Devices receive only the model keys that the company's current routes use. They never receive speech keys; those go out as short-lived tokens only. Each delivery is written to the audit log, and key tests run on the server.
+  - The owner console moved to its own origin, `https://owner.<domain>` (`SOTTO_OWNER_ORIGIN`). Its pages and the app never share an origin.
+  - Still open, accepted for the pilot: usage minutes are reported by the client. Server-side call timing is the follow-up.

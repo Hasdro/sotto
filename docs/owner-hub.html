@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 13:50";
+const UPDATED = "20 Oct 2026 · 14:10";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -196,7 +196,7 @@ const OVERVIEW = {
          "Everything else I can do myself."]},
   {eyebrow:"Your to-do", title:"What I need from you",
    short:"1) Sign in to your dashboard and change its password. 2) Answer the 6 questions in Decisions. 3) Open Android Studio once. 4) Send your playbook documents.",
-   full:["1. Dashboard: in Terminal, run ssh root@104.168.48.116 cat /root/sotto-owner-password.txt. Sign in at https://104-168-48-116.sslip.io/owner, change the password under Account, then run ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
+   full:["1. Dashboard: in Terminal, run ssh root@104.168.48.116 cat /root/sotto-owner-password.txt. Sign in at https://owner.104-168-48-116.sslip.io and choose your own password when asked. Then run ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
          "2. Decisions tab: 6 questions with my picks pre-selected. Press Save, even if you agree with all of them.",
          "3. Open Android Studio once and finish the setup wizard (for the Android app).",
          "4. Your product, price and FAQ documents, in any format.",
@@ -248,10 +248,10 @@ const DECISIONS = [
 
 const SERVER = [
  {eyebrow:"Live now", title:"Your server is running",
-  short:"Done today. Your account server is live with the [[HTTPS]] padlock at 104-168-48-116.[[sslip.io]]. Your private [[admin dashboard]] is at /owner.",
-  full:["Address: https://104-168-48-116.sslip.io. Owner console: https://104-168-48-116.sslip.io/owner",
+  short:"Live with the [[HTTPS]] padlock. The app is at 104-168-48-116.[[sslip.io]]. Your private [[admin dashboard]] has its own address: owner.104-168-48-116.sslip.io.",
+  full:["App: https://104-168-48-116.sslip.io. Your console: https://owner.104-168-48-116.sslip.io (separate on purpose, see the security card).",
         "Your owner account uses your email. Its one-time password is in a private file on the server. To see it, run this in Terminal on your Mac: ssh root@104.168.48.116 cat /root/sotto-owner-password.txt",
-        "After you sign in, change the password under Account. Then delete the file: ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
+        "On first sign-in the console asks you to choose your own password. Then delete the file: ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
         "The server uses about 280 MB of its 1 GB memory."]},
  {eyebrow:"Previous round", title:"What I did on us3 in the previous round",
   short:"Nothing. My connection to the server was blocked last round, so I only prepared an install kit. Today the connection worked and I installed everything.",
@@ -269,8 +269,15 @@ const SERVER = [
   full:["Does: sign up and log in, companies ([[tenant]]s), [[trial]]s and plans, [[seat]]s and devices, each company's settings, [[playbook]] and [[encrypted]] keys, the usage numbers the apps send after each call, and your private [[admin dashboard]].",
         "Does not: listen to calls, turn speech into text, or call the AI. The [[client app]] does all of that on the agent's device, straight to the AI services.",
         "One small exception: when a call starts, the server asks the [[speech-to-text]] service for a [[short-lived key]]. That way the real key never has to sit in a web browser. It is one tiny request per call."]},
+ {eyebrow:"Security", title:"Independent security review",
+  short:"A separate reviewer checked the new server: 0 critical, 1 high, 4 medium and 6 low findings. The high one and all four medium ones are fixed and tested. Most low ones are fixed too.",
+  full:["High (fixed): every signed-in agent used to receive all of the company's AI keys. Now a device gets only the AI keys its calls actually use, and never the speech keys (those get [[short-lived key]]s). Every hand-over is logged.",
+        "Medium (fixed): your console now has its own web address, so a problem in the app cannot reach your owner session. Seat limits can no longer be bypassed. A flood of wrong passwords can no longer lock everyone out, and it can never lock you out. One company's usage can no longer hide another's.",
+        "Low (fixed): a new password must be chosen at first sign-in. Changing a password signs out other devices. Stricter server sandboxing (Ubuntu now rates it 'OK', 1.7).",
+        "Still open: usage numbers come from the apps themselves, so a tampered app could under-report minutes. That is acceptable for a pilot; the fix is to count call time on the server too.",
+        "Advice for companies: use spend-capped keys from the AI vendors."]},
  {eyebrow:"Your dashboard", title:"Your admin dashboard",
-  short:"Live at /owner, only for you. It shows every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",
+  short:"Live at owner.104-168-48-116.sslip.io, only for you. It shows every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",
   full:["Numbers: companies by status, users and devices, active users today, calls and minutes this month, card speed ([[p95]]), unanswered questions, trials ending in 3 days, a 30-day chart, and devices by platform.",
         "Tools: create a company, change plan, extend a trial or mark it paid, change seat and minute limits, suspend or re-activate, reset a user's password, disable a user, sign a device out, delete a company (you type its name to confirm), and the audit log of every change.",
         "It is empty until the first company signs up in the app, or until you press New company."]}

@@ -29,7 +29,6 @@ Tags:
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
   - T-016 phone builds (once the Android SDK and Xcode exist);
-  - T-017 security review of the cloud server;
   - T-011 end-of-turn model;
   - P4 once LiveKit + Yeastar exist.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
@@ -205,7 +204,23 @@ Things only the owner can do, so the agent never waits silently.
 
   Transcripts stay on the device by design (web keeps the last 30; phones keep them in memory only until a storage module exists).
 - **T-016** (2026-10-20) iOS/Android builds are blocked on the owner (Android SDK licence, Xcode). The native microphone capture is still web-only (`features/call/mic.ts`): phone apps run typed and scripted calls; the spoken track on phones comes with LiveKit in P4 or a native PCM recorder.
-- **T-017** (2026-10-20) The cloud server has had no independent security review yet. Run the `security-auditor` subagent and the `tenancy-guardian` on `sotto_worker/cloud/`. Also on the agenda: whether runtime key delivery to devices (D-022) is acceptable.
+- **T-017** (2026-10-20) Security review of the cloud server by the `security-auditor` subagent.
+  - Findings: 0 critical, 1 high, 4 medium, 6 low.
+  - Fixed the same day (commit 3f07b16; 7 regression tests in `tests/cloud/test_security.py`; 35 cloud tests pass):
+    - H1: scoped key delivery, audited; no STT keys on devices; server-side key tests.
+    - M1: the owner console is on its own origin.
+    - M2: seats are checked inside the transaction and when a user is re-enabled.
+    - M3: only failures count, the owner has its own limiter, IPv6 is grouped by /64.
+    - M4: usage ids are per company.
+    - L2: the first password is enforced on the server; a password change ends other sessions and is rate-limited.
+    - L3: the Electron path check.
+    - L4: an exact owner origin.
+    - L5: systemd hardening, now rated 1.7 OK.
+    - L6: an escalation rate limit.
+  - Open:
+    - M4b: minutes are client-reported; server-side call timing should follow.
+    - L1: signup and invite still reveal that an email exists.
+    - L5: the uv installer has no checksum; there are no off-box backups.
 - **T-018** (2026-10-20) The desktop installers are unsigned: Windows shows SmartScreen and the Mac first open needs right-click → Open. Fix with a code-signing certificate and Apple Developer notarisation.
 
 - **T-002** (2026-10-18) — resolved the same night: cards and `turn_end` carry `turn_id`, and the app groups by it (commits a300a22, b5d81aa).
