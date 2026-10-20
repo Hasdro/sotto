@@ -144,9 +144,17 @@ $SOTTO_DOMAIN {
 		Strict-Transport-Security "max-age=31536000"
 		-Server
 	}
-	reverse_proxy 127.0.0.1:$PORT
+	# Installers for Windows, Mac, Linux and the Chrome extension (deploy/publish-apps.sh).
+	handle /downloads/* {
+		root * /var/www
+		file_server browse
+	}
+	handle {
+		reverse_proxy 127.0.0.1:$PORT
+	}
 }
 CADDY
+install -d -m 755 /var/www/downloads
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || die "Caddyfile invalid"
 ufw allow OpenSSH >/dev/null
 ufw allow 80/tcp >/dev/null
