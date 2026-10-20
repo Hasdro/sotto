@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 14:10";
+const UPDATED = "20 Oct 2026 · 14:25";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -274,7 +274,7 @@ const SERVER = [
   full:["High (fixed): every signed-in agent used to receive all of the company's AI keys. Now a device gets only the AI keys its calls actually use, and never the speech keys (those get [[short-lived key]]s). Every hand-over is logged.",
         "Medium (fixed): your console now has its own web address, so a problem in the app cannot reach your owner session. Seat limits can no longer be bypassed. A flood of wrong passwords can no longer lock everyone out, and it can never lock you out. One company's usage can no longer hide another's.",
         "Low (fixed): a new password must be chosen at first sign-in. Changing a password signs out other devices. Stricter server sandboxing (Ubuntu now rates it 'OK', 1.7).",
-        "Still open: usage numbers come from the apps themselves, so a tampered app could under-report minutes. That is acceptable for a pilot; the fix is to count call time on the server too.",
+        "Also fixed: the server now notes when each call starts. It caps the minutes an app reports by its own clock, and it refuses new calls the moment a plan ends.",
         "Advice for companies: use spend-capped keys from the AI vendors."]},
  {eyebrow:"Your dashboard", title:"Your admin dashboard",
   short:"Live at owner.104-168-48-116.sslip.io, only for you. It shows every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",

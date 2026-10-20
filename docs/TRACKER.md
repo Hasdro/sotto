@@ -217,8 +217,8 @@ Things only the owner can do, so the agent never waits silently.
     - L4: an exact owner origin.
     - L5: systemd hardening, now rated 1.7 OK.
     - L6: an escalation rate limit.
+  - M4b, fixed later the same day (8999602): the server records each call start, caps reported minutes by its own clock and refuses calls on an ended plan.
   - Open:
-    - M4b: minutes are client-reported; server-side call timing should follow.
     - L1: signup and invite still reveal that an email exists.
     - L5: the uv installer has no checksum; there are no off-box backups.
 - **T-018** (2026-10-20) The desktop installers are unsigned: Windows shows SmartScreen and the Mac first open needs right-click → Open. Fix with a code-signing certificate and Apple Developer notarisation.
