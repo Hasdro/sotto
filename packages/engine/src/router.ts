@@ -156,6 +156,19 @@ export class ModelRouter {
     );
   }
 
+  /** Each model runs with its own route's settings (token limit, temperature, reasoning), not
+   * the primary's: a backup from another vendor needs its own (T-019). */
+  private requestFor(stage: string, req: LLMRequest): LLMRequest {
+    const settings = this.route(stage).settings;
+    if (!settings) return req;
+    return {
+      ...req,
+      max_tokens: Number(settings.max_tokens ?? req.max_tokens),
+      temperature: Number(settings.temperature ?? req.temperature),
+      settings: { ...settings },
+    };
+  }
+
   async *stream(
     stage: string,
     req: LLMRequest,
@@ -170,9 +183,14 @@ export class ModelRouter {
     const failed = new Set<Source>();
     const outer = opts.signal;
 
-    const pump = async (source: Source, adapter: LLMAdapter, ctrl: AbortController) => {
+    const pump = async (
+      source: Source,
+      adapter: LLMAdapter,
+      ctrl: AbortController,
+      which: string,
+    ) => {
       try {
-        for await (const text of adapter.stream(req, ctrl.signal)) {
+        for await (const text of adapter.stream(this.requestFor(which, req), ctrl.signal)) {
           if (ctrl.signal.aborted) return;
           queue.push({ source, kind: "chunk", text });
         }
@@ -192,7 +210,7 @@ export class ModelRouter {
       }
       const ctrl = new AbortController();
       controllers.set(source, ctrl);
-      void pump(source, adapter, ctrl);
+      void pump(source, adapter, ctrl, which);
       return true;
     };
     const startBackup = (reason: FallbackReason) => {

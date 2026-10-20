@@ -21,6 +21,10 @@ export const HOLDING_AT_MS = 1400;
 export const LATE_ANSWER_UNTIL_MS = 5000;
 export const ANSWER_HARD_LIMIT_MS = 8000;
 const CONTEXT_WINDOW_MS = 60_000;
+/** A customer statement this close before a question is read with it ("My wife worries about the
+ * noise. What would you tell her?"): the playbook, the AI and the manager see the whole ask. */
+const LEAD_IN_GAP_MS = 4000;
+const LEAD_IN_MAX_CHARS = 300;
 const TURN_MARKER = "---turn---";
 const LANGUAGE_NAME: Record<string, string> = { en: "English", ar: "Arabic" };
 
@@ -186,12 +190,22 @@ export class CallSession {
   onTranscript(event: TranscriptEvent, t0: number): string | null {
     if (!event.final) return null;
     if (event.speaker === "agent" && !this.deps.company.agent_context) return null;
+    const previous = this.events.at(-1);
     this.events.push(event);
     const kind = classify(event); // R4: agent speech never classifies
     if (kind === null) return null;
+    const leadIn =
+      previous !== undefined &&
+      previous.speaker === "customer" &&
+      event.speaker === "customer" &&
+      classify(previous) === null &&
+      previous.text.length <= LEAD_IN_MAX_CHARS &&
+      event.start_ms - previous.end_ms <= LEAD_IN_GAP_MS
+        ? previous.text.trim()
+        : "";
     const turn: Turn = {
       turnId: newId(),
-      event,
+      event: leadIn ? { ...event, text: `${leadIn} ${event.text.trim()}` } : event,
       kind,
       t0,
       sttFinalMs: Math.max(this.clock.now() - t0, 0),

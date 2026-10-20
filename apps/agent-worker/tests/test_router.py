@@ -107,6 +107,37 @@ async def test_backup_races_after_deadline_measured_from_t0() -> None:
     )
 
 
+async def test_each_model_runs_with_its_own_settings() -> None:
+    # T-019: the backup used to receive the primary's settings (token limit, reasoning).
+    clock = FakeClock()
+    m1 = FakeLLM(clock=clock, text="slow primary", first_token_ms=1200)
+    m2 = FakeLLM(clock=clock, text="from backup", first_token_ms=200)
+    config = RoutingConfig(
+        stages={
+            "suggest": StageRoute(
+                provider="p1",
+                model="m1",
+                first_token_ms=700,
+                settings={"max_tokens": 300, "temperature": 0.2, "reasoning_effort": "low"},
+            ),
+            "suggest_backup": StageRoute(
+                provider="p2",
+                model="m2",
+                first_token_ms=700,
+                settings={"max_tokens": 120, "temperature": 0.1, "reasoning_effort": "none"},
+            ),
+        }
+    )
+    text, _ = await _run(
+        ModelRouter(config, Adapters(m1=m1, m2=m2), clock), clock, CompanyRouting("c1")
+    )
+    assert text == "from backup"
+    assert (m1.requests[0].max_tokens, m1.requests[0].settings["reasoning_effort"]) == (300, "low")
+    backup = m2.requests[0]
+    assert (backup.max_tokens, backup.temperature) == (120, 0.1)
+    assert backup.settings["reasoning_effort"] == "none"
+
+
 async def test_primary_can_still_win_the_race_after_the_deadline() -> None:
     clock = FakeClock()
     m1 = FakeLLM(clock=clock, text="late primary", first_token_ms=750)

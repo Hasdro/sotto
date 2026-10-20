@@ -215,6 +215,7 @@ export class LocalCall {
   private readonly timings: CardTimingRecord[] = [];
   private escalations = 0;
   private audio: CustomerAudio | null = null;
+  private sttVendorUsed: string | null = null;
   private keepWarm: ReturnType<typeof setInterval> | null = null;
   private playback: AbortController | null = null;
   private ended = false;
@@ -312,6 +313,7 @@ export class LocalCall {
   async audioStop(): Promise<void> {
     const audio = this.audio;
     this.audio = null;
+    if (audio?.vendor) this.sttVendorUsed = audio.vendor; // the backup, if the main one failed
     await audio?.stop();
   }
 
@@ -336,7 +338,7 @@ export class LocalCall {
       escalations: this.escalations,
       p50_ms: percentile(firsts, 0.5),
       p95_ms: percentile(firsts, 0.95),
-      stt_vendor: this.deps.runtime.sttRoutes[0]?.provider ?? "",
+      stt_vendor: this.sttVendorUsed ?? this.deps.runtime.sttRoutes[0]?.provider ?? "",
       llm_vendor: llm?.provider ?? (this.deps.runtime.mode === "fake" ? "demo" : ""),
     };
     this.deps.send({ type: "call_ended", call_id: this.callId });

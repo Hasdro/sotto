@@ -9,9 +9,13 @@ const { app, BrowserWindow, net, protocol, session, shell } = require("electron"
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
 // Pages may reach https/wss vendors (calls run on this device); scripts only from the app itself.
+// SOTTO_LOCAL_SERVER (development only) also allows a plain-http server on this machine.
+const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(process.env.SOTTO_LOCAL_SERVER ?? "")
+  ? ` ${process.env.SOTTO_LOCAL_SERVER}`
+  : "";
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; " +
+  `img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:${LOCAL}; ` +
   "media-src 'self' blob:; object-src 'none'; base-uri 'none'";
 
 protocol.registerSchemesAsPrivileged([

@@ -12,7 +12,7 @@ import asyncio
 import contextlib
 from collections import deque
 from collections.abc import AsyncGenerator, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from sotto_worker.clock import Clock
@@ -144,9 +144,21 @@ class ModelRouter:
         tasks: dict[Source, asyncio.Task[None]] = {}
         failed: set[Source] = set()
 
-        async def pump(source: Source, adapter: LLMAdapter) -> None:
+        def request_for(which: Stage) -> LLMRequest:
+            # Each model runs with its own route's settings, not the primary's (T-019).
+            settings = self.resolve(which, company).settings
+            if not settings:
+                return req
+            return replace(
+                req,
+                max_tokens=int(settings.get("max_tokens", req.max_tokens)),
+                temperature=float(settings.get("temperature", req.temperature)),
+                settings=dict(settings),
+            )
+
+        async def pump(source: Source, adapter: LLMAdapter, which: Stage) -> None:
             try:
-                async for chunk in adapter.stream(req):
+                async for chunk in adapter.stream(request_for(which)):
                     await queue.put((source, chunk))
                 await queue.put((source, None))
             except asyncio.CancelledError:
@@ -155,7 +167,9 @@ class ModelRouter:
                 await queue.put((source, err))
 
         def start(source: Source, which: Stage) -> None:
-            tasks[source] = asyncio.create_task(pump(source, self.adapter_for(which, company)))
+            tasks[source] = asyncio.create_task(
+                pump(source, self.adapter_for(which, company), which)
+            )
 
         def start_backup(reason: Literal["timeout", "error", "circuit_open"]) -> None:
             if backup_stage is None or "backup" in tasks:
@@ -165,7 +179,7 @@ class ModelRouter:
             except ModelFailsR1:
                 return  # a backup that cannot meet R1 is no backup (R6); race on without it
             result.fallback_reason = result.fallback_reason or reason
-            tasks["backup"] = asyncio.create_task(pump("backup", adapter))
+            tasks["backup"] = asyncio.create_task(pump("backup", adapter, backup_stage))
 
         if primary_circuit.is_open() and backup_stage is not None:
             start_backup("circuit_open")

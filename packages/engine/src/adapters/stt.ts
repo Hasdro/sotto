@@ -139,7 +139,12 @@ export async function openStt(
         }),
       );
     } else {
-      for (const f of waiting.splice(0)) batch.push(f);
+      // Audio kept while connecting goes out in 100 ms chunks: AssemblyAI refuses any chunk
+      // longer than 1 s and ends the session (T-019).
+      for (const f of waiting.splice(0)) {
+        batch.push(f);
+        if (batch.length >= 5) flushBatch();
+      }
     }
   };
   ws.onerror = () => fail("connection error");

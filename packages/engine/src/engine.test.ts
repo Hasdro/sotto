@@ -65,6 +65,7 @@ describe("turns", () => {
 class Scripted implements LLMAdapter {
   readonly model = "m";
   calls = 0;
+  seen: LLMRequest[] = [];
   readonly provider: string;
   private readonly opts: { delay?: number; text?: string; fail?: boolean };
   constructor(provider: string, opts: { delay?: number; text?: string; fail?: boolean }) {
@@ -72,8 +73,9 @@ class Scripted implements LLMAdapter {
     this.opts = opts;
   }
   async warm() {}
-  async *stream(_req: LLMRequest, signal: AbortSignal) {
+  async *stream(req: LLMRequest, signal: AbortSignal) {
     this.calls += 1;
+    this.seen.push(req);
     await realClock.sleep(this.opts.delay ?? 0, signal);
     if (signal.aborted) return;
     if (this.opts.fail) throw new Error(`${this.provider} down`);
@@ -126,6 +128,35 @@ describe("router (R2 backup race)", () => {
     await expect(
       collect(router(new Scripted("p", { fail: true }), new Scripted("b", { fail: true })), {}),
     ).rejects.toBeInstanceOf(AllProvidersFailed);
+  });
+  it("gives each model its own settings, not the primary's (T-019)", async () => {
+    const p = new Scripted("p", { delay: 400, text: "P" });
+    const b = new Scripted("b", { text: "B" });
+    const r = new ModelRouter(
+      {
+        suggest: {
+          provider: "p",
+          model: "m",
+          first_token_ms: 60,
+          settings: { max_tokens: 300, temperature: 0.2, reasoning_effort: "low" },
+        },
+        suggest_backup: {
+          provider: "b",
+          model: "m",
+          first_token_ms: 60,
+          settings: { max_tokens: 120, temperature: 0.1, reasoning_effort: "none" },
+        },
+      },
+      (route) => (route.provider === "p" ? p : b),
+      realClock,
+    );
+    expect(await collect(r, {})).toBe("B");
+    expect(p.seen[0]).toMatchObject({ max_tokens: 300, settings: { reasoning_effort: "low" } });
+    expect(b.seen[0]).toMatchObject({
+      max_tokens: 120,
+      temperature: 0.1,
+      settings: { reasoning_effort: "none" },
+    });
   });
   it("opens the circuit after three primary failures", async () => {
     const p = new Scripted("p", { fail: true });
@@ -244,6 +275,30 @@ describe("local call (demo protocol, offline model)", () => {
       escalations: 1,
     });
   });
+  it("reads a short lead-in sentence together with the question that follows it (T-019)", async () => {
+    const sent: unknown[] = [];
+    const bridge = new LocalCallBridge({
+      runtime: buildRuntime(bundle),
+      send: (m) => sent.push(DemoServerMessage.parse(m)),
+      onEnded: () => {},
+    });
+    bridge.handle({
+      type: "say",
+      speaker: "customer",
+      text: "My wife worries about the noise from the main road.",
+    });
+    bridge.handle({ type: "say", speaker: "customer", text: "What would you tell her?" });
+    await realClock.sleep(2200);
+    bridge.handle({ type: "end" });
+    await realClock.sleep(50);
+    const msgs = sent as { type: string; question?: string; speaker?: string }[];
+    const escalations = msgs.filter((m) => m.type === "escalation").map((m) => m.question);
+    expect(escalations).toEqual([
+      "My wife worries about the noise from the main road. What would you tell her?",
+    ]);
+    // The transcript still shows what was said, line by line.
+    expect(msgs.filter((m) => m.type === "transcript")).toHaveLength(2);
+  });
   it("turns keys into a live runtime with the backup only when its key exists", () => {
     const live = buildRuntime({ ...bundle, keys: { GROQ_API_KEY: "k" } });
     expect(live.mode).toBe("live");
@@ -328,6 +383,26 @@ describe("speech-to-text (client)", () => {
     ]);
     await stream.end();
   });
+  it("sends audio kept while connecting in chunks AssemblyAI accepts (≤ 1 s)", async () => {
+    let sock: FakeSocket | null = null;
+    const stream = await openStt(
+      { provider: "assemblyai", model: "m" },
+      async () => ({ token: "t", param: "token" }),
+      { onEvent: () => {}, onError: () => {} },
+      (url) => {
+        sock = new FakeSocket(url);
+        return sock;
+      },
+    );
+    for (let i = 0; i < 70; i++) stream.send(new ArrayBuffer(640)); // 1.4 s before open
+    const s = sock as unknown as FakeSocket;
+    s.open();
+    stream.finalize();
+    const chunks = s.sent.filter((d): d is ArrayBuffer => d instanceof ArrayBuffer);
+    expect(chunks.reduce((n, c) => n + c.byteLength, 0)).toBe(70 * 640);
+    expect(Math.max(...chunks.map((c) => c.byteLength))).toBeLessThanOrEqual(32_000);
+    await stream.end();
+  });
   it("refuses a vendor address on another host", async () => {
     await expect(
       openStt(
@@ -384,6 +459,89 @@ describe("spoken turns", () => {
     expect(turns).toHaveLength(1);
     expect(turns[0]?.[0]).toBe("Is there parking?");
     expect(turns[0]?.[1]).toBeLessThanOrEqual(before);
+    await audio.stop();
+  });
+});
+
+describe("spoken turns: audio from before the vendor connects (T-019)", () => {
+  const loud = () => new Int16Array(320).fill(3000).buffer;
+  const quiet = () => new Int16Array(320).buffer;
+  const sentMs = (s: FakeSocket) =>
+    s.sent.reduce((n, d) => n + (d instanceof ArrayBuffer ? d.byteLength : 0), 0) / 32;
+  const final = (text: string, start: number, end: number) => ({
+    type: "Turn",
+    transcript: text,
+    end_of_turn: true,
+    turn_is_formatted: true,
+    words: [{ start, end }],
+  });
+
+  it("keeps the first words and a second sentence close behind the first", async () => {
+    let sock: FakeSocket | null = null;
+    const turns: string[] = [];
+    const audio = new CustomerAudio({
+      routes: [{ provider: "assemblyai", model: "m" }],
+      tokens: async () => ({ token: "t", param: "token" }),
+      clock: realClock,
+      onTurn: (e) => turns.push(e.text),
+      onPartial: () => {},
+      onNotice: () => {},
+      socketFactory: (url) => {
+        sock = new FakeSocket(url);
+        return sock;
+      },
+    });
+    // The microphone runs for 1.5 s while the token is fetched and the socket opens.
+    const started = audio.start();
+    for (let i = 0; i < 75; i++) audio.push(quiet());
+    await started;
+    const s = sock as unknown as FakeSocket;
+    s.open();
+    for (let i = 0; i < 40; i++) audio.push(loud());
+    for (let i = 0; i < 20; i++) audio.push(quiet()); // end of turn sends the batch
+    const first = sentMs(s) - 1200; // where this sentence starts on the vendor's clock
+    s.emit(final("My wife worries about the noise from the main road.", first, first + 800));
+    await realClock.sleep(250);
+    for (let i = 0; i < 40; i++) audio.push(loud());
+    for (let i = 0; i < 20; i++) audio.push(quiet());
+    const second = sentMs(s) - 1200;
+    s.emit(final("What would you tell her?", second, second + 800));
+    await realClock.sleep(250);
+    expect(turns).toEqual([
+      "My wife worries about the noise from the main road.",
+      "What would you tell her?",
+    ]);
+    expect(first).toBeGreaterThanOrEqual(1400); // the 1.5 s before the socket opened was sent
+    await audio.stop();
+  });
+
+  it("joins a sentence the vendor cut after a dangling word", async () => {
+    let sock: FakeSocket | null = null;
+    const turns: string[] = [];
+    const audio = new CustomerAudio({
+      routes: [{ provider: "assemblyai", model: "m" }],
+      tokens: async () => ({ token: "t", param: "token" }),
+      clock: realClock,
+      onTurn: (e) => turns.push(e.text),
+      onPartial: () => {},
+      onNotice: () => {},
+      socketFactory: (url) => {
+        sock = new FakeSocket(url);
+        return sock;
+      },
+    });
+    await audio.start();
+    const s = sock as unknown as FakeSocket;
+    s.open();
+    for (let i = 0; i < 40; i++) audio.push(loud());
+    for (let i = 0; i < 20; i++) audio.push(quiet());
+    s.emit(final("Is parking included with the.", 0, 600));
+    await realClock.sleep(220); // the vendor's tail arrives after the settle time
+    s.emit(final("Apartment?", 700, 800));
+    await realClock.sleep(700);
+    expect(turns).toEqual(["Is parking included with the apartment?"]);
+    expect(midThought("Is parking included with the.")).toBe(true);
+    expect(midThought("Is it included?")).toBe(false);
     await audio.stop();
   });
 });

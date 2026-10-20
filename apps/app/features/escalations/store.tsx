@@ -34,7 +34,12 @@ function today(): string {
 
 export function EscalationStoreProvider({ children }: { children: ReactNode }) {
   const { t } = useI18n();
-  const [state, setState] = useState<EscalationState>({ inbox: INBOX, playbook: PLAYBOOK });
+  // A real account (management server, D-022) sees only its own questions and playbook; the
+  // made-up samples are for builds without a server.
+  const samples = !cloudOrigin();
+  const [state, setState] = useState<EscalationState>(
+    samples ? { inbox: INBOX, playbook: PLAYBOOK } : { inbox: [], playbook: [] },
+  );
   const customer = t("history.outcome.practice");
   const agent = t("call.speaker.agent");
   // Reload once someone signs in to the management server (D-022).
@@ -45,13 +50,17 @@ export function EscalationStoreProvider({ children }: { children: ReactNode }) {
     loadServerInbox({ customer, agent })
       .then((server) => {
         const ids = new Set(server.playbook.map((e) => e.id));
-        setState({
-          inbox: [...server.inbox, ...INBOX],
-          playbook: [...server.playbook, ...PLAYBOOK.filter((e) => !ids.has(e.id))],
-        });
+        setState(
+          samples
+            ? {
+                inbox: [...server.inbox, ...INBOX],
+                playbook: [...server.playbook, ...PLAYBOOK.filter((e) => !ids.has(e.id))],
+              }
+            : server,
+        );
       })
       .catch(() => {});
-  }, [customer, agent, signedIn]);
+  }, [customer, agent, signedIn, samples]);
   useEffect(reload, [reload]);
   const apply = useCallback(
     (result: ReturnType<typeof saveAnswer>, sync?: () => Promise<unknown>): FlowError | null => {

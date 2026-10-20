@@ -300,6 +300,26 @@ describe("cardsReducer", () => {
       expect(selectCards(s)[0]).toMatchObject({ turnKey: T1, shownAfterMs: 2500 });
     });
 
+    it("on-device calls: uses the card's own delay from the end of speech when it is longer", () => {
+      // The engine on this device sends turn_end and the card in the same instant, so the
+      // client-side gap is ~0; the card's timing knows when the customer actually stopped.
+      const timing = { turn_end_ms: 0, stt_final_ms: 420, lookup_ms: 2, first_token_ms: 610 };
+      const s = run([
+        { type: "turn_end", now: 1000, turnId: T1 },
+        card(msg({ card_id: A, seq: 0, delta: "x", turn_id: T1, timing }), 1000),
+      ]);
+      expect(selectCards(s)[0]?.shownAfterMs).toBe(610);
+    });
+
+    it("server calls: keeps the client-measured delay when it is the longer one", () => {
+      const timing = { turn_end_ms: 0, stt_final_ms: 0, lookup_ms: 2, first_token_ms: 300 };
+      const s = run([
+        { type: "turn_end", now: 1000, turnId: T1 },
+        card(msg({ card_id: A, seq: 0, delta: "x", turn_id: T1, timing }), 1900),
+      ]);
+      expect(selectCards(s)[0]?.shownAfterMs).toBe(900);
+    });
+
     it("with an unknown turn_id the delay is unknown", () => {
       const s = run([card(msg({ card_id: A, seq: 0, delta: "x", turn_id: T2 }), 10)]);
       expect(selectCards(s)[0]?.shownAfterMs).toBeNull();

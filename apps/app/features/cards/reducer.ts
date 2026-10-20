@@ -112,11 +112,19 @@ function turnKeyOf(state: CardsState, msg: CardMessage): string {
 }
 
 function shownAfter(state: CardsState, msg: CardMessage, now: number): number | null {
+  const own = msg.timing?.first_token_ms ?? null;
+  let seen: number | null;
   if (msg.turn_id) {
     const at = state.turnEnds[msg.turn_id];
-    return at === undefined ? null : Math.max(0, now - at);
+    seen = at === undefined ? null : Math.max(0, now - at);
+  } else {
+    seen =
+      state.turnEndedAt !== null && state.turn > 0 ? Math.max(0, now - state.turnEndedAt) : null;
   }
-  return state.turnEndedAt !== null && state.turn > 0 ? Math.max(0, now - state.turnEndedAt) : null;
+  // The card's own timing counts from the end of speech (R1); the client gap adds any network
+  // delay. On-device calls make the client gap ~0, so take whichever is longer.
+  if (seen === null) return null;
+  return own === null ? seen : Math.max(seen, own);
 }
 
 function openCard(state: CardsState, msg: CardMessage, now: number): CardsState {
