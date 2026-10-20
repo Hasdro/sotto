@@ -15,7 +15,7 @@ import {
   useTheme,
 } from "@sotto/ui";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
 import { RoleGate } from "../components/RoleGate";
 import { type FlowError, MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
@@ -62,12 +62,7 @@ function InboxScreen() {
           {t("inbox.answer.added", { question: added })}
         </Text>
       ) : null}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterWrap}
-        contentContainerStyle={styles.filter}
-      >
+      <View style={styles.filterWrap}>
         <SegmentedControl
           accessibilityLabel={t("inbox.filter")}
           options={STATUSES.map((s) => ({
@@ -78,7 +73,7 @@ function InboxScreen() {
           onChange={setStatus}
           testID="inbox-filter"
         />
-      </ScrollView>
+      </View>
       {items.length === 0 ? (
         <EmptyState title={t("inbox.empty.title")} body={t("inbox.empty.body")} />
       ) : (
@@ -180,8 +175,7 @@ const styles = StyleSheet.create({
   editor: { marginTop: space.sm, gap: space.xs },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.xs },
   page: { paddingTop: space.xl },
-  filterWrap: { flexGrow: 0 },
-  filter: { marginBottom: space.lg },
+  filterWrap: { marginBottom: space.lg },
   row: { padding: space.lg, gap: space.xs },
   top: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
   grow: { flex: 1 },

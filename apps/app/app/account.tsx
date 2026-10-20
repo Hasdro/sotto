@@ -77,7 +77,7 @@ export default function AccountScreen() {
         <Panel>
           <Stack gap="sm">
             <View style={styles.row}>
-              <Text variant="title" weight="semibold">
+              <Text variant="heading" weight="semibold" style={styles.shrink}>
                 {c.name}
               </Text>
               <Badge
@@ -216,7 +216,7 @@ function Team({
               <Text variant="body" weight="medium">
                 {t("account.invite")}
               </Text>
-              <TextField label={t("account.name")} value={name} onChangeText={setName} />
+              <TextField label={t("account.inviteName")} value={name} onChangeText={setName} />
               <TextField
                 label={t("account.email")}
                 value={email}
@@ -253,7 +253,8 @@ function Team({
 }
 
 const styles = StyleSheet.create({
-  page: { gap: space.xl },
+  // PageHeader brings its own bottom margin, so sections are spaced by lg, not xl.
+  page: { gap: space.lg },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -261,4 +262,5 @@ const styles = StyleSheet.create({
     gap: space.md,
   },
   grow: { flex: 1 },
+  shrink: { flexShrink: 1 },
 });

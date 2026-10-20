@@ -2,6 +2,7 @@ import { Button, Panel, radius, size, space, Text, useTheme } from "@sotto/ui";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useI18n } from "../../../lib/locale";
+import { useIsWide } from "../../../lib/responsive";
 import type { Hello } from "../session";
 
 type Props = { scenarios: Hello["scenarios"]; onStart: (scenarioId: string | null) => void };
@@ -10,9 +11,10 @@ type Props = { scenarios: Hello["scenarios"]; onStart: (scenarioId: string | nul
 export function ScenarioPicker({ scenarios, onStart }: Props) {
   const { t } = useI18n();
   const { color } = useTheme();
+  const wide = useIsWide();
   const [picked, setPicked] = useState<string | null>(scenarios[0]?.id ?? null);
   return (
-    <Panel style={styles.panel} testID="scenario-picker">
+    <Panel style={[styles.panel, wide ? null : styles.panelNarrow]} testID="scenario-picker">
       <Text variant="title" weight="semibold" accessibilityRole="header">
         {t("call.pick.title")}
       </Text>
@@ -63,7 +65,8 @@ export function ScenarioPicker({ scenarios, onStart }: Props) {
           })}
         </View>
       )}
-      <View style={styles.actions}>
+      {/* On a phone both actions are full width, so the main one is easy to hit (DESIGN.md §6). */}
+      <View style={[styles.actions, wide ? null : styles.actionsNarrow]}>
         {scenarios.length > 0 ? (
           <Button
             size="lg"
@@ -104,5 +107,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   radioDot: { width: size.radioDot, height: size.radioDot, borderRadius: radius.pill },
+  panelNarrow: { padding: space.lg },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.sm },
+  actionsNarrow: { flexDirection: "column", flexWrap: "nowrap", alignItems: "stretch" },
 });
