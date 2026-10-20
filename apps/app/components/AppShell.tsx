@@ -1,11 +1,33 @@
 /**
- * Navigation shell (DESIGN.md §6): a sidebar from the wide breakpoint up, bottom tabs below it.
- * Items are real links (anchors on web) with the current page marked for assistive tech.
+ * Navigation shell (DESIGN.md §6, D-023): a sidebar from the wide breakpoint up; below it a top
+ * bar whose menu button opens the same navigation as a drawer from the start edge (left in
+ * English, right in Arabic). Items are real links (anchors on web) with the current page marked
+ * for assistive tech.
  */
-import { layout, radius, space, Text, useTheme, Wordmark } from "@sotto/ui";
+import {
+  layout,
+  minTouchTarget,
+  motion,
+  radius,
+  scrimOpacity,
+  space,
+  Text,
+  useDirection,
+  useTheme,
+  Wordmark,
+} from "@sotto/ui";
 import { Link, usePathname } from "expo-router";
-import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  AccessibilityInfo,
+  Animated,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEscalations } from "../features/escalations/store";
 import { countByStatus } from "../features/inbox/mock";
@@ -50,9 +72,7 @@ function useNav(): readonly NavItem[] {
 export function AppShell({ children }: { children: ReactNode }) {
   const wide = useIsWide();
   const { color } = useTheme();
-  const pathname = usePathname();
-  // Narrow screens have no sidebar; the switch sits above every page except the call itself.
-  const roleBar = !wide && !isActive(pathname, "/call");
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <View
       style={[
@@ -60,22 +80,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         { flexDirection: wide ? "row" : "column", backgroundColor: color.background },
       ]}
     >
-      {wide ? <Sidebar /> : null}
+      {wide ? <Sidebar /> : <TopBar open={menuOpen} onOpen={() => setMenuOpen(true)} />}
       <View style={styles.main}>
-        {roleBar ? (
-          <View
-            style={[
-              styles.roleBar,
-              { backgroundColor: color.surface, borderBottomColor: color.border },
-            ]}
-          >
-            <RoleSwitch />
-          </View>
-        ) : null}
         <PlanBanner />
         {children}
       </View>
-      {wide ? null : <BottomTabs />}
+      {wide ? null : <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
     </View>
   );
 }
@@ -84,7 +94,8 @@ function useOpenCount(): number {
   return countByStatus(useEscalations().inbox).open;
 }
 
-function Sidebar() {
+/** Brand, links, role switch and the user footer: the sidebar and the drawer show the same. */
+function NavPanel({ onClose }: { onClose?: () => void }) {
   const { color } = useTheme();
   const { t } = useI18n();
   const { role } = useRole();
@@ -92,31 +103,25 @@ function Sidebar() {
   const nav = useNav();
   const openCount = useOpenCount();
   const cloud = useCloud();
-  const persona = cloud.status === "signed_in" ? { name: cloud.me.user.name } : personaFor(role);
-  const insets = useSafeAreaInsets();
+  const signedIn = cloud.status === "signed_in";
+  const persona = signedIn ? { name: cloud.me.user.name } : personaFor(role);
   return (
-    <View
-      style={[
-        styles.sidebar,
-        {
-          backgroundColor: color.surface,
-          borderEndColor: color.border,
-          paddingTop: insets.top + space.xl,
-        },
-      ]}
-    >
+    <>
       <View style={styles.brand}>
         <Wordmark name={t("app.name")} />
+        {onClose ? <CloseButton label={t("nav.close")} onPress={onClose} /> : null}
       </View>
       <View role="navigation" accessibilityLabel={t("nav.label")} style={styles.sideNav}>
         {nav.map((item) => {
           const active = isActive(pathname, item.href);
           return (
-            <Link key={item.href} href={item.href} asChild>
+            <Link key={item.href} href={item.href} asChild onPress={onClose}>
               <Pressable
                 accessibilityRole="link"
                 accessibilityState={{ selected: active }}
                 aria-current={active ? "page" : undefined}
+                testID={`nav-${item.href.slice(1)}`}
+                // Link asChild needs a plain style object (a style function is dropped on web).
                 style={StyleSheet.flatten([
                   styles.sideItem,
                   active ? { backgroundColor: color.surfaceSunken } : null,
@@ -133,6 +138,7 @@ function Sidebar() {
                   weight={active ? "semibold" : "regular"}
                   tone={active ? "primary" : "default"}
                   style={styles.grow}
+                  numberOfLines={1}
                 >
                   {t(item.label)}
                 </Text>
@@ -154,16 +160,220 @@ function Sidebar() {
             {persona.name.slice(0, 1)}
           </Text>
         </View>
-        <View>
-          <Text variant="label" weight="semibold">
+        <View style={styles.userText}>
+          <Text variant="label" weight="semibold" numberOfLines={1}>
             {persona.name}
           </Text>
-          <Text variant="label" tone="muted">
-            {t(`role.${role}`)}
+          <Text variant="label" tone="muted" numberOfLines={1}>
+            {signedIn && cloud.me.company
+              ? `${t(`role.${role}`)} · ${cloud.me.company.name}`
+              : t(`role.${role}`)}
           </Text>
         </View>
       </View>
+    </>
+  );
+}
+
+function Sidebar() {
+  const { color } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <View
+      style={[
+        styles.sidebar,
+        {
+          backgroundColor: color.surface,
+          borderEndColor: color.border,
+          paddingTop: insets.top + space.xl,
+        },
+      ]}
+    >
+      <NavPanel />
     </View>
+  );
+}
+
+/** Narrow screens: the menu button (start side) and the wordmark. */
+function TopBar({ open, onOpen }: { open: boolean; onOpen: () => void }) {
+  const { color } = useTheme();
+  const { t } = useI18n();
+  const insets = useSafeAreaInsets();
+  const nav = useNav();
+  const openCount = useOpenCount();
+  const dot = openCount > 0 && nav.some((item) => item.href === "/inbox");
+  return (
+    <View
+      style={[
+        styles.topBar,
+        {
+          backgroundColor: color.surface,
+          borderBottomColor: color.border,
+          paddingTop: insets.top,
+          height: layout.topBarHeight + insets.top,
+        },
+      ]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={dot ? t("nav.openWithCount", { count: openCount }) : t("nav.open")}
+        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onPress={onOpen}
+        testID="menu-button"
+        hitSlop={4}
+        style={({ pressed }) => [styles.iconButton, pressed ? styles.pressed : null]}
+      >
+        <View style={styles.burger}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={[styles.burgerLine, { backgroundColor: color.text }]} />
+          ))}
+        </View>
+        {dot ? (
+          <View
+            testID="menu-dot"
+            style={[styles.menuDot, { backgroundColor: color.primary, borderColor: color.surface }]}
+          />
+        ) : null}
+      </Pressable>
+      <Wordmark name={t("app.name")} />
+    </View>
+  );
+}
+
+function useReduceMotion(): boolean {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let live = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((on) => {
+        if (live) setReduce(on);
+      })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduce);
+    return () => {
+      live = false;
+      sub?.remove();
+    };
+  }, []);
+  return reduce;
+}
+
+/**
+ * The phone drawer (D-023). `Modal` gives Android back and Escape (onRequestClose) and, on web,
+ * a focus trap. The panel sits on the physical start edge, so it is set from the direction.
+ */
+function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { color } = useTheme();
+  const { t } = useI18n();
+  const dir = useDirection();
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
+  const { width: windowWidth } = useWindowDimensions();
+  const width = Math.min(layout.drawerMaxWidth, Math.round(windowWidth * 0.85));
+  const [mounted, setMounted] = useState(open);
+  const progress = useRef(new Animated.Value(open ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (open) setMounted(true);
+    const done = () => {
+      if (!open) setMounted(false);
+    };
+    if (reduceMotion) {
+      progress.setValue(open ? 1 : 0);
+      done();
+      return;
+    }
+    const anim = Animated.timing(progress, {
+      toValue: open ? 1 : 0,
+      duration: open ? motion.base : motion.fast,
+      useNativeDriver: Platform.OS !== "web",
+    });
+    anim.start(({ finished }) => {
+      if (finished) done();
+    });
+    return () => anim.stop();
+  }, [open, reduceMotion, progress]);
+
+  if (!mounted) return null;
+  const from = dir === "rtl" ? width : -width;
+  return (
+    <Modal transparent visible animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <View
+        {...(Platform.OS === "web" ? { dir } : {})}
+        style={[styles.drawerRoot, { direction: dir }]}
+      >
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: color.scrim,
+              opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, scrimOpacity] }),
+            },
+          ]}
+        >
+          <Pressable
+            testID="nav-scrim"
+            accessibilityRole="button"
+            accessibilityLabel={t("nav.close")}
+            onPress={onClose}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+        <Animated.View
+          testID="nav-drawer"
+          // Modal is the dialog (role and focus trap on web); this keeps VoiceOver inside it.
+          accessibilityViewIsModal
+          style={[
+            styles.drawer,
+            dir === "rtl" ? { right: 0, borderLeftWidth: 1 } : { left: 0, borderRightWidth: 1 },
+            {
+              width,
+              backgroundColor: color.surface,
+              borderColor: color.border,
+              paddingTop: insets.top + space.lg,
+              paddingBottom: insets.bottom + space.lg,
+              transform: [
+                {
+                  translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }),
+                },
+              ],
+            },
+          ]}
+        >
+          <NavPanel onClose={onClose} />
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+function CloseButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const { color } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      testID="menu-close"
+      style={({ pressed }) => [styles.iconButton, pressed ? styles.pressed : null]}
+    >
+      <View style={styles.cross}>
+        <View
+          style={[
+            styles.crossLine,
+            { backgroundColor: color.text, transform: [{ rotate: "45deg" }] },
+          ]}
+        />
+        <View
+          style={[
+            styles.crossLine,
+            { backgroundColor: color.text, transform: [{ rotate: "-45deg" }] },
+          ]}
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -178,77 +388,31 @@ function Count({ n }: { n: number }) {
   );
 }
 
-function BottomTabs() {
-  const { color } = useTheme();
-  const { t } = useI18n();
-  const pathname = usePathname();
-  const nav = useNav();
-  const openCount = useOpenCount();
-  const insets = useSafeAreaInsets();
-  return (
-    <View
-      role="navigation"
-      accessibilityLabel={t("nav.label")}
-      style={[
-        styles.tabs,
-        {
-          backgroundColor: color.surface,
-          borderTopColor: color.border,
-          paddingBottom: insets.bottom,
-        },
-      ]}
-    >
-      {nav.map((item) => {
-        const active = isActive(pathname, item.href);
-        return (
-          <Link key={item.href} href={item.href} asChild>
-            <Pressable
-              accessibilityRole="link"
-              accessibilityState={{ selected: active }}
-              aria-current={active ? "page" : undefined}
-              style={styles.tab}
-            >
-              <View
-                style={[styles.tabBar, { backgroundColor: active ? color.primary : "transparent" }]}
-              />
-              <View style={styles.tabLabel}>
-                <Text
-                  variant="label"
-                  weight={active ? "semibold" : "medium"}
-                  tone={active ? "primary" : "muted"}
-                  numberOfLines={1}
-                >
-                  {t(item.label)}
-                </Text>
-                {item.href === "/inbox" && openCount > 0 ? (
-                  <View style={[styles.dot, { backgroundColor: color.primary }]} />
-                ) : null}
-              </View>
-            </Pressable>
-          </Link>
-        );
-      })}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
   main: { flex: 1, minWidth: 0 },
   grow: { flex: 1 },
+  pressed: { opacity: 0.8 },
   sidebar: {
     width: layout.sidebarWidth,
     borderEndWidth: 1,
     paddingHorizontal: space.md,
     paddingBottom: space.lg,
   },
-  brand: { paddingHorizontal: space.md, marginBottom: space.xxl },
+  brand: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: minTouchTarget,
+    paddingHorizontal: space.md,
+    marginBottom: space.xl,
+  },
   sideNav: { gap: space.xs },
   sideItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    minHeight: 44,
+    minHeight: 48,
     paddingEnd: space.md,
     borderRadius: radius.md,
     overflow: "hidden",
@@ -263,7 +427,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   switchWrap: { paddingHorizontal: space.sm, marginBottom: space.lg },
-  roleBar: { borderBottomWidth: 1, paddingHorizontal: space.lg, paddingVertical: space.sm },
   user: {
     flexDirection: "row",
     alignItems: "center",
@@ -272,6 +435,7 @@ const styles = StyleSheet.create({
     paddingTop: space.lg,
     paddingHorizontal: space.sm,
   },
+  userText: { flexShrink: 1, minWidth: 0 },
   avatar: {
     width: 36,
     height: 36,
@@ -279,9 +443,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  tabs: { flexDirection: "row", borderTopWidth: 1 },
-  tab: { flex: 1, minHeight: 56, alignItems: "center" },
-  tabBar: { height: 3, width: 28, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
-  tabLabel: { flex: 1, flexDirection: "row", alignItems: "center", gap: space.xs },
-  dot: { width: 6, height: 6, borderRadius: radius.pill },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    borderBottomWidth: 1,
+    paddingHorizontal: space.sm,
+  },
+  iconButton: {
+    width: minTouchTarget,
+    height: minTouchTarget,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  burger: { width: 20, gap: 4 },
+  burgerLine: { height: 2, borderRadius: 1 },
+  menuDot: {
+    position: "absolute",
+    top: 8,
+    end: 7,
+    width: 10,
+    height: 10,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+  },
+  cross: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  crossLine: { position: "absolute", width: 20, height: 2, borderRadius: 1 },
+  drawerRoot: { flex: 1 },
+  drawer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    paddingHorizontal: space.md,
+  },
 });

@@ -1,5 +1,6 @@
-import { fireEvent, screen } from "@testing-library/react-native";
+import { fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { renderRouter } from "expo-router/testing-library";
+import * as ReactNative from "react-native";
 import RootLayout from "../app/_layout";
 import AdminLayout from "../app/admin/_layout";
 import TeamScreen from "../app/admin/index";
@@ -30,9 +31,19 @@ async function open(url: string) {
   await renderRouter(routes, { initialUrl: url });
 }
 
+/** Below the wide breakpoint the navigation lives in the drawer (D-023). */
+async function openMenu() {
+  await fireEvent.press(screen.getByTestId("menu-button"));
+}
+
+async function drawerClosed() {
+  await waitFor(() => expect(screen.queryByTestId("nav-drawer")).toBeNull());
+}
+
 describe("mock screens", () => {
   it("navigation lists the five areas", async () => {
     await open("/history");
+    await openMenu();
     for (const name of ["Call", "History", "Playbook", "Inbox", "Admin"]) {
       expect(screen.getByRole("link", { name: new RegExp(`^${name}`) })).toBeOnTheScreen();
     }
@@ -108,11 +119,13 @@ describe("mock screens", () => {
     expect(screen.getByText("App language")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("app-language-ar"));
     expect(screen.getByText("لغة التطبيق")).toBeOnTheScreen();
+    await openMenu();
     expect(screen.getByRole("link", { name: /^السجل/ })).toBeOnTheScreen();
   });
 
   it("the demo role switch hides areas an agent may not open (R3)", async () => {
     await open("/history");
+    await openMenu();
     await fireEvent.press(screen.getByTestId("role-switch-agent"));
     for (const name of ["Call", "History", "Playbook"]) {
       expect(screen.getByRole("link", { name: new RegExp(`^${name}`) })).toBeOnTheScreen();
@@ -127,6 +140,7 @@ describe("mock screens", () => {
   it("a page outside the role's areas shows why instead of the page", async () => {
     await open("/admin/prompts");
     expect(screen.getByText("Published v4")).toBeOnTheScreen();
+    await openMenu();
     await fireEvent.press(screen.getByTestId("role-switch-manager"));
     expect(screen.queryByText("Published v4")).toBeNull();
     expect(screen.getByText("Not available for this role")).toBeOnTheScreen();
@@ -144,6 +158,7 @@ describe("mock screens", () => {
     expect(
       screen.getByText("Added to the playbook: Can I pay the deposit in bitcoin?"),
     ).toBeOnTheScreen();
+    await openMenu();
     await fireEvent.press(screen.getByRole("link", { name: /^Playbook/ }));
     await fireEvent.changeText(screen.getByTestId("playbook-search"), "bitcoin");
     expect(screen.getByText("Answers: 1")).toBeOnTheScreen();
@@ -180,5 +195,92 @@ describe("mock screens", () => {
 
     await fireEvent.press(screen.getByTestId("rollback-4"));
     expect(screen.getByText("Calls use v4")).toBeOnTheScreen();
+  });
+});
+
+describe("navigation shell (D-023)", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it("phones get a menu button and no bottom tabs; the drawer starts closed", async () => {
+    await open("/history");
+    const button = screen.getByTestId("menu-button");
+    expect(button).toBeCollapsed();
+    expect(screen.queryByTestId("nav-drawer")).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Playbook/ })).toBeNull();
+  });
+
+  it("the menu button opens the drawer with every item, the role switch and the user", async () => {
+    await open("/history");
+    await openMenu();
+    expect(screen.getByTestId("nav-drawer")).toBeOnTheScreen();
+    expect(screen.getByTestId("menu-button")).toBeExpanded();
+    for (const name of ["Call", "History", "Playbook", "Inbox", "Admin"]) {
+      expect(screen.getByRole("link", { name: new RegExp(`^${name}`) })).toBeOnTheScreen();
+    }
+    expect(screen.getByRole("link", { name: /^History/ })).toBeSelected();
+    expect(screen.getByTestId("role-switch")).toBeOnTheScreen();
+    expect(screen.getByText("Company admin")).toBeOnTheScreen();
+  });
+
+  it("shows the open-question count on Inbox and a dot on the menu button", async () => {
+    await open("/history");
+    expect(screen.getByTestId("menu-dot")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Open menu, 2 open questions")).toBeOnTheScreen();
+    await openMenu();
+    expect(screen.getByRole("link", { name: /^Inbox/ })).toHaveTextContent(/Inbox\s*2/);
+  });
+
+  it("a tap on the scrim closes the drawer", async () => {
+    await open("/history");
+    await openMenu();
+    // Touch-only: screen readers get the close button, the scrim sits outside the modal panel.
+    await fireEvent.press(screen.getByTestId("nav-scrim", { includeHiddenElements: true }));
+    await drawerClosed();
+  });
+
+  it("the close button closes the drawer", async () => {
+    await open("/history");
+    await openMenu();
+    await fireEvent.press(screen.getByLabelText("Close menu", { exact: true }));
+    await drawerClosed();
+  });
+
+  it("Android back / Escape (Modal onRequestClose) closes the drawer", async () => {
+    await open("/history");
+    await openMenu();
+    // fireEvent bubbles up to the Modal's onRequestClose.
+    await fireEvent(screen.getByTestId("nav-drawer"), "requestClose");
+    await drawerClosed();
+  });
+
+  it("an item navigates and closes the drawer", async () => {
+    await open("/history");
+    await openMenu();
+    await fireEvent.press(screen.getByRole("link", { name: /^Playbook/ }));
+    await drawerClosed();
+    expect(screen.getByTestId("playbook-search")).toBeOnTheScreen();
+  });
+
+  it("in Arabic the drawer opens from the right", async () => {
+    await open("/admin/settings");
+    await fireEvent.press(screen.getByTestId("app-language-ar"));
+    await openMenu();
+    expect(screen.getByTestId("nav-drawer")).toHaveStyle({ right: 0 });
+    expect(screen.getByLabelText("إغلاق القائمة", { exact: true })).toBeOnTheScreen();
+  });
+
+  it("in English the drawer opens from the left", async () => {
+    await open("/history");
+    await openMenu();
+    expect(screen.getByTestId("nav-drawer")).toHaveStyle({ left: 0 });
+  });
+
+  it("wide windows keep the sidebar and have no menu button", async () => {
+    jest
+      .spyOn(ReactNative.Dimensions, "get")
+      .mockReturnValue({ width: 1280, height: 900, scale: 1, fontScale: 1 });
+    await open("/history");
+    expect(screen.queryByTestId("menu-button")).toBeNull();
+    expect(screen.getByRole("link", { name: /^Playbook/ })).toBeOnTheScreen();
   });
 });
