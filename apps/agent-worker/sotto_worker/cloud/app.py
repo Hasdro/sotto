@@ -26,6 +26,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
+from sotto_worker.server.catalog import apply_overrides
 
 MAX_BODY = 16 * 1024
 OWNER_COOKIE = "sotto_owner"
@@ -48,6 +49,9 @@ COMMON_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
 }
+MODEL_KEY = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
+FIRST_PASSWORD_PATHS = {"/api/v1/me", "/api/v1/auth/password", "/api/v1/auth/logout"}
+OWNER_FIRST_PASSWORD_PATHS = {"/api/owner/me", "/api/owner/password", "/api/owner/logout"}
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
@@ -63,6 +67,25 @@ class RateLimit:
         self.per_key, self.total, self.window = per_key, total, window_s
         self._keys: OrderedDict[str, deque[float]] = OrderedDict()
         self._all: deque[float] = deque()
+
+    def blocked(self, key: str, now: float | None = None) -> bool:
+        """True when this key (or everyone together) is over the limit; counts nothing."""
+        t = now if now is not None else time.monotonic()
+        recent = self._keys.get(key)
+        for q in (self._all, recent):
+            while q and q[0] < t - self.window:
+                q.popleft()
+        return bool(recent and len(recent) >= self.per_key) or len(self._all) >= self.total
+
+    def record(self, key: str, now: float | None = None) -> None:
+        """Counts one failure for this key."""
+        t = now if now is not None else time.monotonic()
+        recent = self._keys.setdefault(key, deque())
+        self._keys.move_to_end(key)
+        while len(self._keys) > 10_000:
+            self._keys.popitem(last=False)
+        recent.append(t)
+        self._all.append(t)
 
     def hit(self, key: str, now: float | None = None) -> bool:
         t = now if now is not None else time.monotonic()
@@ -84,8 +107,10 @@ class RateLimit:
 class CloudConfig:
     public_origin: str | None  # https://… in production; None = local (http://localhost)
     static_dir: Path | None
+    owner_origin: str | None = None  # the owner console's own origin, e.g. https://owner.…
     secure_cookies: bool = False
     stt_minter: Callable[[str, str], Awaitable[dict[str, Any]]] | None = None
+    key_tester: Callable[[str, str, str], Awaitable[list[str]]] | None = None
     log: Callable[[str], None] = field(default=lambda _line: None)
 
 
@@ -113,16 +138,44 @@ async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
     raise CloudError("invalid", f"no short-lived tokens for {vendor}")
 
 
+async def list_models(provider_id: str, url: str, key: str) -> list[str]:
+    """ "Test" for a model key, run here so devices never need keys they do not use. The URL is
+    the vendor's own models endpoint from the seed catalogue, never from the request."""
+    headers = (
+        {"x-api-key": key, "anthropic-version": "2023-06-01"}
+        if provider_id == "anthropic"
+        else {"Authorization": f"Bearer {key}"}
+    )
+    async with httpx.AsyncClient(timeout=8) as client:
+        r = await client.get(url, headers=headers)
+        r.raise_for_status()
+        data = r.json().get("data") or []
+        return [str(m.get("id", "")).removeprefix("models/") for m in data][:80]
+
+
 def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGIApp:
+    # Only FAILED sign-ins count, so real users cannot be locked out by volume alone; the owner
+    # has a limiter of its own, so a flood on the app login never locks the owner out.
     login_limit = RateLimit(per_key=10, total=300, window_s=600)
+    owner_limit = RateLimit(per_key=10, total=50, window_s=600)
+    password_limit = RateLimit(per_key=5, total=500, window_s=600)
+    escalation_limit = RateLimit(per_key=60, total=5000, window_s=3600)
     signup_limit = RateLimit(per_key=5, total=60, window_s=3600)
     token_limit = RateLimit(per_key=60, total=2000, window_s=3600)
     minter = config.stt_minter or mint_stt_token
+    tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
     static_root = config.static_dir.resolve() if config.static_dir else None
 
     def ip_of(request: Request) -> str:
         return request.client.host if request.client else "?"
+
+    def ip_key(request: Request) -> str:
+        """Rate-limit key: the IPv4 address, or the /64 of an IPv6 address (one home or VM)."""
+        ip = ip_of(request)
+        if ":" in ip:
+            return ":".join(ip.split(":")[:4]) + "::/64"
+        return ip
 
     def fail(status: HTTPStatus, code: str, message: str) -> JSONResponse:
         return JSONResponse({"error": message, "code": code}, status_code=status)
@@ -179,6 +232,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             who = bearer(request)
             if who is None:
                 return fail(HTTPStatus.UNAUTHORIZED, "signed_out", "sign in again")
+            if who.must_change and request.url.path not in FIRST_PASSWORD_PATHS:
+                return fail(
+                    HTTPStatus.FORBIDDEN, "change_password", "choose your own password first"
+                )
             return await fn(request, who)
 
         return wrapped
@@ -194,7 +251,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @handle
     async def signup(request: Request) -> Response:
-        if not signup_limit.hit(ip_of(request)):
+        if not signup_limit.hit(ip_key(request)):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many sign-ups; wait")
         data = await body(request)
         store.signup(
@@ -215,10 +272,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def login(request: Request) -> Response:
         data = await body(request)
         email = str(data.get("email", "")).strip().lower()
-        if not login_limit.hit(ip_of(request)) or not login_limit.hit("email:" + email):
+        keys = (ip_key(request), "email:" + email)
+        if any(login_limit.blocked(k) for k in keys):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait 10 min")
         user = store.check_login(email, str(data.get("password", "")))
         if user is None or user["role"] == "owner":
+            for k in keys:
+                login_limit.record(k)
             return fail(HTTPStatus.UNAUTHORIZED, "bad_login", "wrong email or password")
         device = data.get("device") if isinstance(data.get("device"), dict) else {}
         token = store.open_session(user, kind="app", device=device or {})
@@ -235,9 +295,27 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def change_password(request: Request, who: Principal) -> Response:
+        if password_limit.blocked(who.user_id):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait 10 min")
         data = await body(request)
+        password_limit.record(who.user_id)
         store.change_password(who, str(data.get("current", "")), str(data.get("new", "")))
         return JSONResponse({"ok": True})
+
+    def needed_keys(company_id: str) -> set[str]:
+        """The model keys the company's current routes use. Speech keys never leave the server:
+        devices get short-lived tokens for them instead (security review H1)."""
+        routing = apply_overrides(seed.routing, seed.catalog, store.routes(company_id))
+        names: set[str] = set()
+        for stage in ("suggest", "suggest_backup", "summary"):
+            route = routing.stages.get(stage)
+            if route is None:
+                continue
+            if route.provider == "openai_compatible" and route.api_key_env:
+                names.add(route.api_key_env)
+            elif route.provider in MODEL_KEY:
+                names.add(MODEL_KEY[route.provider])
+        return names - set(stt_key_env.values())
 
     @app_route
     async def bundle(_request: Request, who: Principal) -> Response:
@@ -249,7 +327,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             settings=store.settings(who.company),
             routes=store.routes(who.company),
             own_playbook=store.playbook(who.company),
-            keys=store.keys_for_call(who) if state["can_call"] else None,
+            keys=(
+                store.keys_for_call(who, needed_keys(who.company), ip=ip_of(_request))
+                if state["can_call"]
+                else None
+            ),
         )
         out["plan"] = state
         out["key_status"] = store.key_status(who)
@@ -267,7 +349,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             raise CloudError("plan_blocked", state["blocked_reason"] or "calls are blocked")
         if not token_limit.hit(who.user_id):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many calls started")
-        key = store.keys_for_call(who).get(stt_key_env[vendor])
+        key = store.stored_key(who, stt_key_env[vendor])
         if not key:
             raise CloudError("no_key", f"add the {vendor} key in Keys & providers first")
         try:
@@ -306,6 +388,38 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             who, request.path_params["env"], str(data.get("value", "")), ip=ip_of(request)
         )
         return JSONResponse({"ok": True, "key_status": store.key_status(who)})
+
+    @app_route
+    async def key_test(request: Request, who: Principal) -> Response:
+        who.require("admin")
+        env = request.path_params["env"]
+        provider = next((p for p in seed.catalog.providers.values() if p.key_env == env), None)
+        if provider is None:
+            raise CloudError("not_found", "unknown key")
+        key = store.stored_key(who, env)
+        if not key:
+            raise CloudError("no_key", "save the key first")
+        try:
+            if provider.kind == "stt":
+                if provider.id not in stt_key_env:
+                    return JSONResponse({"ok": True, "detail": "saved (tested on the Mac demo)"})
+                await minter(provider.id, key)
+                return JSONResponse({"ok": True, "detail": "the vendor issued a streaming token"})
+            url = provider.models_url()
+            if not url:
+                raise CloudError("invalid", "this vendor has no test address")
+            models = await tester(provider.id, url, key)
+        except httpx.HTTPStatusError as e:
+            return JSONResponse(
+                {"ok": False, "detail": f"{provider.name} answered {e.response.status_code}"}
+            )
+        except httpx.HTTPError as e:
+            return JSONResponse(
+                {"ok": False, "detail": f"{provider.name} unreachable ({type(e).__name__})"}
+            )
+        return JSONResponse(
+            {"ok": True, "detail": f"{len(models)} models available", "models": models}
+        )
 
     @app_route
     async def key_delete(request: Request, who: Principal) -> Response:
@@ -350,6 +464,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def escalation_post(request: Request, who: Principal) -> Response:
+        if not escalation_limit.hit(who.user_id):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many questions sent")
         item = store.add_escalation(who, str((await body(request)).get("question", "")))
         return JSONResponse({"id": item}, status_code=HTTPStatus.CREATED)
 
@@ -403,22 +519,35 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return JSONResponse({"ok": True})
 
     # --- owner -----------------------------------------------------------------------------------
+    def own_origin(request: Request) -> str:
+        return f"{request.url.scheme}://{request.url.netloc}"
+
+    def owner_host_ok(request: Request) -> bool:
+        """The owner console lives on its own origin (security review M1), so a script on the
+        app's origin can never use the owner's cookie."""
+        if not config.owner_origin:
+            return True
+        return own_origin(request) == config.owner_origin.rstrip("/")
+
     def owner_origin_ok(request: Request) -> bool:
         origin = request.headers.get("origin")
         if origin is None:
             return True  # same-origin GETs and non-browser tools send none
-        if config.public_origin:
-            return origin.rstrip("/") == config.public_origin.rstrip("/")
-        return origin.startswith(("http://127.0.0.1:", "http://localhost:"))
+        expected = (config.owner_origin or config.public_origin or own_origin(request)).rstrip("/")
+        return origin.rstrip("/") == expected
 
     def owner_route(
         fn: Callable[[Request, Principal], Awaitable[Response]], *, mutating: bool = False
     ) -> Callable[[Request], Awaitable[Response]]:
         @handle
         async def wrapped(request: Request) -> Response:
+            if not owner_host_ok(request):
+                return fail(HTTPStatus.NOT_FOUND, "not_found", "not found")
             who = store.principal(request.cookies.get(OWNER_COOKIE), kind="owner")
             if who is None or not who.is_owner:
                 return fail(HTTPStatus.UNAUTHORIZED, "signed_out", "sign in as the owner")
+            if who.must_change and request.url.path not in OWNER_FIRST_PASSWORD_PATHS:
+                return fail(HTTPStatus.FORBIDDEN, "change_password", "change your password first")
             if mutating:
                 if not owner_origin_ok(request):
                     return fail(HTTPStatus.FORBIDDEN, "origin", "origin not allowed")
@@ -432,14 +561,19 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @handle
     async def owner_login(request: Request) -> Response:
+        if not owner_host_ok(request):
+            return fail(HTTPStatus.NOT_FOUND, "not_found", "not found")
         if not owner_origin_ok(request):
             return fail(HTTPStatus.FORBIDDEN, "origin", "origin not allowed")
         data = await body(request)
         email = str(data.get("email", "")).strip().lower()
-        if not login_limit.hit("owner:" + ip_of(request)) or not login_limit.hit("owner:" + email):
+        keys = (ip_key(request), email)
+        if any(owner_limit.blocked(k) for k in keys):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait 10 min")
         user = store.check_login(email, str(data.get("password", "")))
         if user is None or user["role"] != "owner":
+            for k in keys:
+                owner_limit.record(k)
             return fail(HTTPStatus.UNAUTHORIZED, "bad_login", "wrong email or password")
         token = store.open_session(user, kind="owner")
         response = JSONResponse({"ok": True})
@@ -463,7 +597,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return response
 
     async def o_me(_r: Request, who: Principal) -> Response:
-        return JSONResponse({"email": who.email, "name": who.name})
+        return JSONResponse({"email": who.email, "name": who.name, "must_change": who.must_change})
 
     async def o_stats(_r: Request, _who: Principal) -> Response:
         return JSONResponse(store.owner_stats())
@@ -531,6 +665,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return JSONResponse({"ok": True, "service": "sotto-cloud"})
 
     async def owner_page(request: Request) -> Response:
+        if not owner_host_ok(request):
+            return PlainTextResponse("not found\n", status_code=404)
         name = request.path_params.get("file") or "index.html"
         if name not in {"index.html", "owner.js", "owner.css"}:
             return PlainTextResponse("not found\n", status_code=404)
@@ -541,6 +677,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         )
 
     async def static(request: Request) -> Response:
+        if config.owner_origin and owner_host_ok(request):
+            return PlainTextResponse("not found\n", status_code=404)  # owner origin: console only
         if static_root is None or not (static_root / "index.html").exists():
             return PlainTextResponse("Sotto management server. The web app is not installed.\n")
         path = request.url.path
@@ -581,6 +719,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/company/settings", settings_put, methods=["PUT"]),
         Route(f"{api}/company/keys/{{env}}", key_put, methods=["PUT"]),
         Route(f"{api}/company/keys/{{env}}", key_delete, methods=["DELETE"]),
+        Route(f"{api}/company/keys/{{env}}/test", key_test, methods=["POST"]),
         Route(f"{api}/company/routes/{{stage}}", route_put, methods=["PUT"]),
         Route(f"{api}/company/routes/{{stage}}", route_delete, methods=["DELETE"]),
         Route(f"{api}/playbook", playbook_get),

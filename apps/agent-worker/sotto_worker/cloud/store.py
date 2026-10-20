@@ -198,6 +198,8 @@ class Principal:
     device_id: str | None
     email: str
     name: str
+    must_change: bool = False
+    session: str | None = None  # hash of the token this request came with
 
     @property
     def is_owner(self) -> bool:
@@ -386,7 +388,13 @@ class CloudStore:
     def create_owner(self, email: str, name: str, password: str) -> str:
         with self._tx() as db:
             user_id = self._new_user(
-                db, company_id=None, email=email, name=name, password=password, role="owner"
+                db,
+                company_id=None,
+                email=email,
+                name=name,
+                password=password,
+                role="owner",
+                must_change=True,
             )
             self.audit(db, "owner.created", email)
         return user_id
@@ -415,6 +423,12 @@ class CloudStore:
             db.execute(
                 "UPDATE users SET pw_hash = ?, must_change_pw = 0 WHERE id = ?",
                 (hash_password(new), who.user_id),
+            )
+            # Every other session of this person ends; the one that changed it stays.
+            db.execute(
+                "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL"
+                " AND token_hash != ?",
+                (now_ms(), who.user_id, who.session or ""),
             )
             self.audit(db, "user.password", who.email, company_id=who.company_id, actor=who)
 
@@ -471,7 +485,8 @@ class CloudStore:
             return None
         t = now_ms()
         rows = self._q(
-            "SELECT s.*, u.email, u.name, u.role, u.active, d.revoked_at AS device_revoked"
+            "SELECT s.*, u.email, u.name, u.role, u.active, u.must_change_pw,"
+            " d.revoked_at AS device_revoked"
             " FROM sessions s JOIN users u ON u.id = s.user_id"
             " LEFT JOIN devices d ON d.id = s.device_id WHERE s.token_hash = ?",
             (_token_hash(token),),
@@ -503,6 +518,8 @@ class CloudStore:
             device_id=s["device_id"],
             email=str(s["email"]),
             name=str(s["name"]),
+            must_change=bool(s["must_change_pw"]),
+            session=str(s["token_hash"]),
         )
 
     def close_session(self, token: str) -> None:
@@ -659,17 +676,41 @@ class CloudStore:
             )
             self.audit(db, "key.deleted", key_env, company_id=who.company, actor=who, ip=ip)
 
+    def stored_key(self, who: Principal, key_env: str) -> str | None:
+        """One key for a server-side use (minting a short-lived STT token); never sent out."""
+        rows = self._q(
+            "SELECT ciphertext FROM company_keys WHERE company_id = ? AND key_env = ?",
+            (who.company, key_env),
+        )
+        if not rows:
+            return None
+        try:
+            return self._vault.decrypt(
+                self._vault_name(who.company, key_env), rows[0]["ciphertext"]
+            )
+        except VaultError:
+            return None
+
     def key_status(self, who: Principal) -> dict[str, int]:
         rows = self._q(
             "SELECT key_env, updated_at FROM company_keys WHERE company_id = ?", (who.company,)
         )
         return {r["key_env"]: int(r["updated_at"]) for r in rows}
 
-    def keys_for_call(self, who: Principal) -> dict[str, str]:
-        """Decrypted keys for a signed-in user of this company whose plan allows calls (D-022)."""
+    def keys_for_call(
+        self, who: Principal, needed: set[str] | None = None, *, ip: str = ""
+    ) -> dict[str, str]:
+        """Decrypted keys for a signed-in user of this company whose plan allows calls (D-022):
+        only the ones in `needed` (the keys the company's current model routes use), never a key
+        that has a short-lived token path. Each delivery is in the audit log."""
         rows = self._q(
             "SELECT key_env, ciphertext FROM company_keys WHERE company_id = ?", (who.company,)
         )
+        rows = [r for r in rows if needed is None or r["key_env"] in needed]
+        if needed is not None and rows:
+            with self._tx() as db:
+                names = ",".join(sorted(r["key_env"] for r in rows))
+                self.audit(db, "keys.delivered", names, company_id=who.company, actor=who, ip=ip)
         out: dict[str, str] = {}
         for r in rows:
             try:
@@ -868,14 +909,9 @@ class CloudStore:
         who.require("admin")
         if role not in ROLES:
             raise CloudError("invalid", "role must be admin, manager or agent")
-        c = self.company_row(who.company)
-        used = self._q(
-            "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND active = 1", (who.company,)
-        )[0]["n"]
-        if used >= int(c["seats"]):
-            raise CloudError("no_seats", f"all {c['seats']} seats are used; ask for more seats")
         password = new_temporary_password()
         with self._tx() as db:
+            self._check_seat(db, who.company)
             user_id = self._new_user(
                 db,
                 company_id=who.company,
@@ -889,6 +925,17 @@ class CloudStore:
                 db, "user.invited", f"{email} as {role}", company_id=who.company, actor=who, ip=ip
             )
         return user_id, password
+
+    @staticmethod
+    def _check_seat(db: sqlite3.Connection, company_id: str) -> None:
+        """Inside the write transaction, so parallel invites cannot overshoot the limit."""
+        seats = db.execute("SELECT seats FROM companies WHERE id = ?", (company_id,)).fetchone()
+        used = db.execute(
+            "SELECT COUNT(*) FROM users WHERE company_id = ? AND active = 1", (company_id,)
+        ).fetchone()[0]
+        if seats is None or used >= int(seats[0]):
+            limit = seats[0] if seats else 0
+            raise CloudError("no_seats", f"all {limit} seats are used; ask for more seats")
 
     def set_member(
         self, who: Principal, user_id: str, data: dict[str, Any], *, ip: str = ""
@@ -906,6 +953,8 @@ class CloudStore:
         if role not in ROLES or not isinstance(active, bool):
             raise CloudError("invalid", "bad role or active flag")
         with self._tx() as db:
+            if active and not rows[0]["active"]:
+                self._check_seat(db, who.company)  # re-enabling takes a seat again
             db.execute(
                 "UPDATE users SET role = ?, active = ? WHERE id = ?", (role, int(active), user_id)
             )
@@ -937,7 +986,8 @@ class CloudStore:
         started = num("started_at", t + DAY_MS) or t
         if started < t - 30 * DAY_MS:
             raise CloudError("invalid", "started_at is too old")
-        usage_id = _clean(data.get("call_id") or uuid.uuid4(), "call_id", 64)
+        call_id = _clean(data.get("call_id") or uuid.uuid4(), "call_id", 64)
+        usage_id = f"{who.company}:{call_id}"  # one company's ids can never shadow another's
         row = (
             usage_id,
             who.company,
@@ -965,7 +1015,7 @@ class CloudStore:
                 " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 row,
             )
-        return usage_id
+        return call_id
 
     def company_usage(self, who: Principal, days: int = 30) -> list[dict[str, Any]]:
         who.require("admin", "manager")

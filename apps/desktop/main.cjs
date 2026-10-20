@@ -30,7 +30,7 @@ protocol.registerSchemesAsPrivileged([
 async function serve(request) {
   const { pathname } = new URL(request.url);
   let file = path.normalize(path.join(WEB, decodeURIComponent(pathname)));
-  if (!file.startsWith(WEB)) return new Response("not found", { status: 404 });
+  if (path.relative(WEB, file).startsWith("..")) return new Response("not found", { status: 404 });
   const exists = fs.existsSync(file) && fs.statSync(file).isFile();
   if (!exists) {
     if (path.extname(pathname)) return new Response("not found", { status: 404 });

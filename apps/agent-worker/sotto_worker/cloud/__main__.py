@@ -101,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     static = args.static if args.static.exists() else None
     config = CloudConfig(
         public_origin=origin,
+        owner_origin=env.get("SOTTO_OWNER_ORIGIN") or None,
         static_dir=static,
         secure_cookies=bool(origin and origin.startswith("https://")),
         log=lambda s: print(s, flush=True),

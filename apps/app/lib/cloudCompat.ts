@@ -5,7 +5,6 @@
  */
 import {
   type CallBundle,
-  checkKeyHost,
   makeLLM,
   PlaybookIndex,
   realClock,
@@ -95,45 +94,16 @@ function providersState(result?: { ok: boolean; detail: string }) {
 }
 
 async function testProvider(id: string) {
-  await refreshCloud();
-  const b = bundle();
-  const p = b.providers[id];
+  const p = bundle().providers[id];
   if (!p) throw new CompatError(404, "unknown provider");
-  const at = Date.now();
-  let detail = "";
-  let ok = false;
-  try {
-    if (p.kind === "stt") {
-      await cloudApi(`/api/v1/stt-token/${encodeURIComponent(id)}`, { method: "POST" });
-      ok = true;
-      detail = "The key works: the vendor issued a streaming token.";
-    } else {
-      const key = b.keys?.[p.key_env];
-      if (!key) throw new Error("no key saved, or calls are blocked for this company");
-      const base = p.base_url ?? "";
-      const url = base.endsWith("/models") ? base : `${base.replace(/\/+$/, "")}/models`;
-      checkKeyHost(p.key_env, url);
-      const headers: Record<string, string> =
-        id === "anthropic"
-          ? {
-              "x-api-key": key,
-              "anthropic-version": "2023-06-01",
-              "anthropic-dangerous-direct-browser-access": "true",
-            }
-          : { authorization: `Bearer ${key}` };
-      const r = await fetch(url, { headers });
-      if (!r.ok) throw new Error(`${p.name} answered ${r.status}`);
-      const data = (await r.json()) as { data?: { id: string }[] };
-      const ids = (data.data ?? []).map((m) => m.id.replace(/^models\//, "")).slice(0, 60);
-      models.set(id, ids);
-      ok = true;
-      detail = `The key works: ${ids.length} models available.`;
-    }
-  } catch (err) {
-    detail = err instanceof Error ? err.message : "test failed";
-  }
-  tests.set(id, { ok, at, detail });
-  return providersState({ ok, detail });
+  // Tested on the server: devices only ever hold the keys their calls use (security review H1).
+  const r = await cloudApi<{ ok: boolean; detail: string; models?: string[] }>(
+    `/api/v1/company/keys/${encodeURIComponent(p.key_env)}/test`,
+    { method: "POST" },
+  );
+  if (r.models) models.set(id, r.models);
+  tests.set(id, { ok: r.ok, at: Date.now(), detail: r.detail });
+  return providersState({ ok: r.ok, detail: r.detail });
 }
 
 /** First-token time of the stage's model on three sample questions, from this device. */

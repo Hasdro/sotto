@@ -216,6 +216,12 @@ def test_invited_members_have_limited_rights(
     ).json()
     assert login["user"]["must_change_password"] is True
     auth = {"authorization": f"Bearer {login['token']}"}
+    # Nothing but the password change works until they choose their own password.
+    assert client.get("/api/v1/bundle", headers=auth).status_code == 403
+    changed = client.post(
+        "/api/v1/auth/password", json={"current": temp, "new": PASSWORD + role}, headers=auth
+    )
+    assert changed.status_code == 200
     assert (
         client.put(
             "/api/v1/company/keys/GROQ_API_KEY", json={"value": "k" * 20}, headers=auth

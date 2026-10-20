@@ -84,4 +84,12 @@ def owner(client: TestClient, store: CloudStore) -> TestClient:
         headers={"origin": ORIGIN},
     )
     assert r.status_code == 200, r.text
+    # A new owner must choose their own password before the console opens.
+    assert client.get("/api/owner/stats").status_code == 403
+    r = client.post(
+        "/api/owner/password",
+        json={"current": OWNER_PASSWORD, "new": OWNER_PASSWORD + "-2"},
+        headers={"origin": ORIGIN},
+    )
+    assert r.status_code == 200, r.text
     return client

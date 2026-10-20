@@ -67,7 +67,12 @@ async function start() {
     $("#whoEmail").textContent = me.email;
     $("#login").hidden = true;
     $("#app").hidden = false;
-    show("overview");
+    for (const b of document.querySelectorAll(".tabs button"))
+      b.hidden = me.must_change && b.dataset.view !== "account";
+    if (me.must_change) {
+      show("account");
+      $("#pwMsg").textContent = "First sign-in: choose your own password to open the console.";
+    } else show("overview");
   } catch {
     /* showLogin already ran */
   }
@@ -631,6 +636,7 @@ $("#pwForm").addEventListener("submit", async (e) => {
     });
     $("#pwMsg").textContent = "Password changed.";
     $("#pwForm").reset();
+    start();
   } catch (err) {
     $("#pwMsg").textContent = err.message;
   }

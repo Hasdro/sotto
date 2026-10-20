@@ -57,11 +57,17 @@ SOTTO_DOMAIN=$domain
 SOTTO_PUBLIC_ORIGIN=https://$domain
 SOTTO_SECRET_KEY=$secret
 SOTTO_DATA_DIR=$DATA_DIR
+SOTTO_OWNER_ORIGIN=https://owner.$domain
 ENV
   chown root:sotto "$ENV_FILE"
   chmod 640 "$ENV_FILE"
 elif [ -n "${SOTTO_DOMAIN:-}" ]; then
   sed -i "s|^SOTTO_DOMAIN=.*|SOTTO_DOMAIN=$SOTTO_DOMAIN|; s|^SOTTO_PUBLIC_ORIGIN=.*|SOTTO_PUBLIC_ORIGIN=https://$SOTTO_DOMAIN|" "$ENV_FILE"
+fi
+# The owner console has its own origin (security review M1); older installs get it added.
+if ! grep -q '^SOTTO_OWNER_ORIGIN=' "$ENV_FILE"; then
+  d=$(grep '^SOTTO_DOMAIN=' "$ENV_FILE" | cut -d= -f2)
+  echo "SOTTO_OWNER_ORIGIN=https://owner.$d" >>"$ENV_FILE"
 fi
 # shellcheck disable=SC1090
 . "$ENV_FILE"
@@ -95,6 +101,17 @@ ProtectControlGroups=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
 ReadWritePaths=$DATA_DIR
+UMask=0077
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+ProtectProc=invisible
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -153,6 +170,22 @@ $SOTTO_DOMAIN {
 		reverse_proxy 127.0.0.1:$PORT
 	}
 }
+
+# The owner console: its own origin, so the app's pages can never use the owner's cookie.
+${SOTTO_OWNER_ORIGIN#https://} {
+	encode zstd gzip
+	request_body {
+		max_size 64KB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	redir / /owner 302
+	@app not path /owner /owner/* /api/owner/*
+	respond @app 404
+	reverse_proxy 127.0.0.1:$PORT
+}
 CADDY
 install -d -m 755 /var/www/downloads
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || die "Caddyfile invalid"
@@ -178,6 +211,6 @@ curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 || {
 
 say "Sotto management server is running"
 echo "  App:            $SOTTO_PUBLIC_ORIGIN"
-echo "  Owner console:  $SOTTO_PUBLIC_ORIGIN/owner"
+echo "  Owner console:  $SOTTO_OWNER_ORIGIN/owner"
 [ -f /root/sotto-owner-password.txt ] && echo "  Owner sign-in:  ssh root@<server> cat /root/sotto-owner-password.txt  (change it after signing in)"
 echo "  Logs:           journalctl -u sotto-cloud -f"
