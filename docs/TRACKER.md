@@ -26,12 +26,27 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** cross-phase demo build (D-020/D-021): Sotto server = hosted demo with Keys & providers (P6.7, custom endpoints, speed check + R1 guard), spoken customer track, R2 inbox loop, settings, playbook editor, a11y CI, deploy kit. Phases 2/3/5/6/7 partly done (task board).
-- **Next task:** owner deploys to us3 (`deploy/README.md`, T-010). For Claude: end-of-turn model (T-011); P5.3 sign-in once a Supabase project exists; P4 once LiveKit + Yeastar exist.
+- **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
+- **Next task (Claude):**
+  - T-016 phone builds (once the Android SDK and Xcode exist);
+  - T-017 security review of the cloud server;
+  - T-011 end-of-turn model;
+  - P4 once LiveKit + Yeastar exist.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-20 ~05:00 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; Ollama installed with gemma3:1b/qwen3:4b; no Docker, so the Docker image is unbuilt — layout rehearsed only).
-- **Blockers:** Claude cannot reach us3 (ssh blocked by the auto-mode classifier); live phone calls need LiveKit + Yeastar; real playbook documents (P0.3); golden recordings (P2.8).
-- **Next action:** `pnpm demo` → http://127.0.0.1:8787 (Call: "Speak as the customer"; Admin → Keys & providers; Inbox; Playbook). Server: `deploy/push.sh root@104.168.48.116`, then `pnpm spoken:live --url https://104-168-48-116.sslip.io --code <code>`.
+- **Environment last used:** local Mac, 2026-10-20 13:40.
+  - ssh to us3 works (root@104.168.48.116; Ubuntu 26.04, 1 vCPU, 1 GB).
+  - Android Studio is installed but has no SDK; there is no Xcode.
+- **Blockers (owner):**
+  - Android SDK licence (open Android Studio once);
+  - Xcode;
+  - real playbook docs;
+  - LiveKit + Yeastar.
+- **Owner hub (single report page):** https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
+  - Source: `docs/owner-hub.html`; format rules in `~/.claude/ARTIFACT-REPORTS.md`.
+  - Owner choices are in its db at `decisions/owner`; read them at session start.
+- **Next action:** `cd apps/agent-worker && uv run pytest tests/cloud -q`.
+  - Then read the hub's decisions (ArtifactData `decisions/owner`).
+  - Then pick T-016 or T-017.
 
 ## Phase board
 
@@ -136,6 +151,13 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 Things only the owner can do, so the agent never waits silently.
 
+- [ ] **Hub decisions** (2026-10-20, D-022): six questions, with my picks pre-selected, in the Decisions tab of https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s. They cover where keys live, the database, the desktop technology, the iPhone build path, billing and audio retention.
+- [ ] **Owner console first sign-in:**
+  1. `ssh root@104.168.48.116 cat /root/sotto-owner-password.txt`
+  2. Sign in at https://104-168-48-116.sslip.io/owner and change the password under Account.
+  3. Delete the file.
+- [ ] **Android:** open Android Studio once, finish the setup wizard and accept the SDK licence (Claude must not accept licences for you). Claude then builds the test APK (T-016).
+- [ ] **iPhone:** install Xcode from the App Store, or create a free Expo account for cloud builds. TestFlight needs Apple Developer ($99/yr).
 - [ ] Answer the Phase 0 interview, or simply correct the `ASSUMED:` lines in `docs/BRIEF.md` (D-009)
 - [ ] Agree to `test-calls/PLAN.md` and set a recording date; check whether Yeastar can record split channels
 - [ ] Supply playbook content: products and prices, top 20 questions, top 10 objections, never-promise list (P0.3)
@@ -160,7 +182,8 @@ Things only the owner can do, so the agent never waits silently.
 - [ ] Free AI keys: `GROQ_API_KEY` (console.groq.com) and `GEMINI_API_KEY` (aistudio.google.com) in `.env` at the repo root on the Mac (`~/Documents/GitHub/sotto/.env`; copy `.env.example`). Only `.env` on the Mac (D-017). Not present on 2026-10-20.
 - [x] Groq, Gemini, OpenRouter, Deepgram, AssemblyAI and Speechmatics keys in `.env` (2026-10-20). ElevenLabs is optional.
 - [ ] (done above) Get the keys you choose (links and steps: `docs/PROVIDER-KEYS.md`) and put them in `.env`. Speech-to-text: pick any two of Deepgram, AssemblyAI, Speechmatics or ElevenLabs (recommended: Deepgram + AssemblyAI)
-- [ ] **Deploy the demo to us3** (Claude was blocked from ssh): `cd ~/Documents/GitHub/sotto && deploy/push.sh root@104.168.48.116`. It prints the HTTPS address and a one-time access code. Then add your keys in Admin → Keys & providers. Full guide: `deploy/README.md`.
+- [x] Deploy to us3: done by Claude on 2026-10-20 (ssh worked). Superseded by D-022, the management server.
+- [-] (old) **Deploy the demo to us3** (Claude was blocked from ssh): `cd ~/Documents/GitHub/sotto && deploy/push.sh root@104.168.48.116`. It prints the HTTPS address and a one-time access code. Then add your keys in Admin → Keys & providers. Full guide: `deploy/README.md`.
 - [ ] Review D-020 (hosted server, keys encrypted on the server) and D-021 (AssemblyAI main + Speechmatics backup STT, by measurement); both reversible.
 - [ ] Retention: how long to keep call audio (owner chose "also keep audio" without a duration)
 - [ ] Free tiers and customer data: choose before the first real customer call (owner: "not sure, explain more when it matters")
@@ -172,6 +195,18 @@ Things only the owner can do, so the agent never waits silently.
   - **PostToolUse format hook:** today a Biome failure skips ruff with no notice. Run the two formatters independently.
 
 ## Known issues and tech debt
+
+- **T-015** (2026-10-20, D-022) Gaps in the cloud server. Not yet available in hosted mode:
+  - custom endpoints (Ollama/vLLM): the Mac demo only;
+  - Deepgram/ElevenLabs STT from the client: no short-lived token path yet;
+  - password reset by email;
+  - prompt versions stored on the server;
+  - usage of calls made while offline is lost.
+
+  Transcripts stay on the device by design (web keeps the last 30; phones keep them in memory only until a storage module exists).
+- **T-016** (2026-10-20) iOS/Android builds are blocked on the owner (Android SDK licence, Xcode). The native microphone capture is still web-only (`features/call/mic.ts`): phone apps run typed and scripted calls; the spoken track on phones comes with LiveKit in P4 or a native PCM recorder.
+- **T-017** (2026-10-20) The cloud server has had no independent security review yet. Run the `security-auditor` subagent and the `tenancy-guardian` on `sotto_worker/cloud/`. Also on the agenda: whether runtime key delivery to devices (D-022) is acceptable.
+- **T-018** (2026-10-20) The desktop installers are unsigned: Windows shows SmartScreen and the Mac first open needs right-click → Open. Fix with a code-signing certificate and Apple Developer notarisation.
 
 - **T-002** (2026-10-18) — resolved the same night: cards and `turn_end` carry `turn_id`, and the app groups by it (commits a300a22, b5d81aa).
 - **T-003** (2026-10-18) zod adds about 90 KB to the web bundle (426 KB of the 450 KB budget). Consider a zod/mini parser in `packages/shared`.
@@ -210,6 +245,41 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-10-20 (10:00–13:45) · local · Claude Opus 5.5 · D-022 client-side calls, management server, desktop, extension, owner hub
+- **Done:**
+  - One owner hub artifact replaces the three earlier pages. Its report format is saved in `~/.claude/ARTIFACT-REPORTS.md`, which `~/.claude/CLAUDE.md` imports.
+  - D-022 is recorded.
+  - Management server `sotto_worker.cloud`:
+    - sign-up, log-in, devices, plans, seats and usage;
+    - encrypted keys, the call bundle and STT tokens;
+    - inbox and playbook, team invites;
+    - the owner console.
+  - Deployed natively on us3: systemd + Caddy + ufw + a nightly backup (no Docker).
+  - `packages/engine`, the client call engine.
+  - The app now has accounts, an Account page, the real plan banner and on-device calls; the existing screens are served through cloudCompat.
+  - Web bundle trimmed to 426 KB (zod locales stubbed).
+  - Electron desktop app: Mac arm64/x64 dmg, Windows nsis, Linux AppImage.
+  - Chrome MV3 side-panel extension.
+  - Downloads page on the server.
+- **Evidence:**
+  - pytest `tests/cloud`: 28 passed. This includes API-level tenant isolation and the engine-fixture drift test.
+  - vitest engine: 18 passed. The playbook matches the Python worker on 27 lines; the router race, adapters, STT and spoken turns are covered.
+  - Live engine on Groq/Gemini: first card 639/721/731 ms warm, 1264 ms cold.
+  - Browser E2E on a local cloud server: sign-up → call → playbook card + holding line + escalation → inbox answer added to the playbook → the next call answers it from the playbook (0 s). The owner console shows the company, minutes, devices and calls.
+  - The desktop app loads and reaches the server API (CDP).
+  - The extension loads in Chromium and reaches the API.
+  - us3 healthz OK, valid TLS.
+  - Every vendor accepts browser CORS (Groq, Gemini, OpenAI, OpenRouter, Anthropic).
+  - All gates are green.
+- **Tried and rejected:**
+  - Metro tree shaking flags: the bundle went from 466 to 463 KB only.
+  - Docker on a 1 GB server.
+  - Accepting the Android SDK licence for the owner.
+- **Next:** T-016 phone builds; T-017 security review; owner hub decisions; T-011.
+- **Notes:**
+  - No account was created on the production server. Tests used a local server and `.test` addresses.
+  - The owner's one-time password is only on the server, in `/root/sotto-owner-password.txt`.
 
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`

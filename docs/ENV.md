@@ -19,6 +19,7 @@ Platform keys for OpenAI-compatible providers are bound to their provider's host
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | live calls (Phase 4) | not used yet |
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY` | app + worker (Phase 5) | not used yet |
 | `EXPO_PUBLIC_DEMO_BRIDGE_URL` | app: server socket address | the page's own server (`wss://<host>/ws`), or `ws://127.0.0.1:8787/ws` under the Expo dev server |
+| `EXPO_PUBLIC_SOTTO_SERVER` | app build (D-022): the management server for sign-in, bundle and usage; calls then run on the device | no server: the app keeps the D-020 local demo (`pnpm demo`) |
 | `EXPO_PUBLIC_SOTTO_DEMO` | app build: `1` enables the demo bridge in a production web build (set by `pnpm demo`) | production builds never connect to the bridge |
 | `SOTTO_RECORDINGS_DIR` | replay: golden-call audio outside git | the replay uses synthetic text calls only |
 
@@ -31,6 +32,7 @@ Platform keys for OpenAI-compatible providers are bound to their provider's host
 | `SOTTO_PUBLIC_ORIGIN` | hosted server: the only origin allowed to open call sockets or change settings, e.g. `https://104-168-48-116.sslip.io` | hosted mode refuses to start |
 | `SOTTO_DATA_DIR` | server: SQLite file with panel keys, stage choices, call history and audit log | `<repo>/.sotto-data/` (git-ignored) |
 | `SOTTO_TRUSTED_PROXY` | server: which proxy IPs may set `X-Forwarded-For` (Caddy in Docker) | `127.0.0.1` |
+| `SOTTO_OWNER_EMAIL` | deploy (D-022): first install creates the owner account; one-time password in `/root/sotto-owner-password.txt` | no owner account until set |
 | `SOTTO_DOMAIN` | deploy: the HTTPS hostname Caddy serves | `<ip-with-dashes>.sslip.io` |
 
 On the hosted server these live in `/etc/sotto/sotto.env` (mode 600), created by `deploy/install.sh`; see `deploy/README.md`.

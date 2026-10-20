@@ -313,3 +313,46 @@ Until Phases 4–5 land (LiveKit calls, Supabase auth), the product runs as one 
   - audit log.
 
 Local mode is `pnpm demo`. Hosted mode is `deploy/`: Docker, Caddy HTTPS, and an access code. The API shapes are designed to carry over when Supabase replaces SQLite.
+
+## Client-side calls and the management server (D-022, 2026-10-20)
+
+The owner's direction: client apps do all network-heavy work, and the server only manages
+accounts and subscriptions.
+
+```
+ agent's device (web · Windows/Mac/Linux app · Chrome extension · iOS/Android)
+ ┌───────────────────────────────────────────────────────────────┐
+ │ app UI ── demo protocol ── @sotto/engine (packages/engine)    │
+ │   mic → VAD/end of turn → STT WebSocket ──► AssemblyAI / Speechmatics
+ │   turn → playbook → router (0.7 s backup race) ──► Groq / Gemini / OpenAI / Anthropic / …
+ │   transcripts kept on the device (lib/deviceHistory.ts)        │
+ └──────────────┬────────────────────────────────────────────────┘
+                │ HTTPS, bearer token per device
+ ┌──────────────▼────────────────────────────────────────────────┐
+ │ us3 · Caddy → sotto_worker.cloud (Starlette, SQLite)           │
+ │  sign up/in · companies · plans/trials · seats · devices       │
+ │  call bundle (routes, prompts, playbook, keys while calls are  │
+ │  allowed) · short-lived STT tokens · usage numbers · inbox     │
+ │  owner console /owner (cookie, same origin) · nightly backup   │
+ └───────────────────────────────────────────────────────────────┘
+```
+
+- **The engine** is a TypeScript port of the worker's live path:
+  - session, router, verdict parser, triggers, playbook TF-IDF and spoken turns;
+  - plain `fetch`/SSE for the models; on phones, Expo's streaming fetch;
+  - raw WebSocket for STT.
+
+  Parity with the worker is tested with a fixture generated from the seed (`packages/engine/src/__tests__/bundle.json`, `pnpm gen`).
+- **The app** keeps the D-020 demo protocol, so the call screen and reducer are unchanged. `features/call/local.ts` answers the protocol on the device.
+
+  `lib/cloudCompat.ts` maps the D-020 admin API paths to the management server. That way the Keys, Playbook, Inbox, Settings and History screens work unchanged.
+- **The server never carries call audio or model traffic.** The only per-call requests are:
+  - one STT token at microphone start;
+  - one escalation per unanswered question;
+  - one usage report at the end of the call.
+- **The Python worker stays** for replays, benchmarks, `pnpm demo`, and the Phase 4 LiveKit agent if telephony needs a server-side participant.
+- **Platforms:**
+  - web, served by the management server;
+  - `apps/desktop`: Electron, which serves the same web build from `app://sotto` and allows only the microphone permission;
+  - `apps/extension`: MV3 side panel with a one-time microphone grant tab;
+  - iOS and Android: the Expo app (needs Xcode and the Android SDK on the build Mac).

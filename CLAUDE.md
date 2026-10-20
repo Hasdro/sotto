@@ -105,7 +105,11 @@ Real since P1.3/P1.4. Run from the repo root.
 | STT vendors, live | `pnpm stt:live` (Mac `say`, keys in `.env`) |
 | Spoken path, end to end | `pnpm spoken:live [--url https://… --code …]` against a running server |
 | Local demo / server | `pnpm demo` (D-020 server in local mode) |
-| Deploy to the owner's server | `deploy/push.sh root@<ip> [domain]` (see `deploy/README.md`) |
+| Management server, local (D-022) | `cd apps/agent-worker && uv run python -m sotto_worker.cloud serve` (port 8788; owner console `/owner`) |
+| Deploy the management server + web app | `deploy/push.sh root@<ip> [domain]` (see `deploy/README.md`) |
+| Desktop app (Windows, Mac, Linux) | `cd apps/desktop && npm ci && npm run web && npm run dist` (installers in `apps/desktop/release/`) |
+| Chrome extension | `bash apps/extension/build.sh` (zip in `apps/extension/release/`) |
+| Publish installers to the server | `deploy/publish-apps.sh root@<ip>` (→ `https://<server>/downloads/`) |
 | Environment check | `scripts/doctor.sh` |
 
 ## Git
