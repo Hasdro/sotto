@@ -4,7 +4,7 @@
  * (ports 8081/19006) and on native, it uses EXPO_PUBLIC_DEMO_BRIDGE_URL or the local default.
  */
 import { DEMO_DEFAULT_PORT } from "@sotto/shared";
-import { CloudError, cloudActive } from "./cloud";
+import { CloudError, cloudActive, cloudOrigin } from "./cloud";
 import { CompatError, cloudCompat } from "./cloudCompat";
 
 export const DEFAULT_SOCKET_URL = `ws://127.0.0.1:${DEMO_DEFAULT_PORT}/ws`;
@@ -53,6 +53,7 @@ export async function api<T>(
   init: { method?: string; body?: unknown } = {},
   fetcher: typeof fetch = fetch,
 ): Promise<T> {
+  if (cloudOrigin() && !cloudActive()) throw new ApiError(401, "sign in first");
   if (cloudActive()) {
     try {
       return (await cloudCompat(path, init)) as T;

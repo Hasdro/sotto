@@ -11,7 +11,9 @@ import {
   useMemo,
   useState,
 } from "react";
+import { cloudOrigin } from "../../lib/cloud";
 import { useI18n } from "../../lib/locale";
+import { useCloud } from "../../lib/useCloud";
 import { INBOX } from "../inbox/mock";
 import { PLAYBOOK } from "../playbook/mock";
 import { addToPlaybook, type EscalationState, type FlowError, saveAnswer } from "./flow";
@@ -35,8 +37,11 @@ export function EscalationStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<EscalationState>({ inbox: INBOX, playbook: PLAYBOOK });
   const customer = t("history.outcome.practice");
   const agent = t("call.speaker.agent");
+  // Reload once someone signs in to the management server (D-022).
+  const signedIn = useCloud().status === "signed_in";
   // Questions escalated on this server go above the samples (D-020); no server: samples only.
   const reload = useCallback(() => {
+    if (cloudOrigin() && !signedIn) return;
     loadServerInbox({ customer, agent })
       .then((server) => {
         const ids = new Set(server.playbook.map((e) => e.id));
@@ -46,7 +51,7 @@ export function EscalationStoreProvider({ children }: { children: ReactNode }) {
         });
       })
       .catch(() => {});
-  }, [customer, agent]);
+  }, [customer, agent, signedIn]);
   useEffect(reload, [reload]);
   const apply = useCallback(
     (result: ReturnType<typeof saveAnswer>, sync?: () => Promise<unknown>): FlowError | null => {

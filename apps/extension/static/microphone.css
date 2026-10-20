@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light dark;
+  --brand: #0e6b55;
+}
+body {
+  margin: 0;
+  font:
+    16px / 1.5 system-ui,
+    sans-serif;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+}
+main {
+  max-width: 460px;
+}
+h1 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+button {
+  background: var(--brand);
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}

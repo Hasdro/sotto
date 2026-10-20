@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Sotto",
+  "version": "0.1.0",
+  "description": "Live sales-call suggestions in Chrome's side panel, next to your web phone or CRM.",
+  "action": { "default_title": "Open Sotto" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["sidePanel"],
+  "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" }
+}
