@@ -68,27 +68,30 @@ function secureStore(): SecureStore | null {
   // Loaded only on native, so the web bundle never needs it.
   return require("expo-secure-store") as SecureStore;
 }
+// If secure storage refuses (for example an unsigned test build without Keychain access), the
+// session lives in memory for this run instead of leaving the app stuck at start-up.
+const memory = new Map<string, string>();
 async function read(key: string): Promise<string | null> {
   const store = secureStore();
-  if (store) return store.getItemAsync(key);
   try {
-    return globalThis.localStorage?.getItem(key) ?? null;
+    if (store) return (await store.getItemAsync(key)) ?? memory.get(key) ?? null;
+    return globalThis.localStorage?.getItem(key) ?? memory.get(key) ?? null;
   } catch {
-    return null;
+    return memory.get(key) ?? null;
   }
 }
 async function write(key: string, value: string | null): Promise<void> {
+  if (value === null) memory.delete(key);
+  else memory.set(key, value);
   const store = secureStore();
-  if (store) {
-    if (value === null) await store.deleteItemAsync(key);
-    else await store.setItemAsync(key, value);
-    return;
-  }
   try {
-    if (value === null) globalThis.localStorage?.removeItem(key);
+    if (store) {
+      if (value === null) await store.deleteItemAsync(key);
+      else await store.setItemAsync(key, value);
+    } else if (value === null) globalThis.localStorage?.removeItem(key);
     else globalThis.localStorage?.setItem(key, value);
   } catch {
-    /* storage blocked: the session lasts for this visit only */
+    /* storage blocked: the session lasts for this run only */
   }
 }
 

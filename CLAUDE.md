@@ -109,6 +109,7 @@ Real since P1.3/P1.4. Run from the repo root.
 | Deploy the management server + web app | `deploy/push.sh root@<ip> [domain]` (see `deploy/README.md`) |
 | Desktop app (Windows, Mac, Linux) | `cd apps/desktop && npm ci && npm run web && npm run dist` (installers in `apps/desktop/release/`) |
 | Chrome extension | `bash apps/extension/build.sh` (zip in `apps/extension/release/`) |
+| Phone apps (Android APK + iPhone simulator) | `bash apps/app/build-phones.sh [https://server]` (→ `apps/mobile-builds/`; needs ~8 GB free disk) |
 | Publish installers to the server | `deploy/publish-apps.sh root@<ip>` (→ `https://<server>/downloads/`) |
 | Environment check | `scripts/doctor.sh` |
 

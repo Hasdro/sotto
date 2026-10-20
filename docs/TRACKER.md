@@ -28,17 +28,16 @@ Tags:
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
-  - T-016 phone builds (once the Android SDK and Xcode exist);
+  - T-016 rest: Android APK on a real phone or emulator (Mac needs 12 GB free for the emulator); iPhone on a device (owner's Apple ID in Xcode);
   - T-011 end-of-turn model;
   - P4 once LiveKit + Yeastar exist.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-20 13:40.
+- **Environment last used:** local Mac, 2026-10-20 17:00. Disk nearly full (≈6 GB free of 228 GB): delete native build intermediates after each phone build (`apps/app/build-phones.sh` does).
   - ssh to us3 works (root@104.168.48.116; Ubuntu 26.04, 1 vCPU, 1 GB).
-  - Android Studio is installed but has no SDK; there is no Xcode.
+  - Android SDK (licence accepted by owner), JDK from Android Studio, Xcode 27.1 (xcode-select still on CommandLineTools → use `DEVELOPER_DIR`), CocoaPods 1.17 (brew).
 - **Blockers (owner):**
-  - Android SDK licence (open Android Studio once);
-  - Xcode;
-  - real playbook docs;
+  - real playbook docs (owner says sent; not found — ask where);
+  - free disk space on the Mac;
   - LiveKit + Yeastar.
 - **Owner hub (single report page):** https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
   - Source: `docs/owner-hub.html`; format rules in `~/.claude/ARTIFACT-REPORTS.md`.
@@ -150,23 +149,16 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 
 Things only the owner can do, so the agent never waits silently.
 
-- [ ] **Hub decisions** (2026-10-20, D-022): six questions, with my picks pre-selected, in the Decisions tab of https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s. They cover where keys live, the database, the desktop technology, the iPhone build path, billing and audio retention.
-- [ ] **Owner console first sign-in:**
-  1. `ssh root@104.168.48.116 cat /root/sotto-owner-password.txt`
-  2. Sign in at https://104-168-48-116.sslip.io/owner and change the password under Account.
-  3. Delete the file.
-- [ ] **Android:** open Android Studio once, finish the setup wizard and accept the SDK licence (Claude must not accept licences for you). Claude then builds the test APK (T-016).
-- [ ] **iPhone:** install Xcode from the App Store, or create a free Expo account for cloud builds. TestFlight needs Apple Developer ($99/yr).
+- [x] **Hub decisions** — saved 2026-10-20 11:38 (all six = the recommendations: keys on server, SQLite, Electron, Xcode, manual billing, audio 30 days).
+- [x] **Owner console first sign-in** — password changed, file deleted (checked 2026-10-20).
+- [x] **Android SDK** — Android Studio set up, licence accepted by the owner.
+- [x] **Xcode** — Xcode 27.1 installed (xcode-select still points at CommandLineTools; builds use `DEVELOPER_DIR`).
 - [ ] Answer the Phase 0 interview, or simply correct the `ASSUMED:` lines in `docs/BRIEF.md` (D-009)
 - [ ] Agree to `test-calls/PLAN.md` and set a recording date; check whether Yeastar can record split channels
-- [ ] Supply playbook content: products and prices, top 20 questions, top 10 objections, never-promise list (P0.3)
+- [ ] Supply playbook content (owner says sent 2026-10-20; not found on the Mac, in the repo or on the server — ask where): products and prices, top 20 questions, top 10 objections, never-promise list (P0.3)
 - [ ] Record 10 golden calls with consent (separate customer and agent tracks)
 - [ ] Add 5–10 design references to `docs/design/refs/`
 - [ ] Install Docker Desktop: run `brew install --cask docker-desktop` in a terminal (it needs your password), then open Docker once
-- [ ] Install Xcode:
-  - run `mas install 497799835`, which needs your password; or install it from the App Store;
-  - then run `sudo xcode-select -s /Applications/Xcode.app && sudo xcodebuild -license accept`.
-- [ ] Open Android Studio once and let it install the Android SDK and an emulator
 - [ ] Accounts, when their phase arrives:
   - Phase 2: Groq + Google AI Studio (free, D-016); 3 STT vendors for the comparison (Deepgram, Speechmatics, AssemblyAI; free credits)
   - Phase 4: LiveKit Cloud + SIP trunk, Apple Developer, Google Play
@@ -203,7 +195,7 @@ Things only the owner can do, so the agent never waits silently.
   - usage of calls made while offline is lost.
 
   Transcripts stay on the device by design (web keeps the last 30; phones keep them in memory only until a storage module exists).
-- **T-016** (2026-10-20) iOS/Android builds are blocked on the owner (Android SDK licence, Xcode). The native microphone capture is still web-only (`features/call/mic.ts`): phone apps run typed and scripted calls; the spoken track on phones comes with LiveKit in P4 or a native PCM recorder.
+- **T-016** (2026-10-20 17:00) Android release APK (arm64, debug-signed, 30 MB) built and on `/downloads/`; iPhone Release simulator build opens to sign-in on iPhone 18 Pro sim. Fixed: start-up hung on a blank screen when SecureStore refuses (unsigned build) — storage now falls back to memory (`__tests__/cloud-storage.test.ts`). Not tested on an Android device/emulator (emulator needs 12 GB free). Earlier note: The native microphone capture is still web-only (`features/call/mic.ts`): phone apps run typed and scripted calls; the spoken track on phones comes with LiveKit in P4 or a native PCM recorder.
 - **T-017** (2026-10-20) Security review of the cloud server by the `security-auditor` subagent.
   - Findings: 0 critical, 1 high, 4 medium, 6 low.
   - Fixed the same day (commit 3f07b16; 7 regression tests in `tests/cloud/test_security.py`; 35 cloud tests pass):
@@ -260,6 +252,13 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-10-20 (15:40–17:00) · local · Claude Opus 5.5 · T-016 phone builds, hub round
+- **Done:** read hub decisions (all six = recommendations, saved 11:38); deleted the two old artifacts (Owner Decisions, Live Sales Copilot Plan) at the owner's request; app.json ids `com.sotto.app` + mic permission; `expo prebuild`; Android APK and iOS simulator build; `apps/app/build-phones.sh`; APK published to `/downloads/`; SecureStore fallback fix; hub v10.
+- **Evidence:** APK `com.sotto.app` 0.1.0 contains the server origin; iOS sim screenshot shows the sign-in screen; jest 162 passed; typecheck + lint green.
+- **Tried and rejected:** emulator test (not enough disk); all four Android ABIs (needs ~10 GB build space).
+- **Next:** ask the owner where the playbook docs are; Android on a real phone; iPhone on device once an Apple ID is in Xcode; T-011.
+- **Notes:** the Mac's disk was full (0.9 GB) and broke both first builds; only Claude-made build output was deleted.
 
 ### 2026-10-20 (10:00–13:45) · local · Claude Opus 5.5 · D-022 client-side calls, management server, desktop, extension, owner hub
 - **Done:**

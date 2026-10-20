@@ -34,3 +34,6 @@ ios/Pods/
 
 # Sotto server data (local key vault, call history)
 .sotto-data/
+
+# Phone builds (T-016)
+apps/mobile-builds/

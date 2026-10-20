@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 14:25";
+const UPDATED = "20 Oct 2026 · 16:50";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -156,54 +156,55 @@ const TERMS = {
  "short-lived key":"A key that works for a few minutes only. Some vendors (like AssemblyAI) can issue these so the real key never leaves the server.",
  "LiveKit":"A service that carries live call audio between the phone network and the app.",
  "Yeastar":"Your office phone system.",
+ "Apple ID":"Your normal Apple account. Added in Xcode, it lets me put a test copy of the app on your own iPhone for free (it expires after 7 days).",
+ "simulator":"A pretend iPhone that runs on your Mac. Good for testing screens; it has no real phone line or microphone.",
  "Supabase":"A hosted database + sign-in service we planned earlier. Your new direction (own server) replaces it."
 };
 
 const TABS = [
  {id:"overview", label:"Where we are"},
- {id:"decisions", label:"Your decisions", badge:()=>DECISIONS.length},
+ {id:"decisions", label:"Your decisions", badge:()=>DECISIONS.filter(d => !choices[d.id]).length},
  {id:"server", label:"Server"},
  {id:"apps", label:"Apps & platforms"},
  {id:"map", label:"Build map"}
 ];
 
 const OVERVIEW = {
- pct: 64,
- parts:[{label:"Done", v:64, c:"var(--ok)"},{label:"In progress now", v:6, c:"var(--brand)"},{label:"Not started", v:30, c:"var(--line)"}],
+ pct: 68,
+ parts:[{label:"Done", v:68, c:"var(--ok)"},{label:"In progress now", v:4, c:"var(--brand)"},{label:"Not started", v:28, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
-   short:"Done today: your server is live, people can sign up and log in, calls now run on the agent's own device, and your dashboard shows every company. Next: installable apps for computer and phone.",
-   full:["The suggestion engine is finished and measured on your real keys: playbook answers in about 0.5 s and AI answers in 0.8–1.3 s, inside the 1.5 s rule ([[p95]] 1,069 ms).",
-         "Your new design is built: the [[client app]] does all the heavy work ([[speech-to-text]], [[AI model]] calls) on the agent's own device. The [[server]] only manages accounts, subscriptions and usage numbers, and hosts your private [[admin dashboard]].",
-         "On the device, the AI's first word arrives in 0.6–0.7 s (1.3 s on a cold first call), the same speed as before the move.",
-         "Try it: open https://104-168-48-116.sslip.io, press 'Create an account', and run a practice call. Then open /owner to see the company appear in your dashboard."]},
+   short:"Your server, sign-up and your dashboard are live, and calls run on the agent's own device. This round: the Android app is built and downloadable, and the iPhone app is built and runs in the simulator.",
+   full:["The suggestion engine is finished and measured on your real keys: playbook answers in about 0.5 s, AI answers in 0.8–1.3 s, inside the 1.5 s rule.",
+         "The [[client app]] does the heavy work ([[speech-to-text]], [[AI model]] calls) on the agent's own device. The [[server]] only manages accounts, subscriptions and usage numbers, and hosts your private [[admin dashboard]].",
+         "This round: your six decisions are saved and in place, your dashboard password is yours, the Android test app is on your downloads page, and the iPhone app is built and opens in the iPhone simulator.",
+         "Try it: https://104-168-48-116.sslip.io → 'Create an account' → practice call. Then see the company in your dashboard."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 64%. Done: the engine, screens, accounts, subscriptions, your dashboard, and the Windows, Mac, Linux and Chrome apps. Not done: phone builds, real phone calls, your real playbook.",
-   full:["Done: suggestion engine (Phase 2, 92%), screens in light/dark/Arabic (Phase 3, 97%), keys & models panel (Phase 6, 65%), unanswered-question inbox (Phase 7, 70%), automatic checks on every change.",
-         "This morning your new direction added work, so the total dropped to 52%. Since then: server live, sign-up and log-in, engine moved onto the device, dashboard, all tested (52% → 60%)."]},
+   short:"About 68% (up from 64%). Done: engine, screens, accounts, subscriptions, your dashboard, and apps for every platform (iPhone in the simulator). Not done: iPhone on a real phone, real phone calls, your real playbook.",
+   full:["Done: suggestion engine (Phase 2), all screens in light/dark/Arabic (Phase 3), accounts and your dashboard (Phase 5), keys & models panel (Phase 6), unanswered-question inbox (Phase 7).",
+         "Why it went up: the Android and iPhone apps now exist, and all six decisions are in place (64% → 68%)."]},
   {eyebrow:"Remaining", title:"What is left?",
-   short:"Engine inside the apps, sign-in and subscriptions, your dashboard, installable apps, real phone calls, then a pilot.",
-   full:["Done today: the engine runs inside the app; sign up and log in, companies, [[trial]]s and plans in a [[database]] on us3; your admin dashboard.",
-         "4. Installable apps: Windows, Mac, Linux, web, [[Chrome extension]] (this round); Android [[APK]] (this round if the Android tools install cleanly); iPhone (needs you, see Decisions).",
-         "5. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4).",
-         "6. Your real [[playbook]], load tests, then a one-week pilot."]},
+   short:"Finish the iPhone app, load your real playbook, real phone calls (LiveKit and Yeastar), speaking as the customer on phones, then a pilot.",
+   full:["1. iPhone on a real phone: it already runs in the simulator. A real iPhone needs your Apple ID in Xcode (free, re-install every 7 days) or an Apple Developer account ($99/yr) for [[TestFlight]].",
+         "2. Your real [[playbook]]: I could not find the documents (see Blockers).",
+         "3. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4). This also brings the customer's voice on phones.",
+         "4. Password reset by email, load test, then a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Phones only. Android needs you to open Android Studio once; iPhone needs Xcode. Real answers need your playbook, and real phone calls need LiveKit and Yeastar.",
-   full:["Android: Android Studio is on your Mac, but its tools are not installed. Open it once and finish the setup wizard. That accepts Google's license, which I must not accept for you. Then I build the test [[APK]].",
-         "iPhone: building needs [[Xcode]] (App Store, free, asks for your Mac password) or a free Expo account. Testers need an Apple Developer account ($99/yr) for [[TestFlight]].",
-         "Real answers: the demo uses an invented company. Send your product, price and FAQ documents.",
-         "Live phone calls: a [[LiveKit]] account (free) and your [[Yeastar]] admin details.",
-         "Everything else I can do myself."]},
+   short:"Two things: I can't find your playbook documents, and your Mac's disk is almost full (it stopped the first phone builds).",
+   full:["Playbook: you said they're sent, but they're not in the project, Downloads, Documents, Desktop or on the server. Tell me where they are (or drop them in the sotto folder).",
+         "Disk: your Mac had 0.9 GB free of 228 GB, so both phone builds stopped halfway. I deleted only my own build files (they rebuild themselves) and built for modern phones only to save space. The Android test phone on your Mac needs 12 GB free, so I couldn't try the Android app there. Please free 20 GB or more when you can.",
+         "Real phone calls still need a [[LiveKit]] account (free) and your [[Yeastar]] admin details."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Sign in to your dashboard and change its password. 2) Answer the 6 questions in Decisions. 3) Open Android Studio once. 4) Send your playbook documents.",
-   full:["1. Dashboard: in Terminal, run ssh root@104.168.48.116 cat /root/sotto-owner-password.txt. Sign in at https://owner.104-168-48-116.sslip.io and choose your own password when asked. Then run ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
-         "2. Decisions tab: 6 questions with my picks pre-selected. Press Save, even if you agree with all of them.",
-         "3. Open Android Studio once and finish the setup wizard (for the Android app).",
-         "4. Your product, price and FAQ documents, in any format.",
-         "5. Try it: create a company at https://104-168-48-116.sslip.io, add your Groq key in Admin → Keys & providers, run a call, and watch it appear in your dashboard.",
-         "Later: Xcode or an Expo account (iPhone), LiveKit and Yeastar (real calls)."]}
+   short:"1) Tell me where the playbook documents are. 2) Free up disk space on your Mac. 3) Try the Android app on a phone.",
+   full:["1. Playbook documents: the folder or file name, or drop them into the sotto project folder.",
+         "2. Free 20 GB+ on your Mac (System Settings → General → Storage). I won't delete your own files.",
+         "3. Android: on the phone, open https://104-168-48-116.sslip.io/downloads/ and tap Sotto-0.1.0.apk. Allow 'install unknown apps' when asked.",
+         "4. iPhone (optional now): in Terminal run sudo xcode-select -s /Applications/Xcode.app/Contents/Developer (asks your Mac password). Then open Xcode → Settings → Accounts and add your [[Apple ID]], plug in your iPhone and tell me; I'll install it.",
+         "Later: [[LiveKit]] and [[Yeastar]] (real calls), Apple Developer ($99/yr) for iPhone testers, Google Play ($25 once)."]}
  ]
 };
+
+const DECISIONS_LEAD = "All six answered on 20 Oct, and every answer matched my recommendation. All six are now in place (the iPhone one this round). New questions will appear here with my pick pre-selected; press Save and I read your answers at the start of my next round.";
 
 const DECISIONS = [
  {id:"keys_where", title:"Where the AI service keys live",
@@ -250,13 +251,12 @@ const SERVER = [
  {eyebrow:"Live now", title:"Your server is running",
   short:"Live with the [[HTTPS]] padlock. The app is at 104-168-48-116.[[sslip.io]]. Your private [[admin dashboard]] has its own address: owner.104-168-48-116.sslip.io.",
   full:["App: https://104-168-48-116.sslip.io. Your console: https://owner.104-168-48-116.sslip.io (separate on purpose, see the security card).",
-        "Your owner account uses your email. Its one-time password is in a private file on the server. To see it, run this in Terminal on your Mac: ssh root@104.168.48.116 cat /root/sotto-owner-password.txt",
-        "On first sign-in the console asks you to choose your own password. Then delete the file: ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
+        "Your owner password is now your own, and the one-time password file is deleted (I checked).",
         "The server uses about 280 MB of its 1 GB memory."]},
- {eyebrow:"Previous round", title:"What I did on us3 in the previous round",
-  short:"Nothing. My connection to the server was blocked last round, so I only prepared an install kit. Today the connection worked and I installed everything.",
-  full:["Last round, my safety system blocked the connection to [[us3]], so I built and tested an install kit on your Mac but did not change the server.",
-        "Today us3 was a clean Ubuntu 26.04 server with 1 processor, 1 GB memory and 10 GB disk, with nothing else running on it."]},
+ {eyebrow:"This round", title:"What I did on us3 this round",
+  short:"Almost nothing: I added the Android app to the downloads page. No new software, no settings changed.",
+  full:["Added one file: Sotto-0.1.0.apk (30 MB) on the downloads page.",
+        "Checked that your one-time password file is gone. No customer companies have signed up yet."]},
  {eyebrow:"Installed today", title:"What I installed",
   short:"The Sotto account server, [[Caddy]] for the [[HTTPS]] padlock, a firewall, a [[database]] file and a nightly backup. No [[Docker]].",
   full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate and renews it automatically.",
@@ -284,12 +284,12 @@ const SERVER = [
 ];
 
 const PLATFORMS = [
- {name:"iPhone", prio:true, st:"bad", stl:"Blocked on you",
-  short:"The code is ready and is the same app. Building it needs [[Xcode]] on your Mac, or a free Expo account.",
-  full:"The app is built with [[Expo]], so the iPhone version is the same code. Apple requires Xcode on a Mac to build it; see the decision 'How we build the iPhone app'. For testers: Apple Developer account ($99/yr) and [[TestFlight]]."},
- {name:"Android", prio:true, st:"bad", stl:"Needs one step from you",
-  short:"The code is ready. Open Android Studio once and finish its setup: that accepts Google's license, which I must not accept for you. Then I build a test [[APK]].",
-  full:"Android Studio is already on your Mac, but its Android tools are not installed yet. The setup wizard installs them and asks you to accept Google's SDK license. After that I build an APK you can [[sideload]] on any Android phone. The phone app already runs calls on the device. On phones, the microphone track arrives with the phone-call work (Phase 4); typed and scripted calls work now. The Play Store later needs a Google Play account ($25 once)."},
+ {name:"iPhone", prio:true, st:"run", stl:"Built · simulator",
+  short:"Built with Xcode and tested in the iPhone [[simulator]] on your Mac: it opens to the sign-in screen. A real iPhone needs your [[Apple ID]] added in Xcode.",
+  full:"Same code as the other apps, built with [[Xcode]] as you chose. A simulator build needs no Apple account. To put it on your own iPhone, add your Apple ID in Xcode (free, re-install every 7 days). Testers need an Apple Developer account ($99/yr) for [[TestFlight]]. On phones, typed and scripted calls work; speaking as the customer comes with the phone-call work (Phase 4)."},
+ {name:"Android", prio:true, st:"ok", stl:"Built · download",
+  short:"Test app ready: open 104-168-48-116.sslip.io/downloads on an Android phone and tap Sotto-0.1.0.apk.",
+  full:"An [[APK]] you can [[sideload]]: Android asks you to allow installing from your browser the first time. Built for phones from about 2017 onward. Sign-up, log-in and typed or scripted calls work; speaking as the customer comes with Phase 4. The Play Store later needs a Google Play account ($25 once) and a proper signing key, which I'd create then."},
  {name:"Windows", prio:true, st:"ok", stl:"Built · download",
   short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
   full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
@@ -307,8 +307,8 @@ const PLATFORMS = [
 
 const PHASES = [
  {n:0, name:"Brief & playbook", pct:60, st:"wait",
-  short:"Your answers are in. Waiting for your real playbook documents.",
-  done:["Your earlier answers applied: English calls, close the sale, all four card types","Trial 14 days, 3 seats, 300 minutes"], next:["Draft your playbook from your documents"], you:["Product, price and FAQ documents"]},
+  short:"Your answers are in. I couldn't find the playbook documents yet: tell me where they are.",
+  done:["Your earlier answers applied: English calls, close the sale, all four card types","Trial 14 days, 3 seats, 300 minutes"], next:["Draft your playbook from your documents"], you:["Tell me where the playbook documents are"]},
  {n:1, name:"Architecture & skeleton", pct:95, st:"run",
   short:"Blueprint approved. Updated today for your new 'apps do the work, server manages' design.",
   done:["One codebase for phone, web and desktop","Automatic checks on every change"], next:["Write the new design down as decision D-022"], you:[]},
@@ -323,16 +323,16 @@ const PHASES = [
   done:["Rules for who may start a call"], next:["Phone calls through the app"], you:["[[LiveKit]] account","[[Yeastar]] admin details"]},
  {n:5, name:"Companies & accounts", pct:80, st:"run",
   short:"Done on your own server: sign-up, log-in, trials, plans, devices, team invites and your dashboard.",
-  done:["Sign up / log in on every app","Trials and plans; calls pause when a plan ends","Devices: sign one out from the app or your dashboard","Company walls tested: one company cannot see another's data","Your admin dashboard on us3"], next:["Password reset by email","Security review of the new server"], you:["Decisions tab: keys and database"]},
+  done:["Sign up / log in on every app","Trials and plans; calls pause when a plan ends","Devices: sign one out from the app or your dashboard","Company walls tested: one company cannot see another's data","Your admin dashboard on us3"], next:["Password reset by email"], you:[]},
  {n:6, name:"Prompts & models", pct:65, st:"run",
   short:"Keys panel, model per job and speed check done.",
   done:["Keys & providers panel","Your own endpoints (Ollama tested)"], next:["Prompt versions saved on the server"], you:[]},
  {n:7, name:"Escalations & CRM", pct:70, st:"run",
   short:"Unanswered questions reach the inbox and grow the playbook.",
   done:["Inbox → playbook loop"], next:["Zoho CRM connector"], you:["Zoho access, later"]},
- {n:8, name:"Apps, hardening & pilot", pct:45, st:"run",
-  short:"Server live on us3. Windows, Mac, Linux and Chrome extension are built and downloadable. Phones wait on one step from you.",
-  done:["Server live on us3 with HTTPS, firewall and nightly backup","Windows, Mac and Linux installers","Chrome extension","Downloads page on your server"], next:["Security review of the new server (running now)","Android and iPhone builds","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
+ {n:8, name:"Apps, hardening & pilot", pct:58, st:"run",
+  short:"Server live on us3. Android, Windows, Mac, Linux and Chrome extension are downloadable. iPhone runs in the simulator.",
+  done:["Server live on us3 with HTTPS, firewall and nightly backup","Security review: high and medium issues fixed","Windows, Mac and Linux installers","Chrome extension","Android test app","iPhone app (simulator)","Downloads page on your server"], next:["iPhone on a real phone","Android app tested on a phone","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
 ];
 /* ======================= END DATA ======================= */
 
@@ -358,7 +358,7 @@ function card({id, eyebrow, title, short, full, extra = ""}){
 }
 
 function renderTabs(){
-  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
+  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge && t.badge() ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
 }
 const views = {
  overview(){
@@ -369,7 +369,7 @@ const views = {
   return `<h2 class="tabtitle">Where we are</h2><p class="lead">Each card has a Short and a Detailed view. Purple underlined words show a definition when you hover or tap.</p>${meter}<div class="grid2">${o.cards.map((c, i) => card({id:"o" + i, ...c})).join("")}</div>`;
  },
  decisions(){
-  return `<h2 class="tabtitle">Your decisions</h2><p class="lead">My recommendation is already selected on each. If you agree, do nothing and press Save. Your choices save here and I read them at the start of my next round.</p>
+  return `<h2 class="tabtitle">Your decisions</h2><p class="lead">${rich(DECISIONS_LEAD)}</p>
    ${DECISIONS.map(d => card({id:"d-" + d.id, eyebrow:"Decision", title:d.title, short:d.short, full:d.full, extra:optsHtml(d)})).join("")}
    <div class="savebar"><p id="saveMsg">Nothing changed yet.</p><span class="save" id="saveState"></span><button type="button" class="btn" id="saveBtn">Save my choices</button></div>`;
  },
@@ -455,7 +455,7 @@ render();
   let db = null; try { db = window.claude?.use ? await window.claude.use("db") : null; } catch {}
   if (!db) return;
   ref = db.doc("decisions/owner");
-  ref.onSnapshot(snap => { if (snap.exists && !dirty){ const a = snap.data().answers || {}; for (const k in a) choices[k] = {v:a[k].v, note:a[k].note || ""}; choices._savedAt = snap.data().savedAt; local(); if (tab === "decisions") render(); } }, () => {});
+  ref.onSnapshot(snap => { if (snap.exists && !dirty){ const a = snap.data().answers || {}; for (const k in a) choices[k] = {v:a[k].v, note:a[k].note || ""}; choices._savedAt = snap.data().savedAt; local(); render(); } }, () => {});
   msg();
 })();
 </script>
