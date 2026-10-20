@@ -1,0 +1,16 @@
+# Defaults for a real company account until its admin sets its own tone and goal (D-024).
+# The Palm Grove profile in seed/demo/ is only for the local demo, replays and tests.
+company_id: default
+name: Default
+tone: warm, confident, brief; never pushy
+call_goal: agree a clear next step with the customer before the call ends
+card_language: same as the customer
+ai_answers_allowed: true
+agent_context: true
+backup_disabled: []
+holding_line:
+  en: Good question. Let me confirm that and send it to you today.
+  ar: سؤال ممتاز. خلّيني أتأكد وأرسل لك الجواب اليوم.
+escalation_label:
+  en: Not in playbook — check before promising
+  ar: غير موجود في الدليل — تأكد قبل أن تعد

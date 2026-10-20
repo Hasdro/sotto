@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, net, protocol, session, shell } = require("electron");
+const { app, BrowserWindow, desktopCapturer, net, protocol, session, shell } = require("electron");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -76,14 +76,34 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle("app", serve);
-  // Only the microphone (the customer's audio), only for the app's own pages.
+  // Only audio capture, only for the app's own pages: the microphone, or the computer's sound.
+  const own = (url) => typeof url === "string" && url.startsWith(`${ORIGIN}/`);
   const allowed = (wc, permission) =>
-    permission === "media" && wc.getURL().startsWith(`${ORIGIN}/`);
+    (permission === "media" || permission === "display-capture") && own(wc.getURL());
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) =>
     callback(allowed(wc, permission)),
   );
   session.defaultSession.setPermissionCheckHandler((wc, permission) =>
     wc ? allowed(wc, permission) : false,
+  );
+  // The computer's sound (D-024): the other side of a Zoom, Google Meet or softphone call. Chromium
+  // needs a screen to go with it; the page stops that video track at once and keeps the sound.
+  // On macOS 14.2+ this uses Apple's audio tap (NSAudioCaptureUsageDescription in Info.plist).
+  session.defaultSession.setDisplayMediaRequestHandler(
+    (request, callback) => {
+      if (!own(request.frame?.url) || !request.audioRequested) {
+        callback(null);
+        return;
+      }
+      desktopCapturer
+        .getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } })
+        .then((sources) => {
+          if (sources[0]) callback({ video: sources[0], audio: "loopback" });
+          else callback(null);
+        })
+        .catch(() => callback(null));
+    },
+    { useSystemPicker: false },
   );
   createWindow();
   app.on("activate", () => {

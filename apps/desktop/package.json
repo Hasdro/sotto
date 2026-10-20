@@ -2,7 +2,7 @@
   "name": "sotto-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Sotto for Windows, Mac and Linux: the web app in its own window, with the microphone",
+  "description": "Sotto for Windows, Mac and Linux: the web app in its own window, hearing the call through the microphone or the computer's sound",
   "author": "Sotto",
   "main": "main.cjs",
   "scripts": {
@@ -42,7 +42,8 @@
       ],
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Sotto listens to the customer's side of a call to suggest what to say."
+        "NSMicrophoneUsageDescription": "Sotto listens to the customer's side of a call to suggest what to say.",
+        "NSAudioCaptureUsageDescription": "Sotto listens to the other side of your Zoom, Google Meet or softphone call to suggest what to say."
       },
       "identity": null
     },

@@ -56,7 +56,9 @@ function session(state: SessionState): CallSession {
     retry: jest.fn(),
     dismissNotice: jest.fn(),
     mic: "off",
+    source: "mic",
     toggleMic: jest.fn(),
+    startListening: jest.fn(),
   };
 }
 
@@ -80,6 +82,36 @@ describe("in-call screen", () => {
     } finally {
       globalThis.WebSocket = original;
     }
+  });
+
+  it("a real account starts by listening, never with scripts or typed lines (D-024)", async () => {
+    const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
+    const s = session(stateFrom([real]));
+    await render(<CallView session={s} mock={false} />);
+    expect(screen.queryByTestId("scenario-picker")).toBeNull();
+    // Outside the desktop app only the microphone is offered.
+    expect(screen.queryByTestId("source-computer")).toBeNull();
+    fireEvent.press(screen.getByTestId("start-call"));
+    expect(s.startListening).toHaveBeenCalledWith("mic");
+  });
+
+  it("a real call shows what Sotto hears and a pause button, with no typing", async () => {
+    const real: DemoServerMessage = {
+      ...hello,
+      company_name: "Zylker",
+      scenarios: [],
+      stt_vendor: "assemblyai",
+    };
+    const s = {
+      ...session(stateFrom([real, { type: "call_started", call_id: CALL }])),
+      mic: "on" as const,
+    };
+    await render(<CallView session={s} mock={false} />);
+    expect(screen.queryByTestId("composer-input")).toBeNull();
+    expect(screen.getByText("Listening through the microphone (assemblyai)")).toBeOnTheScreen();
+    expect(screen.getByTestId("approximate")).toBeOnTheScreen();
+    fireEvent.press(screen.getByTestId("mic-toggle"));
+    expect(s.toggleMic).toHaveBeenCalledWith();
   });
 
   it("announces the hero card to screen readers once, when it is complete", async () => {

@@ -1,6 +1,7 @@
 """The call bundle (D-022): everything a client app needs to run calls on its own device — company
-profile and settings, the stage routes (seed + the admin's choices), the prompts, the playbook
-(sample entries + the company's own) and, while the plan allows calls, the provider keys.
+profile and settings, the stage routes (seed + the admin's choices), the prompts, the company's
+own playbook and, while the plan allows calls, the provider keys. Real accounts never get the demo
+company's sample playbook or scripted calls (D-024); only the demo fixture asks for them.
 
 Built from the same seed files the Python worker uses, so both engines share one source."""
 
@@ -29,6 +30,7 @@ class Seed:
     routing: RoutingConfig
     catalog: Catalog
     company: CompanyProfile
+    demo_company: CompanyProfile
     prompts: dict[str, dict[str, Any]]
     playbook: list[dict[str, Any]]
     scenarios: list[dict[str, Any]]
@@ -81,7 +83,8 @@ class Seed:
         return cls(
             routing=RoutingConfig.load(root / "models" / "default.yaml"),
             catalog=Catalog.load(root / "models" / "providers.yaml"),
-            company=CompanyProfile.load(root / "demo" / "company.yaml"),
+            company=CompanyProfile.load(root / "company" / "default.yaml"),
+            demo_company=CompanyProfile.load(root / "demo" / "company.yaml"),
             prompts=prompts,
             playbook=playbook,
             scenarios=scenarios,
@@ -96,9 +99,10 @@ def build_bundle(
     routes: dict[str, tuple[str, str]],
     own_playbook: list[dict[str, Any]],
     keys: dict[str, str] | None,
+    samples: bool = False,
 ) -> dict[str, Any]:
     routing = apply_overrides(seed.routing, seed.catalog, routes)
-    profile = seed.company
+    profile = seed.demo_company if samples else seed.company
     card_language = settings.get("card_language", "en")
     stages = {
         name: {k: v for k, v in dataclasses.asdict(route).items() if v not in (None, {})}
@@ -138,7 +142,7 @@ def build_bundle(
         "v": BUNDLE_VERSION,
         "company": {
             "name": company_name,
-            # Sample tone and goal until the company sets its own (P0.3 playbook interview).
+            # Default tone and goal until the company sets its own (P0.3 playbook interview).
             "tone": profile.tone,
             "call_goal": profile.call_goal,
             "holding_line": profile.holding_line,
@@ -155,7 +159,7 @@ def build_bundle(
             s.id: {"kind": s.kind, "label": s.label} for s in seed.catalog.stages.values()
         },
         "prompts": seed.prompts,
-        "playbook": own + seed.playbook,
-        "scenarios": seed.scenarios,
+        "playbook": own + (seed.playbook if samples else []),
+        "scenarios": seed.scenarios if samples else [],
         "keys": keys,
     }

@@ -31,6 +31,7 @@ def build() -> str:
         routes={},
         own_playbook=[],
         keys=None,
+        samples=True,
     )
     index = PlaybookIndex(
         [

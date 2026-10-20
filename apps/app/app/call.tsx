@@ -1,10 +1,10 @@
 /**
  * In-call screen (R1, R2, R4): the hero of the product.
  *
- * Development builds connect to the local demo bridge (D-013) at EXPO_PUBLIC_DEMO_BRIDGE_URL,
- * default ws://127.0.0.1:8787. `?mock=1` is DEV-ONLY: it replays a canned call through the same
- * decoder and reducer so the screen can be reviewed without the worker (mock-stream.ts).
- * Production builds (`__DEV__` false) do neither and show a neutral Phase 4 state.
+ * Signed in to a Sotto server (D-022), the call runs on this device and listens to the customer:
+ * the computer's sound (Zoom, Google Meet, softphones) or the microphone (D-024). Development
+ * builds without a server use the local demo bridge (D-013); `?mock=1` (development only) replays
+ * a canned call so the screen can be reviewed without the worker (mock-stream.ts).
  */
 import {
   Button,
@@ -24,9 +24,12 @@ import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CardStack } from "../features/call/components/CardStack";
 import { Composer, type MicControl } from "../features/call/components/Composer";
+import { ListenBar } from "../features/call/components/ListenBar";
+import { ListenStart } from "../features/call/components/ListenStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
+import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
 import { useEscalations } from "../features/escalations/store";
@@ -41,7 +44,7 @@ export default function CallScreen() {
 function DemoCallScreen() {
   const params = useLocalSearchParams<{ mock?: string }>();
   const { locale } = useI18n();
-  const mock = params.mock === "1";
+  const mock = __DEV__ && params.mock === "1"; // never in a release build (D-024)
   const session = useCallSession({ mock, locale });
   // An escalated question is now in the manager's inbox on the server: refresh the badge.
   const { reload } = useEscalations();
@@ -100,10 +103,22 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   const cards = selectCards(state.cards);
   const live = state.phase === "live";
   const vendor = state.hello.stt_vendor ?? null;
+  // Practice (development only): scripted scenarios or the mock stream, with typed lines. A real
+  // account has neither (D-024): the call is heard, never typed.
+  const practice = mock || state.hello.scenarios.length > 0;
   const mic: MicControl | null =
     vendor && !mock && Platform.OS === "web"
-      ? { state: session.mic, vendor, onToggle: session.toggleMic }
+      ? { state: session.mic, vendor, onToggle: () => session.toggleMic() }
       : null;
+  const listenBar = (
+    <ListenBar
+      state={session.mic}
+      source={session.source}
+      vendor={vendor}
+      partial={state.partial}
+      onToggle={() => session.toggleMic()}
+    />
+  );
   const header = (
     <CallHeader
       company={state.hello.company_name}
@@ -118,8 +133,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   );
   const main = (
     <View style={styles.mainStack}>
-      {state.phase === "idle" ? (
+      {state.phase === "idle" && practice ? (
         <ScenarioPicker scenarios={state.hello.scenarios} onStart={session.start} />
+      ) : null}
+      {state.phase === "idle" && !practice ? (
+        <ListenStart computer={computerAudioAvailable()} onStart={session.startListening} />
       ) : null}
       {state.phase === "ended" ? (
         <Panel style={styles.ended} testID="call-ended">
@@ -131,7 +149,12 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
               {t("call.ended.body", { cards: cards.length })}
             </Text>
           </View>
-          <Button label={t("call.ended.again")} onPress={() => session.start(null)} />
+          <Button
+            label={t("call.ended.again")}
+            onPress={() =>
+              practice ? session.start(null) : session.startListening(session.source)
+            }
+          />
         </Panel>
       ) : null}
       {state.phase !== "idle" ? <CardStack cards={cards} wide={wide} listening={live} /> : null}
@@ -167,7 +190,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           <View style={styles.sideScroll}>
             <TranscriptPane lines={state.transcript} scroll />
           </View>
-          <Composer onSay={session.say} disabled={!live} mic={mic} partial={state.partial} />
+          {practice ? (
+            <Composer onSay={session.say} disabled={!live} mic={mic} partial={state.partial} />
+          ) : live ? (
+            listenBar
+          ) : null}
         </View>
       </View>
     );
@@ -185,9 +212,10 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
         </ScrollView>
         {toast}
       </View>
-      {live ? (
+      {live && practice ? (
         <Composer onSay={session.say} disabled={false} compact mic={mic} partial={state.partial} />
       ) : null}
+      {live && !practice ? listenBar : null}
     </View>
   );
 }

@@ -112,10 +112,12 @@ def test_bundle_has_routes_prompts_playbook_and_keys_only_while_calls_are_allowe
     assert b["v"] == 1
     assert b["stages"]["suggest"]["provider"] == "openai_compatible"
     assert "suggest" in b["prompts"]
-    assert any(e["sample"] for e in b["playbook"])
+    # A real account gets no demo data: no sample playbook, no scripted calls (D-024).
+    assert not [e for e in b["playbook"] if e["sample"]]
+    assert b["scenarios"] == []
+    assert "viewing" not in b["company"]["call_goal"]
     assert b["keys"] == {"GROQ_API_KEY": fake_key}
     assert "GROQ_API_KEY" in b["key_status"]
-    assert b["scenarios"]
     # Suspended: no keys, and starting a call is refused.
     company_id = s["company"]["id"]
     with store._tx() as db:  # the owner-only switch, set directly

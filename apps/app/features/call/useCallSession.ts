@@ -15,7 +15,14 @@ import {
 } from "./bridge";
 import { demoEnabled } from "./devGate";
 import { connectLocal } from "./local";
-import { type MicError, type MicHandle, MicUnavailable, startMic } from "./mic";
+import {
+  type AudioSource,
+  type MicError,
+  type MicHandle,
+  MicUnavailable,
+  startCapture,
+  startMic,
+} from "./mic";
 import { connectMockBridge } from "./mock-stream";
 import { initialSessionState, type SessionState, type Speaker, sessionReducer } from "./session";
 
@@ -31,7 +38,11 @@ export type CallSession = {
   dismissNotice: (id: number) => void;
   /** Spoken customer track (D-020): "off", "starting", "on", or why it could not start. */
   mic: MicState;
-  toggleMic: () => void;
+  /** Which source is (or was last) listening. */
+  source: AudioSource;
+  toggleMic: (source?: AudioSource) => void;
+  /** A real call (D-024): starts the call and listens to the given source at once. */
+  startListening: (source: AudioSource) => void;
 };
 
 export type MicState = "off" | "starting" | "on" | MicError;
@@ -88,7 +99,9 @@ export function useCallSession(opts: {
   const send = useCallback((msg: DemoClientMessage) => bridge.current?.send(msg) ?? false, []);
 
   const [mic, setMic] = useState<MicState>("off");
+  const [source, setSource] = useState<AudioSource>("mic");
   const micHandle = useRef<MicHandle | null>(null);
+  const sourceRef = useRef<AudioSource>("mic");
   // Odd while a start waits for the browser's permission prompt. Bumped on every stop, so a
   // permission granted after the user pressed stop (or after the call ended) is let go at once.
   const micAttempt = useRef(0);
@@ -98,33 +111,40 @@ export function useCallSession(opts: {
     micHandle.current = null;
     setMic((m) => (m === "on" || m === "starting" ? "off" : m));
   }, []);
-  const toggleMic = useCallback(() => {
-    if (micHandle.current || micAttempt.current % 2 === 1) {
-      stopMic();
-      send({ type: "audio_stop" });
-      return;
-    }
-    if (!send({ type: "audio_start", sample_rate: 16000 })) return;
-    micAttempt.current += 1; // odd: starting
-    const attempt = micAttempt.current;
-    setMic("starting");
-    startMic((pcm) => bridge.current?.sendAudio(pcm))
-      .then((handle) => {
-        if (micAttempt.current !== attempt) {
-          handle.stop(); // stopped while the browser was asking for permission
-          return;
-        }
-        micAttempt.current += 1; // even: settled
-        micHandle.current = handle;
-        setMic("on");
-      })
-      .catch((err: unknown) => {
-        if (micAttempt.current !== attempt) return;
-        micAttempt.current += 1;
+  const toggleMic = useCallback(
+    (which?: AudioSource) => {
+      if (micHandle.current || micAttempt.current % 2 === 1) {
+        stopMic();
         send({ type: "audio_stop" });
-        setMic(err instanceof MicUnavailable ? err.reason : "unsupported");
-      });
-  }, [send, stopMic]);
+        return;
+      }
+      if (!send({ type: "audio_start", sample_rate: 16000 })) return;
+      micAttempt.current += 1; // odd: starting
+      const attempt = micAttempt.current;
+      setMic("starting");
+      const chosen = which ?? sourceRef.current;
+      sourceRef.current = chosen;
+      setSource(chosen);
+      const onFrame = (pcm: ArrayBuffer) => bridge.current?.sendAudio(pcm);
+      (chosen === "mic" ? startMic(onFrame) : startCapture(chosen, onFrame))
+        .then((handle) => {
+          if (micAttempt.current !== attempt) {
+            handle.stop(); // stopped while the browser was asking for permission
+            return;
+          }
+          micAttempt.current += 1; // even: settled
+          micHandle.current = handle;
+          setMic("on");
+        })
+        .catch((err: unknown) => {
+          if (micAttempt.current !== attempt) return;
+          micAttempt.current += 1;
+          send({ type: "audio_stop" });
+          setMic(err instanceof MicUnavailable ? err.reason : "unsupported");
+        });
+    },
+    [send, stopMic],
+  );
   // The microphone never outlives the call or the connection.
   const callOver = state.phase !== "live" || state.connection !== "open";
   useEffect(() => {
@@ -140,6 +160,13 @@ export function useCallSession(opts: {
     retry: useCallback(() => setAttempt((n) => n + 1), []),
     dismissNotice: useCallback((id) => dispatch({ type: "dismiss_notice", id }), []),
     mic,
+    source,
     toggleMic,
+    startListening: useCallback(
+      (which: AudioSource) => {
+        if (send({ type: "start", scenario_id: null })) toggleMic(which);
+      },
+      [send, toggleMic],
+    ),
   };
 }
