@@ -48,6 +48,8 @@ export type Theme = {
     noticeFill: Hex;
     noticeText: Hex;
     noticeBorder: Hex;
+    /** Behind a drawer or dialog, drawn at `scrimOpacity` (D-023). */
+    scrim: Hex;
   };
   /** One colour per card type, so the agent recognises a card at a glance (RESEARCH §6). */
   card: Record<CardKind, CardColors>;
@@ -74,6 +76,7 @@ const light: Theme = {
     noticeFill: "#fff1d6",
     noticeText: "#5a3a00",
     noticeBorder: "#a87418",
+    scrim: "#0b1218",
   },
   card: {
     answer: { fill: "#d9efea", text: "#0a3a35", muted: "#2d5c56", accent: "#0e766b" },
@@ -105,6 +108,7 @@ const dark: Theme = {
     noticeFill: "#3a2a08",
     noticeText: "#fbe3b0",
     noticeBorder: "#c9962f",
+    scrim: "#000000",
   },
   card: {
     answer: { fill: "#0f302c", text: "#d0f1ea", muted: "#a6cfc8", accent: "#56c7b8" },
@@ -157,6 +161,9 @@ export type TypeRole = keyof typeof type;
 /** Minimum touch target in points (ENGINEERING §11). */
 export const minTouchTarget = 44;
 
+/** Opacity of the `scrim` colour behind a drawer or dialog. */
+export const scrimOpacity = 0.45;
+
 /** Motion never sits on the read path: card text appears with no animation (DESIGN.md §7). */
 export const motion = { fast: 120, base: 200, toastMs: 8000 } as const;
 
@@ -188,6 +195,10 @@ export const layout = {
   heroMinHeight: 200,
   toastMaxWidth: 420,
   sidebarWidth: 248,
+  /** Phone navigation drawer: this wide, or 85 % of the window if that is less (D-023). */
+  drawerMaxWidth: 300,
+  /** Top bar with the menu button below the wide breakpoint. */
+  topBarHeight: 56,
   transcriptWidth: 380,
   contentMaxWidth: 1180,
   /** Readable measure for prose and admin forms. */

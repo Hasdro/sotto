@@ -51,6 +51,7 @@ export function SegmentedControl<V extends string>({
               variant="label"
               weight={selected ? "semibold" : "medium"}
               tone={selected ? "default" : "muted"}
+              style={styles.label}
             >
               {o.label}
             </Text>
@@ -69,6 +70,8 @@ const styles = StyleSheet.create({
     padding: 2,
     gap: 2,
     alignSelf: "flex-start",
+    // On a narrow phone the options shrink and wrap their labels instead of being clipped.
+    maxWidth: "100%",
   },
   item: {
     minHeight: minTouchTarget - 4,
@@ -78,5 +81,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 1,
   },
+  label: { textAlign: "center" },
 });
