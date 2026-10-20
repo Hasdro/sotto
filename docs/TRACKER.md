@@ -28,6 +28,7 @@ Tags:
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
+  - T-021 done (D-024): Mac app hears Zoom / Google Meet / Yeastar / 3CX calls through the computer's sound; real accounts get no demo data; installed in `/Applications` and the server deployed. Owner tests with Zylker (adds his keys in Admin → Keys & providers);
   - T-020 done (D-023): phones open navigation from a left drawer (right in Arabic), small-screen polish; APK rebuilt — owner to reinstall and confirm the menu and look;
   - Mac app real-world test done (T-019); installed `/Applications/Sotto.app` (arm64) for the owner's Zylker account; owner adds keys himself;
   - T-016 rest: Android APK on a real phone or emulator (Mac needs 12 GB free for the emulator); iPhone on a device (owner's Apple ID in Xcode);
@@ -255,6 +256,13 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-10-20 · local · Opus 5.5 · T-021 (D-024)
+- **Done:** computer-sound capture in the desktop app (Electron loopback, own window as picture, Info.plist key); "Start listening" panel + listening bar for real accounts; mock stream dev-only; cloud bundle without sample playbook/scenarios and with neutral company defaults; installed `/Applications/Sotto.app`; `deploy/push.sh` to us3 (app 200, API 401).
+- **Evidence:** live test on this Mac against a local `.test` account: a recorded customer played through the speakers was transcribed word for word (AssemblyAI); 4 cards (1 playbook, 3 AI), p50 1166 / p95 1253 ms; replay `--all` R1 PASS, R4 0 agent cards, R2 drill p95 1285 ms; pnpm test all green (app 180, engine 23, worker 365).
+- **Tried and rejected:** a screen source from `desktopCapturer` needs screen-recording permission ("Failed to get sources"); launching the app from a terminal makes macOS check the terminal's permission (track ends at once) — launch it as an app.
+- **Next:** owner tests Zoom/Meet/Yeastar with Zylker; then ask before uploading the new Mac installers to `/downloads/`; agent track on desktop (mic as context) and voice-sample matching for the microphone source.
+- **Notes:** without a playbook the AI correctly refuses to invent company facts (holding line + manager email) — Zylker needs its playbook docs.
 
 ### 2026-10-20 (19:30–21:00) · local · Claude Opus 5.5 · T-020 phone navigation drawer (side session)
 - **Done:** D-023 + DESIGN.md §6; `AppShell` top bar + drawer (shared `NavPanel` with the sidebar); `scrim`, `drawerMaxWidth`, `topBarHeight` tokens; segmented control shrinks on phones; small-screen polish (call, inbox, account); 10 new shell tests; `scripts/screenshots.mjs`; APK rebuilt with `build-phones.sh`.

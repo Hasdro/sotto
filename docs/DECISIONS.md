@@ -318,3 +318,16 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 **Why:** the owner asked for it; it also frees the bottom edge on phones, removes the role-switch bar from the top of every page, and gives phone and desktop the same navigation model.
 
 **Trade-off:** one extra tap to change area on a phone. The call screen, where speed matters, needs no navigation during a call.
+
+## D-024 — Real calls on the desktop: hear the computer's sound; real accounts carry no demo data
+2026-10-20 · owner: "keep the focus on the Mac version … ready for real world with Zoom, Google Meet and Yeastar calls; remove the fake customer data call, we are over the demo phase".
+
+**Decision:**
+- **Customer audio on the desktop = the computer's sound output** (R4 "desktop with another softphone", exact). The Electron app answers `getDisplayMedia` with `audio: "loopback"` (Apple's Core Audio tap on macOS 14.2+, `NSAudioCaptureUsageDescription` in Info.plist) and its own window as the required picture, so no screen-recording permission is needed; the page drops the video track at once. Covers Zoom, Google Meet, Teams and the Yeastar Linkus / 3CX desktop softphones with no change to the phone system.
+- **The microphone stays as the second source** for in-person and speakerphone calls, with the R4 "Approximate" badge (no voice-sample matching yet).
+- **Real accounts see a "Start listening" panel**, choose the source, and get a listening bar (pause/resume, words heard so far). No scenario picker, no typed lines. The `?mock=1` stream only exists in development builds.
+- **The cloud bundle carries no demo data:** no sample playbook, no scripted scenarios, and neutral company defaults (`seed/company/default.yaml`) instead of the Palm Grove realty tone and goal. Only the engine test fixture asks for samples (`build_bundle(samples=True)`).
+
+**Why:** the owner's real calls run in Zoom, Meet and Yeastar on the Mac; the speakers carry only the other side, so capture is exact without telephony integration (Phase 4 stays the path for a dial pad and real numbers inside the app).
+
+**Trade-offs:** macOS asks once for "system audio recording" (must be allowed by the user; launched from a terminal, macOS checks the terminal instead). All system sound is heard, including notifications, during a call. The agent's own track is not captured on the desktop yet.
