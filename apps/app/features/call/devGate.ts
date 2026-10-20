@@ -6,5 +6,10 @@
  */
 export function demoEnabled(): boolean {
   // Must stay the literal `process.env.EXPO_PUBLIC_…` form so Expo inlines it at build time.
-  return __DEV__ || process.env.EXPO_PUBLIC_SOTTO_DEMO === "1";
+  // A build that names a management server (D-022) runs calls on the device: always enabled.
+  return (
+    __DEV__ ||
+    process.env.EXPO_PUBLIC_SOTTO_DEMO === "1" ||
+    Boolean(process.env.EXPO_PUBLIC_SOTTO_SERVER)
+  );
 }

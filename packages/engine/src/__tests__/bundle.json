@@ -61,6 +61,7 @@
     "api_key_env": "GROQ_API_KEY"
    }
   },
+  "overrides": [],
   "providers": {
    "groq": {
     "name": "Groq",
@@ -72,7 +73,8 @@
     "models": [
      "openai/gpt-oss-20b",
      "openai/gpt-oss-120b"
-    ]
+    ],
+    "base_url": "https://api.groq.com/openai/v1"
    },
    "gemini": {
     "name": "Google Gemini",
@@ -83,7 +85,8 @@
     "steps": "Sign in with a Google account, choose Create API key, copy it.",
     "models": [
      "gemini-2.5-flash"
-    ]
+    ],
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
    },
    "openrouter": {
     "name": "OpenRouter",
@@ -92,7 +95,8 @@
     "key_page": "https://openrouter.ai/settings/keys",
     "free": "Free models capped at about 50 requests a day",
     "steps": "Sign up, choose Create API Key, set a credit limit, copy it (starts with sk-or-v1-).",
-    "models": []
+    "models": [],
+    "base_url": "https://openrouter.ai/api/v1"
    },
    "openai": {
     "name": "OpenAI",
@@ -101,7 +105,8 @@
     "key_page": "https://platform.openai.com/api-keys",
     "free": "Paid from the first request",
     "steps": "Sign in, choose Create new secret key, copy it.",
-    "models": []
+    "models": [],
+    "base_url": "https://api.openai.com/v1/models"
    },
    "anthropic": {
     "name": "Anthropic (Claude)",
@@ -110,7 +115,8 @@
     "key_page": "https://console.anthropic.com/settings/keys",
     "free": "Paid",
     "steps": "Sign in, choose Create Key, copy it.",
-    "models": []
+    "models": [],
+    "base_url": "https://api.anthropic.com/v1/models"
    },
    "deepgram": {
     "name": "Deepgram",
@@ -121,7 +127,8 @@
     "steps": "Sign up. Pick your project, open Settings → API Keys, choose Create a New API Key (Member role), copy it.",
     "models": [
      "nova-3"
-    ]
+    ],
+    "base_url": null
    },
    "assemblyai": {
     "name": "AssemblyAI",
@@ -132,7 +139,8 @@
     "steps": "Sign up. In the sidebar open API Keys, copy the key or create a new one.",
     "models": [
      "universal-streaming-english"
-    ]
+    ],
+    "base_url": null
    },
    "speechmatics": {
     "name": "Speechmatics",
@@ -144,7 +152,8 @@
     "models": [
      "standard",
      "enhanced"
-    ]
+    ],
+    "base_url": null
    },
    "elevenlabs": {
     "name": "ElevenLabs (Scribe)",
@@ -155,7 +164,8 @@
     "steps": "Sign up, open Settings → API Keys, choose Create API Key, copy it.",
     "models": [
      "scribe_v2_realtime"
-    ]
+    ],
+    "base_url": null
    }
   },
   "stage_slots": {

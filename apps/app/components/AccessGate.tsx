@@ -6,7 +6,9 @@
 import { Button, Panel, Screen, Stack, space, Text, TextField, Wordmark } from "@sotto/ui";
 import { type ReactNode, useEffect, useState } from "react";
 import { Platform, StyleSheet } from "react-native";
+import { AccountGate } from "../features/account/AccountGate";
 import { demoEnabled } from "../features/call/devGate";
+import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { ApiError, api } from "../lib/server";
@@ -15,6 +17,12 @@ type Me = { auth_required: boolean; signed_in: boolean };
 type Gate = "checking" | "open" | "closed";
 
 export function AccessGate({ children }: { children: ReactNode }) {
+  // A build connected to the management server (D-022) signs people in with their account.
+  if (cloudOrigin()) return <AccountGate>{children}</AccountGate>;
+  return <CodeGate>{children}</CodeGate>;
+}
+
+function CodeGate({ children }: { children: ReactNode }) {
   const [gate, setGate] = useState<Gate>(
     demoEnabled() && Platform.OS === "web" ? "checking" : "open",
   );

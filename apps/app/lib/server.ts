@@ -4,6 +4,8 @@
  * (ports 8081/19006) and on native, it uses EXPO_PUBLIC_DEMO_BRIDGE_URL or the local default.
  */
 import { DEMO_DEFAULT_PORT } from "@sotto/shared";
+import { CloudError, cloudActive } from "./cloud";
+import { CompatError, cloudCompat } from "./cloudCompat";
 
 export const DEFAULT_SOCKET_URL = `ws://127.0.0.1:${DEMO_DEFAULT_PORT}/ws`;
 const EXPO_DEV_PORTS = new Set(["8081", "19006"]);
@@ -44,12 +46,21 @@ export class ApiError extends Error {
   }
 }
 
-/** JSON request to the server. Throws ApiError with the server's message on a non-2xx. */
+/** JSON request to the server. Throws ApiError with the server's message on a non-2xx.
+ * Signed in to the management server (D-022), the same paths are answered by cloudCompat. */
 export async function api<T>(
   path: string,
   init: { method?: string; body?: unknown } = {},
   fetcher: typeof fetch = fetch,
 ): Promise<T> {
+  if (cloudActive()) {
+    try {
+      return (await cloudCompat(path, init)) as T;
+    } catch (err) {
+      const status = err instanceof CompatError || err instanceof CloudError ? err.status : 500;
+      throw new ApiError(status, err instanceof Error ? err.message : "request failed");
+    }
+  }
   const response = await fetcher(`${apiOrigin()}${path}`, {
     method: init.method ?? "GET",
     credentials: "include",

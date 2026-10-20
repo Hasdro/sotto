@@ -9,14 +9,19 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEscalations } from "../features/escalations/store";
 import { countByStatus } from "../features/inbox/mock";
+import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
+import { useCloud } from "../lib/useCloud";
 import { PlanBanner } from "./PlanBanner";
 import { RoleSwitch } from "./RoleSwitch";
 
-type NavItem = { href: "/call" | "/history" | "/playbook" | "/inbox" | "/admin"; label: StringKey };
+type NavItem = {
+  href: "/call" | "/history" | "/playbook" | "/inbox" | "/admin" | "/account";
+  label: StringKey;
+};
 
 export const NAV: readonly NavItem[] = [
   { href: "/call", label: "nav.call" },
@@ -31,10 +36,15 @@ export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** The nav items the current role may open (R3). */
+const ACCOUNT: NavItem = { href: "/account", label: "nav.account" };
+
+/** The nav items the current role may open (R3); Account when signed in to a server (D-022). */
 function useNav(): readonly NavItem[] {
   const { role } = useRole();
-  return NAV.filter((item) => ROLE_AREAS[role].includes(item.href));
+  const items = NAV.filter(
+    (item) => item.href !== "/account" && ROLE_AREAS[role].includes(item.href),
+  );
+  return cloudOrigin() ? [...items, ACCOUNT] : items;
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -81,7 +91,8 @@ function Sidebar() {
   const pathname = usePathname();
   const nav = useNav();
   const openCount = useOpenCount();
-  const persona = personaFor(role);
+  const cloud = useCloud();
+  const persona = cloud.status === "signed_in" ? { name: cloud.me.user.name } : personaFor(role);
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -132,9 +143,11 @@ function Sidebar() {
         })}
       </View>
       <View style={styles.grow} />
-      <View style={styles.switchWrap}>
-        <RoleSwitch />
-      </View>
+      {cloudOrigin() ? null : (
+        <View style={styles.switchWrap}>
+          <RoleSwitch />
+        </View>
+      )}
       <View style={[styles.user, { borderTopColor: color.border }]}>
         <View style={[styles.avatar, { backgroundColor: color.surfaceSunken }]}>
           <Text variant="label" weight="semibold">

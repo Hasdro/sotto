@@ -5,6 +5,7 @@
 import type { DemoClientMessage } from "@sotto/shared";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { Locale } from "../../lib/i18n";
+import { useCloud } from "../../lib/useCloud";
 import {
   type Bridge,
   type BridgeHandlers,
@@ -13,6 +14,7 @@ import {
   type SocketFactory,
 } from "./bridge";
 import { demoEnabled } from "./devGate";
+import { connectLocal } from "./local";
 import { type MicError, type MicHandle, MicUnavailable, startMic } from "./mic";
 import { connectMockBridge } from "./mock-stream";
 import { initialSessionState, type SessionState, type Speaker, sessionReducer } from "./session";
@@ -46,6 +48,9 @@ export function useCallSession(opts: {
   // The locale only matters to the mock script; the real bridge must not reconnect on a language switch.
   const mockLocale: Locale | null = opts.mock ? opts.locale : null;
   const { socketFactory } = opts;
+  const cloud = useCloud();
+  // Signed in to the management server (D-022): calls run on this device with this bundle.
+  const bundle = cloud.status === "signed_in" ? cloud.bundle : null;
 
   useEffect(() => {
     // `attempt` is a dependency on purpose: bumping it reconnects.
@@ -61,13 +66,15 @@ export function useCallSession(opts: {
     };
     const b = mockLocale
       ? connectMockBridge(handlers, { locale: mockLocale, autostart: true })
-      : connectBridge(bridgeUrl(), handlers, socketFactory);
+      : bundle
+        ? connectLocal(bundle, handlers)
+        : connectBridge(bridgeUrl(), handlers, socketFactory);
     bridge.current = b;
     return () => {
       b.close();
       bridge.current = null;
     };
-  }, [mockLocale, attempt, socketFactory]);
+  }, [mockLocale, attempt, socketFactory, bundle]);
 
   // While offline, try again every RETRY_MS for as long as it lasts, so starting `pnpm demo`
   // after the app just works. A failed attempt leaves the state "offline", so this must be an

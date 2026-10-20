@@ -125,8 +125,10 @@ export type CallBundle = {
       free: string;
       steps: string;
       models: string[];
+      base_url?: string | null;
     }
   >;
+  overrides?: string[];
   stage_slots: Record<string, { kind: "llm" | "stt"; label: string }>;
   prompts: Record<string, PromptRecord>;
   playbook: PlaybookEntry[];

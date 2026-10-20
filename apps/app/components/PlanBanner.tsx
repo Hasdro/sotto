@@ -6,16 +6,31 @@ import { space, Text, useTheme } from "@sotto/ui";
 import { usePathname } from "expo-router";
 import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
-import { bannerFor, samplePlan } from "../features/admin/plan";
+import { bannerFor, type Plan, samplePlan } from "../features/admin/plan";
 import { useI18n } from "../lib/locale";
 import { useRole } from "../lib/role";
+import { useCloud } from "../lib/useCloud";
 
 export function PlanBanner() {
   const { t } = useI18n();
   const { color } = useTheme();
   const { role } = useRole();
   const pathname = usePathname();
-  const plan = useMemo(() => samplePlan(), []);
+  const cloud = useCloud();
+  const company = cloud.status === "signed_in" ? cloud.me.company : null;
+  const plan = useMemo<Plan>(() => {
+    if (!company) return samplePlan();
+    // The real plan from the management server (D-022).
+    return {
+      state: company.status,
+      trialEndsAt:
+        company.status === "trial" && company.days_left !== null
+          ? new Date(Date.now() + company.days_left * 86_400_000 - 60_000).toISOString()
+          : null,
+      seats: { used: company.seats_used, limit: company.seats },
+      minutes: { used: company.minutes_used, limit: company.minutes_month },
+    };
+  }, [company]);
   const banner = bannerFor(plan);
   const onCall = pathname === "/" || pathname.startsWith("/call");
   if (!banner || role === "agent" || onCall) return null;

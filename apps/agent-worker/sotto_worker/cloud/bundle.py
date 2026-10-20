@@ -117,6 +117,7 @@ def build_bundle(
             "free": p.free,
             "steps": p.steps,
             "models": list(p.models),
+            "base_url": p.route.get("base_url") or p.test_url,
         }
         for pid, p in seed.catalog.providers.items()
     }
@@ -148,6 +149,7 @@ def build_bundle(
             "backup_disabled": backup_off,
         },
         "stages": stages,
+        "overrides": sorted(routes),
         "providers": providers,
         "stage_slots": {
             s.id: {"kind": s.kind, "label": s.label} for s in seed.catalog.stages.values()
