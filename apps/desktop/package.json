@@ -1,0 +1,77 @@
+{
+  "name": "sotto-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sotto for Windows, Mac and Linux: the web app in its own window, with the microphone",
+  "author": "Sotto",
+  "main": "main.cjs",
+  "scripts": {
+    "web": "cd ../app && CI=1 EXPO_PUBLIC_SOTTO_SERVER=${SOTTO_SERVER:-https://104-168-48-116.sslip.io} npx expo export --platform web --output-dir ../desktop/web",
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
+    "dist": "electron-builder --mac --win --linux --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.0.12"
+  },
+  "build": {
+    "appId": "app.sotto.desktop",
+    "productName": "Sotto",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "web/**/*",
+      "package.json"
+    ],
+    "icon": "icon.png",
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Sotto listens to the customer's side of a call to suggest what to say."
+      },
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Office"
+    },
+    "afterPack": "after-pack.cjs"
+  }
+}

@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 13:00";
+const UPDATED = "20 Oct 2026 · 13:30";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -168,23 +168,22 @@ const TABS = [
 ];
 
 const OVERVIEW = {
- pct: 52,
- parts:[{label:"Done", v:52, c:"var(--ok)"},{label:"In progress now", v:14, c:"var(--brand)"},{label:"Not started", v:34, c:"var(--line)"}],
+ pct: 60,
+ parts:[{label:"Done", v:60, c:"var(--ok)"},{label:"In progress now", v:8, c:"var(--brand)"},{label:"Not started", v:32, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
-   short:"The brain works and is fast: about 1 second from the customer's last word to a suggestion. This round moves it from the server into the apps, adds sign-up and log-in, and puts your admin dashboard on [[us3]].",
+   short:"Done today: your server is live, people can sign up and log in, calls now run on the agent's own device, and your dashboard shows every company. Next: installable apps for computer and phone.",
    full:["The suggestion engine is finished and measured on your real keys: playbook answers in about 0.5 s and AI answers in 0.8–1.3 s, inside the 1.5 s rule ([[p95]] 1,069 ms).",
-         "You changed direction today: the [[client app]] does all the heavy work (listening, [[speech-to-text]], [[AI model]] calls) on the agent's own device. The [[server]] only manages accounts, subscriptions and usage numbers, and hosts your private [[admin dashboard]].",
-         "That change is what I am building this round. The Build map tab shows every phase."]},
+         "Your new design is built: the [[client app]] does all the heavy work ([[speech-to-text]], [[AI model]] calls) on the agent's own device. The [[server]] only manages accounts, subscriptions and usage numbers, and hosts your private [[admin dashboard]].",
+         "On the device, the AI's first word arrives in 0.6–0.7 s (1.3 s on a cold first call), the same speed as before the move.",
+         "Try it: open https://104-168-48-116.sslip.io, press 'Create an account', and run a practice call. Then open /owner to see the company appear in your dashboard."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About half (52%). The engine, screens, keys panel and safety net are done. Sign-in, subscriptions, store builds and real phone calls are not.",
+   short:"About 60%. The engine, screens, accounts, subscriptions and your dashboard are done. Installable apps, real phone calls and your real playbook are not.",
    full:["Done: suggestion engine (Phase 2, 92%), screens in light/dark/Arabic (Phase 3, 97%), keys & models panel (Phase 6, 65%), unanswered-question inbox (Phase 7, 70%), automatic checks on every change.",
-         "Your new direction adds work: moving the engine into the apps, accounts and subscriptions on the server, and installable apps for each platform. That is why the total dropped from about 60% to 52%."]},
+         "This morning your new direction added work, so the total dropped to 52%. Since then: server live, sign-up and log-in, engine moved onto the device, dashboard, all tested (52% → 60%)."]},
   {eyebrow:"Remaining", title:"What is left?",
    short:"Engine inside the apps, sign-in and subscriptions, your dashboard, installable apps, real phone calls, then a pilot.",
-   full:["1. Run the engine inside the app instead of the server (this round).",
-         "2. Sign up / log in, companies, [[trial]]s and plans, stored in a [[database]] on us3 (this round).",
-         "3. Your admin dashboard with client stats and tools (this round).",
+   full:["Done today: the engine runs inside the app; sign up and log in, companies, [[trial]]s and plans in a [[database]] on us3; your admin dashboard.",
          "4. Installable apps: Windows, Mac, Linux, web, [[Chrome extension]] (this round); Android [[APK]] (this round if the Android tools install cleanly); iPhone (needs you, see Decisions).",
          "5. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4).",
          "6. Your real [[playbook]], load tests, then a one-week pilot."]},
@@ -289,8 +288,8 @@ const PLATFORMS = [
   full:"Unsigned for now: the first time, right-click → Open. Apple notarisation needs the Apple Developer account."},
  {name:"Linux", st:"run", stl:"Building this round",
   short:"AppImage built with [[Electron]].", full:"One file that runs on most Linux desktops. Lower priority; built alongside Windows and Mac."},
- {name:"Web", st:"ok", stl:"Works today",
-  short:"Runs in any modern browser; can be installed as a [[PWA]].", full:"This round it moves to us3 with sign-up and log-in. The heavy work runs in the browser, not on the server."},
+ {name:"Web", st:"ok", stl:"Live",
+  short:"Live at https://104-168-48-116.sslip.io with sign-up and log-in. Calls run in the browser.", full:"The heavy work runs in the browser, not on the server. I checked that Groq, Gemini, OpenAI, OpenRouter and Anthropic all accept calls straight from a browser. Transcripts stay on the device; only the numbers go to your dashboard."},
  {name:"Chrome extension", st:"run", stl:"Building this round",
   short:"Opens Sotto in a side panel next to any web phone or CRM.", full:"Same app inside a [[Chrome extension]] side panel. Loaded unpacked for testing; the Chrome Web Store needs a $5 developer account later."}
 ];
@@ -302,18 +301,18 @@ const PHASES = [
  {n:1, name:"Architecture & skeleton", pct:95, st:"run",
   short:"Blueprint approved. Updated today for your new 'apps do the work, server manages' design.",
   done:["One codebase for phone, web and desktop","Automatic checks on every change"], next:["Write the new design down as decision D-022"], you:[]},
- {n:2, name:"Suggestion engine", pct:92, st:"run",
-  short:"Fast and live on your keys: about 1 s to a card. Moving into the apps this round.",
-  done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)"], next:["Run the engine inside the app","End-of-turn model"], you:["Test recordings, later"]},
- {n:3, name:"Design & screens", pct:97, st:"run",
-  short:"All screens done in light, dark and Arabic. Sign-up and log-in screens added this round.",
-  done:["In-call, history, playbook, inbox, admin screens","Accessibility check on every screen"], next:["Sign-up and log-in screens"], you:["Tell me what to change in the design"]},
+ {n:2, name:"Suggestion engine", pct:95, st:"run",
+  short:"Now runs on the agent's own device: first word in 0.6–0.7 s on your keys.",
+  done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)"], next:["End-of-turn model"], you:["Test recordings, later"]},
+ {n:3, name:"Design & screens", pct:98, st:"run",
+  short:"All screens done in light, dark and Arabic, plus sign-up, log-in and Account.",
+  done:["In-call, history, playbook, inbox, admin screens","Sign-up, log-in and Account pages","Accessibility check on every screen"], next:["Visual review with you"], you:["Tell me what to change in the design"]},
  {n:4, name:"Live calls", pct:15, st:"wait",
   short:"Waiting for LiveKit and Yeastar details.",
   done:["Rules for who may start a call"], next:["Phone calls through the app"], you:["[[LiveKit]] account","[[Yeastar]] admin details"]},
- {n:5, name:"Companies & accounts", pct:40, st:"run",
-  short:"Moving from [[Supabase]] to your own server: sign-up, log-in, trials and plans this round.",
-  done:["Company walls designed and tested"], next:["Accounts and subscriptions on us3","Your admin dashboard"], you:["Decisions tab: keys and database"]},
+ {n:5, name:"Companies & accounts", pct:80, st:"run",
+  short:"Done on your own server: sign-up, log-in, trials, plans, devices, team invites and your dashboard.",
+  done:["Sign up / log in on every app","Trials and plans; calls pause when a plan ends","Devices: sign one out from the app or your dashboard","Company walls tested: one company cannot see another's data","Your admin dashboard on us3"], next:["Password reset by email","Security review of the new server"], you:["Decisions tab: keys and database"]},
  {n:6, name:"Prompts & models", pct:65, st:"run",
   short:"Keys panel, model per job and speed check done.",
   done:["Keys & providers panel","Your own endpoints (Ollama tested)"], next:["Prompt versions saved on the server"], you:[]},
