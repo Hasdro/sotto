@@ -26,12 +26,12 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** cross-phase demo build (D-020): the Sotto server = hosted demo with keys panel (P6.7), spoken customer track, R2 inbox loop, company settings, deploy kit. Phases 2/3/5/6/7 partly done (task board).
-- **Next task:** owner deploys to us3 (`deploy/README.md`); for Claude: custom OpenAI-compatible endpoints in the panel (rest of P6.4), end-of-turn model (T-011).
-- **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1 — CI green on 4885565+.
-- **Environment last used:** local Mac, 2026-10-20 ~04:00 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker locally, so the Docker image itself is unbuilt — layout rehearsed only).
-- **Blockers:** Claude cannot reach us3 (both ssh attempts blocked by the auto-mode classifier); live phone calls need LiveKit + Yeastar; real playbook documents (P0.3); golden recordings (P2.8).
-- **Next action:** `pnpm demo` → http://127.0.0.1:8787 (try Call with "Speak as the customer", Admin → Keys & providers, Inbox); server: `deploy/push.sh root@104.168.48.116`, then `pnpm spoken:live --url https://104-168-48-116.sslip.io --code <code>`.
+- **Phase:** cross-phase demo build (D-020/D-021): Sotto server = hosted demo with Keys & providers (P6.7, custom endpoints, speed check + R1 guard), spoken customer track, R2 inbox loop, settings, playbook editor, a11y CI, deploy kit. Phases 2/3/5/6/7 partly done (task board).
+- **Next task:** owner deploys to us3 (`deploy/README.md`, T-010). For Claude: end-of-turn model (T-011); P5.3 sign-in once a Supabase project exists; P4 once LiveKit + Yeastar exist.
+- **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
+- **Environment last used:** local Mac, 2026-10-20 ~05:00 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; Ollama installed with gemma3:1b/qwen3:4b; no Docker, so the Docker image is unbuilt — layout rehearsed only).
+- **Blockers:** Claude cannot reach us3 (ssh blocked by the auto-mode classifier); live phone calls need LiveKit + Yeastar; real playbook documents (P0.3); golden recordings (P2.8).
+- **Next action:** `pnpm demo` → http://127.0.0.1:8787 (Call: "Speak as the customer"; Admin → Keys & providers; Inbox; Playbook). Server: `deploy/push.sh root@104.168.48.116`, then `pnpm spoken:live --url https://104-168-48-116.sslip.io --code <code>`.
 
 ## Phase board
 
@@ -214,6 +214,12 @@ _None yet._
 Newest first. Use this format:
 `### YYYY-MM-DD · cloud|local · <model> · <phase/task>`
 followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** and **Notes** (see `docs/HANDOFF.md`).
+
+### 2026-10-20 (04:50–05:00, same overnight run) · local · Claude Opus 5.5 · T-014, custom endpoints (P6.4), R6 Ollama acceptance
+- **Done:** model clients shared across calls + warmed at start-up (T-014); your own OpenAI-compatible endpoints in the panel; R6 acceptance run live on Ollama.
+- **Evidence:** first call after restart: AI card 1008 ms (was 2.7 s); `tests/server` 77 passed; Ollama gemma3:1b via the panel: test OK, speed p50 453 ms, a typed call got its card from the local model (first word 465 ms); replay p95 1148 ms PASS.
+- **Next:** see Now.
+- **Notes:** the Ollama endpoint used for the run was removed again; Ollama and the demo server were stopped; local `.sotto-data/sotto.db` reset.
 
 ### 2026-10-20 (04:00–04:50, same overnight run) · local · Claude Opus 5.5 · P3.3 axe CI, playbook editor, P6.4 speed check, T-011 step, review fixes
 - **Done:** axe-core on 11 screens × light/dark/Arabic in CI (`pnpm a11y`; fixed lost ARIA state on react-native-web); playbook editor (P3.5); "Measure speed" + R1 guard per stage (P6.4); `CallSession.drain` busy-loop fix (T-012); mid-thought pause keeps one turn (T-011 step); code-reviewer findings 3H/3M/3L fixed (T-013); build map artifact v4 (https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s).
