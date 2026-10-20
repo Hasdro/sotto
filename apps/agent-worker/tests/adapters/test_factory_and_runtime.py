@@ -210,3 +210,23 @@ def test_preload_refuses_a_provider_it_does_not_know() -> None:
     config = RoutingConfig(stages={"suggest": StageRoute("mistral", "m")})
     with pytest.raises(ValueError, match="mistral"):
         factory.preload_adapters(config)
+
+
+def test_server_runtimes_share_model_clients_until_the_key_or_model_changes() -> None:
+    """T-014: warm HTTPS connections survive from call to call on the server."""
+    from sotto_worker.clock import RealClock
+    from sotto_worker.contracts import LLMAdapter
+    from sotto_worker.runtime import build_demo_runtime
+
+    shared: dict[str, LLMAdapter] = {}
+    env = {"GROQ_API_KEY": "gsk-test-not-real", "GEMINI_API_KEY": "g-test-not-real"}
+    first = build_demo_runtime(RealClock(), env, adapters=shared)
+    second = build_demo_runtime(RealClock(), env, adapters=shared)
+    company = first.company.routing()
+    assert first.router.adapter_for("suggest", company) is second.router.adapter_for(
+        "suggest", company
+    )
+    rotated = build_demo_runtime(RealClock(), {**env, "GROQ_API_KEY": "gsk-new"}, adapters=shared)
+    assert rotated.router.adapter_for("suggest", company) is not first.router.adapter_for(
+        "suggest", company
+    )

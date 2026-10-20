@@ -550,9 +550,17 @@ def create_app(
             },
         )
 
+    async def warm_models() -> None:
+        """T-014: open the model connections at start-up, so the first call is not cold."""
+        runtime = await asyncio.to_thread(runtime_factory)
+        await asyncio.wait_for(runtime.router.warm("suggest", runtime.company.routing()), 5)
+
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
+        warming = asyncio.create_task(warm_models())
+        warming.add_done_callback(lambda t: t.cancelled() or t.exception())  # best effort
         yield
+        warming.cancel()
         store.close()
 
     routes = [

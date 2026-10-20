@@ -17,6 +17,7 @@ from pathlib import Path
 from starlette.types import ASGIApp
 
 from sotto_worker.clock import RealClock
+from sotto_worker.contracts import LLMAdapter
 from sotto_worker.playbook import PlaybookEntry
 from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import REPO_ROOT, SEED, Runtime, build_demo_runtime
@@ -74,6 +75,8 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
     # Only provider keys reach a call's runtime, never SOTTO_SECRET_KEY or the access code.
     provider_env = {name: env[name] for name in catalog.key_envs if env.get(name)}
 
+    adapters: dict[str, LLMAdapter] = {}  # model clients shared across calls (T-014)
+
     def runtime() -> Runtime:
         keys = store.env_overlay(provider_env)
         routing = apply_overrides(seed, catalog, store.stage_overrides())
@@ -94,6 +97,7 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
             config=routing,
             extra_playbook=added,
             settings=store.company_settings(),
+            adapters=adapters,
         )
 
     app = create_app(

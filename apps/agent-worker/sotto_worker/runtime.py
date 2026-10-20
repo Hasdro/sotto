@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +18,7 @@ from sotto_worker.adapters.factory import (
 )
 from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
+from sotto_worker.contracts import LLMAdapter
 from sotto_worker.playbook import PlaybookEntry, PlaybookIndex
 from sotto_worker.prompts import PromptRegistry
 from sotto_worker.router import ModelRouter, RoutingConfig, StageRoute
@@ -66,6 +68,7 @@ def build_demo_runtime(
     config: RoutingConfig | None = None,
     extra_playbook: Sequence[PlaybookEntry] = (),
     settings: Mapping[str, Any] | None = None,
+    adapters: dict[str, LLMAdapter] | None = None,
 ) -> Runtime:
     """Live mode when the primary suggest provider has credentials; otherwise fake models.
     A backup without credentials is switched off for this run (R2 allows a disabled backup).
@@ -101,7 +104,20 @@ def build_demo_runtime(
             )
             notes.append(f"backup off: add {key_env(backup)} (Admin → Keys & providers, or .env)")
     preload_adapters(config)  # SDK imports at start, never inside a live turn (R2 timers)
-    router = ModelRouter(config, lambda route: make_llm(route, clock=clock, env=env), clock)
+
+    def llm(route: StageRoute) -> LLMAdapter:
+        if adapters is None or route.provider == "fake":
+            return make_llm(route, clock=clock, env=env)
+        # Shared across calls (server): warm HTTPS connections survive from call to call; a new
+        # key or model is a new cache entry, so changes still apply to the next call.
+        name = key_env(route)
+        secret = hashlib.sha256(env.get(name, "").encode()).hexdigest() if name else ""
+        cache_key = f"{route!r}|{secret}"
+        if cache_key not in adapters:
+            adapters[cache_key] = make_llm(route, clock=clock, env=env)
+        return adapters[cache_key]
+
+    router = ModelRouter(config, llm, clock)
     return Runtime(
         company=company,
         playbook=PlaybookIndex(
