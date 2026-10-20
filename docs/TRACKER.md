@@ -28,6 +28,8 @@ Tags:
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
+  - Owner feedback 2026-10-20: Android sign-in works, "UX and UI not perfect", **navigation must be on the left** on phones (today: bottom tabs below the wide breakpoint, `components/AppShell.tsx`, DESIGN.md §6) — needs a D-entry and a design pass;
+  - Mac app real-world test done (T-019); installed `/Applications/Sotto.app` (arm64) for the owner's Zylker account; owner adds keys himself;
   - T-016 rest: Android APK on a real phone or emulator (Mac needs 12 GB free for the emulator); iPhone on a device (owner's Apple ID in Xcode);
   - T-011 end-of-turn model;
   - P4 once LiveKit + Yeastar exist.
@@ -37,7 +39,6 @@ Tags:
   - Android SDK (licence accepted by owner), JDK from Android Studio, Xcode 27.1 (xcode-select still on CommandLineTools → use `DEVELOPER_DIR`), CocoaPods 1.17 (brew).
 - **Blockers (owner):**
   - real playbook docs (owner says sent; not found — ask where);
-  - free disk space on the Mac;
   - LiveKit + Yeastar.
 - **Owner hub (single report page):** https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
   - Source: `docs/owner-hub.html`; format rules in `~/.claude/ARTIFACT-REPORTS.md`.
