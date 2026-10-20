@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 21:10";
+const UPDATED = "20 Oct 2026 · 23:05";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -170,28 +170,25 @@ const TABS = [
 ];
 
 const OVERVIEW = {
- pct: 71,
- parts:[{label:"Done", v:71, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:26, c:"var(--line)"}],
+ pct: 74,
+ parts:[{label:"Done", v:74, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:23, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
-   short:"The Mac app passed a real spoken test: a customer's voice in, answers on screen in 0.6 s (playbook) and 1.2 s (AI). It's installed in your Applications folder, ready for your account.",
-   full:["This round I ran a full spoken call in the real Mac app with your real AI keys: four customer questions spoken aloud, transcribed on the Mac, answered on screen.",
-         "The test found 6 problems; all are fixed and checked, and your server and downloads are updated (see 'What changed this round').",
-         "Final run: playbook answers 0.6 s after the customer stopped, AI answer 1.2 s, all inside the 1.5 s rule.",
-         "Phones: the menu now opens from the left as you asked (from the right in Arabic), and small screens got a design pass. A new Android app is built on my Mac; it goes on your downloads page once you say yes."]},
+   short:"The Mac app now hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. In a live test it understood every customer sentence and showed suggestions within about 1.25 s.",
+   full:["The new Mac app is installed in your Applications folder and your server is updated. It's ready for you to test with the Zylker account.",
+         "Before your first call: sign in as Zylker, add your keys under Admin → Keys & providers, and allow 'system audio recording' if your Mac asks.",
+         "I didn't add your keys myself. Putting real keys into an account on your live server is something I'm not allowed to do."]},
   {eyebrow:"This round", title:"What changed this round",
-   short:"Fixed 6 problems a real spoken call exposed, put the fixes on your server, and rebuilt all downloads.",
-   full:["1. The customer's first second of speech was lost, and a second sentence that followed quickly was thrown away. Fixed.",
-         "2. The main [[speech-to-text]] service (AssemblyAI) disconnected at the start of every call, and the app quietly used the backup. Fixed: AssemblyAI now stays on.",
-         "3. The backup AI got the main AI's settings and stopped mid-sentence. Fixed: each AI uses its own settings.",
-         "4. Cards said 'On screen 0.00 s'. Fixed: they show the real time from the customer's last word.",
-         "5. 'My wife worries about the noise… What would you tell her?' was read as two separate things. Fixed: the AI and your manager now see the whole question.",
-         "6. New accounts showed two made-up questions in the Inbox. Fixed: real accounts see only real data.",
-         "Speed check after the fixes: typical 0.6 s, slowest 1.0 s on your live keys ([[p95]])."]},
+   short:"Sotto now listens to calls in Zoom, Google Meet, Yeastar and 3CX on your Mac. All demo data is removed from real accounts.",
+   full:["1. A new 'Start listening' screen. Choose 'Zoom, Google Meet, Yeastar or 3CX on this computer', and Sotto hears the customer through your Mac's sound. Your own voice never plays from your speakers, so only the customer triggers suggestions.",
+         "2. 'In person or on speakerphone' uses the microphone and is marked 'Approximate', because it can also hear you.",
+         "3. Removed from real accounts: practice calls, typing the customer's lines, the made-up realty company's playbook, tone and goal.",
+         "Live test on your Mac: a recorded customer played through the speakers. Every sentence was transcribed correctly: 1 answer from the playbook and 3 from the AI. Typical time 1.17 s, slowest 1.25 s ([[p95]]).",
+         "Important: with no playbook, the AI won't invent company facts such as prices or payment plans. It shows the holding line and emails your manager. Your playbook documents fix this."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 71% (up from 70%). Phones now have the left-side menu you asked for, plus a small-screen design pass. Not done: your real playbook, real phone calls, iPhone on a real phone.",
+   short:"About 74% (up from 71%). The Mac app is ready for real Zoom, Meet, Yeastar and 3CX calls. Not done: your real playbook, a dial pad with your real number, and the iPhone app on a real phone.",
    full:["Done: engine, screens, accounts, subscriptions, your dashboard, and apps for every platform.",
-         "Why it went up: the phone menu and small-screen polish are done (70% → 71%). Earlier: the first real spoken test on the Mac passed (68% → 70%)."]},
+         "Why it went up: the Mac app hears real calls through the computer's sound, and demo data is gone from real accounts (71% → 74%). Before that: the phone menu and small-screen polish are done (70% → 71%). Earlier: the first real spoken test on the Mac passed (68% → 70%)."]},
   {eyebrow:"Remaining", title:"What is left?",
    short:"Your real playbook, your check of the new phone menu, real phone calls (LiveKit and Yeastar), then a pilot.",
    full:["1. Your real [[playbook]]: waiting for the documents.",
@@ -199,18 +196,17 @@ const OVERVIEW = {
          "3. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4). This also brings the customer's voice on phones.",
          "4. Password reset by email, load test, then a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Your playbook documents: I still can't find them. Everything else I can carry on with.",
-   full:["Playbook: not in the project, Downloads, Documents, Desktop or on the server. Until then calls use the invented demo company's answers.",
-         "Real phone calls still need a [[LiveKit]] account (free) and your [[Yeastar]] admin details.",
-         "No iPhone to test on: the iPhone app is checked in the simulator only, which is fine for now."]},
+   short:"Your playbook documents. Without them the AI answers general sales questions but won't invent Zylker's prices, plans or terms.",
+   full:["Playbook: I still can't find the documents. Until then, any question about company facts gets the [[holding line]] and an email to your manager.",
+         "A dial pad that uses your real number inside the app still needs a [[LiveKit]] account and your [[Yeastar]] admin details (Phase 4). Calls in Yeastar Linkus or 3CX on your Mac already work today."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Open Sotto from Applications, sign in, add your AI keys, and try a spoken call. 2) Tell me where the playbook documents are. 3) Say yes to the new Android app going on your downloads page.",
-   full:["1. Open Sotto from your Applications folder and sign in with your Zylker account.",
-         "2. Admin → Keys & providers: add your Groq, Gemini and AssemblyAI keys (Speechmatics too, as the backup) and press Test on each.",
-         "3. Call → Start without a script → Speak as the customer. Allow the microphone once. Ask a question as a customer would and watch the card.",
-         "4. Tell me where the playbook documents are (folder or file name), or drop them into the sotto folder.",
-         "5. Say yes to putting the new Android app (left-side menu) on your downloads page, then reinstall it and tell me how the menu feels.",
-         "6. Tell me the 2–3 other things on the Android app that bothered you most."]}
+   short:"1) Test Sotto on a real Zoom, Meet or Yeastar call. 2) Add your keys to Zylker. 3) Tell me where the playbook documents are.",
+   full:["1. Open Sotto from Applications and sign in as Zylker.",
+         "2. Admin → Keys & providers: add the Groq, Gemini, AssemblyAI and Speechmatics keys, and press Test on each.",
+         "3. Start your Zoom, Google Meet, Yeastar (Linkus) or 3CX call. In Sotto, choose 'Zoom, Google Meet, Yeastar or 3CX on this computer' and press Start. If your Mac asks, allow system audio recording.",
+         "4. Tell me what you see: which cards appeared, how fast, and anything that felt wrong.",
+         "5. Tell me where the playbook documents are, or drop them into the sotto folder.",
+         "6. When you're happy, say yes to putting the new Mac and Android apps on your downloads page."]}
  ]
 };
 
@@ -264,9 +260,9 @@ const SERVER = [
         "Your owner password is now your own, and the one-time password file is deleted (I checked).",
         "The server uses about 280 MB of its 1 GB memory."]},
  {eyebrow:"This round", title:"What I did on us3 this round",
-  short:"Nothing this round. The new Android app (left-side menu) waits on my Mac until you say yes to uploading it.",
-  full:["No files, software or settings changed on us3 this round: putting a new app on your live downloads page needs your OK first.",
-        "The downloads page still has the earlier Android app (bottom menu)."]},
+  short:"Updated the Sotto server: real accounts no longer get the demo company's playbook, practice calls or sales goal.",
+  full:["Installed the new server version. Checked afterwards: the app answers (200), the API asks for sign-in (401), and your console redirects to its sign-in page.",
+        "The downloads page is unchanged. The new Mac and Android apps go up only after you say yes."]},
  {eyebrow:"Installed today", title:"What I installed",
   short:"The Sotto account server, [[Caddy]] for the [[HTTPS]] padlock, a firewall, a [[database]] file and a nightly backup. No [[Docker]].",
   full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate and renews it automatically.",
@@ -303,9 +299,9 @@ const PLATFORMS = [
  {name:"Windows", prio:true, st:"ok", stl:"Built · download",
   short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
   full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
- {name:"Mac", prio:true, st:"ok", stl:"Tested · installed",
-  short:"Passed a real spoken test. Installed in your Applications folder; installers for other Macs are at /downloads ('arm64' for Apple chips, the other for Intel).",
-  full:"It is not notarised by Apple yet, so the first time you right-click the app and choose Open. Notarisation needs the Apple Developer account ($99/yr). The app asks for the microphone the first time you speak as the customer."},
+ {name:"Mac", prio:true, st:"ok", stl:"Real calls · installed",
+  short:"The new version hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. It's installed in your Applications folder. The downloads page still has the older version.",
+  full:"The first time you start listening to the computer's sound, macOS asks to allow 'system audio recording'. Allow it once. It is not notarised by Apple yet, so the first time you open it you may need to right-click it and choose Open. Notarisation needs the Apple Developer account ($99/yr). The microphone option is for in-person or speakerphone calls."},
  {name:"Linux", st:"ok", stl:"Built · download",
   short:"'Sotto-0.1.0.AppImage' at /downloads: one file that runs on most Linux desktops.", full:"Make it executable (right-click → Properties → Allow executing) and open it."},
  {name:"Web", st:"ok", stl:"Live",
