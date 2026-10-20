@@ -37,6 +37,15 @@ SETTLE_MS = 150
 # Text that does not end a sentence yet ("…for the two bedroom") is likely to get its tail as a
 # separate final: wait the longer tail window for it.
 SENTENCE_END = re.compile(r"[.?!؟]\s*$")
+# T-011 (step toward the end-of-turn model): words that almost never end a sentence. When the
+# text so far ends with one, the customer is mid-thought: keep the turn open this much longer
+# before asking for the final; if they speak again, it stays one turn.
+CONTINUATION_WORDS = frozenset(
+    {"and", "but", "or", "so", "because", "the", "a", "an", "to", "of", "for", "with", "my"}
+    | {"our", "your", "their", "is", "are", "was", "if", "that", "which", "about", "in", "on"}
+    | {"at", "from", "than", "like", "um", "uh"}
+)
+HOLD_MS = 500
 # A final whose audio STARTED before the previous turn's end of speech is that turn's late tail
 # (vendors report a forced final's end including the silence, so the start is what counts); it
 # must never be glued onto the next turn.
@@ -133,6 +142,8 @@ class CustomerAudio:
         self._stream_base = 0  # where the current vendor's stream started (backup after failover)
         self._speech_end_stream: int | None = None  # our last end of turn, on the stream clock
         self._last_turn_stream_end: int | None = None  # end of the last turn sent (stream clock)
+        self._partial = ""  # the vendor's latest partial (words after the last final)
+        self._hold: bool | None = None  # True: the final ends mid-thought, waiting HOLD_MS
         self._speech_start_ms: int | None = None
         self._speech_end_ms: int | None = None  # set at our end of turn, cleared on flush
         self._stt: STTAdapter | None = None
@@ -156,15 +167,26 @@ class CustomerAudio:
     def _on_vad(self, change: str | None) -> None:
         now = self._clock.now_ms()
         if change == "start":
-            self._speech_start_ms = now - self._vad.state.speech_ms
+            unsent = " ".join(e.text for e in self._pending)
+            if self._hold is not None or (self._pending and mid_thought(unsent)):
+                # They went on talking after "…about the": still the same turn.
+                self._hold = None
+                if self._flush_timer is not None:
+                    self._flush_timer.cancel()
+                    self._flush_timer = None
+            else:
+                self._speech_start_ms = now - self._vad.state.speech_ms
             self._speech_end_ms = None
         elif change == "end":
             self._speech_end_ms = now - END_SILENCE_MS  # the last voiced frame
             self._speech_end_stream = self._stream_ms - END_SILENCE_MS
-            stt = self._stt
-            if stt is not None:
-                asyncio.get_running_loop().create_task(self._finalize(stt))
-            self._arm_flush()
+            self._end_turn()
+
+    def _end_turn(self) -> None:
+        stt = self._stt
+        if stt is not None:
+            asyncio.get_running_loop().create_task(self._finalize(stt))
+        self._arm_flush()
 
     async def _finalize(self, stt: STTAdapter) -> None:
         with contextlib.suppress(STTError):
@@ -220,8 +242,10 @@ class CustomerAudio:
 
     async def _event(self, event: TranscriptEvent) -> None:
         if not event.final:
+            self._partial = event.text
             await self._on_partial(event.text)
             return
+        self._partial = ""
         last = self._last_turn_stream_end
         if last is not None and self._stream_base + event.start_ms < last:
             return  # the late tail of a turn already sent
@@ -237,6 +261,11 @@ class CustomerAudio:
         if not self._pending:
             return
         text = " ".join(e.text for e in self._pending if e.text).strip()
+        if self._hold is None and self._speech_end_ms is not None and mid_thought(text):
+            self._hold = True  # "…and the" — give them HOLD_MS to go on before sending
+            self._arm_flush(HOLD_MS)
+            return
+        self._hold = None
         self._pending = []
         end = self._speech_end_ms if self._speech_end_ms is not None else self._clock.now_ms()
         start = self._speech_start_ms if self._speech_start_ms is not None else end
@@ -251,3 +280,9 @@ class CustomerAudio:
                 ),
                 end,
             )
+
+
+def mid_thought(text: str) -> bool:
+    """True when the words so far end with a word that almost never ends a sentence."""
+    words = re.findall(r"[a-z']+", text.lower())
+    return bool(words) and not SENTENCE_END.search(text) and words[-1] in CONTINUATION_WORDS

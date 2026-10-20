@@ -594,3 +594,47 @@ async def test_benchmark_times_the_models_first_word_on_playbook_misses(
     assert 50 <= result.p50_ms < 400
     no_key = await bench_module.benchmark(route, {})
     assert (no_key.ok, no_key.detail) == (False, "no key for this vendor yet")
+
+
+async def test_a_pause_mid_thought_keeps_one_turn() -> None:
+    """T-011 step: "my wife worries about the" + pause + "noise from the road." is one turn."""
+    clock = RealClock()
+    turns: list[str] = []
+
+    class TwoParts(ScriptedSTT):
+        async def transcribe(
+            self, audio: AsyncIterator[bytes], opts: STTOptions
+        ) -> AsyncIterator[TranscriptEvent]:
+            reader = asyncio.ensure_future(self._drain(audio))
+            for text, start in (("my wife worries about the", 0), ("noise from the road.", 900)):
+                await self._forced.wait()
+                self._forced.clear()
+                yield TranscriptEvent(opts.speaker, text, True, start, start + 500)
+            await reader
+
+    async def on_turn(event: TranscriptEvent, _t0: int) -> None:
+        turns.append(event.text)
+
+    async def nothing(_t: str) -> None:
+        pass
+
+    audio = CustomerAudio(
+        routes=[StageRoute("scripted", "m")], clock=clock, on_turn=on_turn,
+        on_partial=nothing, on_notice=nothing, make=lambda _r: TwoParts(),
+    )  # fmt: skip
+    audio.start()
+    # 500 ms speech, a 450 ms pause (> the 300 ms end of turn), 500 ms speech, then quiet
+    await _speak(audio, tone(500) + silence(450) + tone(500) + silence(1400))
+    await asyncio.sleep(0.05)
+    await audio.stop()
+    assert turns == ["my wife worries about the noise from the road."]
+
+
+def test_mid_thought_reads_the_last_word_and_the_punctuation() -> None:
+    from sotto_worker.server.audio import mid_thought
+
+    assert mid_thought("My wife worries about the")
+    assert mid_thought("I like it, but")
+    assert not mid_thought("Is parking included with the apartment?")
+    assert not mid_thought("What is the price.")
+    assert not mid_thought("")
