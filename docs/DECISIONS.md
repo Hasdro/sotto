@@ -303,3 +303,18 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - Devices receive only the model keys that the company's current routes use. They never receive speech keys; those go out as short-lived tokens only. Each delivery is written to the audit log, and key tests run on the server.
   - The owner console moved to its own origin, `https://owner.<domain>` (`SOTTO_OWNER_ORIGIN`). Its pages and the app never share an origin.
   - Usage minutes are capped by the server's own record of when each call started (`/api/v1/calls/start`).
+
+## D-023 — Phones open navigation from the left: a menu button and a drawer (was bottom tabs)
+2026-10-20 · owner feedback after installing the Android APK ("the dashboard (navigation menu) must be on the left"). Supersedes the narrow-screen part of DESIGN.md §6 (bottom tabs).
+
+**Decision:**
+- **Below the wide breakpoint (900 px):** a top bar with a menu button (start side) and the wordmark. The button opens a drawer from the start edge with the same contents as the desktop sidebar: Call, History, Playbook, Inbox (open-question count), Admin, Account (when signed in to a server), the demo role switch, and the user and company footer. The bottom tab bar is removed.
+- **At or above the breakpoint:** the 248 px sidebar is unchanged.
+- **Right-to-left:** the drawer opens from the right in Arabic, and the menu button sits on the right.
+- **Behaviour:** the drawer closes on an item tap, a scrim tap, the close button, Escape (web) and Android back. On web, focus stays inside the open drawer. Open count also shows as a dot on the menu button, so an open question is visible without opening the menu.
+- **Motion:** the drawer slides in over `motion.base` (200 ms) because it answers a tap (DESIGN.md §7); with "reduce motion" on, it appears without sliding.
+- **No new dependency:** built with React Native `Modal` + `Animated` and `packages/ui` tokens. A scrim colour token (`scrim`) is added to `packages/ui`.
+
+**Why:** the owner asked for it; it also frees the bottom edge on phones, removes the role-switch bar from the top of every page, and gives phone and desktop the same navigation model.
+
+**Trade-off:** one extra tap to change area on a phone. The call screen, where speed matters, needs no navigation during a call.

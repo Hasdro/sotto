@@ -225,7 +225,8 @@ The gallery at `/gallery` shows every component in light and dark, LTR and RTL.
 ### Breakpoint
 
 One breakpoint: `layout.wideBreakpoint` = 900 px window width.
-- Below it: bottom tabs and a single column.
+- Below it: a top bar with a menu button that opens a left drawer (right in Arabic), and a
+  single column (D-023; bottom tabs until 2026-10-20).
 - At or above it: a 248 px sidebar and two columns where a screen has them.
 
 ### In-call screen
@@ -233,7 +234,8 @@ One breakpoint: `layout.wideBreakpoint` = 900 px window width.
 ```
 390 px                               1280 px
 ┌──────────────────────┐             ┌────────┬──────────────────────────┬──────────────┐
-│ Company        [End] │             │ sotto  │ Company            [End] │ Transcript   │
+│ [☰] sotto            │             │ sotto  │ Company            [End] │ Transcript   │
+│ Company        [End] │             │        │                          │              │
 │ ● Live 02:14 Fake AI │             │        │ ● Live 02:14  Fake AI    │ Customer …   │
 ├──────────────────────┤             │ Call   ├──────────────────────────┤ You …        │
 │ ┃ HERO CARD          │             │ History│ ┃ HERO CARD  (36 px)     │ Sent to your │
@@ -243,14 +245,12 @@ One breakpoint: `layout.wideBreakpoint` = 900 px window width.
 │ Transcript (last 6)  │             │        │                          ├──────────────┤
 ├──────────────────────┤             │        │ [toast]                  │ Customer|You │
 │ [Customer] [____][>] │ ← thumb     │ user   │                          │ [_____] Send │
-│ Call History … Admin │             └────────┴──────────────────────────┴──────────────┘
-└──────────────────────┘
+└──────────────────────┘             └────────┴──────────────────────────┴──────────────┘
 ```
 
 - **Hierarchy:** the card is primary. The transcript is secondary: smaller, muted for the
   agent's own words, below the cards on a phone and in a side pane on a laptop.
-- **One thumb:** on a phone, the composer (speaker chip, field, Send) sits directly above the
-  tab bar. End call is in the header, away from Send, so it is not hit by mistake.
+- **One thumb:** on a phone, the composer (speaker chip, field, Send) sits at the bottom edge. End call is in the header, away from Send, so it is not hit by mistake.
 - **States:**
   - connecting;
   - offline ("The demo is not running", the `pnpm demo` command, Try again; it also retries
@@ -263,9 +263,19 @@ One breakpoint: `layout.wideBreakpoint` = 900 px window width.
 
 ### Navigation
 
-Call, History, Playbook, Inbox (count of open questions), Admin. Items are links: anchors on
-web, with `aria-current="page"` on the active one. Admin has a second row of underline tabs:
-Team, Prompts, Models, Settings.
+Call, History, Playbook, Inbox (count of open questions), Admin, and Account when signed in
+to a server. Items are links: anchors on web, with `aria-current="page"` on the active one.
+Admin has a second row of underline tabs: Team, Prompts, Models, Settings.
+
+**Phones and narrow windows (D-023):**
+- A 56 px top bar: a 44 pt menu button on the start side (three bars; a dot when there are
+  open questions) and the wordmark.
+- The button opens a drawer from the start edge (left in English, right in Arabic): the
+  same items, role switch and user/company footer as the sidebar, 300 px or 85 % of the
+  width, whichever is smaller, over a `scrim`.
+- It closes on an item, the scrim, its close button, Escape and Android back. Focus stays in
+  the drawer on web (`Modal`); the menu button reports `aria-expanded`.
+- Slide-in over `motion.base`; none with "reduce motion".
 
 ### Density
 
