@@ -11,7 +11,8 @@
       "!**/expo-env.d.ts",
       "!**/supabase/.temp",
       "!packages/shared/schema",
-      "!scripts/tests/fixtures"
+      "!scripts/tests/fixtures",
+      "!docs/owner-hub.html"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

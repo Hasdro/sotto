@@ -1,0 +1,1302 @@
+"""Management data (D-022): one SQLite file. Every company-scoped row carries `company_id`, and
+every company-scoped method takes the caller's company id and filters on it, so one company can
+never read or change another's rows (tests/cloud/test_isolation.py checks every route).
+
+Times are milliseconds since the epoch (UTC). Provider keys are AES-GCM encrypted (vault.py);
+the vault name binds a ciphertext to its company and key slot."""
+
+from __future__ import annotations
+
+import calendar
+import hashlib
+import json
+import re
+import secrets
+import sqlite3
+import threading
+import time
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from sotto_worker.cloud.passwords import (
+    DUMMY_HASH,
+    hash_password,
+    new_temporary_password,
+    password_problem,
+    verify_password,
+)
+from sotto_worker.server.vault import Vault, VaultError
+
+DAY_MS = 86_400_000
+SESSION_DAYS = 30
+OWNER_SESSION_HOURS = 12
+ROLES = ("admin", "manager", "agent")
+PLATFORMS = ("ios", "android", "web", "windows", "mac", "linux", "extension", "unknown")
+EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
+KEY_ENV = re.compile(r"^[A-Z][A-Z0-9_]{2,63}$")
+# Plan presets: seats and monthly call minutes. The owner can override both per company.
+PLANS: dict[str, dict[str, int]] = {
+    "trial": {"seats": 3, "minutes": 300, "days": 14},
+    "starter": {"seats": 5, "minutes": 2_000},
+    "team": {"seats": 20, "minutes": 10_000},
+    "custom": {"seats": 50, "minutes": 50_000},
+}
+SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
+    "ai_answers_allowed": (bool, ()),
+    "backup_allowed": (bool, ()),
+    "agent_context": (bool, ()),
+    "card_language": (str, ("auto", "en", "ar")),
+    "audio_retention_days": (int, (0, 7, 30, 90, 365)),
+}
+
+SCHEMA = """
+PRAGMA journal_mode=WAL;
+PRAGMA foreign_keys=ON;
+CREATE TABLE IF NOT EXISTS companies (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  plan TEXT NOT NULL,
+  suspended INTEGER NOT NULL DEFAULT 0,
+  trial_ends_at INTEGER,
+  paid_until INTEGER,
+  seats INTEGER NOT NULL,
+  minutes_month INTEGER NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name TEXT NOT NULL,
+  pw_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,
+  must_change_pw INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  last_seen_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS users_company ON users(company_id);
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY,
+  company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  label TEXT NOT NULL,
+  app_version TEXT NOT NULL,
+  first_seen INTEGER NOT NULL,
+  last_seen INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS devices_company ON devices(company_id);
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS usage (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  device_id TEXT,
+  started_at INTEGER NOT NULL,
+  duration_s INTEGER NOT NULL,
+  cards INTEGER NOT NULL,
+  playbook_cards INTEGER NOT NULL,
+  ai_cards INTEGER NOT NULL,
+  holding_lines INTEGER NOT NULL,
+  escalations INTEGER NOT NULL,
+  p50_ms INTEGER,
+  p95_ms INTEGER,
+  stt_vendor TEXT NOT NULL DEFAULT '',
+  llm_vendor TEXT NOT NULL DEFAULT '',
+  platform TEXT NOT NULL,
+  reported_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS usage_company_time ON usage(company_id, started_at);
+CREATE TABLE IF NOT EXISTS company_keys (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  key_env TEXT NOT NULL,
+  ciphertext BLOB NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, key_env)
+);
+CREATE TABLE IF NOT EXISTS company_settings (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, key)
+);
+CREATE TABLE IF NOT EXISTS company_routes (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  stage TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, stage)
+);
+CREATE TABLE IF NOT EXISTS playbook (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS playbook_company ON playbook(company_id);
+CREATE TABLE IF NOT EXISTS escalations (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  question TEXT NOT NULL,
+  asked_at INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  answer TEXT,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS escalations_company ON escalations(company_id, status);
+CREATE TABLE IF NOT EXISTS audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at INTEGER NOT NULL,
+  company_id TEXT,
+  actor_id TEXT,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  ip TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS audit_company ON audit(company_id, at);
+"""
+
+
+class CloudError(ValueError):
+    """A request the caller can fix; `code` is stable for the apps, the message is plain English."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True)
+class Principal:
+    """Who is calling: resolved from a session token, never from anything the client claims."""
+
+    user_id: str
+    company_id: str | None  # None for the platform owner
+    role: str  # owner | admin | manager | agent
+    device_id: str | None
+    email: str
+    name: str
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role == "owner"
+
+    def require(self, *roles: str) -> None:
+        if self.role not in roles:
+            raise CloudError("forbidden", "your role cannot do this")
+
+    @property
+    def company(self) -> str:
+        if self.company_id is None:
+            raise CloudError("forbidden", "this needs a company account")
+        return self.company_id
+
+
+def now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _month_start(t: int) -> int:
+    tm = time.gmtime(t / 1000)
+    return calendar.timegm((tm.tm_year, tm.tm_mon, 1, 0, 0, 0)) * 1000
+
+
+def _clean(text: object, field: str, limit: int, *, required: bool = True) -> str:
+    value = str(text or "").strip()
+    if required and not value:
+        raise CloudError("invalid", f"{field} is required")
+    if len(value) > limit:
+        raise CloudError("invalid", f"{field} is too long (max {limit})")
+    return value
+
+
+def plan_state(row: sqlite3.Row | dict[str, Any], used_minutes: int, t: int) -> dict[str, Any]:
+    """What the apps and the dashboard show: status, days left, and whether calls are allowed."""
+    plan = str(row["plan"])
+    if row["suspended"]:
+        status = "suspended"
+    elif plan == "trial":
+        status = "trial" if (row["trial_ends_at"] or 0) > t else "expired"
+    elif row["paid_until"] and int(row["paid_until"]) < t:
+        status = "expired"
+    else:
+        status = "active"
+    ends = row["trial_ends_at"] if plan == "trial" else row["paid_until"]
+    days_left = None if not ends else max(0, -(-(int(ends) - t) // DAY_MS))
+    minutes = int(row["minutes_month"])
+    can_call = status in ("trial", "active") and used_minutes < minutes
+    reason = None
+    if status in ("suspended", "expired"):
+        reason = f"plan {status}"
+    elif not can_call:
+        reason = "monthly minutes used up"
+    return {
+        "plan": plan,
+        "status": status,
+        "days_left": days_left,
+        "ends_at": ends,
+        "seats": int(row["seats"]),
+        "minutes_month": minutes,
+        "minutes_used": used_minutes,
+        "can_call": can_call,
+        "blocked_reason": reason,
+    }
+
+
+class CloudStore:
+    def __init__(self, path: Path | str, vault: Vault) -> None:
+        self._vault = vault
+        self._lock = threading.Lock()
+        self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
+        self._db.row_factory = sqlite3.Row
+        self._db.executescript(SCHEMA)
+
+    @contextmanager
+    def _tx(self) -> Iterator[sqlite3.Connection]:
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                yield self._db
+            except BaseException:
+                self._db.execute("ROLLBACK")
+                raise
+            self._db.execute("COMMIT")
+
+    def _q(self, sql: str, args: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return list(self._db.execute(sql, args).fetchall())
+
+    def close(self) -> None:
+        self._db.close()
+
+    def backup(self, target: Path) -> None:
+        with self._lock:
+            dest = sqlite3.connect(str(target))
+            try:
+                self._db.backup(dest)
+            finally:
+                dest.close()
+
+    def audit(
+        self,
+        db: sqlite3.Connection,
+        action: str,
+        detail: str,
+        *,
+        company_id: str | None = None,
+        actor: Principal | None = None,
+        ip: str = "",
+    ) -> None:
+        db.execute(
+            "INSERT INTO audit(at, company_id, actor_id, action, detail, ip) VALUES (?,?,?,?,?,?)",
+            (now_ms(), company_id, actor.user_id if actor else None, action, detail[:500], ip),
+        )
+
+    # --- accounts ------------------------------------------------------------------------------
+    def _new_user(
+        self,
+        db: sqlite3.Connection,
+        *,
+        company_id: str | None,
+        email: str,
+        name: str,
+        password: str,
+        role: str,
+        must_change: bool = False,
+    ) -> str:
+        email = _clean(email, "email", 254).lower()
+        if not EMAIL.match(email):
+            raise CloudError("invalid", "enter a valid email address")
+        problem = password_problem(password)
+        if problem:
+            raise CloudError("weak_password", problem)
+        if db.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone():
+            raise CloudError("email_taken", "an account with this email already exists")
+        user_id = str(uuid.uuid4())
+        db.execute(
+            "INSERT INTO users(id, company_id, email, name, pw_hash, role, must_change_pw,"
+            " created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                user_id,
+                company_id,
+                email,
+                _clean(name, "name", 120),
+                hash_password(password),
+                role,
+                int(must_change),
+                now_ms(),
+            ),
+        )
+        return user_id
+
+    def signup(
+        self, *, company: str, name: str, email: str, password: str, ip: str = ""
+    ) -> tuple[str, str]:
+        """A new company on a trial, with the signer as its admin. Returns (company_id, user_id)."""
+        t = now_ms()
+        trial = PLANS["trial"]
+        company_id = str(uuid.uuid4())
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO companies(id, name, plan, trial_ends_at, seats, minutes_month,"
+                " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    company_id,
+                    _clean(company, "company name", 120),
+                    "trial",
+                    t + trial["days"] * DAY_MS,
+                    trial["seats"],
+                    trial["minutes"],
+                    t,
+                    t,
+                ),
+            )
+            user_id = self._new_user(
+                db, company_id=company_id, email=email, name=name, password=password, role="admin"
+            )
+            self.audit(db, "company.signup", f"{company} ({email})", company_id=company_id, ip=ip)
+        return company_id, user_id
+
+    def create_owner(self, email: str, name: str, password: str) -> str:
+        with self._tx() as db:
+            user_id = self._new_user(
+                db, company_id=None, email=email, name=name, password=password, role="owner"
+            )
+            self.audit(db, "owner.created", email)
+        return user_id
+
+    def owner_exists(self) -> bool:
+        return bool(self._q("SELECT 1 FROM users WHERE role = 'owner' LIMIT 1"))
+
+    def check_login(self, email: str, password: str) -> sqlite3.Row | None:
+        rows = self._q("SELECT * FROM users WHERE email = ?", (email.strip().lower(),))
+        if not rows:
+            verify_password(password, DUMMY_HASH)  # same time as a real check
+            return None
+        user = rows[0]
+        if not verify_password(password, str(user["pw_hash"])) or not user["active"]:
+            return None
+        return user
+
+    def change_password(self, who: Principal, current: str, new: str) -> None:
+        row = self._q("SELECT pw_hash FROM users WHERE id = ?", (who.user_id,))
+        if not row or not verify_password(current, str(row[0]["pw_hash"])):
+            raise CloudError("wrong_password", "current password is wrong")
+        problem = password_problem(new)
+        if problem:
+            raise CloudError("weak_password", problem)
+        with self._tx() as db:
+            db.execute(
+                "UPDATE users SET pw_hash = ?, must_change_pw = 0 WHERE id = ?",
+                (hash_password(new), who.user_id),
+            )
+            self.audit(db, "user.password", who.email, company_id=who.company_id, actor=who)
+
+    # --- sessions and devices ------------------------------------------------------------------
+    def open_session(
+        self, user: sqlite3.Row, *, kind: str, device: dict[str, Any] | None = None
+    ) -> str:
+        t = now_ms()
+        token = secrets.token_urlsafe(32)
+        device_id: str | None = None
+        company_id = user["company_id"]
+        with self._tx() as db:
+            if device is not None:
+                device_id = self._device(db, user, device, t)
+            ttl = OWNER_SESSION_HOURS * 3_600_000 if kind == "owner" else SESSION_DAYS * DAY_MS
+            db.execute(
+                "INSERT INTO sessions(token_hash, company_id, user_id, device_id, kind, created_at,"
+                " expires_at, last_seen_at) VALUES (?,?,?,?,?,?,?,?)",
+                (_token_hash(token), company_id, user["id"], device_id, kind, t, t + ttl, t),
+            )
+            db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (t, user["id"]))
+        return token
+
+    def _device(
+        self, db: sqlite3.Connection, user: sqlite3.Row, device: dict[str, Any], t: int
+    ) -> str:
+        raw_id = str(device.get("id") or "")
+        platform = str(device.get("platform") or "unknown")
+        if platform not in PLATFORMS:
+            platform = "unknown"
+        label = _clean(device.get("label") or platform, "device label", 80)
+        version = _clean(device.get("app_version") or "0", "app version", 40)
+        # Device ids are per user: the same id from another user is a different device row.
+        device_id = hashlib.sha256(f"{user['id']}:{raw_id or uuid.uuid4()}".encode()).hexdigest()[
+            :32
+        ]
+        found = db.execute("SELECT revoked_at FROM devices WHERE id = ?", (device_id,)).fetchone()
+        if found:
+            db.execute(
+                "UPDATE devices SET last_seen = ?, label = ?, app_version = ?, platform = ?,"
+                " revoked_at = NULL WHERE id = ?",
+                (t, label, version, platform, device_id),
+            )
+        else:
+            db.execute(
+                "INSERT INTO devices(id, company_id, user_id, platform, label, app_version,"
+                " first_seen, last_seen) VALUES (?,?,?,?,?,?,?,?)",
+                (device_id, user["company_id"], user["id"], platform, label, version, t, t),
+            )
+        return device_id
+
+    def principal(self, token: str | None, *, kind: str) -> Principal | None:
+        if not token or len(token) > 200:
+            return None
+        t = now_ms()
+        rows = self._q(
+            "SELECT s.*, u.email, u.name, u.role, u.active, d.revoked_at AS device_revoked"
+            " FROM sessions s JOIN users u ON u.id = s.user_id"
+            " LEFT JOIN devices d ON d.id = s.device_id WHERE s.token_hash = ?",
+            (_token_hash(token),),
+        )
+        if not rows:
+            return None
+        s = rows[0]
+        if (
+            s["kind"] != kind
+            or s["revoked_at"]
+            or s["device_revoked"]
+            or s["expires_at"] < t
+            or not s["active"]
+        ):
+            return None
+        if t - int(s["last_seen_at"]) > 60_000:  # at most one write a minute per session
+            with self._tx() as db:
+                db.execute(
+                    "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?",
+                    (t, s["token_hash"]),
+                )
+                db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (t, s["user_id"]))
+                if s["device_id"]:
+                    db.execute("UPDATE devices SET last_seen = ? WHERE id = ?", (t, s["device_id"]))
+        return Principal(
+            user_id=str(s["user_id"]),
+            company_id=s["company_id"],
+            role=str(s["role"]),
+            device_id=s["device_id"],
+            email=str(s["email"]),
+            name=str(s["name"]),
+        )
+
+    def close_session(self, token: str) -> None:
+        with self._tx() as db:
+            db.execute(
+                "UPDATE sessions SET revoked_at = ? WHERE token_hash = ?",
+                (now_ms(), _token_hash(token)),
+            )
+
+    def devices(self, who: Principal, *, all_users: bool = False) -> list[dict[str, Any]]:
+        if all_users:
+            who.require("admin")
+            rows = self._q(
+                "SELECT d.*, u.email, u.name FROM devices d JOIN users u ON u.id = d.user_id"
+                " WHERE d.company_id = ? ORDER BY d.last_seen DESC",
+                (who.company,),
+            )
+        else:
+            rows = self._q(
+                "SELECT d.*, u.email, u.name FROM devices d JOIN users u ON u.id = d.user_id"
+                " WHERE d.company_id = ? AND d.user_id = ? ORDER BY d.last_seen DESC",
+                (who.company, who.user_id),
+            )
+        return [self._device_out(r, who.device_id) for r in rows]
+
+    @staticmethod
+    def _device_out(r: sqlite3.Row, current: str | None = None) -> dict[str, Any]:
+        return {
+            "id": r["id"],
+            "user": {"email": r["email"], "name": r["name"]},
+            "platform": r["platform"],
+            "label": r["label"],
+            "app_version": r["app_version"],
+            "first_seen": r["first_seen"],
+            "last_seen": r["last_seen"],
+            "revoked": r["revoked_at"] is not None,
+            "this_device": r["id"] == current,
+        }
+
+    def revoke_device(self, who: Principal, device_id: str, *, ip: str = "") -> None:
+        """A user signs out one of their own devices; an admin any device of the company."""
+        rows = self._q(
+            "SELECT * FROM devices WHERE id = ? AND company_id = ?", (device_id, who.company)
+        )
+        if not rows or (rows[0]["user_id"] != who.user_id and who.role != "admin"):
+            raise CloudError("not_found", "device not found")
+        with self._tx() as db:
+            self._revoke(db, device_id)
+            self.audit(
+                db, "device.revoked", rows[0]["label"], company_id=who.company, actor=who, ip=ip
+            )
+
+    @staticmethod
+    def _revoke(db: sqlite3.Connection, device_id: str) -> None:
+        t = now_ms()
+        db.execute("UPDATE devices SET revoked_at = ? WHERE id = ?", (t, device_id))
+        db.execute(
+            "UPDATE sessions SET revoked_at = ? WHERE device_id = ? AND revoked_at IS NULL",
+            (t, device_id),
+        )
+
+    # --- company view (apps) -------------------------------------------------------------------
+    def minutes_used(self, company_id: str, t: int | None = None) -> int:
+        t = t or now_ms()
+        rows = self._q(
+            "SELECT COALESCE(SUM(duration_s), 0) AS s FROM usage"
+            " WHERE company_id = ? AND started_at >= ?",
+            (company_id, _month_start(t)),
+        )
+        return -(-int(rows[0]["s"]) // 60)
+
+    def company_row(self, company_id: str) -> sqlite3.Row:
+        rows = self._q("SELECT * FROM companies WHERE id = ?", (company_id,))
+        if not rows:
+            raise CloudError("not_found", "company not found")
+        return rows[0]
+
+    def me(self, who: Principal) -> dict[str, Any]:
+        user = self._q("SELECT must_change_pw FROM users WHERE id = ?", (who.user_id,))[0]
+        out: dict[str, Any] = {
+            "user": {
+                "id": who.user_id,
+                "email": who.email,
+                "name": who.name,
+                "role": who.role,
+                "must_change_password": bool(user["must_change_pw"]),
+            },
+            "company": None,
+        }
+        if who.company_id:
+            c = self.company_row(who.company_id)
+            seats_used = self._q(
+                "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND active = 1",
+                (who.company_id,),
+            )[0]["n"]
+            state = plan_state(c, self.minutes_used(who.company_id), now_ms())
+            out["company"] = {"id": c["id"], "name": c["name"], "seats_used": seats_used, **state}
+        return out
+
+    def settings(self, company_id: str) -> dict[str, Any]:
+        rows = self._q(
+            "SELECT key, value_json FROM company_settings WHERE company_id = ?", (company_id,)
+        )
+        return {r["key"]: json.loads(r["value_json"]) for r in rows}
+
+    def set_settings(self, who: Principal, changes: dict[str, Any], *, ip: str = "") -> None:
+        who.require("admin")
+        clean: dict[str, Any] = {}
+        for key, value in changes.items():
+            if key not in SETTINGS:
+                raise CloudError("invalid", f"unknown setting {key!r}")
+            kind, allowed = SETTINGS[key]
+            if type(value) is not kind or (allowed and value not in allowed):
+                raise CloudError("invalid", f"bad value for {key}")
+            clean[key] = value
+        t = now_ms()
+        with self._tx() as db:
+            for key, value in clean.items():
+                db.execute(
+                    "INSERT INTO company_settings(company_id, key, value_json, updated_at)"
+                    " VALUES (?,?,?,?) ON CONFLICT(company_id, key) DO UPDATE SET"
+                    " value_json = excluded.value_json, updated_at = excluded.updated_at",
+                    (who.company, key, json.dumps(value), t),
+                )
+            self.audit(db, "settings", json.dumps(clean), company_id=who.company, actor=who, ip=ip)
+
+    # --- provider keys --------------------------------------------------------------------------
+    def _vault_name(self, company_id: str, key_env: str) -> str:
+        return f"{company_id}:{key_env}"
+
+    def set_key(self, who: Principal, key_env: str, value: str, *, ip: str = "") -> None:
+        who.require("admin")
+        if not KEY_ENV.match(key_env):
+            raise CloudError("invalid", "unknown key name")
+        value = value.strip()
+        if not 8 <= len(value) <= 400 or any(c.isspace() for c in value):
+            raise CloudError("invalid", "that does not look like a key")
+        blob = self._vault.encrypt(self._vault_name(who.company, key_env), value)
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO company_keys(company_id, key_env, ciphertext, updated_at)"
+                " VALUES (?,?,?,?) ON CONFLICT(company_id, key_env) DO UPDATE SET"
+                " ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
+                (who.company, key_env, blob, now_ms()),
+            )
+            self.audit(db, "key.set", key_env, company_id=who.company, actor=who, ip=ip)
+
+    def delete_key(self, who: Principal, key_env: str, *, ip: str = "") -> None:
+        who.require("admin")
+        with self._tx() as db:
+            db.execute(
+                "DELETE FROM company_keys WHERE company_id = ? AND key_env = ?",
+                (who.company, key_env),
+            )
+            self.audit(db, "key.deleted", key_env, company_id=who.company, actor=who, ip=ip)
+
+    def key_status(self, who: Principal) -> dict[str, int]:
+        rows = self._q(
+            "SELECT key_env, updated_at FROM company_keys WHERE company_id = ?", (who.company,)
+        )
+        return {r["key_env"]: int(r["updated_at"]) for r in rows}
+
+    def keys_for_call(self, who: Principal) -> dict[str, str]:
+        """Decrypted keys for a signed-in user of this company whose plan allows calls (D-022)."""
+        rows = self._q(
+            "SELECT key_env, ciphertext FROM company_keys WHERE company_id = ?", (who.company,)
+        )
+        out: dict[str, str] = {}
+        for r in rows:
+            try:
+                out[r["key_env"]] = self._vault.decrypt(
+                    self._vault_name(who.company, r["key_env"]), r["ciphertext"]
+                )
+            except VaultError:
+                continue
+        return out
+
+    # --- routes (which vendor/model per stage) --------------------------------------------------
+    def routes(self, company_id: str) -> dict[str, tuple[str, str]]:
+        rows = self._q(
+            "SELECT stage, provider_id, model FROM company_routes WHERE company_id = ?",
+            (company_id,),
+        )
+        return {r["stage"]: (r["provider_id"], r["model"]) for r in rows}
+
+    def set_route(
+        self, who: Principal, stage: str, provider_id: str, model: str, *, ip: str = ""
+    ) -> None:
+        who.require("admin")
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO company_routes(company_id, stage, provider_id, model, updated_at)"
+                " VALUES (?,?,?,?,?) ON CONFLICT(company_id, stage) DO UPDATE SET"
+                " provider_id = excluded.provider_id, model = excluded.model,"
+                " updated_at = excluded.updated_at",
+                (who.company, stage, provider_id, model, now_ms()),
+            )
+            self.audit(
+                db,
+                "route.set",
+                f"{stage}={provider_id}/{model}",
+                company_id=who.company,
+                actor=who,
+                ip=ip,
+            )
+
+    def reset_route(self, who: Principal, stage: str, *, ip: str = "") -> None:
+        who.require("admin")
+        with self._tx() as db:
+            db.execute(
+                "DELETE FROM company_routes WHERE company_id = ? AND stage = ?",
+                (who.company, stage),
+            )
+            self.audit(db, "route.reset", stage, company_id=who.company, actor=who, ip=ip)
+
+    # --- playbook --------------------------------------------------------------------------------
+    def playbook(self, company_id: str) -> list[dict[str, Any]]:
+        rows = self._q(
+            "SELECT * FROM playbook WHERE company_id = ? ORDER BY updated_at DESC", (company_id,)
+        )
+        return [
+            {
+                "id": r["id"],
+                "question": r["question"],
+                "answer": r["answer"],
+                "tags": json.loads(r["tags_json"]),
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+
+    @staticmethod
+    def _entry(data: dict[str, Any]) -> tuple[str, str, list[str]]:
+        q = _clean(data.get("question"), "question", 300)
+        a = _clean(data.get("answer"), "answer", 600)
+        if len(a.split()) > 40:
+            raise CloudError("invalid", "keep the answer to 40 words (what an agent can say)")
+        tags_raw = data.get("tags") or []
+        if not isinstance(tags_raw, list):
+            raise CloudError("invalid", "tags must be a list")
+        tags = [_clean(t, "tag", 40) for t in tags_raw][:10]
+        return q, a, tags
+
+    def add_entry(self, who: Principal, data: dict[str, Any], *, ip: str = "") -> str:
+        who.require("admin", "manager")
+        q, a, tags = self._entry(data)
+        entry_id = str(uuid.uuid4())
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO playbook(id, company_id, question, answer, tags_json, updated_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (entry_id, who.company, q, a, json.dumps(tags), now_ms()),
+            )
+            self.audit(db, "playbook.add", q, company_id=who.company, actor=who, ip=ip)
+        return entry_id
+
+    def update_entry(
+        self, who: Principal, entry_id: str, data: dict[str, Any], *, ip: str = ""
+    ) -> None:
+        who.require("admin", "manager")
+        q, a, tags = self._entry(data)
+        with self._tx() as db:
+            cur = db.execute(
+                "UPDATE playbook SET question = ?, answer = ?, tags_json = ?, updated_at = ?"
+                " WHERE id = ? AND company_id = ?",
+                (q, a, json.dumps(tags), now_ms(), entry_id, who.company),
+            )
+            if cur.rowcount == 0:
+                raise CloudError("not_found", "entry not found")
+            self.audit(db, "playbook.edit", q, company_id=who.company, actor=who, ip=ip)
+
+    def delete_entry(self, who: Principal, entry_id: str, *, ip: str = "") -> None:
+        who.require("admin", "manager")
+        with self._tx() as db:
+            cur = db.execute(
+                "DELETE FROM playbook WHERE id = ? AND company_id = ?", (entry_id, who.company)
+            )
+            if cur.rowcount == 0:
+                raise CloudError("not_found", "entry not found")
+            self.audit(db, "playbook.delete", entry_id, company_id=who.company, actor=who, ip=ip)
+
+    # --- escalations (R2 inbox) ------------------------------------------------------------------
+    def add_escalation(self, who: Principal, question: str) -> str:
+        q = _clean(question, "question", 500)
+        with self._tx() as db:
+            dup = db.execute(
+                "SELECT id FROM escalations WHERE company_id = ? AND question = ? AND status ="
+                " 'open'",
+                (who.company, q),
+            ).fetchone()
+            if dup:
+                return str(dup["id"])
+            item_id = str(uuid.uuid4())
+            t = now_ms()
+            db.execute(
+                "INSERT INTO escalations(id, company_id, user_id, question, asked_at, updated_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (item_id, who.company, who.user_id, q, t, t),
+            )
+        return item_id
+
+    def escalations(self, who: Principal) -> list[dict[str, Any]]:
+        who.require("admin", "manager")
+        rows = self._q(
+            "SELECT * FROM escalations WHERE company_id = ? ORDER BY asked_at DESC LIMIT 200",
+            (who.company,),
+        )
+        return [
+            {
+                "id": r["id"],
+                "question": r["question"],
+                "asked_at": r["asked_at"],
+                "status": r["status"],
+                "answer": r["answer"],
+            }
+            for r in rows
+        ]
+
+    def answer_escalation(
+        self, who: Principal, item_id: str, answer: str, *, add: bool, ip: str = ""
+    ) -> None:
+        who.require("admin", "manager")
+        rows = self._q(
+            "SELECT * FROM escalations WHERE id = ? AND company_id = ?", (item_id, who.company)
+        )
+        if not rows:
+            raise CloudError("not_found", "question not found")
+        q, a, _ = self._entry({"question": rows[0]["question"], "answer": answer})
+        with self._tx() as db:
+            db.execute(
+                "UPDATE escalations SET answer = ?, status = ?, updated_at = ? WHERE id = ?",
+                (a, "added" if add else "answered", now_ms(), item_id),
+            )
+            if add:
+                db.execute(
+                    "INSERT INTO playbook(id, company_id, question, answer, tags_json, updated_at)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), who.company, q, a, "[]", now_ms()),
+                )
+            self.audit(
+                db,
+                "escalation." + ("added" if add else "answered"),
+                q,
+                company_id=who.company,
+                actor=who,
+                ip=ip,
+            )
+
+    # --- team ------------------------------------------------------------------------------------
+    def team(self, who: Principal) -> list[dict[str, Any]]:
+        who.require("admin", "manager")
+        rows = self._q(
+            "SELECT id, email, name, role, active, created_at, last_seen_at FROM users"
+            " WHERE company_id = ? ORDER BY created_at",
+            (who.company,),
+        )
+        return [dict(r) | {"active": bool(r["active"])} for r in rows]
+
+    def invite(
+        self, who: Principal, email: str, name: str, role: str, *, ip: str = ""
+    ) -> tuple[str, str]:
+        """Creates a user with a one-time password the admin passes on. Returns (id, password)."""
+        who.require("admin")
+        if role not in ROLES:
+            raise CloudError("invalid", "role must be admin, manager or agent")
+        c = self.company_row(who.company)
+        used = self._q(
+            "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND active = 1", (who.company,)
+        )[0]["n"]
+        if used >= int(c["seats"]):
+            raise CloudError("no_seats", f"all {c['seats']} seats are used; ask for more seats")
+        password = new_temporary_password()
+        with self._tx() as db:
+            user_id = self._new_user(
+                db,
+                company_id=who.company,
+                email=email,
+                name=name,
+                password=password,
+                role=role,
+                must_change=True,
+            )
+            self.audit(
+                db, "user.invited", f"{email} as {role}", company_id=who.company, actor=who, ip=ip
+            )
+        return user_id, password
+
+    def set_member(
+        self, who: Principal, user_id: str, data: dict[str, Any], *, ip: str = ""
+    ) -> None:
+        who.require("admin")
+        rows = self._q(
+            "SELECT * FROM users WHERE id = ? AND company_id = ?", (user_id, who.company)
+        )
+        if not rows:
+            raise CloudError("not_found", "user not found")
+        if user_id == who.user_id:
+            raise CloudError("invalid", "you cannot change your own role or access")
+        role = data.get("role", rows[0]["role"])
+        active = data.get("active", bool(rows[0]["active"]))
+        if role not in ROLES or not isinstance(active, bool):
+            raise CloudError("invalid", "bad role or active flag")
+        with self._tx() as db:
+            db.execute(
+                "UPDATE users SET role = ?, active = ? WHERE id = ?", (role, int(active), user_id)
+            )
+            if not active:
+                db.execute(
+                    "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                    (now_ms(), user_id),
+                )
+            self.audit(
+                db,
+                "user.changed",
+                f"{rows[0]['email']}: role={role} active={active}",
+                company_id=who.company,
+                actor=who,
+                ip=ip,
+            )
+
+    # --- usage (reported by the apps after each call) --------------------------------------------
+    def report_usage(self, who: Principal, data: dict[str, Any], platform: str) -> str:
+        def num(key: str, hi: int, *, optional: bool = False) -> int | None:
+            v = data.get(key)
+            if v is None and optional:
+                return None
+            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= hi:
+                raise CloudError("invalid", f"{key} must be a whole number 0 to {hi}")
+            return v
+
+        t = now_ms()
+        started = num("started_at", t + DAY_MS) or t
+        if started < t - 30 * DAY_MS:
+            raise CloudError("invalid", "started_at is too old")
+        usage_id = _clean(data.get("call_id") or uuid.uuid4(), "call_id", 64)
+        row = (
+            usage_id,
+            who.company,
+            who.user_id,
+            who.device_id,
+            started,
+            num("duration_s", 6 * 3600),
+            num("cards", 10_000),
+            num("playbook_cards", 10_000),
+            num("ai_cards", 10_000),
+            num("holding_lines", 10_000),
+            num("escalations", 10_000),
+            num("p50_ms", 600_000, optional=True),
+            num("p95_ms", 600_000, optional=True),
+            _clean(data.get("stt_vendor"), "stt_vendor", 40, required=False),
+            _clean(data.get("llm_vendor"), "llm_vendor", 40, required=False),
+            platform if platform in PLATFORMS else "unknown",
+            t,
+        )
+        with self._tx() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO usage(id, company_id, user_id, device_id, started_at,"
+                " duration_s, cards, playbook_cards, ai_cards, holding_lines, escalations, p50_ms,"
+                " p95_ms, stt_vendor, llm_vendor, platform, reported_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                row,
+            )
+        return usage_id
+
+    def company_usage(self, who: Principal, days: int = 30) -> list[dict[str, Any]]:
+        who.require("admin", "manager")
+        since = now_ms() - days * DAY_MS
+        rows = self._q(
+            "SELECT u.*, us.email FROM usage u JOIN users us ON us.id = u.user_id"
+            " WHERE u.company_id = ? AND u.started_at >= ? ORDER BY u.started_at DESC LIMIT 500",
+            (who.company, since),
+        )
+        return [dict(r) for r in rows]
+
+    # --- owner (platform) ------------------------------------------------------------------------
+    def owner_stats(self) -> dict[str, Any]:
+        t = now_ms()
+        companies = self.owner_companies()
+        by_status: dict[str, int] = {}
+        for c in companies:
+            by_status[c["status"]] = by_status.get(c["status"], 0) + 1
+        day0 = t - 30 * DAY_MS
+        daily = self._q(
+            "SELECT (started_at / 86400000) AS day, COUNT(*) AS calls,"
+            " SUM(duration_s) AS seconds, SUM(cards) AS cards FROM usage"
+            " WHERE started_at >= ? GROUP BY day ORDER BY day",
+            (day0,),
+        )
+        active_today = self._q(
+            "SELECT COUNT(*) AS n FROM users WHERE last_seen_at >= ? AND role != 'owner'",
+            (t - DAY_MS,),
+        )[0]["n"]
+        users = self._q("SELECT COUNT(*) AS n FROM users WHERE role != 'owner'")[0]["n"]
+        devices = self._q("SELECT COUNT(*) AS n FROM devices WHERE revoked_at IS NULL")[0]["n"]
+        platforms = self._q(
+            "SELECT platform, COUNT(*) AS n FROM devices WHERE revoked_at IS NULL"
+            " GROUP BY platform ORDER BY n DESC"
+        )
+        month = self._q(
+            "SELECT COUNT(*) AS calls, COALESCE(SUM(duration_s), 0) AS seconds,"
+            " COALESCE(SUM(cards), 0) AS cards, COALESCE(SUM(holding_lines), 0) AS holds,"
+            " COALESCE(SUM(escalations), 0) AS escalations FROM usage WHERE started_at >= ?",
+            (_month_start(t),),
+        )[0]
+        p95s = [
+            int(r["p95_ms"])
+            for r in self._q(
+                "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL", (day0,)
+            )
+        ]
+        p95s.sort()
+        return {
+            "now": t,
+            "companies": len(companies),
+            "by_status": by_status,
+            "users": users,
+            "active_today": active_today,
+            "devices": devices,
+            "platforms": {r["platform"]: r["n"] for r in platforms},
+            "month": {
+                "calls": month["calls"],
+                "minutes": -(-int(month["seconds"]) // 60),
+                "cards": month["cards"],
+                "holding_lines": month["holds"],
+                "escalations": month["escalations"],
+            },
+            "p95_ms_30d": p95s[int(len(p95s) * 0.95)] if p95s else None,
+            "daily": [
+                {
+                    "day": int(r["day"]) * DAY_MS,
+                    "calls": r["calls"],
+                    "minutes": -(-int(r["seconds"] or 0) // 60),
+                    "cards": r["cards"] or 0,
+                }
+                for r in daily
+            ],
+            "trials_ending": [
+                c
+                for c in companies
+                if c["status"] == "trial" and c["days_left"] is not None and c["days_left"] <= 3
+            ],
+        }
+
+    def owner_companies(self) -> list[dict[str, Any]]:
+        t = now_ms()
+        month0 = _month_start(t)
+        rows = self._q(
+            "SELECT c.*,"
+            " (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id AND u.active = 1)"
+            "   AS seats_used,"
+            " (SELECT COUNT(*) FROM devices d WHERE d.company_id = c.id AND d.revoked_at IS NULL)"
+            "   AS devices,"
+            " (SELECT MAX(last_seen_at) FROM users u WHERE u.company_id = c.id) AS last_active,"
+            " (SELECT COALESCE(SUM(duration_s), 0) FROM usage g WHERE g.company_id = c.id"
+            "   AND g.started_at >= ?) AS month_seconds,"
+            " (SELECT COUNT(*) FROM usage g WHERE g.company_id = c.id AND g.started_at >= ?)"
+            "   AS calls_30d,"
+            " (SELECT AVG(p95_ms) FROM usage g WHERE g.company_id = c.id AND g.started_at >= ?)"
+            "   AS p95_avg,"
+            " (SELECT email FROM users u WHERE u.company_id = c.id AND u.role = 'admin'"
+            "   ORDER BY created_at LIMIT 1) AS admin_email"
+            " FROM companies c ORDER BY c.created_at DESC",
+            (month0, t - 30 * DAY_MS, t - 30 * DAY_MS),
+        )
+        out = []
+        for r in rows:
+            used = -(-int(r["month_seconds"]) // 60)
+            out.append(
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "admin_email": r["admin_email"],
+                    "created_at": r["created_at"],
+                    "notes": r["notes"],
+                    "suspended": bool(r["suspended"]),
+                    "seats_used": r["seats_used"],
+                    "devices": r["devices"],
+                    "last_active": r["last_active"],
+                    "calls_30d": r["calls_30d"],
+                    "p95_avg_ms": round(r["p95_avg"]) if r["p95_avg"] is not None else None,
+                    **plan_state(r, used, t),
+                }
+            )
+        return out
+
+    def owner_company(self, company_id: str) -> dict[str, Any]:
+        found = [c for c in self.owner_companies() if c["id"] == company_id]
+        if not found:
+            raise CloudError("not_found", "company not found")
+        users = self._q(
+            "SELECT id, email, name, role, active, created_at, last_seen_at FROM users"
+            " WHERE company_id = ? ORDER BY created_at",
+            (company_id,),
+        )
+        devices = self._q(
+            "SELECT d.*, u.email, u.name FROM devices d JOIN users u ON u.id = d.user_id"
+            " WHERE d.company_id = ? ORDER BY d.last_seen DESC",
+            (company_id,),
+        )
+        calls = self._q(
+            "SELECT u.started_at, u.duration_s, u.cards, u.holding_lines, u.escalations,"
+            " u.p95_ms, u.platform, us.email FROM usage u JOIN users us ON us.id = u.user_id"
+            " WHERE u.company_id = ? ORDER BY u.started_at DESC LIMIT 50",
+            (company_id,),
+        )
+        return {
+            **found[0],
+            "users": [dict(r) | {"active": bool(r["active"])} for r in users],
+            "devices": [self._device_out(r) for r in devices],
+            "calls": [dict(r) for r in calls],
+            "audit": self.owner_audit(company_id, 50),
+        }
+
+    def owner_create_company(
+        self,
+        owner: Principal,
+        *,
+        name: str,
+        admin_email: str,
+        admin_name: str,
+        plan: str,
+        ip: str = "",
+    ) -> tuple[str, str]:
+        if plan not in PLANS:
+            raise CloudError("invalid", "unknown plan")
+        password = new_temporary_password()
+        t = now_ms()
+        preset = PLANS[plan]
+        company_id = str(uuid.uuid4())
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO companies(id, name, plan, trial_ends_at, seats, minutes_month,"
+                " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    company_id,
+                    _clean(name, "company name", 120),
+                    plan,
+                    t + PLANS["trial"]["days"] * DAY_MS if plan == "trial" else None,
+                    preset["seats"],
+                    preset["minutes"],
+                    t,
+                    t,
+                ),
+            )
+            self._new_user(
+                db,
+                company_id=company_id,
+                email=admin_email,
+                name=admin_name,
+                password=password,
+                role="admin",
+                must_change=True,
+            )
+            self.audit(
+                db,
+                "owner.company.created",
+                f"{name} ({plan})",
+                company_id=company_id,
+                actor=owner,
+                ip=ip,
+            )
+        return company_id, password
+
+    def owner_update_company(
+        self, owner: Principal, company_id: str, data: dict[str, Any], *, ip: str = ""
+    ) -> None:
+        c = self.company_row(company_id)
+        fields: dict[str, Any] = {}
+        if "name" in data:
+            fields["name"] = _clean(data["name"], "company name", 120)
+        if "plan" in data:
+            if data["plan"] not in PLANS:
+                raise CloudError("invalid", "unknown plan")
+            fields["plan"] = data["plan"]
+            if data["plan"] != c["plan"] and "seats" not in data:
+                fields["seats"] = PLANS[data["plan"]]["seats"]
+            if data["plan"] != c["plan"] and "minutes_month" not in data:
+                fields["minutes_month"] = PLANS[data["plan"]]["minutes"]
+        for key, hi in (("seats", 10_000), ("minutes_month", 10_000_000)):
+            if key in data:
+                v = data[key]
+                if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= hi:
+                    raise CloudError("invalid", f"{key} must be 1 to {hi}")
+                fields[key] = v
+        if "suspended" in data:
+            if not isinstance(data["suspended"], bool):
+                raise CloudError("invalid", "suspended must be true or false")
+            fields["suspended"] = int(data["suspended"])
+        if "extend_days" in data:
+            days = data["extend_days"]
+            if not isinstance(days, int) or isinstance(days, bool) or not 1 <= days <= 366:
+                raise CloudError("invalid", "extend_days must be 1 to 366")
+            plan = fields.get("plan", c["plan"])
+            col = "trial_ends_at" if plan == "trial" else "paid_until"
+            base = max(int(c[col] or 0), now_ms())
+            fields[col] = base + days * DAY_MS
+        if "notes" in data:
+            fields["notes"] = _clean(data["notes"], "notes", 2000, required=False)
+        if not fields:
+            raise CloudError("invalid", "nothing to change")
+        fields["updated_at"] = now_ms()
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        with self._tx() as db:
+            db.execute(f"UPDATE companies SET {sets} WHERE id = ?", (*fields.values(), company_id))  # noqa: S608 — keys are from the fixed list above
+            shown = {k: v for k, v in fields.items() if k != "updated_at"}
+            self.audit(
+                db,
+                "owner.company.changed",
+                json.dumps(shown),
+                company_id=company_id,
+                actor=owner,
+                ip=ip,
+            )
+
+    def owner_reset_password(self, owner: Principal, user_id: str, *, ip: str = "") -> str:
+        rows = self._q("SELECT * FROM users WHERE id = ? AND role != 'owner'", (user_id,))
+        if not rows:
+            raise CloudError("not_found", "user not found")
+        password = new_temporary_password()
+        with self._tx() as db:
+            db.execute(
+                "UPDATE users SET pw_hash = ?, must_change_pw = 1 WHERE id = ?",
+                (hash_password(password), user_id),
+            )
+            db.execute(
+                "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                (now_ms(), user_id),
+            )
+            self.audit(
+                db,
+                "owner.password.reset",
+                rows[0]["email"],
+                company_id=rows[0]["company_id"],
+                actor=owner,
+                ip=ip,
+            )
+        return password
+
+    def owner_set_user_active(
+        self, owner: Principal, user_id: str, active: bool, *, ip: str = ""
+    ) -> None:
+        rows = self._q("SELECT * FROM users WHERE id = ? AND role != 'owner'", (user_id,))
+        if not rows:
+            raise CloudError("not_found", "user not found")
+        with self._tx() as db:
+            db.execute("UPDATE users SET active = ? WHERE id = ?", (int(active), user_id))
+            if not active:
+                db.execute(
+                    "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                    (now_ms(), user_id),
+                )
+            self.audit(
+                db,
+                "owner.user." + ("enabled" if active else "disabled"),
+                rows[0]["email"],
+                company_id=rows[0]["company_id"],
+                actor=owner,
+                ip=ip,
+            )
+
+    def owner_revoke_device(self, owner: Principal, device_id: str, *, ip: str = "") -> None:
+        rows = self._q("SELECT * FROM devices WHERE id = ?", (device_id,))
+        if not rows:
+            raise CloudError("not_found", "device not found")
+        with self._tx() as db:
+            self._revoke(db, device_id)
+            self.audit(
+                db,
+                "owner.device.revoked",
+                rows[0]["label"],
+                company_id=rows[0]["company_id"],
+                actor=owner,
+                ip=ip,
+            )
+
+    def owner_delete_company(self, owner: Principal, company_id: str, *, ip: str = "") -> None:
+        c = self.company_row(company_id)
+        with self._tx() as db:
+            db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
+            self.audit(db, "owner.company.deleted", str(c["name"]), actor=owner, ip=ip)
+
+    def owner_audit(self, company_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+        if company_id:
+            rows = self._q(
+                "SELECT a.*, u.email AS actor FROM audit a LEFT JOIN users u ON u.id = a.actor_id"
+                " WHERE a.company_id = ? ORDER BY a.id DESC LIMIT ?",
+                (company_id, limit),
+            )
+        else:
+            rows = self._q(
+                "SELECT a.*, u.email AS actor, c.name AS company FROM audit a"
+                " LEFT JOIN users u ON u.id = a.actor_id"
+                " LEFT JOIN companies c ON c.id = a.company_id"
+                " ORDER BY a.id DESC LIMIT ?",
+                (limit,),
+            )
+        return [dict(r) for r in rows]

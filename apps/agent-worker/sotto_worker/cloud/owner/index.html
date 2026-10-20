@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sotto Owner Console</title>
+<link rel="stylesheet" href="/owner/owner.css">
+<script src="/owner/owner.js" defer></script>
+</head>
+<body>
+<div id="login" class="login" hidden>
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Sotto <span>Owner console</span></div>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" class="primary">Sign in</button>
+    <p id="loginError" class="error" role="alert"></p>
+  </form>
+</div>
+
+<div id="app" class="shell" hidden>
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Sotto <span>Owner console</span></div>
+    <nav class="tabs" aria-label="Sections">
+      <button type="button" data-view="overview" aria-current="page">Overview</button>
+      <button type="button" data-view="companies">Companies</button>
+      <button type="button" data-view="audit">Audit log</button>
+      <button type="button" data-view="account">Account</button>
+    </nav>
+    <div class="who"><span id="whoEmail"></span><button type="button" id="logout" class="ghost">Sign out</button></div>
+  </header>
+
+  <main>
+    <section id="v-overview" class="view">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="panel"><h2>Calls per day <small>last 30 days</small></h2><div id="chart" class="chart"></div></div>
+        <div class="panel"><h2>Companies by status</h2><div id="statusBars" class="bars"></div>
+          <h2 class="mt">Devices by platform</h2><div id="platformBars" class="bars"></div></div>
+      </div>
+      <div class="panel"><h2>Trials ending in 3 days or less</h2><div id="trials"></div></div>
+    </section>
+
+    <section id="v-companies" class="view" hidden>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search name or admin email" aria-label="Search companies">
+        <select id="statusFilter" aria-label="Filter by status">
+          <option value="">All statuses</option><option value="trial">Trial</option><option value="active">Active</option>
+          <option value="expired">Expired</option><option value="suspended">Suspended</option>
+        </select>
+        <span class="spacer"></span>
+        <button type="button" id="newCompany" class="primary">New company</button>
+      </div>
+      <div class="panel flush"><div class="table-wrap"><table id="companies">
+        <thead><tr><th>Company</th><th>Status</th><th>Seats</th><th>Minutes this month</th><th class="num">Calls 30d</th><th class="num">Speed p95</th><th>Last active</th></tr></thead>
+        <tbody></tbody></table></div></div>
+    </section>
+
+    <section id="v-audit" class="view" hidden>
+      <div class="panel flush"><div class="table-wrap"><table id="audit">
+        <thead><tr><th>When</th><th>Company</th><th>Who</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead><tbody></tbody></table></div></div>
+    </section>
+
+    <section id="v-account" class="view" hidden>
+      <form id="pwForm" class="panel narrow">
+        <h2>Change your password</h2>
+        <label for="pwCur">Current password</label><input id="pwCur" type="password" autocomplete="current-password" required>
+        <label for="pwNew">New password (10+ characters)</label><input id="pwNew" type="password" autocomplete="new-password" minlength="10" required>
+        <button type="submit" class="primary">Change password</button>
+        <p id="pwMsg" class="note" role="status"></p>
+      </form>
+    </section>
+  </main>
+</div>
+
+<aside id="drawer" class="drawer" hidden aria-label="Company details">
+  <div class="drawer-head"><h2 id="dName">Company</h2><button type="button" id="dClose" class="ghost" aria-label="Close">Close</button></div>
+  <div id="dBody" class="drawer-body"></div>
+</aside>
+
+<dialog id="newDialog">
+  <form id="newForm" method="dialog">
+    <h2>New company</h2>
+    <label for="nName">Company name</label><input id="nName" required maxlength="120">
+    <label for="nAdmin">Admin name</label><input id="nAdmin" required maxlength="120">
+    <label for="nEmail">Admin email</label><input id="nEmail" type="email" required>
+    <label for="nPlan">Plan</label>
+    <select id="nPlan"><option value="trial">Trial (14 days, 3 seats, 300 min)</option><option value="starter">Starter (5 seats, 2,000 min)</option><option value="team">Team (20 seats, 10,000 min)</option><option value="custom">Custom (50 seats, 50,000 min)</option></select>
+    <div class="row"><button type="button" id="nCancel" class="ghost">Cancel</button><button type="submit" class="primary">Create</button></div>
+    <p id="nMsg" class="error" role="alert"></p>
+  </form>
+</dialog>
+
+<dialog id="secretDialog">
+  <h2 id="sTitle">One-time password</h2>
+  <p>Give this to the person once. They must change it at first sign-in. It is not shown again.</p>
+  <code id="sValue" class="secret"></code>
+  <div class="row"><button type="button" id="sCopy" class="ghost">Copy</button><button type="button" id="sDone" class="primary">Done</button></div>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

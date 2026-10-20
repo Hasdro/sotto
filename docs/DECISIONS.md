@@ -260,3 +260,42 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - Speechmatics' free plan allows 2 concurrent sessions, which is fine as a backup for a demo.
   - The audio is synthetic, so P2.8 golden calls must confirm these results on real voices before the pilot.
 - **Supersedes:** the STT-OPTIONS recommendation of Deepgram as primary (2026-10-20).
+
+## D-022 — Client apps run the call; the us3 server only manages accounts and subscriptions
+2026-10-20 · owner direction (chat, 2026-10-20 10:00). Sub-choices were made by Claude as recommendations, and the owner reviews them in the Project Hub's Decisions tab.
+
+**Owner direction:**
+- All API calls and network-heavy work (speech-to-text streams, model calls) run **on the client**: the phone, desktop, web or Chrome extension app.
+- The server on us3 does as little as possible and holds as little data as possible. It handles:
+  - sign up and log in;
+  - companies, plans, trials, seats and devices;
+  - company configuration;
+  - the usage numbers that clients report;
+  - an owner-only admin dashboard with client stats and management tools.
+- Log in and sign up happen inside the apps.
+
+**Design (Claude, reversible):**
+- **Engine:** `packages/engine` (TypeScript) is a port of the worker's call pipeline. It covers the playbook lookup, the prompt registry render, the model router with the 0.7 s backup race and the holding line, the OpenAI-compatible, Anthropic and Gemini streaming adapters, and the AssemblyAI and Speechmatics streaming STT. The engine runs in every client and speaks the same demo protocol as `/ws`, so the call screen does not change.
+- **Python worker:** stays. It remains the reference implementation for replays, benchmarks and the local demo, and Phase 4 LiveKit telephony may still need it.
+- **Management server:** `sotto_worker.cloud` (Starlette + SQLite), run by systemd behind Caddy on us3. There is no Docker: 1 vCPU and 1 GB RAM are too small for it.
+  - **Data:** one SQLite file, backed up nightly. Every company-scoped table has `company_id`. Isolation is enforced in the single data-access module and covered by API-level isolation tests: company A cannot read or change company B rows through any route. This replaces RLS for this server; the Supabase/RLS migrations stay in the repo, unused, until a decision supersedes them.
+  - **Auth:**
+    - Passwords are hashed with scrypt.
+    - Opaque bearer tokens: 32 random bytes, stored as SHA-256, one per device, revocable.
+    - Login and signup are rate-limited per client and globally.
+    - Apps send `Authorization: Bearer`, with no cookies, so cross-origin clients (desktop, extension, mobile) need no CSRF handling.
+    - The owner dashboard uses a separate SameSite=Strict cookie and is served from the same origin only.
+  - **Provider keys:**
+    - Recommendation: the company admin enters them once in the app.
+    - The server stores them AES-GCM encrypted (as in D-020).
+    - The server hands them only to signed-in users of that company, and only while the plan allows calls.
+    - This supersedes the "no secrets in client apps" reading for runtime-delivered, per-company keys. No key is ever bundled into a build.
+    - Vendor short-lived tokens (AssemblyAI) replace raw keys where available.
+  - **Plans:**
+    - A trial lasts 14 days with 3 seats and 300 minutes, per the owner's earlier answers.
+    - States: trial, active, suspended, expired. When expired or suspended, sign-in still works and calls are blocked.
+    - Billing is manual for now: the owner marks a company paid in the dashboard.
+- **Desktop:** Electron wraps the web build (Windows, Mac and Linux from one Mac). The Chrome extension is an MV3 side panel that wraps the same web build.
+- **Supersedes:**
+  - D-020's hosted call path for production use. Server-side `/ws` calls remain for `pnpm demo` only.
+  - The Supabase plan in Phase 5, for auth and tenancy on this server.

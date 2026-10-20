@@ -1,0 +1,445 @@
+<title>Sotto Project Hub</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky header with tabs; one column of cards per tab; every card has its own Short/Detailed switch. Terms with a definition use --term colour + dotted underline. */
+:root{
+  --bg:#F1F4F2; --surface:#FFFFFF; --ink:#13231D; --muted:#5B6B65; --line:#D6DFDA;
+  --brand:#0E6B55; --brand-ink:#FFFFFF; --brand-soft:#DDEFE8;
+  --term:#6A3FB5; --term-soft:#EEE7FA;
+  --ok:#1D7A3B; --ok-soft:#DFF2E4; --warn:#8C5A00; --warn-soft:#FBEBD0; --bad:#B23A30; --bad-soft:#F8E1DE;
+  --display:"Readex Pro",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1512; --surface:#14201B; --ink:#E2ECE7; --muted:#97A9A1; --line:#26362F;
+  --brand:#4FC9A6; --brand-ink:#062019; --brand-soft:#123A2F;
+  --term:#C3A6FF; --term-soft:#2A2140;
+  --ok:#6FD48D; --ok-soft:#12301C; --warn:#F0B95C; --warn-soft:#3A2A10; --bad:#F2877C; --bad-soft:#3A1B18; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D1512; --surface:#14201B; --ink:#E2ECE7; --muted:#97A9A1; --line:#26362F;
+  --brand:#4FC9A6; --brand-ink:#062019; --brand-soft:#123A2F;
+  --term:#C3A6FF; --term-soft:#2A2140;
+  --ok:#6FD48D; --ok-soft:#12301C; --warn:#F0B95C; --warn-soft:#3A2A10; --bad:#F2877C; --bad-soft:#3A1B18; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--display);font-size:15px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding-block:12px 4px}
+.top h1{margin:0;font-size:19px;font-weight:600;letter-spacing:-.01em}
+.top .stamp{font:500 11px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.spacer{flex:1}
+.allbtn{border:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 13px var(--display);padding:6px 12px;border-radius:999px;cursor:pointer}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;padding-block:6px 8px;scrollbar-width:thin}
+nav.tabs button{flex:0 0 auto;border:0;background:none;color:var(--muted);font:500 14px var(--display);padding:7px 12px;border-radius:8px;cursor:pointer;display:flex;gap:6px;align-items:center}
+nav.tabs button[aria-selected="true"]{background:var(--brand-soft);color:var(--brand)}
+nav.tabs .n{font:500 11px var(--mono);background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:0 6px}
+button:focus-visible,.term:focus-visible,label.opt:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+main .wrap{display:grid;gap:14px;padding-block:20px 72px}
+.lead{margin:0 0 4px;color:var(--muted);max-width:70ch}
+h2.tabtitle{margin:4px 0 0;font-size:24px;font-weight:600;letter-spacing:-.015em;text-wrap:balance}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:10px;min-width:0}
+.chead{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.chead h3{margin:0;font-size:17px;font-weight:600;text-wrap:balance}
+.eyebrow{font:500 11px var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.sw{flex:0 0 auto;display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--bg)}
+.sw button{border:0;background:none;color:var(--muted);font:500 12px var(--display);padding:4px 10px;border-radius:999px;cursor:pointer}
+.sw button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.body p{margin:0 0 8px;max-width:72ch}
+.body p:last-child{margin-bottom:0}
+.body ul{margin:0;padding-left:20px;display:grid;gap:5px}
+.card .full{display:none}
+.card.detailed .short{display:none}
+.card.detailed .full{display:block}
+.term{color:var(--term);text-decoration:underline dotted;text-underline-offset:3px;cursor:help;border-radius:3px}
+.term:hover{background:var(--term-soft)}
+#tip{position:fixed;z-index:30;max-width:300px;background:var(--ink);color:var(--surface);font-size:13.5px;line-height:1.45;padding:9px 12px;border-radius:9px;pointer-events:none;box-shadow:0 8px 24px -10px rgba(0,0,0,.4)}
+#tip b{display:block;font-size:12px;opacity:.75;margin-bottom:2px}
+.pill{display:inline-flex;align-items:center;font:500 11px var(--mono);letter-spacing:.04em;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.run{background:var(--brand-soft);color:var(--brand)}
+.meterbar{height:14px;border-radius:999px;background:var(--line);overflow:hidden;display:flex}
+.meterbar i{display:block;height:100%}
+.big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.big strong{font-size:40px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+@media (max-width:720px){.grid2{grid-template-columns:1fr}}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+tr:last-child td{border-bottom:0}
+.opts{display:grid;gap:7px}
+label.opt{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+label.opt.on{border-color:var(--brand);background:var(--brand-soft)}
+label.opt input{margin:4px 0 0;accent-color:var(--brand)}
+.olab{font-weight:500}
+.rec{font:500 10px var(--mono);color:var(--brand);margin-left:6px;letter-spacing:.06em;text-transform:uppercase}
+.odesc{display:block;color:var(--muted);font-size:13.5px}
+.card:not(.detailed) .odesc{display:none}
+textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:14px var(--display);color:var(--ink);background:var(--bg);resize:vertical}
+.savebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.savebar p{margin:0;color:var(--muted)}
+.btn{border:1px solid var(--brand);background:var(--brand);color:var(--brand-ink);font:500 14px var(--display);padding:8px 16px;border-radius:10px;cursor:pointer}
+.save{font:500 12px var(--mono);color:var(--muted)}
+.plat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
+@media (max-width:860px){.plat{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.plat{grid-template-columns:1fr}}
+.metro{display:grid;gap:10px}
+.phase{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:start}
+.dot{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font:600 15px var(--mono);border:2px solid var(--line);background:var(--surface)}
+.dot.run{border-color:var(--brand);color:var(--brand)} .dot.done{background:var(--ok);border-color:var(--ok);color:var(--surface)} .dot.wait{border-color:var(--warn);color:var(--warn)}
+.pbar{height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--brand)}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:720px){.cols{grid-template-columns:1fr}}
+.cols h4{margin:0 0 4px;font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.cols ul{font-size:14px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:9px 14px;border-radius:10px;font-size:14px;z-index:40}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>Sotto Project Hub</h1>
+      <span class="stamp" id="stamp"></span>
+      <span class="spacer"></span>
+      <button type="button" class="allbtn" id="allShort">All short</button>
+      <button type="button" class="allbtn" id="allFull">All detailed</button>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections" id="tabs"></nav>
+  </div>
+</header>
+<main><div class="wrap" id="panel"></div></main>
+<div id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ======================= DATA (Claude updates this block each round) ======================= */
+const UPDATED = "20 Oct 2026 · 10:15";
+
+/* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
+const TERMS = {
+ "server":"A computer on the internet that is always on. Ours is 'us3' (104.168.48.116).",
+ "us3":"Your rented server in the US. 1 processor, 1 GB memory, 10 GB disk, Ubuntu 26.04.",
+ "client app":"The app your customers' sales agents install: phone, computer, browser or Chrome extension.",
+ "admin dashboard":"A private web page on the server, only for you, to see and manage every customer company.",
+ "API key":"A secret password a service (like Groq or AssemblyAI) gives you so programs can use it and bill you.",
+ "speech-to-text":"A service that turns the customer's voice into written words, live, while they speak.",
+ "AI model":"The program that reads the conversation and writes the suggestion (for example Groq or Gemini).",
+ "p95":"95 out of 100 cards are at least this fast. We use it so a few slow cards cannot hide behind a good average.",
+ "playbook":"Your approved answers: products, prices, common questions and objections.",
+ "holding line":"The safe sentence shown when there is no good answer: 'Good question, let me confirm and send it to you today.'",
+ "escalation":"A question the AI could not answer, sent to the sales manager to answer once and add to the playbook.",
+ "tenant":"One customer company inside Sotto. Each company only ever sees its own data.",
+ "database":"Where the server keeps accounts, companies, plans and usage numbers.",
+ "SQLite":"A database stored in one file on the server. Simple, fast, and plenty for thousands of users. Easy to back up by copying the file.",
+ "Postgres":"A bigger database program that runs as its own service. Worth it later if we grow past one server.",
+ "HTTPS":"The padlock in the browser: traffic between app and server is encrypted.",
+ "Caddy":"A small web server program that gets the HTTPS padlock certificate automatically and passes traffic to Sotto.",
+ "systemd":"Ubuntu's built-in service manager. It starts Sotto when the server boots and restarts it if it crashes.",
+ "Docker":"A tool that packages a program with everything it needs. We skipped it on us3 because 1 GB memory is tight.",
+ "Electron":"A proven way to turn a web app into an installable Windows, Mac and Linux program (Slack, VS Code and WhatsApp desktop use it).",
+ "Tauri":"A lighter alternative to Electron. Smaller downloads, but needs extra build tools for each operating system.",
+ "Expo":"The toolkit we use to build the iPhone, Android and web app from one codebase.",
+ "PWA":"Progressive web app: a website that can be installed like an app from Chrome or Edge, with its own icon and window.",
+ "APK":"An Android app file you can install directly on a phone without the Play Store, for testing.",
+ "TestFlight":"Apple's official way to send test versions of an iPhone app to testers. Needs an Apple Developer account ($99 a year).",
+ "Xcode":"Apple's free tool for building iPhone apps. Only runs on a Mac and is about 12 GB.",
+ "Chrome extension":"A small add-on that lives in the Chrome toolbar. Ours opens Sotto in a side panel next to any web phone.",
+ "sideload":"Install an app directly from a file instead of from an app store.",
+ "encrypted":"Scrambled with a secret key so that anyone who copies the file cannot read it.",
+ "trial":"Free period for a new company: 14 days, 3 seats, 300 call minutes.",
+ "seat":"One user (agent, manager or admin) who can sign in for a company.",
+ "sslip.io":"A free service that gives any server an address like 104-168-48-116.sslip.io so it can get HTTPS without buying a domain.",
+ "short-lived key":"A key that works for a few minutes only. Some vendors (like AssemblyAI) can issue these so the real key never leaves the server.",
+ "LiveKit":"A service that carries live call audio between the phone network and the app.",
+ "Yeastar":"Your office phone system.",
+ "Supabase":"A hosted database + sign-in service we planned earlier. Your new direction (own server) replaces it."
+};
+
+const TABS = [
+ {id:"overview", label:"Where we are"},
+ {id:"decisions", label:"Your decisions", badge:()=>DECISIONS.length},
+ {id:"server", label:"Server"},
+ {id:"apps", label:"Apps & platforms"},
+ {id:"map", label:"Build map"}
+];
+
+const OVERVIEW = {
+ pct: 52,
+ parts:[{label:"Done", v:52, c:"var(--ok)"},{label:"In progress now", v:14, c:"var(--brand)"},{label:"Not started", v:34, c:"var(--line)"}],
+ cards:[
+  {eyebrow:"Status", title:"Where are we?",
+   short:"The brain works and is fast: about 1 second from the customer's last word to a suggestion. This round moves it from the server into the apps, adds sign-up and log-in, and puts your admin dashboard on [[us3]].",
+   full:["The suggestion engine is finished and measured on your real keys: playbook answers in about 0.5 s and AI answers in 0.8–1.3 s, inside the 1.5 s rule ([[p95]] 1,069 ms).",
+         "You changed direction today: the [[client app]] does all the heavy work (listening, [[speech-to-text]], [[AI model]] calls) on the agent's own device. The [[server]] only manages accounts, subscriptions and usage numbers, and hosts your private [[admin dashboard]].",
+         "That change is what I am building this round. The Build map tab shows every phase."]},
+  {eyebrow:"Progress", title:"How much is done?",
+   short:"About half (52%). The engine, screens, keys panel and safety net are done. Sign-in, subscriptions, store builds and real phone calls are not.",
+   full:["Done: suggestion engine (Phase 2, 92%), screens in light/dark/Arabic (Phase 3, 97%), keys & models panel (Phase 6, 65%), unanswered-question inbox (Phase 7, 70%), automatic checks on every change.",
+         "Your new direction adds work: moving the engine into the apps, accounts and subscriptions on the server, and installable apps for each platform. That is why the total dropped from about 60% to 52%."]},
+  {eyebrow:"Remaining", title:"What is left?",
+   short:"Engine inside the apps, sign-in and subscriptions, your dashboard, installable apps, real phone calls, then a pilot.",
+   full:["1. Run the engine inside the app instead of the server (this round).",
+         "2. Sign up / log in, companies, [[trial]]s and plans, stored in a [[database]] on us3 (this round).",
+         "3. Your admin dashboard with client stats and tools (this round).",
+         "4. Installable apps: Windows, Mac, Linux, web, [[Chrome extension]] (this round); Android [[APK]] (this round if the Android tools install cleanly); iPhone (needs you, see Decisions).",
+         "5. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4).",
+         "6. Your real [[playbook]], load tests, then a one-week pilot."]},
+  {eyebrow:"Blockers", title:"What is holding us up?",
+   short:"Only you can unblock three things: iPhone builds, your real playbook, and the phone line for live calls.",
+   full:["iPhone: building needs [[Xcode]] on your Mac (free, but it asks for your Mac password) and, for testers, an Apple Developer account ($99/yr).",
+         "Real answers: the demo uses an invented company. I need your product, price and FAQ documents to write your playbook.",
+         "Live phone calls: need a [[LiveKit]] account (free) and your [[Yeastar]] admin details.",
+         "Nothing else is blocked. Everything else I can do myself."]},
+  {eyebrow:"Your to-do", title:"What I need from you",
+   short:"Answer the 6 questions in the Decisions tab (my picks are pre-selected), and send your playbook documents.",
+   full:["1. Decisions tab: 6 questions, my recommendation already selected. Leave it if you agree and press Save.",
+         "2. Your product, price and FAQ documents (any format).",
+         "3. When convenient: install Xcode (App Store) so I can build the iPhone app.",
+         "4. Later: LiveKit account and Yeastar admin details for real calls."]}
+ ]
+};
+
+const DECISIONS = [
+ {id:"keys_where", title:"Where the AI service keys live",
+  short:"Recommended: the company admin enters keys once; the server keeps them [[encrypted]] and hands them only to that company's signed-in apps.",
+  full:"The apps now call the AI and [[speech-to-text]] services themselves, so each app needs the [[API key]]. Typing keys on every phone is painful and keys get lost. Keeping them on the server, locked per company, means one place to change them. Where a vendor supports it, the app gets a [[short-lived key]] instead of the real one.",
+  rec:"server", options:[
+   {v:"server", l:"Admin enters once; server hands them to signed-in apps", d:"One place to manage. Server sends a few bytes at call start, nothing heavy."},
+   {v:"device", l:"Each device enters its own keys", d:"Server never sees keys. Every agent must paste keys on every device."},
+   {v:"owner", l:"You provide the keys for all companies and bill them", d:"Simplest for customers; you pay the AI bills and charge in the subscription."}]},
+ {id:"db", title:"Which database runs on the server",
+  short:"Recommended: [[SQLite]], one file, backed up every night. Move to [[Postgres]] later if needed.",
+  full:"us3 has 1 GB of memory. SQLite uses almost none and handles thousands of users and companies easily. Postgres would take a third of the memory for no benefit at our size. Switching later is a one-day job because the code talks to the database through one module.",
+  rec:"sqlite", options:[
+   {v:"sqlite", l:"SQLite with nightly backups", d:"Light and simple. Backups kept 14 days on the server."},
+   {v:"postgres", l:"Postgres now", d:"More moving parts and memory on a small server."}]},
+ {id:"desktop", title:"How we build the Windows, Mac and Linux apps",
+  short:"Recommended: [[Electron]]. It builds all three from your Mac today with no extra installs.",
+  full:"Electron wraps our existing app into an installable program with microphone access and its own window. [[Tauri]] makes smaller downloads but needs extra build tools on each operating system (Windows builds really need a Windows machine). We can switch later; the app inside stays the same.",
+  rec:"electron", options:[
+   {v:"electron", l:"Electron", d:"Proven; about 100 MB download."},
+   {v:"tauri", l:"Tauri", d:"About 10 MB download; needs Rust and a Windows machine for Windows builds."},
+   {v:"pwa", l:"Installable web app only", d:"No download at all, installs from Chrome or Edge. Fewer desktop features."}]},
+ {id:"iphone", title:"How we build the iPhone app",
+  short:"Recommended: install [[Xcode]] on your Mac (free). I can then build and test it on the iPhone simulator myself.",
+  full:"Apple only allows iPhone apps to be built with Xcode on a Mac. Installing it needs your Mac password, so I cannot do it alone. Alternative: Expo's cloud build service (free tier) builds it for us, but needs a free Expo account. To send it to real testers you also need an Apple Developer account ($99 a year) for [[TestFlight]].",
+  rec:"xcode", options:[
+   {v:"xcode", l:"I'll install Xcode from the App Store", d:"About 12 GB. Then I build and test it myself."},
+   {v:"eas", l:"Use Expo cloud builds (I'll create a free Expo account)", d:"Nothing to install; builds take about 15 minutes in the cloud."},
+   {v:"later", l:"Later, Android and desktop first", d:""}]},
+ {id:"billing", title:"How customers pay their subscription",
+  short:"Recommended: for the first customers you invoice them yourself and mark them paid in your dashboard. Add card payments (Stripe) later.",
+  full:"Your dashboard can change a company's plan, extend a [[trial]], add [[seat]]s or suspend a company. Connecting card payments needs a Stripe account and prices, which only make sense once the first customers say yes.",
+  rec:"manual", options:[
+   {v:"manual", l:"Manual invoices; I mark paid in the dashboard", d:""},
+   {v:"stripe", l:"Card payments with Stripe now", d:"Needs a Stripe account and your prices."}]},
+ {id:"audio_days", title:"How long to keep call audio",
+  short:"You chose to keep audio. Recommended: 30 days, then it is deleted automatically.",
+  full:"Audio is large and sensitive. 30 days covers disputes and coaching. With the new design the audio stays on the agent's device, not on your server.",
+  rec:"30", options:[
+   {v:"7", l:"7 days", d:""},{v:"30", l:"30 days", d:""},{v:"90", l:"90 days", d:""},{v:"365", l:"1 year", d:""}]}
+];
+
+const SERVER = [
+ {eyebrow:"What I did", title:"What I did on us3 in the previous round",
+  short:"Nothing. My connection to the server was blocked last round, so I only prepared an install kit. Today the connection works and I am installing now.",
+  full:["Last round, my safety system blocked the connection to [[us3]], so I built and tested an install kit on your Mac but did not change the server.",
+        "Today I checked: us3 is a clean Ubuntu 26.04 server with 1 processor, 1 GB memory and 10 GB disk. Nothing else runs on it, so installing Sotto disturbs nothing."]},
+ {eyebrow:"Installing this round", title:"What I am installing",
+  short:"Three small things: the Sotto management program, [[Caddy]] for the [[HTTPS]] padlock, and a [[database]] file. No [[Docker]].",
+  full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate for 104-168-48-116.[[sslip.io]] and renews it automatically.",
+        "Python 3.13 and the Sotto management program, run by [[systemd]] so it restarts on crash and on reboot.",
+        "One [[SQLite]] database file with nightly backups.",
+        "Firewall: only ports 22 (your SSH), 80 and 443 open.",
+        "I dropped Docker because 1 GB of memory is too tight for it plus builds."]},
+ {eyebrow:"Its job", title:"What the server will do (and not do)",
+  short:"Manage accounts and subscriptions and collect usage numbers. It never carries call audio or AI traffic.",
+  full:["Does: sign up and log in, companies ([[tenant]]s), [[trial]]s and plans, [[seat]]s and devices, the company's settings, [[playbook]] and prompts, [[encrypted]] keys, usage numbers sent by the apps after each call, and your private [[admin dashboard]].",
+        "Does not: listen to calls, turn speech into text, or call the AI. The [[client app]] does all of that on the agent's device and talks to the AI services directly.",
+        "So the server stays small and cheap, and a server outage never stops a call already running."]},
+ {eyebrow:"Your dashboard", title:"Your admin dashboard",
+  short:"A private page on us3, only for you: every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",
+  full:["Numbers: companies by plan, active users today, calls and minutes per day, card speed per company, trials ending soon.",
+        "Tools: create a company, change plan, extend a trial, change seat and minute limits, suspend or re-activate, reset a user's password, sign a device out, and see the audit log of every change.",
+        "Only your owner account can open it. Address and first sign-in details come in the next update of this page."]}
+];
+
+const PLATFORMS = [
+ {name:"iPhone", prio:true, st:"bad", stl:"Blocked on you",
+  short:"Code is ready (same app). Building needs [[Xcode]] or an Expo account.",
+  full:"The app is built with [[Expo]], so the iPhone version is the same code. Apple requires Xcode on a Mac to build it; see the decision 'How we build the iPhone app'. For testers: Apple Developer account ($99/yr) and [[TestFlight]]."},
+ {name:"Android", prio:true, st:"run", stl:"Building this round",
+  short:"Same code. I'm installing the free Android build tools to make a test [[APK]] you can [[sideload]].",
+  full:"No account needed for a test APK. Publishing on the Play Store later needs a Google Play account ($25 once)."},
+ {name:"Windows", prio:true, st:"run", stl:"Building this round",
+  short:"Installable program built with [[Electron]], plus the web app.",
+  full:"Built from your Mac. Unsigned for now, so Windows shows a 'More info → Run anyway' warning the first time. A code-signing certificate removes that later."},
+ {name:"Mac", prio:true, st:"run", stl:"Building this round",
+  short:"Installable app built with [[Electron]], plus the web app.",
+  full:"Unsigned for now: the first time, right-click → Open. Apple notarisation needs the Apple Developer account."},
+ {name:"Linux", st:"run", stl:"Building this round",
+  short:"AppImage built with [[Electron]].", full:"One file that runs on most Linux desktops. Lower priority; built alongside Windows and Mac."},
+ {name:"Web", st:"ok", stl:"Works today",
+  short:"Runs in any modern browser; can be installed as a [[PWA]].", full:"This round it moves to us3 with sign-up and log-in. The heavy work runs in the browser, not on the server."},
+ {name:"Chrome extension", st:"run", stl:"Building this round",
+  short:"Opens Sotto in a side panel next to any web phone or CRM.", full:"Same app inside a [[Chrome extension]] side panel. Loaded unpacked for testing; the Chrome Web Store needs a $5 developer account later."}
+];
+
+const PHASES = [
+ {n:0, name:"Brief & playbook", pct:60, st:"wait",
+  short:"Your answers are in. Waiting for your real playbook documents.",
+  done:["Your earlier answers applied: English calls, close the sale, all four card types","Trial 14 days, 3 seats, 300 minutes"], next:["Draft your playbook from your documents"], you:["Product, price and FAQ documents"]},
+ {n:1, name:"Architecture & skeleton", pct:95, st:"run",
+  short:"Blueprint approved. Updated today for your new 'apps do the work, server manages' design.",
+  done:["One codebase for phone, web and desktop","Automatic checks on every change"], next:["Write the new design down as decision D-022"], you:[]},
+ {n:2, name:"Suggestion engine", pct:92, st:"run",
+  short:"Fast and live on your keys: about 1 s to a card. Moving into the apps this round.",
+  done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)"], next:["Run the engine inside the app","End-of-turn model"], you:["Test recordings, later"]},
+ {n:3, name:"Design & screens", pct:97, st:"run",
+  short:"All screens done in light, dark and Arabic. Sign-up and log-in screens added this round.",
+  done:["In-call, history, playbook, inbox, admin screens","Accessibility check on every screen"], next:["Sign-up and log-in screens"], you:["Tell me what to change in the design"]},
+ {n:4, name:"Live calls", pct:15, st:"wait",
+  short:"Waiting for LiveKit and Yeastar details.",
+  done:["Rules for who may start a call"], next:["Phone calls through the app"], you:["[[LiveKit]] account","[[Yeastar]] admin details"]},
+ {n:5, name:"Companies & accounts", pct:40, st:"run",
+  short:"Moving from [[Supabase]] to your own server: sign-up, log-in, trials and plans this round.",
+  done:["Company walls designed and tested"], next:["Accounts and subscriptions on us3","Your admin dashboard"], you:["Decisions tab: keys and database"]},
+ {n:6, name:"Prompts & models", pct:65, st:"run",
+  short:"Keys panel, model per job and speed check done.",
+  done:["Keys & providers panel","Your own endpoints (Ollama tested)"], next:["Prompt versions saved on the server"], you:[]},
+ {n:7, name:"Escalations & CRM", pct:70, st:"run",
+  short:"Unanswered questions reach the inbox and grow the playbook.",
+  done:["Inbox → playbook loop"], next:["Zoho CRM connector"], you:["Zoho access, later"]},
+ {n:8, name:"Apps, hardening & pilot", pct:15, st:"run",
+  short:"Server going live on us3 and desktop/web/extension builds this round.",
+  done:["Security review: all findings fixed"], next:["Server live on us3","Installable apps","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
+];
+/* ======================= END DATA ======================= */
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function rich(text){
+  return esc(text).replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, shown, key) => {
+    const k = key || shown; const def = TERMS[k];
+    return def ? `<span class="term" tabindex="0" data-k="${esc(k)}">${shown}</span>` : shown;
+  });
+}
+let detailed = {}; try { detailed = JSON.parse(localStorage.getItem("hub.detail") || "{}"); } catch {}
+let tab = "overview"; try { tab = location.hash.slice(1) || localStorage.getItem("hub.tab") || "overview"; } catch {}
+if (!TABS.some(t => t.id === tab)) tab = "overview";
+
+function card({id, eyebrow, title, short, full, extra = ""}){
+  const isD = !!detailed[id];
+  const fullHtml = Array.isArray(full) ? full.map(p => `<p>${rich(p)}</p>`).join("") : `<p>${rich(full || "")}</p>`;
+  return `<article class="card${isD ? " detailed" : ""}" data-id="${id}">
+    <div class="chead"><div>${eyebrow ? `<div class="eyebrow">${esc(eyebrow)}</div>` : ""}<h3>${rich(title)}</h3></div>
+      <div class="sw" role="group" aria-label="Format for ${esc(title)}"><button type="button" data-f="s" aria-pressed="${!isD}">Short</button><button type="button" data-f="d" aria-pressed="${isD}">Detailed</button></div></div>
+    <div class="body"><div class="short"><p>${rich(short)}</p></div><div class="full">${fullHtml}</div>${extra}</div></article>`;
+}
+
+function renderTabs(){
+  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
+}
+const views = {
+ overview(){
+  const o = OVERVIEW;
+  const meter = `<div class="card"><div class="eyebrow">Overall progress</div><div class="big"><strong>${o.pct}%</strong><span class="lead">of the full product</span></div>
+   <div class="meterbar" role="img" aria-label="${o.parts.map(p => p.label + " " + p.v + "%").join(", ")}">${o.parts.map(p => `<i style="width:${p.v}%;background:${p.c}"></i>`).join("")}</div>
+   <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)">${o.parts.map(p => `<span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${p.c};margin-right:5px;vertical-align:-1px"></i>${p.label} ${p.v}%</span>`).join("")}</div></div>`;
+  return `<h2 class="tabtitle">Where we are</h2><p class="lead">Each card has a Short and a Detailed view. Purple underlined words show a definition when you hover or tap.</p>${meter}<div class="grid2">${o.cards.map((c, i) => card({id:"o" + i, ...c})).join("")}</div>`;
+ },
+ decisions(){
+  return `<h2 class="tabtitle">Your decisions</h2><p class="lead">My recommendation is already selected on each. If you agree, do nothing and press Save. Your choices save here and I read them at the start of my next round.</p>
+   ${DECISIONS.map(d => card({id:"d-" + d.id, eyebrow:"Decision", title:d.title, short:d.short, full:d.full, extra:optsHtml(d)})).join("")}
+   <div class="savebar"><p id="saveMsg">Nothing changed yet.</p><span class="save" id="saveState"></span><button type="button" class="btn" id="saveBtn">Save my choices</button></div>`;
+ },
+ server(){
+  return `<h2 class="tabtitle">Server (us3)</h2><p class="lead">Your server only manages accounts and subscriptions. Calls never pass through it.</p>${SERVER.map((c, i) => card({id:"s" + i, ...c})).join("")}`;
+ },
+ apps(){
+  const pill = p => `<span class="pill ${p.st}">${esc(p.stl)}</span>`;
+  return `<h2 class="tabtitle">Apps & platforms</h2><p class="lead">One codebase for every platform. Your priority: phones, Windows and Mac.</p>
+   <div class="plat">${PLATFORMS.map((p, i) => card({id:"p" + i, eyebrow:p.prio ? "Priority" : "Platform", title:p.name, short:p.short, full:p.full, extra:`<div>${pill(p)}</div>`})).join("")}</div>`;
+ },
+ map(){
+  const avg = Math.round(PHASES.reduce((a, p) => a + p.pct, 0) / PHASES.length);
+  return `<h2 class="tabtitle">Build map</h2><p class="lead">Nine phases from idea to pilot; average phase completion ${avg}%. Switch a phase to Detailed to see what is done, what is next, and what is waiting on you.</p>
+   <div class="metro">${PHASES.map(p => {
+     const li = a => a.length ? `<ul>${a.map(x => `<li>${rich(x)}</li>`).join("")}</ul>` : `<p class="lead">Nothing</p>`;
+     const extra = `<div class="pbar" role="img" aria-label="${p.pct}% done"><i style="width:${p.pct}%"></i></div><div class="full"><div class="cols"><div><h4>Done</h4>${li(p.done)}</div><div><h4>Next</h4>${li(p.next)}</div><div><h4>Needs you</h4>${li(p.you)}</div></div></div>`;
+     return `<div class="phase"><div class="dot ${p.pct >= 100 ? "done" : p.st}">${p.n}</div>${card({id:"m" + p.n, eyebrow:`Phase ${p.n} · ${p.pct}%`, title:p.name, short:p.short, full:[], extra})}</div>`;
+   }).join("")}</div>`;
+ }
+};
+function optsHtml(d){
+  const cur = choices[d.id]?.v ?? d.rec;
+  return `<div class="opts" role="radiogroup" aria-label="${esc(d.title)}">${d.options.map(o => `<label class="opt${cur === o.v ? " on" : ""}"><input type="radio" name="dc-${d.id}" id="dc-${d.id}-${o.v}" value="${o.v}"${cur === o.v ? " checked" : ""}><span><span class="olab">${esc(o.l)}</span>${o.v === d.rec ? '<span class="rec">Recommended</span>' : ""}<span class="odesc">${rich(o.d || "")}</span></span></label>`).join("")}</div>
+   <textarea id="dn-${d.id}" placeholder="Optional note" aria-label="Note for ${esc(d.title)}">${esc(choices[d.id]?.note || "")}</textarea>`;
+}
+function render(){
+  renderTabs();
+  $("#stamp").textContent = "Updated " + UPDATED;
+  $("#panel").innerHTML = views[tab]();
+  if (tab === "decisions") wireDecisions();
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest(".sw button");
+  if (b){ const c = b.closest(".card"); const d = b.dataset.f === "d"; detailed[c.dataset.id] = d; c.classList.toggle("detailed", d);
+    c.querySelectorAll(".sw button").forEach(x => x.setAttribute("aria-pressed", String((x.dataset.f === "d") === d)));
+    try { localStorage.setItem("hub.detail", JSON.stringify(detailed)); } catch {} return; }
+  const t = e.target.closest("nav.tabs button");
+  if (t){ tab = t.dataset.t; try { localStorage.setItem("hub.tab", tab); } catch {} render(); window.scrollTo(0, 0); }
+});
+function setAll(d){ document.querySelectorAll(".card").forEach(c => { detailed[c.dataset.id] = d; }); try { localStorage.setItem("hub.detail", JSON.stringify(detailed)); } catch {} render(); }
+$("#allShort").onclick = () => setAll(false); $("#allFull").onclick = () => setAll(true);
+
+const tip = $("#tip");
+function showTip(el){ const k = el.dataset.k; tip.innerHTML = `<b>${esc(k)}</b>${esc(TERMS[k] || "")}`; tip.hidden = false;
+  const r = el.getBoundingClientRect(); const w = Math.min(300, window.innerWidth - 24);
+  tip.style.maxWidth = w + "px"; const x = Math.max(12, Math.min(r.left, window.innerWidth - w - 12));
+  tip.style.left = x + "px"; const below = r.bottom + 8; tip.style.top = (below + tip.offsetHeight > window.innerHeight - 10 ? r.top - tip.offsetHeight - 8 : below) + "px"; }
+document.addEventListener("mouseover", e => { const t = e.target.closest(".term"); if (t) showTip(t); });
+document.addEventListener("mouseout", e => { if (e.target.closest(".term")) tip.hidden = true; });
+document.addEventListener("focusin", e => { const t = e.target.closest(".term"); if (t) showTip(t); });
+document.addEventListener("focusout", e => { if (e.target.closest(".term")) tip.hidden = true; });
+window.addEventListener("scroll", () => { tip.hidden = true; }, {passive:true});
+
+let choices = {}; let ref = null; let dirty = false;
+try { choices = JSON.parse(localStorage.getItem("hub.choices") || "{}"); } catch {}
+function toast(m){ const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
+function wireDecisions(){
+  for (const d of DECISIONS){
+    document.querySelectorAll(`input[name="dc-${d.id}"]`).forEach(inp => inp.addEventListener("change", () => {
+      choices[d.id] = {...(choices[d.id] || {}), v: inp.value}; dirty = true; local();
+      document.querySelectorAll(`input[name="dc-${d.id}"]`).forEach(x => x.closest("label").classList.toggle("on", x.checked)); msg(); }));
+    const ta = $("#dn-" + d.id); ta.addEventListener("input", () => { choices[d.id] = {...(choices[d.id] || {v:d.rec}), note: ta.value}; dirty = true; local(); msg(); });
+  }
+  $("#saveBtn").onclick = save; msg();
+}
+function local(){ try { localStorage.setItem("hub.choices", JSON.stringify(choices)); } catch {} }
+function msg(){ const el = $("#saveMsg"); if (!el) return;
+  const changed = DECISIONS.filter(d => choices[d.id] && choices[d.id].v !== d.rec).length;
+  el.textContent = dirty ? `Unsaved changes. ${changed} differ from my recommendation.` : (choices._savedAt ? `Saved ${new Date(choices._savedAt).toLocaleString()}.` : "Nothing saved yet. Saving with no changes means you accept all my recommendations.");
+  const s = $("#saveState"); if (s) s.textContent = ref ? "connected" : "this browser only"; }
+async function save(){
+  const out = {}; for (const d of DECISIONS) out[d.id] = {v: choices[d.id]?.v ?? d.rec, note: choices[d.id]?.note || "", recommended: d.rec};
+  choices._savedAt = new Date().toISOString(); local(); dirty = false;
+  if (!ref){ msg(); toast("Saved in this browser only (not connected)"); return; }
+  try { await ref.set({answers: out, savedAt: choices._savedAt}); toast("Saved. Claude will read these next round."); }
+  catch { toast("Could not save. Try again."); }
+  msg();
+}
+render();
+(async () => {
+  let db = null; try { db = window.claude?.use ? await window.claude.use("db") : null; } catch {}
+  if (!db) return;
+  ref = db.doc("decisions/owner");
+  ref.onSnapshot(snap => { if (snap.exists && !dirty){ const a = snap.data().answers || {}; for (const k in a) choices[k] = {v:a[k].v, note:a[k].note || ""}; choices._savedAt = snap.data().savedAt; local(); if (tab === "decisions") render(); } }, () => {});
+  msg();
+})();
+</script>
