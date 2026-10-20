@@ -28,7 +28,7 @@ describe("Button", () => {
     await render(<Button label="Send" onPress={onPress} disabled testID="b" />);
     await fireEvent.press(screen.getByTestId("b"));
     expect(onPress).not.toHaveBeenCalled();
-    expect(screen.getByTestId("b")).toHaveProp("accessibilityState", { disabled: true });
+    expect(screen.getByTestId("b")).toBeDisabled();
   });
 
   it.each(["md", "lg"] as const)("size %s meets the 44 pt touch target", async (size) => {
@@ -112,7 +112,7 @@ describe("SegmentedControl", () => {
         testID="s"
       />,
     );
-    expect(screen.getByTestId("s-customer")).toHaveProp("accessibilityState", { checked: true });
+    expect(screen.getByTestId("s-customer")).toBeChecked();
     await fireEvent.press(screen.getByTestId("s-agent"));
     expect(onChange).toHaveBeenCalledWith("agent");
   });

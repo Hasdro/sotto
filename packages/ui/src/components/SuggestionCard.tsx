@@ -118,7 +118,7 @@ export function SuggestionCard({
       testID={testID}
       accessible
       accessibilityLabel={a11yLabel}
-      accessibilityState={{ busy: !done }}
+      aria-busy={!done}
       style={[
         styles.hero,
         { backgroundColor: c.fill },

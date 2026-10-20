@@ -34,7 +34,7 @@ Set on 2026-10-18 (P1.8). The owner deferred the interview (D-009), so the numbe
 | Metric | Today | Becomes enforced |
 |---|---|---|
 | TypeScript coverage (`packages/*`, `apps/app`) | not measured | P2.1: add `@vitest/coverage-v8` with a floor for `packages/shared` |
-| Accessibility of screens (axe-core) | no screens yet | P3.3: the gallery runs axe on the web build in CI; zero serious or critical violations |
+| Accessibility of screens (axe-core) | 11 screens × light/dark/Arabic RTL = 33 checks, 0 serious/critical (2026-10-20) | `pnpm a11y` on the web build, in CI; zero serious or critical violations (WCAG 2.1 A/AA) |
 | Stop-hook duration | ~8 s | Keep it under 20 s (P1.4); move slow suites to CI if it grows |
 
 ## Exceptions

@@ -27,7 +27,7 @@ Tags:
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** cross-phase demo build (D-020): the Sotto server = hosted demo with keys panel (P6.7), spoken customer track, R2 inbox loop, company settings, deploy kit. Phases 2/3/5/6/7 partly done (task board).
-- **Next task:** owner deploys to us3 (`deploy/README.md`); for Claude: P3.3 axe in CI (needs Playwright, reversible devDependency), then the playbook editor (P3.5) and T-009 follow-ups.
+- **Next task:** owner deploys to us3 (`deploy/README.md`); for Claude: the playbook editor (P3.5), then the end-of-turn model (T-011).
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1 — CI green on 4885565+.
 - **Environment last used:** local Mac, 2026-10-20 ~04:00 (keys in `.env`: Groq, Gemini, OpenRouter, Deepgram, AssemblyAI, Speechmatics; no Docker locally, so the Docker image itself is unbuilt — layout rehearsed only).
 - **Blockers:** Claude cannot reach us3 (both ssh attempts blocked by the auto-mode classifier); live phone calls need LiveKit + Yeastar; real playbook documents (P0.3); golden recordings (P2.8).
@@ -84,7 +84,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 ### Phase 3
 - [x] P3.1 Two visual directions `owner` — Claude chose "Prompter's box" (D-014, under D-013); owner reviews `docs/evidence/p3/`
 - [x] P3.2 docs/DESIGN.md — tokens, card anatomy, layouts, motion, RTL, a11y
-- [x] P3.3 packages/ui + gallery — components + `/gallery`; vitest 102 + jest 31; axe-core in CI still TODO
+- [x] P3.3 packages/ui + gallery — components + `/gallery`; vitest 102 + jest 31; axe-core in CI since 2026-10-20: `pnpm a11y` (Playwright Chromium) checks 11 screens in light, dark and Arabic RTL — 33 checks, 0 serious/critical. It found that react-native-web no longer maps `accessibilityState` to `aria-checked`/`aria-disabled`/`aria-busy`: every radio lacked its state; fixed with `aria-*` props
 - [x] P3.4 Agent screens (mock) — in-call screen live on the demo bridge (e2e screenshots `docs/evidence/demo/`), history, playbook; app jest 90
 - [x] P3.5 Manager/admin screens (mock) — inbox, team, prompts, models (with benchmark), settings; mock role switch (agent / manager / admin) gates navigation and pages per R3 (`lib/role.tsx`, `components/RoleGate.tsx`); screenshots `docs/evidence/p3.5/`. Plan/trial banner added 2026-10-20 (`components/PlanBanner.tsx`, rules in `features/admin/plan.ts`: days left rounded up, urgent from 3 days, blocked when expired/suspended; sample plan until P5.5). Playbook editor remains for Phase 5
 - [ ] P3.6 Visual QA loop `owner`

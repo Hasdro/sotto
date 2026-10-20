@@ -35,7 +35,7 @@ export function ScenarioPicker({ scenarios, onStart }: Props) {
               <Pressable
                 key={s.id}
                 accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
+                aria-checked={selected}
                 onPress={() => setPicked(s.id)}
                 style={[
                   styles.option,

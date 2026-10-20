@@ -309,7 +309,7 @@ function StageRow({
               <Pressable
                 key={p.id}
                 accessibilityRole="radio"
-                accessibilityState={{ checked: active }}
+                aria-checked={active}
                 onPress={() => pick(p.id)}
                 testID={`stage-${stage.id}-vendor-${p.id}`}
                 style={[

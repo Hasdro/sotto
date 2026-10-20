@@ -36,7 +36,7 @@ export function SegmentedControl<V extends string>({
           <Pressable
             key={o.value}
             accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
+            aria-checked={selected}
             accessibilityLabel={o.label}
             onPress={() => onChange(o.value)}
             testID={testID ? `${testID}-${o.value}` : undefined}

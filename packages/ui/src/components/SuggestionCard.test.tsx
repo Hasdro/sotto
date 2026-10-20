@@ -24,7 +24,7 @@ describe("SuggestionCard", () => {
     );
     expect(screen.getByText(/Ask what/)).toBeOnTheScreen();
     expect(screen.getByTestId("card-caret")).toBeOnTheScreen();
-    expect(screen.getByTestId("c")).toHaveProp("accessibilityState", { busy: true });
+    expect(screen.getByTestId("c")).toHaveProp("aria-busy", true);
   });
 
   it("drops the caret when done", async () => {

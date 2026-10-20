@@ -49,7 +49,7 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
+      aria-disabled={disabled}
       disabled={disabled}
       onPress={onPress}
       testID={testID}
