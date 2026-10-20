@@ -14,9 +14,9 @@ import {
   TextField,
 } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
-import { cloudApi, signOut } from "../lib/cloud";
+import { cloudApi, cloudOrigin, signOut } from "../lib/cloud";
 import { formatDateTime } from "../lib/format";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -140,6 +140,14 @@ export default function AccountScreen() {
       </Stack>
       {role === "admin" || role === "manager" ? (
         <Team team={team} canInvite={role === "admin"} onChange={load} />
+      ) : null}
+      {cloudOrigin() ? (
+        <Button
+          variant="ghost"
+          label={t("account.apps")}
+          onPress={() => void Linking.openURL(`${cloudOrigin()}/downloads/`)}
+          testID="get-apps"
+        />
       ) : null}
       <Button
         variant="secondary"

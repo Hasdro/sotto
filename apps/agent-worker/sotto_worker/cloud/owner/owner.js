@@ -117,7 +117,11 @@ async function loadOverview() {
     ),
     kpi("Users", s.users, `${s.active_today} active today`),
     kpi("Devices", s.devices, "signed in, not revoked"),
-    kpi("Calls this month", s.month.calls, `${fmtNum(s.month.minutes)} minutes`),
+    kpi(
+      "Calls this month",
+      s.month.calls,
+      `${fmtNum(s.month.minutes)} minute${s.month.minutes === 1 ? "" : "s"}`,
+    ),
     kpi("Cards this month", s.month.cards, `${fmtNum(s.month.holding_lines)} holding lines`),
     kpi(
       "Speed (p95, 30 days)",
@@ -193,8 +197,9 @@ function drawChart(el, daily, now) {
   const byDay = Object.fromEntries(daily.map((d) => [Math.floor(d.day / DAY), d]));
   const calls = days.map((d) => byDay[d]?.calls || 0);
   const mins = days.map((d) => byDay[d]?.minutes || 0);
-  const maxC = Math.max(4, ...calls),
-    maxM = Math.max(10, ...mins);
+  // Axis tops are multiples of 4, so the four grid steps are whole numbers.
+  const maxC = Math.ceil(Math.max(4, ...calls) / 4) * 4;
+  const maxM = Math.ceil(Math.max(8, ...mins) / 4) * 4;
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("role", "img");

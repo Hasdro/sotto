@@ -336,6 +336,7 @@ const en = {
   "account.role.agent": "Agent",
   "account.sample": "Sample answers: add an AI key in Admin → Keys & providers for real AI.",
   "nav.account": "Account",
+  "account.apps": "Get Sotto for Windows, Mac, Linux or Chrome",
 
   "lang.en": "English",
   "lang.ar": "العربية",
@@ -674,6 +675,7 @@ const ar: Record<StringKey, string> = {
   "account.role.agent": "موظف مبيعات",
   "account.sample": "إجابات تجريبية: أضف مفتاح ذكاء اصطناعي في الإدارة ← المفاتيح والمزوّدون.",
   "nav.account": "الحساب",
+  "account.apps": "نزّل سوتو لويندوز أو ماك أو لينكس أو كروم",
 
   "lang.en": "English",
   "lang.ar": "العربية",

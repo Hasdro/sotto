@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 13:30";
+const UPDATED = "20 Oct 2026 · 13:50";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -168,8 +168,8 @@ const TABS = [
 ];
 
 const OVERVIEW = {
- pct: 60,
- parts:[{label:"Done", v:60, c:"var(--ok)"},{label:"In progress now", v:8, c:"var(--brand)"},{label:"Not started", v:32, c:"var(--line)"}],
+ pct: 64,
+ parts:[{label:"Done", v:64, c:"var(--ok)"},{label:"In progress now", v:6, c:"var(--brand)"},{label:"Not started", v:30, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
    short:"Done today: your server is live, people can sign up and log in, calls now run on the agent's own device, and your dashboard shows every company. Next: installable apps for computer and phone.",
@@ -178,7 +178,7 @@ const OVERVIEW = {
          "On the device, the AI's first word arrives in 0.6–0.7 s (1.3 s on a cold first call), the same speed as before the move.",
          "Try it: open https://104-168-48-116.sslip.io, press 'Create an account', and run a practice call. Then open /owner to see the company appear in your dashboard."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 60%. The engine, screens, accounts, subscriptions and your dashboard are done. Installable apps, real phone calls and your real playbook are not.",
+   short:"About 64%. Done: the engine, screens, accounts, subscriptions, your dashboard, and the Windows, Mac, Linux and Chrome apps. Not done: phone builds, real phone calls, your real playbook.",
    full:["Done: suggestion engine (Phase 2, 92%), screens in light/dark/Arabic (Phase 3, 97%), keys & models panel (Phase 6, 65%), unanswered-question inbox (Phase 7, 70%), automatic checks on every change.",
          "This morning your new direction added work, so the total dropped to 52%. Since then: server live, sign-up and log-in, engine moved onto the device, dashboard, all tested (52% → 60%)."]},
   {eyebrow:"Remaining", title:"What is left?",
@@ -188,17 +188,20 @@ const OVERVIEW = {
          "5. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4).",
          "6. Your real [[playbook]], load tests, then a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Only you can unblock three things: iPhone builds, your real playbook, and the phone line for live calls.",
-   full:["iPhone: building needs [[Xcode]] on your Mac (free, but it asks for your Mac password) and, for testers, an Apple Developer account ($99/yr).",
-         "Real answers: the demo uses an invented company. I need your product, price and FAQ documents to write your playbook.",
-         "Live phone calls: need a [[LiveKit]] account (free) and your [[Yeastar]] admin details.",
-         "Nothing else is blocked. Everything else I can do myself."]},
+   short:"Phones only. Android needs you to open Android Studio once; iPhone needs Xcode. Real answers need your playbook, and real phone calls need LiveKit and Yeastar.",
+   full:["Android: Android Studio is on your Mac, but its tools are not installed. Open it once and finish the setup wizard. That accepts Google's license, which I must not accept for you. Then I build the test [[APK]].",
+         "iPhone: building needs [[Xcode]] (App Store, free, asks for your Mac password) or a free Expo account. Testers need an Apple Developer account ($99/yr) for [[TestFlight]].",
+         "Real answers: the demo uses an invented company. Send your product, price and FAQ documents.",
+         "Live phone calls: a [[LiveKit]] account (free) and your [[Yeastar]] admin details.",
+         "Everything else I can do myself."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"Answer the 6 questions in the Decisions tab (my picks are pre-selected), and send your playbook documents.",
-   full:["1. Decisions tab: 6 questions, my recommendation already selected. Leave it if you agree and press Save.",
-         "2. Your product, price and FAQ documents (any format).",
-         "3. When convenient: install Xcode (App Store) so I can build the iPhone app.",
-         "4. Later: LiveKit account and Yeastar admin details for real calls."]}
+   short:"1) Sign in to your dashboard and change its password. 2) Answer the 6 questions in Decisions. 3) Open Android Studio once. 4) Send your playbook documents.",
+   full:["1. Dashboard: in Terminal, run ssh root@104.168.48.116 cat /root/sotto-owner-password.txt. Sign in at https://104-168-48-116.sslip.io/owner, change the password under Account, then run ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
+         "2. Decisions tab: 6 questions with my picks pre-selected. Press Save, even if you agree with all of them.",
+         "3. Open Android Studio once and finish the setup wizard (for the Android app).",
+         "4. Your product, price and FAQ documents, in any format.",
+         "5. Try it: create a company at https://104-168-48-116.sslip.io, add your Groq key in Admin → Keys & providers, run a call, and watch it appear in your dashboard.",
+         "Later: Xcode or an Expo account (iPhone), LiveKit and Yeastar (real calls)."]}
  ]
 };
 
@@ -275,23 +278,24 @@ const SERVER = [
 
 const PLATFORMS = [
  {name:"iPhone", prio:true, st:"bad", stl:"Blocked on you",
-  short:"Code is ready (same app). Building needs [[Xcode]] or an Expo account.",
+  short:"The code is ready and is the same app. Building it needs [[Xcode]] on your Mac, or a free Expo account.",
   full:"The app is built with [[Expo]], so the iPhone version is the same code. Apple requires Xcode on a Mac to build it; see the decision 'How we build the iPhone app'. For testers: Apple Developer account ($99/yr) and [[TestFlight]]."},
- {name:"Android", prio:true, st:"run", stl:"Building this round",
-  short:"Same code. I'm installing the free Android build tools to make a test [[APK]] you can [[sideload]].",
-  full:"No account needed for a test APK. Publishing on the Play Store later needs a Google Play account ($25 once)."},
- {name:"Windows", prio:true, st:"run", stl:"Building this round",
-  short:"Installable program built with [[Electron]], plus the web app.",
-  full:"Built from your Mac. Unsigned for now, so Windows shows a 'More info → Run anyway' warning the first time. A code-signing certificate removes that later."},
- {name:"Mac", prio:true, st:"run", stl:"Building this round",
-  short:"Installable app built with [[Electron]], plus the web app.",
-  full:"Unsigned for now: the first time, right-click → Open. Apple notarisation needs the Apple Developer account."},
- {name:"Linux", st:"run", stl:"Building this round",
-  short:"AppImage built with [[Electron]].", full:"One file that runs on most Linux desktops. Lower priority; built alongside Windows and Mac."},
+ {name:"Android", prio:true, st:"bad", stl:"Needs one step from you",
+  short:"The code is ready. Open Android Studio once and finish its setup: that accepts Google's license, which I must not accept for you. Then I build a test [[APK]].",
+  full:"Android Studio is already on your Mac, but its Android tools are not installed yet. The setup wizard installs them and asks you to accept Google's SDK license. After that I build an APK you can [[sideload]] on any Android phone. The phone app already runs calls on the device. On phones, the microphone track arrives with the phone-call work (Phase 4); typed and scripted calls work now. The Play Store later needs a Google Play account ($25 once)."},
+ {name:"Windows", prio:true, st:"ok", stl:"Built · download",
+  short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
+  full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
+ {name:"Mac", prio:true, st:"ok", stl:"Built · download",
+  short:"Installers ready at /downloads: 'arm64' for Apple-chip Macs, the other for Intel Macs. I tested that it opens and reaches the server.",
+  full:"It is not notarised by Apple yet, so the first time you right-click the app and choose Open. Notarisation needs the Apple Developer account ($99/yr). The app asks for the microphone the first time you speak as the customer."},
+ {name:"Linux", st:"ok", stl:"Built · download",
+  short:"'Sotto-0.1.0.AppImage' at /downloads: one file that runs on most Linux desktops.", full:"Make it executable (right-click → Properties → Allow executing) and open it."},
  {name:"Web", st:"ok", stl:"Live",
   short:"Live at https://104-168-48-116.sslip.io with sign-up and log-in. Calls run in the browser.", full:"The heavy work runs in the browser, not on the server. I checked that Groq, Gemini, OpenAI, OpenRouter and Anthropic all accept calls straight from a browser. Transcripts stay on the device; only the numbers go to your dashboard."},
- {name:"Chrome extension", st:"run", stl:"Building this round",
-  short:"Opens Sotto in a side panel next to any web phone or CRM.", full:"Same app inside a [[Chrome extension]] side panel. Loaded unpacked for testing; the Chrome Web Store needs a $5 developer account later."}
+ {name:"Chrome extension", st:"ok", stl:"Built · download",
+  short:"'sotto-extension-0.1.0.zip' at /downloads. It opens Sotto in Chrome's side panel next to any web phone or CRM.",
+  full:"To install: unzip it, open chrome://extensions, turn on Developer mode, then choose 'Load unpacked' and pick the folder. On first install a tab asks once for the microphone, because Chrome can't ask inside a side panel. The Chrome Web Store needs a $5 developer account later."}
 ];
 
 const PHASES = [
@@ -319,9 +323,9 @@ const PHASES = [
  {n:7, name:"Escalations & CRM", pct:70, st:"run",
   short:"Unanswered questions reach the inbox and grow the playbook.",
   done:["Inbox → playbook loop"], next:["Zoho CRM connector"], you:["Zoho access, later"]},
- {n:8, name:"Apps, hardening & pilot", pct:15, st:"run",
-  short:"Server going live on us3 and desktop/web/extension builds this round.",
-  done:["Security review: all findings fixed"], next:["Server live on us3","Installable apps","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
+ {n:8, name:"Apps, hardening & pilot", pct:45, st:"run",
+  short:"Server live on us3. Windows, Mac, Linux and Chrome extension are built and downloadable. Phones wait on one step from you.",
+  done:["Server live on us3 with HTTPS, firewall and nightly backup","Windows, Mac and Linux installers","Chrome extension","Downloads page on your server"], next:["Security review of the new server (running now)","Android and iPhone builds","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
 ];
 /* ======================= END DATA ======================= */
 
