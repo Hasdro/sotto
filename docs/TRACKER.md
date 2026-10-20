@@ -28,7 +28,7 @@ Tags:
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
-  - Owner feedback 2026-10-20: Android sign-in works, "UX and UI not perfect", **navigation must be on the left** on phones (today: bottom tabs below the wide breakpoint, `components/AppShell.tsx`, DESIGN.md §6) — needs a D-entry and a design pass;
+  - T-020 done (D-023): phones open navigation from a left drawer (right in Arabic), small-screen polish; APK rebuilt — owner to reinstall and confirm the menu and look;
   - Mac app real-world test done (T-019); installed `/Applications/Sotto.app` (arm64) for the owner's Zylker account; owner adds keys himself;
   - T-016 rest: Android APK on a real phone or emulator (Mac needs 12 GB free for the emulator); iPhone on a device (owner's Apple ID in Xcode);
   - T-011 end-of-turn model;
@@ -102,6 +102,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [x] P3.4 Agent screens (mock) — in-call screen live on the demo bridge (e2e screenshots `docs/evidence/demo/`), history, playbook; app jest 90
 - [x] P3.5 Manager/admin screens (mock) — inbox, team, prompts, models (with benchmark), settings; mock role switch (agent / manager / admin) gates navigation and pages per R3 (`lib/role.tsx`, `components/RoleGate.tsx`); screenshots `docs/evidence/p3.5/`. Plan/trial banner added 2026-10-20 (`components/PlanBanner.tsx`, rules in `features/admin/plan.ts`: days left rounded up, urgent from 3 days, blocked when expired/suspended; sample plan until P5.5). Playbook editor added 2026-10-20 on the demo server: the Playbook page shows the playbook calls use (file + inbox + manager answers, with source badges); managers/admins add, edit and remove their own answers (≤ 25 words; file entries read-only); the next call uses them (`tests/server/test_parts.py::test_the_next_call_uses_the_managers_own_answers`, `__tests__/playbook-editor.test.tsx`). Supabase storage in Phase 5
 - [ ] P3.6 Visual QA loop `owner`
+- [x] T-020 Phone navigation from the left (owner feedback on the APK, D-023) — top bar + menu button opens a start-edge drawer (sidebar items, role switch, user/company footer), mirrored in Arabic; bottom tabs removed; closes on item/scrim/close/Escape/Android back; web focus trap via `Modal`. Polish at 390/360 px: full-width call actions, inbox filter no longer clipped, account spacing, invite form says "Name". Evidence `docs/evidence/d023/` (39 shots: light/dark, LTR/RTL; `node scripts/screenshots.mjs`)
 
 ### Phase 4
 - [ ] P4.1 Telephony: LiveKit + SIP trunk `local-only` `owner`
@@ -254,6 +255,12 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-10-20 (19:30–21:00) · local · Claude Opus 5.5 · T-020 phone navigation drawer (side session)
+- **Done:** D-023 + DESIGN.md §6; `AppShell` top bar + drawer (shared `NavPanel` with the sidebar); `scrim`, `drawerMaxWidth`, `topBarHeight` tokens; segmented control shrinks on phones; small-screen polish (call, inbox, account); 10 new shell tests; `scripts/screenshots.mjs`; APK rebuilt with `build-phones.sh`.
+- **Evidence:** app jest 174 passed (10 of them new shell tests), full `pnpm test` green (worker 365), typecheck + lint green, bundle 428 KB / 450 KB, `pnpm a11y` 33 checks 0 serious; a browser check confirmed Escape closes the drawer and Tab stays inside it; screenshots `docs/evidence/d023/`.
+- **Not done:** no device or emulator test of the new APK; the "sample answers: add GROQ_API_KEY…" call notice still shows a key name (engine text, left for a follow-up).
+- **Next:** owner reinstalls the APK and checks the menu; T-016 rest; T-011.
 
 ### 2026-10-20 (15:40–17:00) · local · Claude Opus 5.5 · T-016 phone builds, hub round
 - **Done:** read hub decisions (all six = recommendations, saved 11:38); deleted the two old artifacts (Owner Decisions, Live Sales Copilot Plan) at the owner's request; app.json ids `com.sotto.app` + mic permission; `expo prebuild`; Android APK and iOS simulator build; `apps/app/build-phones.sh`; APK published to `/downloads/`; SecureStore fallback fix; hub v10.

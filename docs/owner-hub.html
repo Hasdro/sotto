@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 19:50";
+const UPDATED = "20 Oct 2026 · 21:10";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -170,15 +170,15 @@ const TABS = [
 ];
 
 const OVERVIEW = {
- pct: 70,
- parts:[{label:"Done", v:70, c:"var(--ok)"},{label:"In progress now", v:4, c:"var(--brand)"},{label:"Not started", v:26, c:"var(--line)"}],
+ pct: 71,
+ parts:[{label:"Done", v:71, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:26, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
    short:"The Mac app passed a real spoken test: a customer's voice in, answers on screen in 0.6 s (playbook) and 1.2 s (AI). It's installed in your Applications folder, ready for your account.",
    full:["This round I ran a full spoken call in the real Mac app with your real AI keys: four customer questions spoken aloud, transcribed on the Mac, answered on screen.",
          "The test found 6 problems; all are fixed and checked, and your server and downloads are updated (see 'What changed this round').",
          "Final run: playbook answers 0.6 s after the customer stopped, AI answer 1.2 s, all inside the 1.5 s rule.",
-         "Your Android sign-in worked. Your notes on its look and layout are queued as the next design task."]},
+         "Phones: the menu now opens from the left as you asked (from the right in Arabic), and small screens got a design pass. A new Android app is built on my Mac; it goes on your downloads page once you say yes."]},
   {eyebrow:"This round", title:"What changed this round",
    short:"Fixed 6 problems a real spoken call exposed, put the fixes on your server, and rebuilt all downloads.",
    full:["1. The customer's first second of speech was lost, and a second sentence that followed quickly was thrown away. Fixed.",
@@ -189,13 +189,13 @@ const OVERVIEW = {
          "6. New accounts showed two made-up questions in the Inbox. Fixed: real accounts see only real data.",
          "Speed check after the fixes: typical 0.6 s, slowest 1.0 s on your live keys ([[p95]])."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 70% (up from 68%). The Mac app now works end to end with a spoken customer. Not done: your real playbook, real phone calls, phone design polish, iPhone on a real phone.",
+   short:"About 71% (up from 70%). Phones now have the left-side menu you asked for, plus a small-screen design pass. Not done: your real playbook, real phone calls, iPhone on a real phone.",
    full:["Done: engine, screens, accounts, subscriptions, your dashboard, and apps for every platform.",
-         "Why it went up: the first real spoken test on the Mac passed after fixes (68% → 70%)."]},
+         "Why it went up: the phone menu and small-screen polish are done (70% → 71%). Earlier: the first real spoken test on the Mac passed (68% → 70%)."]},
   {eyebrow:"Remaining", title:"What is left?",
-   short:"Your real playbook, a left-side menu and design polish on phones, real phone calls (LiveKit and Yeastar), then a pilot.",
+   short:"Your real playbook, your check of the new phone menu, real phone calls (LiveKit and Yeastar), then a pilot.",
    full:["1. Your real [[playbook]]: waiting for the documents.",
-         "2. Phones: move the menu to the left as you asked, plus a design pass on small screens.",
+         "2. Phones: the left-side menu is built; it needs your check on your Android phone.",
          "3. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4). This also brings the customer's voice on phones.",
          "4. Password reset by email, load test, then a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
@@ -204,12 +204,13 @@ const OVERVIEW = {
          "Real phone calls still need a [[LiveKit]] account (free) and your [[Yeastar]] admin details.",
          "No iPhone to test on: the iPhone app is checked in the simulator only, which is fine for now."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Open Sotto from Applications, sign in, add your AI keys, and try a spoken call. 2) Tell me where the playbook documents are.",
+   short:"1) Open Sotto from Applications, sign in, add your AI keys, and try a spoken call. 2) Tell me where the playbook documents are. 3) Say yes to the new Android app going on your downloads page.",
    full:["1. Open Sotto from your Applications folder and sign in with your Zylker account.",
          "2. Admin → Keys & providers: add your Groq, Gemini and AssemblyAI keys (Speechmatics too, as the backup) and press Test on each.",
          "3. Call → Start without a script → Speak as the customer. Allow the microphone once. Ask a question as a customer would and watch the card.",
          "4. Tell me where the playbook documents are (folder or file name), or drop them into the sotto folder.",
-         "5. Tell me the 2–3 things on the Android app that bothered you most, besides the menu position."]}
+         "5. Say yes to putting the new Android app (left-side menu) on your downloads page, then reinstall it and tell me how the menu feels.",
+         "6. Tell me the 2–3 other things on the Android app that bothered you most."]}
  ]
 };
 
@@ -263,9 +264,9 @@ const SERVER = [
         "Your owner password is now your own, and the one-time password file is deleted (I checked).",
         "The server uses about 280 MB of its 1 GB memory."]},
  {eyebrow:"This round", title:"What I did on us3 this round",
-  short:"Almost nothing: I added the Android app to the downloads page. No new software, no settings changed.",
-  full:["Added one file: Sotto-0.1.0.apk (30 MB) on the downloads page.",
-        "Checked that your one-time password file is gone. No customer companies have signed up yet."]},
+  short:"Nothing this round. The new Android app (left-side menu) waits on my Mac until you say yes to uploading it.",
+  full:["No files, software or settings changed on us3 this round: putting a new app on your live downloads page needs your OK first.",
+        "The downloads page still has the earlier Android app (bottom menu)."]},
  {eyebrow:"Installed today", title:"What I installed",
   short:"The Sotto account server, [[Caddy]] for the [[HTTPS]] padlock, a firewall, a [[database]] file and a nightly backup. No [[Docker]].",
   full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate and renews it automatically.",
@@ -297,7 +298,7 @@ const PLATFORMS = [
   short:"Built with Xcode and tested in the iPhone [[simulator]] on your Mac: it opens to the sign-in screen. A real iPhone needs your [[Apple ID]] added in Xcode.",
   full:"Same code as the other apps, built with [[Xcode]] as you chose. A simulator build needs no Apple account. To put it on your own iPhone, add your Apple ID in Xcode (free, re-install every 7 days). Testers need an Apple Developer account ($99/yr) for [[TestFlight]]. On phones, typed and scripted calls work; speaking as the customer comes with the phone-call work (Phase 4)."},
  {name:"Android", prio:true, st:"ok", stl:"Built · download",
-  short:"You signed in on a phone and it worked. Next: the menu on the left, as you asked, and design polish on small screens.",
+  short:"New build ready: the menu now opens from the left (right in Arabic) and small screens are tidied. Not on the downloads page yet; it goes up when you say yes.",
   full:"An [[APK]] you can [[sideload]]: Android asks you to allow installing from your browser the first time. Built for phones from about 2017 onward. Sign-up, log-in and typed or scripted calls work; speaking as the customer comes with Phase 4. The Play Store later needs a Google Play account ($25 once) and a proper signing key, which I'd create then."},
  {name:"Windows", prio:true, st:"ok", stl:"Built · download",
   short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
@@ -324,9 +325,9 @@ const PHASES = [
  {n:2, name:"Suggestion engine", pct:96, st:"run",
   short:"Runs on the agent's device and passed a real spoken test on the Mac: 0.6 s playbook, 1.2 s AI.",
   done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)","Real spoken test on the Mac: 6 fixes"], next:["End-of-turn model","Better playbook matching (payment plan vs price)"], you:["Test recordings, later"]},
- {n:3, name:"Design & screens", pct:98, st:"run",
+ {n:3, name:"Design & screens", pct:99, st:"run",
   short:"All screens done in light, dark and Arabic, plus sign-up, log-in and Account.",
-  done:["In-call, history, playbook, inbox, admin screens","Sign-up, log-in and Account pages","Accessibility check on every screen"], next:["Menu on the left on phones (your request)","Design polish on small screens"], you:["Your top 2–3 Android annoyances"]},
+  done:["In-call, history, playbook, inbox, admin screens","Sign-up, log-in and Account pages","Accessibility check on every screen","Menu on the left on phones (your request)","Design polish on small screens"], next:["Fixes from your Android check"], you:["Reinstall the Android app and check the menu","Your top 2–3 other Android annoyances"]},
  {n:4, name:"Live calls", pct:15, st:"wait",
   short:"Waiting for LiveKit and Yeastar details.",
   done:["Rules for who may start a call"], next:["Phone calls through the app"], you:["[[LiveKit]] account","[[Yeastar]] admin details"]},
