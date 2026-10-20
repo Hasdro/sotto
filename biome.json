@@ -12,7 +12,8 @@
       "!**/supabase/.temp",
       "!packages/shared/schema",
       "!scripts/tests/fixtures",
-      "!docs/owner-hub.html"
+      "!docs/owner-hub.html",
+      "!packages/engine/src/__tests__/bundle.json"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

@@ -27,7 +27,7 @@ echo "==> Packing $(git rev-parse --short HEAD)"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 git archive --format=tar -o "$tmp/sotto.tar" HEAD apps/agent-worker seed deploy
-tar -rf "$tmp/sotto.tar" apps/app/dist
+COPYFILE_DISABLE=1 tar --no-xattrs -rf "$tmp/sotto.tar" apps/app/dist
 gzip "$tmp/sotto.tar"
 
 echo "==> Copying to $TARGET:$REMOTE_DIR (the Python environment is kept)"

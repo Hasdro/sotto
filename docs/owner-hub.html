@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 10:15";
+const UPDATED = "20 Oct 2026 · 13:00";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -245,27 +245,33 @@ const DECISIONS = [
 ];
 
 const SERVER = [
- {eyebrow:"What I did", title:"What I did on us3 in the previous round",
-  short:"Nothing. My connection to the server was blocked last round, so I only prepared an install kit. Today the connection works and I am installing now.",
+ {eyebrow:"Live now", title:"Your server is running",
+  short:"Done today. Your account server is live with the [[HTTPS]] padlock at 104-168-48-116.[[sslip.io]]. Your private [[admin dashboard]] is at /owner.",
+  full:["Address: https://104-168-48-116.sslip.io. Owner console: https://104-168-48-116.sslip.io/owner",
+        "Your owner account uses your email. Its one-time password is in a private file on the server. To see it, run this in Terminal on your Mac: ssh root@104.168.48.116 cat /root/sotto-owner-password.txt",
+        "After you sign in, change the password under Account. Then delete the file: ssh root@104.168.48.116 rm /root/sotto-owner-password.txt",
+        "The server uses about 280 MB of its 1 GB memory."]},
+ {eyebrow:"Previous round", title:"What I did on us3 in the previous round",
+  short:"Nothing. My connection to the server was blocked last round, so I only prepared an install kit. Today the connection worked and I installed everything.",
   full:["Last round, my safety system blocked the connection to [[us3]], so I built and tested an install kit on your Mac but did not change the server.",
-        "Today I checked: us3 is a clean Ubuntu 26.04 server with 1 processor, 1 GB memory and 10 GB disk. Nothing else runs on it, so installing Sotto disturbs nothing."]},
- {eyebrow:"Installing this round", title:"What I am installing",
-  short:"Three small things: the Sotto management program, [[Caddy]] for the [[HTTPS]] padlock, and a [[database]] file. No [[Docker]].",
-  full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate for 104-168-48-116.[[sslip.io]] and renews it automatically.",
-        "Python 3.13 and the Sotto management program, run by [[systemd]] so it restarts on crash and on reboot.",
-        "One [[SQLite]] database file with nightly backups.",
-        "Firewall: only ports 22 (your SSH), 80 and 443 open.",
-        "I dropped Docker because 1 GB of memory is too tight for it plus builds."]},
- {eyebrow:"Its job", title:"What the server will do (and not do)",
-  short:"Manage accounts and subscriptions and collect usage numbers. It never carries call audio or AI traffic.",
-  full:["Does: sign up and log in, companies ([[tenant]]s), [[trial]]s and plans, [[seat]]s and devices, the company's settings, [[playbook]] and prompts, [[encrypted]] keys, usage numbers sent by the apps after each call, and your private [[admin dashboard]].",
-        "Does not: listen to calls, turn speech into text, or call the AI. The [[client app]] does all of that on the agent's device and talks to the AI services directly.",
-        "So the server stays small and cheap, and a server outage never stops a call already running."]},
+        "Today us3 was a clean Ubuntu 26.04 server with 1 processor, 1 GB memory and 10 GB disk, with nothing else running on it."]},
+ {eyebrow:"Installed today", title:"What I installed",
+  short:"The Sotto account server, [[Caddy]] for the [[HTTPS]] padlock, a firewall, a [[database]] file and a nightly backup. No [[Docker]].",
+  full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate and renews it automatically.",
+        "Python 3.13 and the Sotto account server, run by [[systemd]] so it restarts on crash and on reboot. It is capped at 400 MB of memory.",
+        "One [[SQLite]] database file, backed up every night at 03:30. The last 14 copies are kept.",
+        "Firewall: only SSH, 80 and 443 are open.",
+        "Your companies' AI keys are stored [[encrypted]]. The unlock key lives in a private settings file, not in the code."]},
+ {eyebrow:"Its job", title:"What the server does (and does not do)",
+  short:"Manages accounts and subscriptions and collects usage numbers. It never carries call audio or AI traffic.",
+  full:["Does: sign up and log in, companies ([[tenant]]s), [[trial]]s and plans, [[seat]]s and devices, each company's settings, [[playbook]] and [[encrypted]] keys, the usage numbers the apps send after each call, and your private [[admin dashboard]].",
+        "Does not: listen to calls, turn speech into text, or call the AI. The [[client app]] does all of that on the agent's device, straight to the AI services.",
+        "One small exception: when a call starts, the server asks the [[speech-to-text]] service for a [[short-lived key]]. That way the real key never has to sit in a web browser. It is one tiny request per call."]},
  {eyebrow:"Your dashboard", title:"Your admin dashboard",
-  short:"A private page on us3, only for you: every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",
-  full:["Numbers: companies by plan, active users today, calls and minutes per day, card speed per company, trials ending soon.",
-        "Tools: create a company, change plan, extend a trial, change seat and minute limits, suspend or re-activate, reset a user's password, sign a device out, and see the audit log of every change.",
-        "Only your owner account can open it. Address and first sign-in details come in the next update of this page."]}
+  short:"Live at /owner, only for you. It shows every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",
+  full:["Numbers: companies by status, users and devices, active users today, calls and minutes this month, card speed ([[p95]]), unanswered questions, trials ending in 3 days, a 30-day chart, and devices by platform.",
+        "Tools: create a company, change plan, extend a trial or mark it paid, change seat and minute limits, suspend or re-activate, reset a user's password, disable a user, sign a device out, delete a company (you type its name to confirm), and the audit log of every change.",
+        "It is empty until the first company signs up in the app, or until you press New company."]}
 ];
 
 const PLATFORMS = [

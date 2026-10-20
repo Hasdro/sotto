@@ -1,0 +1,672 @@
+{
+ "bundle": {
+  "v": 1,
+  "company": {
+   "name": "Palm Grove Realty (demo)",
+   "tone": "warm, confident, brief; never pushy",
+   "call_goal": "book a viewing or a video walkthrough this week",
+   "holding_line": {
+    "en": "Good question. Let me confirm that and send it to you today.",
+    "ar": "سؤال ممتاز. خلّيني أتأكد وأرسل لك الجواب اليوم."
+   },
+   "escalation_label": {
+    "en": "Not in playbook — check before promising",
+    "ar": "غير موجود في الدليل — تأكد قبل أن تعد"
+   },
+   "card_language": "en",
+   "ai_answers_allowed": true,
+   "agent_context": true,
+   "backup_disabled": []
+  },
+  "stages": {
+   "stt": {
+    "provider": "assemblyai",
+    "model": "universal-streaming-english"
+   },
+   "stt_backup": {
+    "provider": "speechmatics",
+    "model": "standard"
+   },
+   "suggest": {
+    "provider": "openai_compatible",
+    "model": "openai/gpt-oss-20b",
+    "first_token_ms": 700,
+    "settings": {
+     "max_tokens": 300,
+     "temperature": 0.2,
+     "reasoning_effort": "low"
+    },
+    "base_url": "https://api.groq.com/openai/v1",
+    "api_key_env": "GROQ_API_KEY"
+   },
+   "suggest_backup": {
+    "provider": "openai_compatible",
+    "model": "gemini-2.5-flash",
+    "first_token_ms": 700,
+    "settings": {
+     "max_tokens": 120,
+     "temperature": 0.2,
+     "reasoning_effort": "none"
+    },
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "api_key_env": "GEMINI_API_KEY"
+   },
+   "summary": {
+    "provider": "openai_compatible",
+    "model": "openai/gpt-oss-120b",
+    "settings": {
+     "reasoning_effort": "medium"
+    },
+    "base_url": "https://api.groq.com/openai/v1",
+    "api_key_env": "GROQ_API_KEY"
+   }
+  },
+  "providers": {
+   "groq": {
+    "name": "Groq",
+    "kind": "llm",
+    "key_env": "GROQ_API_KEY",
+    "key_page": "https://console.groq.com/keys",
+    "free": "Free tier, no card",
+    "steps": "Sign up, choose Create API Key, name it, copy it (it is shown once).",
+    "models": [
+     "openai/gpt-oss-20b",
+     "openai/gpt-oss-120b"
+    ]
+   },
+   "gemini": {
+    "name": "Google Gemini",
+    "kind": "llm",
+    "key_env": "GEMINI_API_KEY",
+    "key_page": "https://aistudio.google.com/apikey",
+    "free": "Free tier, no card (Google may use free-tier data to improve its models)",
+    "steps": "Sign in with a Google account, choose Create API key, copy it.",
+    "models": [
+     "gemini-2.5-flash"
+    ]
+   },
+   "openrouter": {
+    "name": "OpenRouter",
+    "kind": "llm",
+    "key_env": "OPENROUTER_API_KEY",
+    "key_page": "https://openrouter.ai/settings/keys",
+    "free": "Free models capped at about 50 requests a day",
+    "steps": "Sign up, choose Create API Key, set a credit limit, copy it (starts with sk-or-v1-).",
+    "models": []
+   },
+   "openai": {
+    "name": "OpenAI",
+    "kind": "llm",
+    "key_env": "OPENAI_API_KEY",
+    "key_page": "https://platform.openai.com/api-keys",
+    "free": "Paid from the first request",
+    "steps": "Sign in, choose Create new secret key, copy it.",
+    "models": []
+   },
+   "anthropic": {
+    "name": "Anthropic (Claude)",
+    "kind": "llm",
+    "key_env": "ANTHROPIC_API_KEY",
+    "key_page": "https://console.anthropic.com/settings/keys",
+    "free": "Paid",
+    "steps": "Sign in, choose Create Key, copy it.",
+    "models": []
+   },
+   "deepgram": {
+    "name": "Deepgram",
+    "kind": "stt",
+    "key_env": "DEEPGRAM_API_KEY",
+    "key_page": "https://console.deepgram.com/",
+    "free": "$200 credit, no card",
+    "steps": "Sign up. Pick your project, open Settings → API Keys, choose Create a New API Key (Member role), copy it.",
+    "models": [
+     "nova-3"
+    ]
+   },
+   "assemblyai": {
+    "name": "AssemblyAI",
+    "kind": "stt",
+    "key_env": "ASSEMBLYAI_API_KEY",
+    "key_page": "https://www.assemblyai.com/dashboard/home",
+    "free": "$50 credit, no card",
+    "steps": "Sign up. In the sidebar open API Keys, copy the key or create a new one.",
+    "models": [
+     "universal-streaming-english"
+    ]
+   },
+   "speechmatics": {
+    "name": "Speechmatics",
+    "kind": "stt",
+    "key_env": "SPEECHMATICS_API_KEY",
+    "key_page": "https://portal.speechmatics.com/api-keys",
+    "free": "$100 credit, no card (2 calls at once on the free plan)",
+    "steps": "Sign up. Open Settings → API Keys, name the key, copy it (shown once).",
+    "models": [
+     "standard",
+     "enhanced"
+    ]
+   },
+   "elevenlabs": {
+    "name": "ElevenLabs (Scribe)",
+    "kind": "stt",
+    "key_env": "ELEVENLABS_API_KEY",
+    "key_page": "https://elevenlabs.io/app/settings/api-keys",
+    "free": "Small free plan without a commercial license; Starter ($6/month) adds it",
+    "steps": "Sign up, open Settings → API Keys, choose Create API Key, copy it.",
+    "models": [
+     "scribe_v2_realtime"
+    ]
+   }
+  },
+  "stage_slots": {
+   "stt": {
+    "kind": "stt",
+    "label": "Speech-to-text (main)"
+   },
+   "stt_backup": {
+    "kind": "stt",
+    "label": "Speech-to-text (backup)"
+   },
+   "trigger": {
+    "kind": "llm",
+    "label": "Question detector"
+   },
+   "suggest": {
+    "kind": "llm",
+    "label": "Live suggestion (main)"
+   },
+   "suggest_backup": {
+    "kind": "llm",
+    "label": "Live suggestion (backup)"
+   },
+   "summary": {
+    "kind": "llm",
+    "label": "After-call summary"
+   },
+   "judge": {
+    "kind": "llm",
+    "label": "Quality judge"
+   }
+  },
+  "prompts": {
+   "escalation_email": {
+    "key": "escalation_email",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "escalation.question",
+     "escalation.transcript",
+     "escalation.agent",
+     "escalation.customer",
+     "escalation.crm_link",
+     "escalation.inbox_link"
+    ],
+    "body": "Subject: Unanswered question from {{escalation.customer}}\n\n{{escalation.agent}} could not answer this question on a call, and the customer is waiting for a reply today:\n\n\"{{escalation.question}}\"\n\nLast moments of the call:\n{{escalation.transcript}}\n\nCustomer: {{escalation.customer}}\nCRM: {{escalation.crm_link}}\n\nAnswer it in Sotto: {{escalation.inbox_link}}\nOnce you approve the answer, it is added to the {{company.name}} playbook.\n"
+   },
+   "suggest": {
+    "key": "suggest",
+    "version": 2,
+    "stage": "suggest",
+    "variables": [
+     "company.name",
+     "company.tone",
+     "company.call_goal",
+     "playbook.match",
+     "transcript.last_60s",
+     "turn.kind",
+     "turn.text",
+     "card.language"
+    ],
+    "body": "You whisper to a sales agent at {{company.name}} during a live phone call. After the customer finishes a question or an objection, you write ONE card the agent can say out loud right now:\n- at most 25 words, one main sentence, no lists;\n- tone: {{company.tone}};\n- move the call toward: {{company.call_goal}};\n- for an objection: acknowledge it, then ask one question or offer one concrete next step.\n\nNever invent prices, dates, discounts, guarantees or facts about {{company.name}} that are not in the playbook entry you are given. General sales skill is fine.\n\nReply in exactly one of these two forms:\nANSWER: <the card text>\nNO_SAFE_ANSWER\n\nUse NO_SAFE_ANSWER when the customer needs a company fact that the playbook entry does not give. A yes/no question about what {{company.name}} offers, allows or includes (pets, parking, amenities, fees, policies, availability) asks for a company fact: without a playbook entry, answer NO_SAFE_ANSWER, never \"yes\" or \"no\".\n---turn---\nKind of turn: {{turn.kind}}. Write the card in {{card.language}}.\n\nThe customer said:\n\"{{turn.text}}\"\n\nPlaybook entry (may be empty):\n{{playbook.match}}\n\nLast 60 seconds of the call:\n{{transcript.last_60s}}\n"
+   },
+   "summary": {
+    "key": "summary",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "company.call_goal",
+     "call.transcript",
+     "call.escalations"
+    ],
+    "body": "Summarise this sales call for {{company.name}} in at most 6 short lines, in English:\n1. What the customer wants (product, size, budget, timing).\n2. Objections raised and how they were handled.\n3. Questions left open (include these escalations: {{call.escalations}}).\n4. Next step agreed, measured against the call goal: {{company.call_goal}}.\nNever invent facts that are not in the transcript.\n\nTranscript:\n{{call.transcript}}\n"
+   }
+  },
+  "playbook": [
+   {
+    "id": "faq.md#what-is-the-payment-plan",
+    "kind": "faq",
+    "question": "What is the payment plan?",
+    "short_answer": "Ten percent on booking, fifty percent during construction, and forty percent on handover. No interest.",
+    "details": "10/50/40 plan on all Palm Grove Residences units. Construction instalments every quarter.",
+    "follow_up": "Would a plan like that fit how you'd like to pay?",
+    "tags": [
+     "payment",
+     "plan",
+     "instalments",
+     "down payment",
+     "deposit"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#when-is-handover",
+    "kind": "faq",
+    "question": "When is handover?",
+    "short_answer": "Handover is planned for the fourth quarter of 2028, and construction is on schedule.",
+    "details": "Q4 2028 per the developer's schedule. Do not promise a specific month.",
+    "follow_up": "Is that timing right for you, or are you looking for something ready sooner?",
+    "tags": [
+     "handover",
+     "completion",
+     "ready",
+     "delivery",
+     "date"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#how-much-is-a-one-bedroom-apartment",
+    "kind": "faq",
+    "question": "How much is a one-bedroom apartment?",
+    "short_answer": "One-bedroom apartments start from 1.2 million dirhams, depending on floor and view.",
+    "details": "From AED 1.2M (low floors, garden view) to AED 1.6M (high floors, sea view).",
+    "follow_up": "Which matters more to you, the view or the price?",
+    "tags": [
+     "price",
+     "cost",
+     "one bedroom",
+     "1 bedroom",
+     "apartment",
+     "how much"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#how-much-is-a-two-bedroom-apartment",
+    "kind": "faq",
+    "question": "How much is a two-bedroom apartment?",
+    "short_answer": "Two-bedroom apartments start from 1.9 million dirhams, depending on floor and view.",
+    "details": "From AED 1.9M to AED 2.5M.",
+    "follow_up": "Is this for your family to live in, or as an investment?",
+    "tags": [
+     "price",
+     "cost",
+     "two bedroom",
+     "2 bedroom",
+     "apartment",
+     "how much"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#what-are-the-service-charges",
+    "kind": "faq",
+    "question": "What are the service charges?",
+    "short_answer": "Service charges are about 15 dirhams per square foot per year, which covers the pool, gym, security and cleaning.",
+    "details": "AED 15/sq ft estimate from the developer; final figure is set by the owners' association.",
+    "follow_up": "Shall I send you the full cost sheet?",
+    "tags": [
+     "service charge",
+     "fees",
+     "maintenance",
+     "annual cost"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#can-foreigners-buy",
+    "kind": "faq",
+    "question": "Can foreigners buy?",
+    "short_answer": "Yes. It is a freehold area, so any nationality can own the property outright.",
+    "details": "Freehold zone. Buyer needs a passport; no residency required to buy.",
+    "follow_up": "Are you buying in your own name or through a company?",
+    "tags": [
+     "foreigner",
+     "nationality",
+     "freehold",
+     "ownership",
+     "expat"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#do-i-get-a-residence-visa",
+    "kind": "faq",
+    "question": "Do I get a residence visa?",
+    "short_answer": "Property of two million dirhams or more can qualify you for a long-term visa. I can check your case.",
+    "details": "Golden visa threshold AED 2M. Do not promise approval; government decides.",
+    "follow_up": "Would the visa be important in your decision?",
+    "tags": [
+     "visa",
+     "golden visa",
+     "residency",
+     "residence"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#is-there-parking",
+    "kind": "faq",
+    "question": "Is there parking?",
+    "short_answer": "Every apartment comes with one covered parking space, and two-bedrooms and larger get two.",
+    "details": "Basement parking. Extra spaces are not for sale.",
+    "follow_up": "How many cars do you have?",
+    "tags": [
+     "parking",
+     "car",
+     "garage"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#can-i-see-the-apartment",
+    "kind": "faq",
+    "question": "Can I see the apartment?",
+    "short_answer": "Yes. We have a show apartment open every day, or I can do a video walkthrough for you.",
+    "details": "Show apartment open 10:00–20:00 daily. Video walkthroughs on request.",
+    "follow_up": "Would tomorrow or the weekend suit you better?",
+    "tags": [
+     "viewing",
+     "visit",
+     "show apartment",
+     "see",
+     "tour",
+     "walkthrough"
+    ],
+    "sample": true
+   },
+   {
+    "id": "faq.md#what-is-the-rental-return",
+    "kind": "faq",
+    "question": "What is the rental return?",
+    "short_answer": "Similar apartments nearby rent at around six to seven percent gross a year. I can share the comparables.",
+    "details": "Indicative only, from nearby completed buildings. Never guarantee a yield.",
+    "follow_up": "Are you planning to rent it out or live in it?",
+    "tags": [
+     "rental",
+     "yield",
+     "return",
+     "roi",
+     "investment",
+     "rent"
+    ],
+    "sample": true
+   },
+   {
+    "id": "objections.md#its-too-expensive",
+    "kind": "objection",
+    "question": "It's too expensive.",
+    "short_answer": "I understand. Is it the total price or the monthly payments that worry you? The plan spreads ninety percent over four years.",
+    "details": "Move the conversation to the payment plan and smaller units.",
+    "follow_up": "What budget did you have in mind?",
+    "tags": [
+     "expensive",
+     "price",
+     "budget",
+     "cost",
+     "too much"
+    ],
+    "sample": true
+   },
+   {
+    "id": "objections.md#another-company-quoted-us-less",
+    "kind": "objection",
+    "question": "Another company quoted us less.",
+    "short_answer": "Fair point. What does their quote include? Let's compare both line by line, including service charges and handover date.",
+    "details": "Ask about size, floor, view, fees and developer track record.",
+    "follow_up": "Can you share their offer so we compare properly?",
+    "tags": [
+     "competitor",
+     "cheaper",
+     "quote",
+     "quoted",
+     "less",
+     "another company",
+     "other offer"
+    ],
+    "sample": true
+   },
+   {
+    "id": "objections.md#i-need-to-think-about-it",
+    "kind": "objection",
+    "question": "I need to think about it.",
+    "short_answer": "Of course. What is the one thing you'd want to be sure about before deciding?",
+    "details": "Surface the real concern; offer a viewing to make it concrete.",
+    "follow_up": "Shall we book a viewing so you can decide with all the facts?",
+    "tags": [
+     "think",
+     "decide",
+     "later",
+     "not sure",
+     "consider"
+    ],
+    "sample": true
+   },
+   {
+    "id": "objections.md#just-send-me-the-details-on-whatsapp",
+    "kind": "objection",
+    "question": "Just send me the details on WhatsApp.",
+    "short_answer": "Happy to. So I send the right units, is this for living or investment, and which size?",
+    "details": "Agree, but qualify first so the follow-up is relevant.",
+    "follow_up": "Can I call you back after you've looked, say tomorrow evening?",
+    "tags": [
+     "whatsapp",
+     "send",
+     "details",
+     "brochure",
+     "email"
+    ],
+    "sample": true
+   },
+   {
+    "id": "objections.md#im-not-interested",
+    "kind": "objection",
+    "question": "I'm not interested.",
+    "short_answer": "No problem. May I ask if it's the timing or the area? Then I won't call about the wrong things.",
+    "details": "Respect it. One question, then close politely.",
+    "follow_up": "Is it alright if I check back in a few months?",
+    "tags": [
+     "not interested",
+     "no thanks",
+     "stop"
+    ],
+    "sample": true
+   },
+   {
+    "id": "objections.md#off-plan-is-risky",
+    "kind": "objection",
+    "question": "Off-plan is risky.",
+    "short_answer": "A fair worry. Your payments go into a government-regulated escrow account, released only as construction progresses.",
+    "details": "Escrow is mandatory for off-plan sales. Developer has delivered on time before (demo fact).",
+    "follow_up": "Would it help to see the construction progress report?",
+    "tags": [
+     "risk",
+     "risky",
+     "off plan",
+     "safe",
+     "trust",
+     "escrow"
+    ],
+    "sample": true
+   }
+  ],
+  "scenarios": [
+   {
+    "id": "price-objection",
+    "title": "Investor call: payment plan and price objection",
+    "lines": [
+     {
+      "speaker": "agent",
+      "text": "Hi, this is Omar from Palm Grove Realty. You asked about our new apartments?",
+      "gap_ms": 500,
+      "duration_ms": 3500
+     },
+     {
+      "speaker": "customer",
+      "text": "Yes, I saw your ad last week.",
+      "gap_ms": 400,
+      "duration_ms": 1800
+     },
+     {
+      "speaker": "agent",
+      "text": "Great. Are you looking to live there or to invest?",
+      "gap_ms": 400,
+      "duration_ms": 2500
+     },
+     {
+      "speaker": "customer",
+      "text": "Mostly invest. What's the payment plan?",
+      "gap_ms": 500,
+      "duration_ms": 2500
+     },
+     {
+      "speaker": "agent",
+      "text": "Ten percent on booking, then fifty during construction and forty on handover.",
+      "gap_ms": 2500,
+      "duration_ms": 4000
+     },
+     {
+      "speaker": "customer",
+      "text": "Okay. Another company quoted us 20% less for something similar.",
+      "gap_ms": 600,
+      "duration_ms": 3200
+     },
+     {
+      "speaker": "agent",
+      "text": "Is it too expensive for you, or is it more about the monthly payments?",
+      "gap_ms": 3000,
+      "duration_ms": 3000
+     },
+     {
+      "speaker": "customer",
+      "text": "Do you allow pets in the building?",
+      "gap_ms": 700,
+      "duration_ms": 2000
+     },
+     {
+      "speaker": "agent",
+      "text": "Let me check that for you.",
+      "gap_ms": 2500,
+      "duration_ms": 1500
+     },
+     {
+      "speaker": "customer",
+      "text": "Alright. I need to think about it.",
+      "gap_ms": 800,
+      "duration_ms": 2000
+     }
+    ]
+   },
+   {
+    "id": "hard-questions",
+    "title": "Questions the playbook can't answer",
+    "lines": [
+     {
+      "speaker": "customer",
+      "text": "Hi. Is there a school nearby?",
+      "gap_ms": 500,
+      "duration_ms": 2000
+     },
+     {
+      "speaker": "agent",
+      "text": "Good question, there are a few in the area.",
+      "gap_ms": 2500,
+      "duration_ms": 2500
+     },
+     {
+      "speaker": "customer",
+      "text": "Can I pay part of it in Bitcoin?",
+      "gap_ms": 600,
+      "duration_ms": 2000
+     },
+     {
+      "speaker": "customer",
+      "text": "And can I see the show apartment this weekend?",
+      "gap_ms": 2500,
+      "duration_ms": 2400
+     },
+     {
+      "speaker": "customer",
+      "text": "Off-plan feels risky to me, honestly.",
+      "gap_ms": 2500,
+      "duration_ms": 2200
+     }
+    ]
+   },
+   {
+    "id": "arabic-first-call",
+    "title": "Arabic first call · مكالمة أولى بالعربية",
+    "lines": [
+     {
+      "speaker": "agent",
+      "text": "مرحبا، معك عمر من بالم جروف. شفت إعلاننا؟",
+      "gap_ms": 500,
+      "duration_ms": 3000
+     },
+     {
+      "speaker": "customer",
+      "text": "أهلا، نعم شفته.",
+      "gap_ms": 400,
+      "duration_ms": 1500
+     },
+     {
+      "speaker": "customer",
+      "text": "كم السعر لشقة غرفة وحدة؟",
+      "gap_ms": 500,
+      "duration_ms": 2200
+     },
+     {
+      "speaker": "agent",
+      "text": "تبدأ من مليون ومئتين ألف درهم.",
+      "gap_ms": 2500,
+      "duration_ms": 2500
+     },
+     {
+      "speaker": "customer",
+      "text": "السعر غالي شوي.",
+      "gap_ms": 600,
+      "duration_ms": 1600
+     },
+     {
+      "speaker": "customer",
+      "text": "هل توجد مدرسة قريبة؟",
+      "gap_ms": 2500,
+      "duration_ms": 1800
+     }
+    ]
+   }
+  ],
+  "keys": null
+ },
+ "lookups": {
+  "Hi, this is Omar from Palm Grove Realty. You asked about our new apartments?": null,
+  "Yes, I saw your ad last week.": null,
+  "Great. Are you looking to live there or to invest?": null,
+  "Mostly invest. What's the payment plan?": "faq.md#what-is-the-payment-plan",
+  "Ten percent on booking, then fifty during construction and forty on handover.": "faq.md#when-is-handover",
+  "Okay. Another company quoted us 20% less for something similar.": "objections.md#another-company-quoted-us-less",
+  "Is it too expensive for you, or is it more about the monthly payments?": "objections.md#its-too-expensive",
+  "Do you allow pets in the building?": null,
+  "Let me check that for you.": null,
+  "Alright. I need to think about it.": "objections.md#i-need-to-think-about-it",
+  "Hi. Is there a school nearby?": null,
+  "Good question, there are a few in the area.": null,
+  "Can I pay part of it in Bitcoin?": null,
+  "And can I see the show apartment this weekend?": "faq.md#can-i-see-the-apartment",
+  "Off-plan feels risky to me, honestly.": "objections.md#off-plan-is-risky",
+  "مرحبا، معك عمر من بالم جروف. شفت إعلاننا؟": null,
+  "أهلا، نعم شفته.": null,
+  "كم السعر لشقة غرفة وحدة؟": null,
+  "تبدأ من مليون ومئتين ألف درهم.": null,
+  "السعر غالي شوي.": null,
+  "هل توجد مدرسة قريبة؟": null,
+  "How much is the down payment?": "faq.md#what-is-the-payment-plan",
+  "Is there parking?": "faq.md#is-there-parking",
+  "Do you allow pets?": null,
+  "What's the service charge per square foot?": "faq.md#what-are-the-service-charges",
+  "Can I see it this weekend?": "faq.md#can-i-see-the-apartment",
+  "متى التسليم؟": null
+ }
+}

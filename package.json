@@ -20,7 +20,7 @@
     "replay:live": "cd apps/agent-worker && uv run --frozen --env-file ../../.env python -m replay --live",
     "stt:live": "cd apps/agent-worker && uv run --frozen --env-file ../../.env python -m replay.stt_live",
     "spoken:live": "cd apps/agent-worker && uv run --frozen python -m replay.spoken_live",
-    "gen": "pnpm --filter @sotto/shared gen && cd apps/agent-worker && uv run --frozen python scripts/gen_card_model.py",
+    "gen": "pnpm --filter @sotto/shared gen && cd apps/agent-worker && uv run --frozen python scripts/gen_card_model.py && uv run --frozen python scripts/gen_engine_fixture.py",
     "demo": "node scripts/demo.mjs",
     "a11y": "node scripts/a11y.mjs",
     "test:db": "bash scripts/db-test.sh"
