@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import json
 import uuid
 from collections.abc import Awaitable, Callable
@@ -25,6 +26,7 @@ WARM_TIMEOUT_S = 2.0
 KEEP_WARM_EVERY_S = 25.0  # T-005: re-warm model connections through long pauses in a call
 AUDIO_BYTES_PER_S = 32_000  # PCM16 mono 16 kHz
 AUDIO_BURST_S = 1.5  # a client may run this far ahead of real time; more is dropped
+MAX_LINE_CHARS = 2000  # packages/shared demo.ts: transcript text max 2000
 MAX_TRANSCRIPT = 500  # entries kept per call (the store keeps the same)
 Send = Callable[[dict[str, Any]], Awaitable[None]]
 
@@ -127,6 +129,8 @@ class Call:
 
     async def turn(self, event: TranscriptEvent, t0_ms: int) -> None:
         """A finished turn: show it, then run the pipeline with t0 = end of speech (R1)."""
+        if len(event.text) > MAX_LINE_CHARS:  # the protocol's limit; a long monologue is cut
+            event = dataclasses.replace(event, text=event.text[:MAX_LINE_CHARS])
         at = max(event.end_ms - self._started_ms, 0)
         self._remember({"kind": "line", "speaker": event.speaker, "text": event.text, "at_ms": at})
         await self.send(

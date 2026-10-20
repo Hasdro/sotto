@@ -442,33 +442,37 @@ def create_app(
 
     async def serve_call(ws: WebSocket) -> None:
         await ws.accept()
-        runtime = await asyncio.to_thread(runtime_factory)
-        stt_id = runtime.stt_routes[0].provider if runtime.stt_routes else None
-        vendor = catalog.providers.get(stt_id) if stt_id else None
-        stt_vendor = vendor.name if vendor else stt_id  # display name, e.g. "AssemblyAI"
-        await ws.send_text(
-            json.dumps(
-                {
-                    "type": "hello",
-                    "v": 1,
-                    "company_name": runtime.company.name,
-                    "mode": runtime.mode,
-                    "scenarios": [{"id": s.id, "title": s.title} for s in scenarios.values()],
-                    "stt_vendor": stt_vendor,
-                },
-                ensure_ascii=False,
-            )
-        )
 
         async def send(message: dict[str, Any]) -> None:
             await ws.send_text(json.dumps(message, ensure_ascii=False))
 
+        def hello_for(runtime: Runtime) -> dict[str, Any]:
+            stt_id = runtime.stt_routes[0].provider if runtime.stt_routes else None
+            vendor = catalog.providers.get(stt_id) if stt_id else None
+            return {
+                "type": "hello",
+                "v": 1,
+                "company_name": runtime.company.name,
+                "mode": runtime.mode,
+                "scenarios": [{"id": s.id, "title": s.title} for s in scenarios.values()],
+                "stt_vendor": vendor.name if vendor else stt_id,  # display name
+            }
+
+        greeting = hello_for(await asyncio.to_thread(runtime_factory))
+        await send(greeting)
         call: Call | None = None
 
         async def begin(title: str) -> Call:
-            nonlocal call
+            """Every call gets a fresh runtime: keys, stage choices, settings and playbook
+            answers changed since the last call apply now (R6), on the same screen."""
+            nonlocal call, greeting
             if call is not None:
                 await call.end()
+            runtime = await asyncio.to_thread(runtime_factory)
+            fresh = hello_for(runtime)
+            if fresh != greeting:  # vendor, mode or company changed: tell the app first
+                greeting = fresh
+                await send(fresh)
             call = Call(runtime=runtime, send=send, store=store, title=title, log=config.log)
             await call.begin()
             return call

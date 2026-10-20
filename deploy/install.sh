@@ -42,6 +42,9 @@ FIRST_RUN=0
 if [ ! -f "$ENV_FILE" ]; then
   FIRST_RUN=1
   ip=${SOTTO_HOST_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}
+  if [ -z "${SOTTO_DOMAIN:-}" ] && ! [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    die "cannot tell this server's public IPv4 address; rerun with SOTTO_DOMAIN=your.domain"
+  fi
   domain=${SOTTO_DOMAIN:-${ip//./-}.sslip.io}
   code=$(head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)
   secret=$(head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48)

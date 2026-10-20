@@ -8,6 +8,9 @@ set -euo pipefail
 
 TARGET=${1:?usage: deploy/push.sh user@host [domain]}
 HOST=${TARGET#*@}
+# The free sslip.io name works only for an IPv4 address; for a hostname or an ssh alias, pass the
+# domain (second argument) or the server picks its own address.
+if [[ $HOST =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then HOST_IP=$HOST; else HOST_IP=""; fi
 DOMAIN=${2:-}
 REMOTE_DIR=/opt/sotto
 ROOT=$(git rev-parse --show-toplevel)
@@ -36,4 +39,4 @@ ssh -o ServerAliveInterval=60 "$TARGET" \
 
 echo "==> Installing"
 ssh -t -o ServerAliveInterval=60 "$TARGET" \
-  "SOTTO_HOST_IP='$HOST' SOTTO_DOMAIN='$DOMAIN' bash $REMOTE_DIR/deploy/install.sh"
+  "SOTTO_HOST_IP='$HOST_IP' SOTTO_DOMAIN='$DOMAIN' bash $REMOTE_DIR/deploy/install.sh"

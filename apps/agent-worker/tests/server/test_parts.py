@@ -261,7 +261,7 @@ async def test_spoken_turn_is_forced_final_with_t0_at_end_of_speech() -> None:
     await asyncio.sleep(0.05)
     await audio.stop()
     assert stt.finalized == 1
-    assert partials == ["what is"]
+    assert partials == ["what is", ""]  # the final clears the "Hearing: …" line
     [(event, t0, delivered)] = turns
     assert event.text == "what is the price?"
     assert event.speaker == "customer"
@@ -638,3 +638,74 @@ def test_mid_thought_reads_the_last_word_and_the_punctuation() -> None:
     assert not mid_thought("Is parking included with the apartment?")
     assert not mid_thought("What is the price.")
     assert not mid_thought("")
+
+
+async def test_stop_right_after_speaking_still_sends_the_last_sentence() -> None:
+    """Review H3: "ask, then press Stop" must still give a transcript and a card."""
+    clock = RealClock()
+    turns: list[str] = []
+
+    class FinalsAtEnd(ScriptedSTT):
+        async def transcribe(
+            self, audio: AsyncIterator[bytes], opts: STTOptions
+        ) -> AsyncIterator[TranscriptEvent]:
+            async for _ in audio:
+                pass
+            yield TranscriptEvent(opts.speaker, "is parking included?", True, 0, 400)
+
+    async def on_turn(event: TranscriptEvent, _t0: int) -> None:
+        turns.append(event.text)
+
+    async def nothing(_t: str) -> None:
+        pass
+
+    audio = CustomerAudio(
+        routes=[StageRoute("scripted", "m")], clock=clock, on_turn=on_turn,
+        on_partial=nothing, on_notice=nothing, make=lambda _r: FinalsAtEnd(),
+    )  # fmt: skip
+    audio.start()
+    await _speak(audio, tone(400))  # no trailing quiet: Stop comes mid-turn
+    await audio.stop()
+    assert turns == ["is parking included?"]
+
+
+async def test_a_new_sentence_does_not_move_the_previous_turns_t0() -> None:
+    """Review H2: the next sentence starts before the previous turn's final arrives; the
+    previous turn keeps its own end of speech as t0, and the sentences stay apart."""
+    clock = RealClock()
+    turns: list[tuple[str, int, int]] = []
+    ends: list[int] = []
+
+    class SlowFinals(ScriptedSTT):
+        async def transcribe(
+            self, audio: AsyncIterator[bytes], opts: STTOptions
+        ) -> AsyncIterator[TranscriptEvent]:
+            reader = asyncio.ensure_future(self._drain(audio))
+            await self._forced.wait()
+            self._forced.clear()
+            await asyncio.sleep(0.25)  # the final is slow; the customer speaks again meanwhile
+            yield TranscriptEvent(opts.speaker, "Is parking included?", True, 0, 400)
+            await self._forced.wait()
+            yield TranscriptEvent(opts.speaker, "And the gym?", True, 800, 1200)
+            await reader
+
+    async def on_turn(event: TranscriptEvent, t0: int) -> None:
+        turns.append((event.text, t0, clock.now_ms()))
+
+    async def nothing(_t: str) -> None:
+        pass
+
+    audio = CustomerAudio(
+        routes=[StageRoute("scripted", "m")], clock=clock, on_turn=on_turn,
+        on_partial=nothing, on_notice=nothing, make=lambda _r: SlowFinals(),
+    )  # fmt: skip
+    audio.start()
+    started = clock.now_ms()
+    await _speak(audio, tone(400) + silence(400))
+    ends.append(started + 400)
+    await _speak(audio, tone(400) + silence(1200))
+    await asyncio.sleep(0.05)
+    await audio.stop()
+    assert [t[0] for t in turns] == ["Is parking included?", "And the gym?"]
+    first_t0 = turns[0][1]
+    assert abs(first_t0 - ends[0]) < 120  # its own end of speech, not the flush time

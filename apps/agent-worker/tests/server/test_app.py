@@ -472,3 +472,51 @@ def test_measuring_a_stage_records_its_speed_and_the_r1_guard_refuses_slow_model
     assert summary["model"] == "slow-model"
     assert summary["live"] is False
     assert measured == ["openai/gpt-oss-20b", "slow-model"]
+
+
+def test_the_next_call_on_the_same_screen_uses_a_playbook_change(
+    make_client: MakeClient, store: Store
+) -> None:
+    """Review H1: one socket, two calls; an answer added in between is used by the second."""
+    from sotto_worker.playbook import PlaybookEntry, PlaybookIndex
+    from tests.server.conftest import fast_runtime
+
+    def runtime_with_mine() -> Any:
+        base = fast_runtime()
+        mine = [
+            PlaybookEntry(e["id"], "faq", e["question"], e["answer"], tags=tuple(e["tags"]))
+            for e in store.editable_playbook()
+        ]
+        return dataclasses.replace(base, playbook=PlaybookIndex([*base.playbook.entries, *mine]))
+
+    client = make_client(runtime=runtime_with_mine)
+    question = "Do you allow pets in the building?"
+    with client.websocket_connect("/ws") as ws:
+        ws.receive_text()
+        ws.send_text(json.dumps({"type": "say", "speaker": "customer", "text": question}))
+        first = collect(ws, 1, extra="escalation")
+        assert next(m["card"] for m in first if m["type"] == "card")["source"] == "holding"
+        client.post(
+            "/api/playbook",
+            json={"question": question, "answer": "One cat or small dog per apartment."},
+            headers=JSON,
+        )
+        ws.send_text(json.dumps({"type": "start"}))  # a new call on the same screen
+        ws.send_text(json.dumps({"type": "say", "speaker": "customer", "text": question}))
+        second = collect(ws, 1)
+    card = next(m["card"] for m in second if m["type"] == "card")
+    assert card["source"] == "playbook"
+    assert card["delta"].startswith("One cat")
+
+
+def test_a_removed_inbox_answer_can_be_added_again(make_client: MakeClient, store: Store) -> None:
+    item = store.add_escalation("call-1", "Can I pay in bitcoin?", "h1")
+    assert item is not None
+    store.add_to_playbook(item, "No, bank transfer or card only.")
+    client = make_client()
+    assert client.delete(f"/api/playbook/inbox:{item}").status_code == 200
+    r = client.post(
+        f"/api/escalations/{item}/playbook", json={"answer": "Card only."}, headers=JSON
+    )
+    assert r.status_code == 200
+    assert r.json()["escalations"][0]["status"] == "added"

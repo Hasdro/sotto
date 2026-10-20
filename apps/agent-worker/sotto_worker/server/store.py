@@ -489,6 +489,8 @@ class Store:
             n = db.execute(f"DELETE FROM {name} WHERE {column} = ?", (key,)).rowcount  # noqa: S608 - fixed names
             if not n:
                 raise EscalationError("not_found")
+            if kind == "inbox":  # back to "answered": the manager can add it again later
+                db.execute("UPDATE escalations SET status = 'answered' WHERE id = ?", (key,))
             self._audit(db, "playbook.delete", entry_id, actor)
 
     # --- audit ----------------------------------------------------------------------------

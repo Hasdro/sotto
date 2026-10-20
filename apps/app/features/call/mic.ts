@@ -74,6 +74,8 @@ export async function startMic(onFrame: (pcm: ArrayBuffer) => void): Promise<Mic
     throw new MicUnavailable("denied");
   }
   const ctx = new Ctx();
+  // Safari starts a context created after an await (outside the click) suspended: no frames.
+  if (ctx.state === "suspended") await ctx.resume().catch(() => {});
   const source = ctx.createMediaStreamSource(stream);
   const down = new Downsampler(ctx.sampleRate);
   // ScriptProcessorNode is deprecated but runs everywhere without a separate worklet file; the
