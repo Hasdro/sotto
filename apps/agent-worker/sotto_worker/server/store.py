@@ -69,6 +69,17 @@ CREATE TABLE IF NOT EXISTS playbook_custom (
   tags_json TEXT NOT NULL DEFAULT '[]',
   updated_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS benchmarks (
+  provider_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  ok INTEGER NOT NULL,
+  p50_ms INTEGER,
+  worst_ms INTEGER,
+  samples INTEGER NOT NULL,
+  detail TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  PRIMARY KEY (provider_id, model)
+);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
@@ -261,6 +272,32 @@ class Store:
             return None
         out = dict(row)
         out["transcript"] = json.loads(out.pop("transcript_json"))
+        return out
+
+    # --- model speed (P6.4) -----------------------------------------------------------------
+    def record_benchmark(
+        self, provider_id: str, model: str, *, ok: bool, p50_ms: int | None,
+        worst_ms: int | None, samples: int, detail: str,
+    ) -> None:  # fmt: skip
+        with self._tx() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO benchmarks "
+                "(provider_id, model, ok, p50_ms, worst_ms, samples, detail, at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (provider_id, model, int(ok), p50_ms, worst_ms, samples, detail[:300], _now()),
+            )
+
+    def benchmark(self, provider_id: str, model: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT ok, p50_ms, worst_ms, samples, detail, at FROM benchmarks "
+                "WHERE provider_id = ? AND model = ?",
+                (provider_id, model),
+            ).fetchone()
+        if row is None:
+            return None
+        out = dict(row)
+        out["ok"] = bool(out["ok"])
         return out
 
     # --- company settings -----------------------------------------------------------------

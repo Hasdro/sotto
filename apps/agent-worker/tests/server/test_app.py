@@ -428,3 +428,47 @@ def test_managers_add_edit_and_delete_their_own_playbook_answers(make_client: Ma
     assert not [e for e in r.json()["entries"] if e["source"] == "custom"]
     actions = [e["action"] for e in client.get("/api/audit").json()["entries"]]
     assert actions[:3] == ["playbook.delete", "playbook.edit", "playbook.add"]
+
+
+# --- model speed + R1 guard (P6.4) ---------------------------------------------------------
+
+
+def test_measuring_a_stage_records_its_speed_and_the_r1_guard_refuses_slow_models(
+    make_client: MakeClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sotto_worker.server.benchmark import Bench
+
+    speeds = {
+        "openai/gpt-oss-20b": Bench(True, 480, 870, 3),
+        "slow-model": Bench(True, 1400, 2100, 3),
+    }
+    measured: list[str] = []
+
+    async def fake_benchmark(route: Any, env: Any) -> Bench:
+        measured.append(route.model)
+        return speeds[route.model]
+
+    monkeypatch.setattr(app_module, "benchmark", fake_benchmark)
+    client = make_client()
+    r = client.post("/api/stages/suggest/benchmark", headers=JSON)
+    suggest = next(s for s in r.json()["stages"] if s["id"] == "suggest")
+    assert suggest["live"] is True
+    assert suggest["deadline_ms"] == 700
+    assert (suggest["benchmark"]["p50_ms"], suggest["benchmark"]["worst_ms"]) == (480, 870)
+    assert client.post("/api/stages/stt/benchmark", headers=JSON).status_code == 400
+
+    # a slow model, once measured, cannot be chosen for a live stage...
+    client.put(
+        "/api/stages/summary", json={"provider_id": "groq", "model": "slow-model"}, headers=JSON
+    )
+    client.post("/api/stages/summary/benchmark", headers=JSON)
+    r = client.put(
+        "/api/stages/suggest", json={"provider_id": "groq", "model": "slow-model"}, headers=JSON
+    )
+    assert r.status_code == 400
+    assert "1400 ms" in r.json()["error"]
+    # ...but stays fine for an after-call stage
+    summary = next(s for s in client.get("/api/providers").json()["stages"] if s["id"] == "summary")
+    assert summary["model"] == "slow-model"
+    assert summary["live"] is False
+    assert measured == ["openai/gpt-oss-20b", "slow-model"]

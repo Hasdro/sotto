@@ -32,6 +32,7 @@ from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import DEMO, Runtime
 from sotto_worker.scenarios import Scenario, load_all
 from sotto_worker.server.auth import COOKIE, SESSION_TTL_S, AccessGate
+from sotto_worker.server.benchmark import LIVE_STAGES, R1_GUARD_P50_MS, benchmark
 from sotto_worker.server.calls import Call
 from sotto_worker.server.catalog import Catalog
 from sotto_worker.server.keytest import check_key
@@ -235,7 +236,22 @@ def create_app(
                     "source": "default",
                 }
             )
-            stages.append({"id": slot.id, "label": slot.label, "kind": slot.kind, **current})
+            bench = (
+                store.benchmark(str(current["provider_id"]), str(current["model"]))
+                if current["provider_id"] and current["model"]
+                else None
+            )
+            stages.append(
+                {
+                    "id": slot.id,
+                    "label": slot.label,
+                    "kind": slot.kind,
+                    **current,
+                    "deadline_ms": route.first_token_ms if route else None,
+                    "live": slot.id in LIVE_STAGES,
+                    "benchmark": bench,
+                }
+            )
         return {"providers": providers, "stages": stages}
 
     async def list_providers(_request: Request) -> Response:
@@ -278,7 +294,32 @@ def create_app(
         data = await body(request)
         provider_id, model = str(data.get("provider_id", "")), str(data.get("model", ""))
         catalog.route_for(stage, provider_id, model, seed.stages.get(stage))  # validates
+        bench = store.benchmark(provider_id, model.strip())
+        if stage in LIVE_STAGES and bench and bench["ok"] and bench["p50_ms"] > R1_GUARD_P50_MS:
+            raise ValueError(
+                f"{model.strip()} answered in {bench['p50_ms']} ms typically (first word); a live "
+                f"stage needs under {R1_GUARD_P50_MS} ms to show cards within 1.5 s (R1)"
+            )
         store.set_stage(stage, provider_id, model.strip(), actor=client_of(request))
+        return JSONResponse(providers_payload())
+
+    async def measure_stage(request: Request) -> Response:
+        stage = request.path_params["stage"]
+        slot = catalog.stages.get(stage)
+        if slot is None or slot.kind != "llm":
+            raise ValueError("speed is measured for AI stages; for speech use pnpm stt:live")
+        provider_id, model = store.stage_overrides().get(stage) or (None, None)
+        if provider_id is None:
+            route = seed.stages[stage]
+            provider_id, model = catalog.provider_for_route(route), route.model
+        if provider_id is None or model is None:
+            raise ValueError("this stage uses a custom endpoint; measure it with pnpm replay:live")
+        route = catalog.route_for(stage, provider_id, model, seed.stages.get(stage))
+        result = await benchmark(route, store.env_overlay(env))
+        store.record_benchmark(
+            provider_id, model, ok=result.ok, p50_ms=result.p50_ms, worst_ms=result.worst_ms,
+            samples=result.samples, detail=result.detail,
+        )  # fmt: skip
         return JSONResponse(providers_payload())
 
     async def reset_stage(request: Request) -> Response:
@@ -529,6 +570,11 @@ def create_app(
         ),
         Route("/api/stages/{stage}", guarded(put_stage, mutating=True), methods=["PUT"]),
         Route("/api/stages/{stage}", guarded(reset_stage, mutating=True), methods=["DELETE"]),
+        Route(
+            "/api/stages/{stage}/benchmark",
+            guarded(measure_stage, mutating=True),
+            methods=["POST"],
+        ),
         Route("/api/calls", guarded(list_calls)),
         Route("/api/calls/{call_id}", guarded(get_call)),
         Route("/api/audit", guarded(audit)),

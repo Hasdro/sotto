@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
@@ -343,3 +344,27 @@ async def test_cards_carry_their_turn_id_so_a_late_answer_replaces_only_its_own_
     assert turns[0] == turns[1], "holding line and its late answer share the turn"
     assert turns[2] != turns[0], "the next turn gets a new id"
     assert all(t is not None for t in turns)
+
+
+async def test_drain_returns_when_turns_finished_but_were_not_yet_removed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: drain() spun forever when finished turn tasks had not left the task set yet
+    (their done-callback never ran because awaiting finished tasks does not yield)."""
+    real_gather = asyncio.gather
+    calls = 0
+
+    def counting_gather(*aws: Any, **kw: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls > 100:  # the old loop never yields, so a timeout could not stop it
+            raise AssertionError("drain() is spinning")
+        return real_gather(*aws, **kw)
+
+    monkeypatch.setattr(asyncio, "gather", counting_gather)
+    h = make()
+    await h.say("customer", "Can I pay part of it in Bitcoin?", at_ms=1000)
+    finished = asyncio.ensure_future(asyncio.sleep(0))
+    await finished
+    h.session._tasks.add(finished)  # a finished turn whose done-callback has not run yet
+    await asyncio.wait_for(h.session.drain(), 1)

@@ -27,6 +27,18 @@ export type StageChoice = {
   provider_id: string | null;
   model: string | null;
   source: "panel" | "default";
+  /** The stage's first-token deadline (the backup races after it), if it has one. */
+  deadline_ms?: number | null;
+  /** Live stages must meet R1; their model choice is guarded by the last speed check. */
+  live?: boolean;
+  benchmark?: {
+    ok: boolean;
+    p50_ms: number | null;
+    worst_ms: number | null;
+    samples: number;
+    detail: string;
+    at: number;
+  } | null;
 };
 
 export type ProvidersState = {
@@ -50,6 +62,8 @@ export const keysApi = {
       method: "PUT",
       body: { provider_id: providerId, model },
     }),
+  measure: (stage: string) =>
+    api<ProvidersState>(`/api/stages/${enc(stage)}/benchmark`, { method: "POST", body: {} }),
   resetStage: (stage: string) =>
     api<ProvidersState>(`/api/stages/${enc(stage)}`, { method: "DELETE" }),
 };

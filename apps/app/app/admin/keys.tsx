@@ -364,6 +364,7 @@ function StageRow({
             ))}
           </View>
         ) : null}
+        <Speed stage={stage} onChange={onChange} />
         <Stack direction="row" gap="sm" wrap>
           <Button
             label={t("admin.keys.use")}
@@ -389,7 +390,62 @@ function StageRow({
   );
 }
 
+function Speed({
+  stage,
+  onChange,
+}: {
+  stage: StageChoice;
+  onChange: (next: ProvidersState) => void;
+}) {
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (stage.kind === "stt") {
+    return (
+      <Text variant="label" tone="muted">
+        {t("admin.keys.speedStt")}
+      </Text>
+    );
+  }
+  const b = stage.benchmark;
+  const slow = b?.ok && stage.deadline_ms && b.worst_ms !== null && b.worst_ms > stage.deadline_ms;
+  const measure = () => {
+    setBusy(true);
+    setError(null);
+    keysApi
+      .measure(stage.id)
+      .then(onChange, (err: unknown) => setError(errorText(err)))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <View style={styles.speed} testID={`speed-${stage.id}`}>
+      <Text variant="label" tone={b && !b.ok ? "danger" : "muted"} style={styles.grow}>
+        {!b
+          ? t("admin.keys.speedNone")
+          : b.ok
+            ? t("admin.keys.speed", { p50: b.p50_ms ?? 0, worst: b.worst_ms ?? 0, n: b.samples })
+            : t("admin.keys.speedFailed", { detail: b.detail })}
+        {slow ? ` ${t("admin.keys.speedSlow", { deadline: stage.deadline_ms ?? 0 })}` : ""}
+      </Text>
+      <Button
+        label={t(busy ? "admin.keys.measuring" : "admin.keys.measure")}
+        variant="secondary"
+        disabled={busy}
+        onPress={measure}
+        testID={`measure-${stage.id}`}
+      />
+      {error ? (
+        <Text variant="label" tone="danger">
+          {error}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  speed: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },
+  grow: { flexGrow: 1, flexShrink: 1, minWidth: 200 },
   row: { flexDirection: "row", alignItems: "flex-end", gap: space.sm, flexWrap: "wrap" },
   link: { minHeight: minTouchTarget, justifyContent: "center", alignSelf: "flex-start" },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },

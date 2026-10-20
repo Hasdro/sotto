@@ -109,6 +109,34 @@ describe("Keys & providers (P6.7)", () => {
     });
   });
 
+  it("shows a stage's measured speed and measures it again on request (P6.4)", async () => {
+    const measured = state();
+    const stage = measured.stages[0];
+    if (!stage) throw new Error("fixture has a stage");
+    measured.stages = [
+      {
+        ...stage,
+        deadline_ms: 700,
+        live: true,
+        benchmark: { ok: true, p50_ms: 520, worst_ms: 910, samples: 3, detail: "", at: 1 },
+      },
+    ];
+    const calls = mockFetch([state(), measured]);
+    await wrap(<KeysScreen />);
+    expect(await screen.findByText("Speed not measured yet.")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("measure-suggest"));
+    expect(
+      await screen.findByText(
+        /First word: 520 ms typical, 910 ms slowest \(3 tries\)\. Slower than this job's 700 ms deadline/,
+      ),
+    ).toBeOnTheScreen();
+    expect(calls[1]).toEqual({
+      url: "http://127.0.0.1:8787/api/stages/suggest/benchmark",
+      method: "POST",
+      body: {},
+    });
+  });
+
   it("explains how to start the server when it is not running", async () => {
     globalThis.fetch = jest.fn(async () => {
       throw new Error("offline");

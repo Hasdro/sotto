@@ -229,8 +229,10 @@ class CallSession:
 
     async def drain(self) -> None:
         """Wait until every in-flight turn has finished (replay and tests)."""
-        while self._tasks:
-            await asyncio.gather(*list(self._tasks), return_exceptions=True)
+        # Only unfinished tasks: a finished task leaves `_tasks` in a done-callback, and awaiting
+        # finished tasks never yields to the loop to run it (an endless busy loop otherwise).
+        while pending := [t for t in self._tasks if not t.done()]:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     async def _run_turn(self, turn: _Turn) -> None:
         card_type: CardType = "answer" if turn.kind == "question" else "objection"

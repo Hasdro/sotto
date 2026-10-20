@@ -573,3 +573,24 @@ def test_the_next_call_uses_the_managers_own_answers(
     hit = runtimes[-1].playbook.lookup("Are pets allowed in the building?")
     assert hit is not None
     assert hit.entry.short_answer == "One cat or dog."
+
+
+async def test_benchmark_times_the_models_first_word_on_playbook_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sotto_worker.adapters.llm.fake import FakeLLM
+    from sotto_worker.server import benchmark as bench_module
+
+    def fake_llm(route: StageRoute, *, clock: Any, env: Any) -> FakeLLM:
+        return FakeLLM(clock=clock, model=route.model, text="ANSWER: Happy to.", first_token_ms=60)
+
+    monkeypatch.setattr(bench_module, "make_llm", fake_llm)
+    monkeypatch.setattr(bench_module, "TURN_WAIT_S", 2.0)
+    route = CATALOG.route_for("suggest", "groq", "m-fast", SEED_ROUTING.stages["suggest"])
+    result = await bench_module.benchmark(route, {"GROQ_API_KEY": "gsk-test-not-real"})
+    assert result.ok
+    assert result.samples >= 2
+    assert result.p50_ms is not None
+    assert 50 <= result.p50_ms < 400
+    no_key = await bench_module.benchmark(route, {})
+    assert (no_key.ok, no_key.detail) == (False, "no key for this vendor yet")
