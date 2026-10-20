@@ -520,3 +520,93 @@ def test_a_removed_inbox_answer_can_be_added_again(make_client: MakeClient, stor
     )
     assert r.status_code == 200
     assert r.json()["escalations"][0]["status"] == "added"
+
+
+# --- the owner's own OpenAI-compatible endpoints (P6.4, R6) ---------------------------------
+
+
+def test_a_local_endpoint_is_added_tested_chosen_and_removed(
+    make_client: MakeClient, store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def fake_check(provider: Any, key: str) -> KeyCheck:
+        assert key == ""  # Ollama: no key, no Authorization header
+        return KeyCheck(True, "key works; 1 models available", ("llama3.2:3b",))
+
+    monkeypatch.setattr(app_module, "check_key", fake_check)
+    client = make_client()
+    body = {"name": "Ollama on the Mac", "base_url": "http://localhost:11434/v1/"}
+    r = client.post("/api/endpoints", json=body, headers=JSON)
+    assert r.status_code == 200
+    mine = next(p for p in r.json()["providers"] if p["id"] == "custom-ollama-on-the-mac")
+    assert (mine["custom"], mine["base_url"], mine["kind"]) == (
+        True,
+        "http://localhost:11434/v1",
+        "llm",
+    )
+    r = client.post("/api/providers/custom-ollama-on-the-mac/test", headers=JSON)
+    assert r.json()["result"]["ok"] is True
+    mine = next(p for p in r.json()["providers"] if p["id"] == "custom-ollama-on-the-mac")
+    assert mine["models"] == ["llama3.2:3b"]
+    r = client.put(
+        "/api/stages/summary",
+        json={"provider_id": "custom-ollama-on-the-mac", "model": "llama3.2:3b"},
+        headers=JSON,
+    )
+    assert r.status_code == 200
+    assert store.stage_overrides()["summary"] == ("custom-ollama-on-the-mac", "llama3.2:3b")
+    r = client.delete("/api/endpoints/custom-ollama-on-the-mac")
+    assert not [p for p in r.json()["providers"] if p["id"].startswith("custom-")]
+    assert "summary" not in store.stage_overrides()
+
+
+@pytest.mark.parametrize(
+    ("base_url", "key", "why"),
+    [
+        ("http://gpu.example.com/v1", "sk-1234567890", "only sent over https"),
+        ("http://169.254.169.254/latest", "", "not allowed"),
+        ("http://metadata.google.internal/v1", "", "not allowed"),
+        ("https://user:pass@gpu.example.com/v1", "", "not in the address"),
+        ("file:///etc/passwd", "", "http"),
+    ],
+)
+def test_unsafe_endpoints_are_refused(
+    make_client: MakeClient, base_url: str, key: str, why: str
+) -> None:
+    client = make_client()
+    r = client.post(
+        "/api/endpoints", json={"name": "Box", "base_url": base_url, "key": key}, headers=JSON
+    )
+    assert r.status_code == 400
+    assert why in r.json()["error"]
+
+
+def test_an_endpoint_key_only_goes_to_its_own_host(make_client: MakeClient, store: Store) -> None:
+    from sotto_worker.adapters.factory import platform_key
+    from sotto_worker.router import StageRoute
+    from sotto_worker.server.catalog import endpoint_env
+
+    client = make_client()
+    fake_key = "fake-" + "v" * 12  # not a real key; built so scanners see no literal
+    body = {"name": "vLLM", "base_url": "https://gpu.example.com/v1", "key": fake_key}
+    r = client.post("/api/endpoints", json=body, headers=JSON)
+    assert fake_key not in r.text
+    env = {**store.env_overlay({}), **endpoint_env(store.endpoints())}
+    good = StageRoute("openai_compatible", "m", base_url="https://gpu.example.com/v1",
+                      api_key_env="ENDPOINT_CUSTOMVLLM_KEY")  # fmt: skip
+    assert platform_key(good, env) == fake_key
+    moved = dataclasses.replace(good, base_url="https://evil.example/v1")
+    with pytest.raises(ValueError, match=r"may only be sent to gpu\.example\.com"):
+        platform_key(moved, env)
+
+
+def test_a_key_is_refused_for_a_plain_http_endpoint(make_client: MakeClient) -> None:
+    client = make_client()
+    client.post(
+        "/api/endpoints", json={"name": "LM Studio", "base_url": "http://10.0.0.9:1234/v1"},
+        headers=JSON,
+    )  # fmt: skip
+    r = client.put(
+        "/api/providers/custom-lm-studio/key", json={"key": SECRET_KEY_VALUE}, headers=JSON
+    )
+    assert r.status_code == 400
+    assert "https" in r.json()["error"]

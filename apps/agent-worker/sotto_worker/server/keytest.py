@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -55,14 +56,21 @@ async def _check_llm(provider: Provider, key: str, client: httpx.AsyncClient | N
         return KeyCheck(False, "this vendor has no models endpoint to test")
     # The key may only go to its own vendor host (D-016): check the URL we actually call.
     kind = str(provider.route.get("provider"))
-    if kind == "openai_compatible":
+    if provider.custom:
+        # The owner's endpoint: its key (if any) only goes to the host it was registered with.
+        base = urlsplit(str(provider.route.get("base_url")))
+        if urlsplit(url).hostname != base.hostname or (key and base.scheme != "https"):
+            return KeyCheck(False, "the test address does not match the endpoint")
+    elif kind == "openai_compatible":
         check_key_host(provider.key_env, url)
     else:
         check_platform_host(kind, url)
     if provider.route.get("provider") == "anthropic":
         headers = {"x-api-key": key, "anthropic-version": ANTHROPIC_VERSION}
-    else:
+    elif key:
         headers = {"Authorization": f"Bearer {key}"}
+    else:
+        headers = {}  # a local endpoint without a key (Ollama)
     owned = client is None
     http = client or httpx.AsyncClient(timeout=TIMEOUT_S)
     try:
@@ -83,7 +91,8 @@ async def _check_llm(provider: Provider, key: str, client: httpx.AsyncClient | N
         }
         - {""}
     )
-    return KeyCheck(True, f"key works; {len(ids)} models available", tuple(ids))
+    works = "key works" if key else "connected"
+    return KeyCheck(True, f"{works}; {len(ids)} models available", tuple(ids))
 
 
 async def _silence(ms: int = 500, sample_rate: int = 16000) -> AsyncIterator[bytes]:

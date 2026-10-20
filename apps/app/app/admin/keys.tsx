@@ -80,6 +80,9 @@ export default function KeysScreen() {
           <ProviderCard key={p.id} provider={p} onChange={update} />
         ))}
       </Section>
+      <Section title={t("admin.keys.custom.title")} hint={t("admin.keys.custom.hint")}>
+        <EndpointForm onChange={update} />
+      </Section>
       <Section title={t("admin.keys.stt")}>
         {group("stt").map((p) => (
           <ProviderCard key={p.id} provider={p} onChange={update} />
@@ -163,20 +166,30 @@ function ProviderCard({
           </Text>
           <Badge label={t(status.label)} tone={status.tone} dot />
         </Stack>
-        <Text variant="label" tone="muted">
-          {p.free}
-        </Text>
-        <Text variant="label">{p.steps}</Text>
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(p.key_page)}
-          style={styles.link}
-          testID={`get-key-${p.id}`}
-        >
-          <Text variant="label" weight="semibold" tone="primary">
-            {`${t("admin.keys.getKey")} ↗`}
+        {p.custom ? (
+          <Text variant="label" tone="muted">
+            {p.base_url}
           </Text>
-        </Pressable>
+        ) : (
+          <>
+            <Text variant="label" tone="muted">
+              {p.free}
+            </Text>
+            <Text variant="label">{p.steps}</Text>
+          </>
+        )}
+        {p.custom ? null : (
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(p.key_page)}
+            style={styles.link}
+            testID={`get-key-${p.id}`}
+          >
+            <Text variant="label" weight="semibold" tone="primary">
+              {`${t("admin.keys.getKey")} ↗`}
+            </Text>
+          </Pressable>
+        )}
         <View style={styles.row}>
           <TextField
             accessibilityLabel={t("admin.keys.input", { name: p.name })}
@@ -203,7 +216,7 @@ function ProviderCard({
             testID={`key-save-${p.id}`}
           />
         </View>
-        {p.key_set ? (
+        {p.key_set || p.custom ? (
           <Stack direction="row" gap="sm" wrap>
             <Button
               label={busy === "test" ? t("admin.keys.testing") : t("admin.keys.test")}
@@ -233,6 +246,21 @@ function ProviderCard({
                 testID={`key-remove-${p.id}`}
               />
             ) : null}
+            {p.custom ? (
+              <Button
+                label={t("admin.keys.custom.remove")}
+                variant="ghost"
+                disabled={busy !== null}
+                onPress={() =>
+                  run(
+                    "remove",
+                    () => keysApi.removeEndpoint(p.id),
+                    () => "",
+                  )
+                }
+                testID={`endpoint-remove-${p.id}`}
+              />
+            ) : null}
           </Stack>
         ) : null}
         {message ? (
@@ -246,6 +274,70 @@ function ProviderCard({
         ) : p.test?.ok === false && p.test.detail ? (
           <Text variant="label" tone="danger">
             {p.test.detail}
+          </Text>
+        ) : null}
+      </Stack>
+    </Panel>
+  );
+}
+
+function EndpointForm({ onChange }: { onChange: (next: ProvidersState) => void }) {
+  const { t } = useI18n();
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [key, setKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const add = () => {
+    setError(null);
+    keysApi.addEndpoint(name.trim(), url.trim(), key.trim()).then(
+      (next) => {
+        onChange(next);
+        setName("");
+        setUrl("");
+        setKey("");
+      },
+      (err: unknown) => setError(errorText(err)),
+    );
+  };
+  return (
+    <Panel testID="endpoint-form">
+      <Stack gap="sm">
+        <TextField
+          label={t("admin.keys.custom.name")}
+          value={name}
+          onChangeText={setName}
+          maxLength={40}
+          testID="endpoint-name"
+        />
+        <TextField
+          label={t("admin.keys.custom.url")}
+          value={url}
+          onChangeText={setUrl}
+          autoCapitalize="none"
+          autoCorrect={false}
+          testID="endpoint-url"
+        />
+        <TextField
+          label={t("admin.keys.custom.key")}
+          value={key}
+          onChangeText={setKey}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          testID="endpoint-key"
+        />
+        <View>
+          <Button
+            label={t("admin.keys.custom.add")}
+            variant="secondary"
+            disabled={name.trim().length < 2 || url.trim() === ""}
+            onPress={add}
+            testID="endpoint-add"
+          />
+        </View>
+        {error ? (
+          <Text variant="label" tone="danger">
+            {error}
           </Text>
         ) : null}
       </Stack>

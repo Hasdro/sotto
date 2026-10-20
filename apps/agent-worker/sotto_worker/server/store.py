@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sotto_worker.server.catalog import endpoint_key_env
 from sotto_worker.server.vault import Vault, VaultError
 
 SCHEMA = """
@@ -79,6 +80,13 @@ CREATE TABLE IF NOT EXISTS benchmarks (
   detail TEXT NOT NULL,
   at INTEGER NOT NULL,
   PRIMARY KEY (provider_id, model)
+);
+CREATE TABLE IF NOT EXISTS endpoints (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  base_url TEXT NOT NULL,
+  models_json TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
@@ -273,6 +281,53 @@ class Store:
         out = dict(row)
         out["transcript"] = json.loads(out.pop("transcript_json"))
         return out
+
+    # --- the owner's own OpenAI-compatible endpoints (P6.4) --------------------------------
+    def add_endpoint(self, endpoint_id: str, name: str, base_url: str, *, actor: str = "") -> None:
+        with self._tx() as db:
+            if db.execute("SELECT 1 FROM endpoints WHERE id = ?", (endpoint_id,)).fetchone():
+                raise ValueError("an endpoint with this name already exists")
+            db.execute(
+                "INSERT INTO endpoints (id, name, base_url, created_at) VALUES (?, ?, ?, ?)",
+                (endpoint_id, name, base_url, _now()),
+            )
+            self._audit(db, "endpoint.add", f"{name} {base_url}", actor)
+
+    def delete_endpoint(self, endpoint_id: str, key_env: str, *, actor: str = "") -> None:
+        with self._tx() as db:
+            if not db.execute("DELETE FROM endpoints WHERE id = ?", (endpoint_id,)).rowcount:
+                raise ValueError("no such endpoint")
+            db.execute("DELETE FROM provider_keys WHERE key_env = ?", (key_env,))
+            db.execute("DELETE FROM stage_routes WHERE provider_id = ?", (endpoint_id,))
+            self._audit(db, "endpoint.delete", endpoint_id, actor)
+
+    def endpoints(self) -> list[dict[str, Any]]:
+        """Endpoints with whether a key is saved and the models their last test listed."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT id, name, base_url, models_json FROM endpoints ORDER BY created_at"
+            ).fetchall()
+        statuses = self.key_statuses()
+        out = []
+        for r in rows:
+            status = statuses.get(endpoint_key_env(r["id"]))
+            out.append(
+                {
+                    "id": r["id"],
+                    "name": r["name"],
+                    "base_url": r["base_url"],
+                    "has_key": status is not None,
+                    "models": json.loads(r["models_json"]),
+                }
+            )
+        return out
+
+    def record_endpoint_models(self, endpoint_id: str, models: list[str]) -> None:
+        with self._tx() as db:
+            db.execute(
+                "UPDATE endpoints SET models_json = ? WHERE id = ?",
+                (json.dumps(models[:200]), endpoint_id),
+            )
 
     # --- model speed (P6.4) -----------------------------------------------------------------
     def record_benchmark(

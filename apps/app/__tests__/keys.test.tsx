@@ -137,6 +137,41 @@ describe("Keys & providers (P6.7)", () => {
     });
   });
 
+  it("adds an endpoint of the owner's own and shows its address (P6.4)", async () => {
+    const added = state();
+    added.providers = [
+      ...added.providers,
+      {
+        id: "custom-ollama",
+        name: "Ollama",
+        kind: "llm",
+        key_page: "",
+        steps: "",
+        free: "",
+        key_set: false,
+        key_source: null,
+        updated_at: null,
+        test: null,
+        models: [],
+        custom: true,
+        base_url: "http://localhost:11434/v1",
+      },
+    ];
+    const calls = mockFetch([state(), added]);
+    await wrap(<KeysScreen />);
+    await fireEvent.changeText(await screen.findByTestId("endpoint-name"), "Ollama");
+    await fireEvent.changeText(screen.getByTestId("endpoint-url"), "http://localhost:11434/v1");
+    await fireEvent.press(screen.getByTestId("endpoint-add"));
+    expect(await screen.findByText("http://localhost:11434/v1")).toBeOnTheScreen();
+    expect(screen.getByTestId("endpoint-remove-custom-ollama")).toBeOnTheScreen();
+    expect(screen.queryByTestId("get-key-custom-ollama")).toBeNull();
+    expect(calls[1]).toEqual({
+      url: "http://127.0.0.1:8787/api/endpoints",
+      method: "POST",
+      body: { name: "Ollama", base_url: "http://localhost:11434/v1", key: "" },
+    });
+  });
+
   it("explains how to start the server when it is not running", async () => {
     globalThis.fetch = jest.fn(async () => {
       throw new Error("offline");

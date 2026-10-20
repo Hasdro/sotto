@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -26,6 +28,7 @@ class Provider:
     route: dict[str, Any]
     models: tuple[str, ...] = ()
     test_url: str | None = None  # LLM vendors without an OpenAI-compatible base_url
+    custom: bool = False  # an endpoint the owner added in the panel (Ollama, vLLM, …)
 
     def models_url(self) -> str | None:
         """Where "Test" lists models: the vendor's own models endpoint (LLM vendors only)."""
@@ -76,6 +79,33 @@ class Catalog:
                     raise ValueError(f"{p.id}: {url} must be https")
         return cls(providers, stages, frozenset(p.key_env for p in providers.values()))
 
+    def with_endpoints(self, endpoints: list[dict[str, Any]]) -> Catalog:
+        """This catalogue plus the owner's own OpenAI-compatible endpoints (P6.4)."""
+        extra = {
+            e["id"]: Provider(
+                id=e["id"],
+                name=str(e["name"]),
+                kind="llm",
+                key_env=endpoint_key_env(e["id"]),
+                key_page="",
+                free="",
+                steps="",
+                route={
+                    "provider": "openai_compatible",
+                    "base_url": e["base_url"],
+                    **({"api_key_env": endpoint_key_env(e["id"])} if e.get("has_key") else {}),
+                },
+                models=tuple(e.get("models") or ()),
+                custom=True,
+            )
+            for e in endpoints
+        }
+        return dataclasses.replace(
+            self,
+            providers={**self.providers, **extra},
+            key_envs=self.key_envs | {p.key_env for p in extra.values()},
+        )
+
     def provider_for_route(self, route: StageRoute) -> str | None:
         """Which catalogue vendor a route uses (None: fake, local or custom endpoint)."""
         for p in self.providers.values():
@@ -120,6 +150,11 @@ class Catalog:
         )
 
 
+def endpoint_key_env(endpoint_id: str) -> str:
+    """The vault name of a custom endpoint's key, e.g. custom-ollama → ENDPOINT_CUSTOMOLLAMA_KEY."""
+    return "ENDPOINT_" + re.sub(r"[^A-Z0-9]", "", endpoint_id.upper()) + "_KEY"
+
+
 def apply_overrides(
     config: RoutingConfig, catalog: Catalog, overrides: dict[str, tuple[str, str]]
 ) -> RoutingConfig:
@@ -128,3 +163,32 @@ def apply_overrides(
     for stage, (provider_id, model) in overrides.items():
         stages[stage] = catalog.route_for(stage, provider_id, model, config.stages.get(stage))
     return dataclasses.replace(config, stages=stages)
+
+
+def endpoint_env(endpoints: list[dict[str, Any]]) -> dict[str, str]:
+    """`<key name>_HOST` for each endpoint with a key: the one host its key may go to (D-016)."""
+    return {
+        f"{endpoint_key_env(e['id'])}_HOST": str(urlsplit(e["base_url"]).hostname or "")
+        for e in endpoints
+        if e.get("has_key")
+    }
+
+
+BLOCKED_HOSTS = ("169.254.", "metadata.google.internal", "metadata", "fd00:ec2::254")
+
+
+def check_endpoint_url(base_url: str, *, has_key: bool) -> str:
+    """An owner-added endpoint: http(s) only, no user info, never a cloud metadata address;
+    a key only travels over https."""
+    url = base_url.strip().rstrip("/")
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise ValueError("the address must start with http:// or https://")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("put the key in the key field, not in the address")
+    host = parts.hostname.lower()
+    if host.startswith(BLOCKED_HOSTS) or host.startswith("fe80:"):
+        raise ValueError("that address is not allowed")
+    if has_key and parts.scheme != "https":
+        raise ValueError("a key is only sent over https; use an https address or no key")
+    return url

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import re
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
@@ -144,12 +145,23 @@ def key_env(route: StageRoute) -> str | None:
     return API_KEY_ENV.get(route.provider)
 
 
+# A key for an endpoint the owner added in the Keys & providers panel (P6.4). It is bound to the
+# host that endpoint was registered with, which the server passes as `<name>_HOST`.
+ENDPOINT_KEY = re.compile(r"^ENDPOINT_[A-Z0-9]+_KEY$")
+
+
 def platform_key(route: StageRoute, env: Mapping[str, str]) -> str | None:
     """The platform key for an openai_compatible route, after checking that the route points at
     the one host that key may be sent to (D-016). None when the route names no key."""
     if not route.api_key_env:
         return None
-    _check_key_host(route.api_key_env, route.base_url)
+    if ENDPOINT_KEY.match(route.api_key_env):
+        host = env.get(f"{route.api_key_env}_HOST", "")
+        if not host:
+            raise ValueError(f"{route.api_key_env} has no registered host")
+        _check_host(route.api_key_env, host, route.base_url)
+    else:
+        _check_key_host(route.api_key_env, route.base_url)
     return _key(route.api_key_env, env)
 
 

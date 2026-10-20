@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import json
 import mimetypes
+import re
 from collections.abc import AsyncIterator, Callable, Mapping
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -34,7 +35,12 @@ from sotto_worker.scenarios import Scenario, load_all
 from sotto_worker.server.auth import COOKIE, SESSION_TTL_S, AccessGate
 from sotto_worker.server.benchmark import LIVE_STAGES, R1_GUARD_P50_MS, benchmark
 from sotto_worker.server.calls import Call
-from sotto_worker.server.catalog import Catalog
+from sotto_worker.server.catalog import (
+    Catalog,
+    check_endpoint_url,
+    endpoint_env,
+    endpoint_key_env,
+)
 from sotto_worker.server.keytest import check_key
 from sotto_worker.server.store import EscalationError, Store
 
@@ -199,11 +205,19 @@ def create_app(
         return response
 
     # --- keys & providers (P6.7) -------------------------------------------------------------
+    def full_catalog() -> Catalog:
+        return catalog.with_endpoints(store.endpoints())
+
+    def call_env() -> dict[str, str]:
+        """Keys for outgoing requests: server keys, panel keys, and each endpoint's key host."""
+        return {**store.env_overlay(env), **endpoint_env(store.endpoints())}
+
     def providers_payload() -> dict[str, Any]:
+        merged = full_catalog()
         statuses = store.key_statuses()
         overrides = store.stage_overrides()
         providers = []
-        for p in catalog.providers.values():
+        for p in merged.providers.values():
             status = statuses.get(p.key_env)
             source = "panel" if status else ("server" if env.get(p.key_env) else None)
             providers.append(
@@ -221,17 +235,19 @@ def create_app(
                     if status is None or status.test_ok is None
                     else {"ok": status.test_ok, "at": status.test_at, "detail": status.test_detail},
                     "models": sorted(set(p.models) | set(status.models if status else ())),
+                    "custom": p.custom,
+                    "base_url": p.route.get("base_url") if p.custom else None,
                 }
             )
         stages = []
-        for slot in catalog.stages.values():
+        for slot in merged.stages.values():
             route = seed.stages.get(slot.id)
             override = overrides.get(slot.id)
             current = (
                 {"provider_id": override[0], "model": override[1], "source": "panel"}
                 if override
                 else {
-                    "provider_id": catalog.provider_for_route(route) if route else None,
+                    "provider_id": merged.provider_for_route(route) if route else None,
                     "model": route.model if route else None,
                     "source": "default",
                 }
@@ -258,7 +274,7 @@ def create_app(
         return JSONResponse(providers_payload())
 
     def provider_from(request: Request) -> Any:
-        provider = catalog.providers.get(request.path_params["provider"])
+        provider = full_catalog().providers.get(request.path_params["provider"])
         if provider is None:
             raise ValueError("unknown provider")
         return provider
@@ -268,6 +284,8 @@ def create_app(
         key = str((await body(request)).get("key", "")).strip()
         if not (8 <= len(key) <= 400) or not key.isascii() or any(c.isspace() for c in key):
             raise ValueError("that does not look like an API key (8 to 400 characters, no spaces)")
+        if provider.custom:  # a key only ever travels over https (D-016)
+            check_endpoint_url(str(provider.route.get("base_url")), has_key=True)
         store.set_key(provider.key_env, key, actor=client_of(request))
         config.log(f"key saved for {provider.name}")
         return JSONResponse(providers_payload())
@@ -280,11 +298,13 @@ def create_app(
     async def test_provider(request: Request) -> Response:
         provider = provider_from(request)
         key = store.env_overlay(env).get(provider.key_env, "")
-        if not key:
+        if not key and not provider.custom:  # a local endpoint (Ollama) may need no key
             raise ValueError("no key saved for this vendor")
         result = await check_key(provider, key)
         if provider.key_env in store.key_statuses():
             store.record_test(provider.key_env, result.ok, result.detail, list(result.models))
+        if provider.custom and result.ok:
+            store.record_endpoint_models(provider.id, list(result.models))
         payload = providers_payload()
         payload["result"] = {"ok": result.ok, "detail": result.detail}
         return JSONResponse(payload)
@@ -293,7 +313,7 @@ def create_app(
         stage = request.path_params["stage"]
         data = await body(request)
         provider_id, model = str(data.get("provider_id", "")), str(data.get("model", ""))
-        catalog.route_for(stage, provider_id, model, seed.stages.get(stage))  # validates
+        full_catalog().route_for(stage, provider_id, model, seed.stages.get(stage))  # validates
         bench = store.benchmark(provider_id, model.strip())
         if stage in LIVE_STAGES and bench and bench["ok"] and bench["p50_ms"] > R1_GUARD_P50_MS:
             raise ValueError(
@@ -309,17 +329,39 @@ def create_app(
         if slot is None or slot.kind != "llm":
             raise ValueError("speed is measured for AI stages; for speech use pnpm stt:live")
         provider_id, model = store.stage_overrides().get(stage) or (None, None)
+        merged = full_catalog()
         if provider_id is None:
             route = seed.stages[stage]
-            provider_id, model = catalog.provider_for_route(route), route.model
+            provider_id, model = merged.provider_for_route(route), route.model
         if provider_id is None or model is None:
             raise ValueError("this stage uses a custom endpoint; measure it with pnpm replay:live")
-        route = catalog.route_for(stage, provider_id, model, seed.stages.get(stage))
-        result = await benchmark(route, store.env_overlay(env))
+        route = merged.route_for(stage, provider_id, model, seed.stages.get(stage))
+        result = await benchmark(route, call_env())
         store.record_benchmark(
             provider_id, model, ok=result.ok, p50_ms=result.p50_ms, worst_ms=result.worst_ms,
             samples=result.samples, detail=result.detail,
         )  # fmt: skip
+        return JSONResponse(providers_payload())
+
+    async def add_endpoint(request: Request) -> Response:
+        data = await body(request)
+        name = str(data.get("name", "")).strip()
+        key = str(data.get("key", "")).strip()
+        if not 2 <= len(name) <= 40:
+            raise ValueError("give the endpoint a name of 2 to 40 characters")
+        slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:30] or "endpoint"
+        endpoint_id = f"custom-{slug}"
+        url = check_endpoint_url(str(data.get("base_url", "")), has_key=bool(key))
+        if key and (not 8 <= len(key) <= 400 or any(c.isspace() for c in key)):
+            raise ValueError("that does not look like an API key (8 to 400 characters, no spaces)")
+        store.add_endpoint(endpoint_id, name, url, actor=client_of(request))
+        if key:
+            store.set_key(endpoint_key_env(endpoint_id), key, actor=client_of(request))
+        return JSONResponse(providers_payload())
+
+    async def delete_endpoint(request: Request) -> Response:
+        endpoint_id = request.path_params["endpoint_id"]
+        store.delete_endpoint(endpoint_id, endpoint_key_env(endpoint_id), actor=client_of(request))
         return JSONResponse(providers_payload())
 
     async def reset_stage(request: Request) -> Response:
@@ -590,6 +632,12 @@ def create_app(
         Route("/api/calls", guarded(list_calls)),
         Route("/api/calls/{call_id}", guarded(get_call)),
         Route("/api/audit", guarded(audit)),
+        Route("/api/endpoints", guarded(add_endpoint, mutating=True), methods=["POST"]),
+        Route(
+            "/api/endpoints/{endpoint_id}",
+            guarded(delete_endpoint, mutating=True),
+            methods=["DELETE"],
+        ),
         Route("/api/company/settings", guarded(get_settings)),
         Route("/api/company/settings", guarded(put_settings, mutating=True), methods=["PUT"]),
         Route("/api/escalations", guarded(list_escalations)),

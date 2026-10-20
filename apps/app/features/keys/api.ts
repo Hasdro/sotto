@@ -18,6 +18,9 @@ export type Provider = {
   updated_at: number | null;
   test: { ok: boolean; at: number | null; detail: string | null } | null;
   models: string[];
+  /** An endpoint the owner added (Ollama, vLLM, LM Studio…): no key page; its own address. */
+  custom?: boolean;
+  base_url?: string | null;
 };
 
 export type StageChoice = {
@@ -62,6 +65,13 @@ export const keysApi = {
       method: "PUT",
       body: { provider_id: providerId, model },
     }),
+  addEndpoint: (name: string, baseUrl: string, key: string) =>
+    api<ProvidersState>("/api/endpoints", {
+      method: "POST",
+      body: { name, base_url: baseUrl, key },
+    }),
+  removeEndpoint: (id: string) =>
+    api<ProvidersState>(`/api/endpoints/${enc(id)}`, { method: "DELETE" }),
   measure: (stage: string) =>
     api<ProvidersState>(`/api/stages/${enc(stage)}/benchmark`, { method: "POST", body: {} }),
   resetStage: (stage: string) =>

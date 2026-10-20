@@ -23,7 +23,7 @@ from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import REPO_ROOT, SEED, Runtime, build_demo_runtime
 from sotto_worker.server.app import ServerConfig, create_app
 from sotto_worker.server.auth import AccessGate
-from sotto_worker.server.catalog import Catalog, apply_overrides
+from sotto_worker.server.catalog import Catalog, apply_overrides, endpoint_env
 from sotto_worker.server.store import Store
 from sotto_worker.server.vault import MIN_SECRET_CHARS, Vault
 
@@ -78,8 +78,9 @@ def build(args: argparse.Namespace, env: Mapping[str, str]) -> tuple[ServerConfi
     adapters: dict[str, LLMAdapter] = {}  # model clients shared across calls (T-014)
 
     def runtime() -> Runtime:
-        keys = store.env_overlay(provider_env)
-        routing = apply_overrides(seed, catalog, store.stage_overrides())
+        endpoints = store.endpoints()
+        keys = {**store.env_overlay(provider_env), **endpoint_env(endpoints)}
+        routing = apply_overrides(seed, catalog.with_endpoints(endpoints), store.stage_overrides())
         added = [  # the manager's own answers and inbox answers (P3.5, R2 step 5)
             PlaybookEntry(
                 id=e["id"],
