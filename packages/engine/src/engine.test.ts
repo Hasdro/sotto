@@ -387,3 +387,20 @@ describe("spoken turns", () => {
     await audio.stop();
   });
 });
+
+describe("UTF-8 fallback decoder (runtimes without TextDecoder)", () => {
+  it("decodes multi-byte text split across chunks", async () => {
+    const { makeDecoder } = await import("./adapters/llm.ts");
+    const saved = globalThis.TextDecoder;
+    Reflect.deleteProperty(globalThis, "TextDecoder"); // a runtime without TextDecoder
+    try {
+      const d = makeDecoder();
+      const bytes = new TextEncoder().encode("سعر – €5 ✓");
+      const out =
+        d.decode(bytes.slice(0, 3)) + d.decode(bytes.slice(3, 7)) + d.decode(bytes.slice(7));
+      expect(out).toBe("سعر – €5 ✓");
+    } finally {
+      globalThis.TextDecoder = saved;
+    }
+  });
+});

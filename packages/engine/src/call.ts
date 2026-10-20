@@ -44,7 +44,11 @@ export type Runtime = {
 
 /** Live models when the suggest route has a key; otherwise the offline demo model (as the
  * worker's build_demo_runtime). A backup without a key is switched off for this call. */
-export function buildRuntime(bundle: CallBundle, clock: Clock = realClock): Runtime {
+export function buildRuntime(
+  bundle: CallBundle,
+  clock: Clock = realClock,
+  fetchFn?: typeof fetch,
+): Runtime {
   const keys = bundle.keys ?? {};
   const stages: Record<string, StageRoute> = { ...bundle.stages };
   const disabled = new Set(bundle.company.backup_disabled);
@@ -83,7 +87,12 @@ export function buildRuntime(bundle: CallBundle, clock: Clock = realClock): Runt
       model: r.model,
       ...(r.base_url ? { base_url: r.base_url } : {}),
     }));
-  const router = new ModelRouter(stages, (route) => makeLLM(route, keys, clock), clock, disabled);
+  const router = new ModelRouter(
+    stages,
+    (route) => makeLLM(route, keys, clock, fetchFn),
+    clock,
+    disabled,
+  );
   return {
     company: { ...bundle.company, backup_disabled: [...disabled] },
     router,

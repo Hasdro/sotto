@@ -15,6 +15,7 @@ import {
   type DemoServerMessage,
   parseDemoServerMessage,
 } from "@sotto/shared";
+import { Platform } from "react-native";
 import { cloudApi } from "../../lib/cloud";
 import { type DeviceEntry, saveDeviceCall } from "../../lib/deviceHistory";
 import type { Bridge, BridgeHandlers } from "./bridge";
@@ -25,7 +26,10 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
   let transcript: DeviceEntry[] = [];
   let startedAt = Date.now();
   const cardText = new Map<string, string>();
-  const runtime = buildRuntime(bundle);
+  // React Native's built-in fetch cannot stream a response; Expo's can (cards word by word).
+  const fetchFn =
+    Platform.OS === "web" ? undefined : (require("expo/fetch") as { fetch: typeof fetch }).fetch;
+  const runtime = buildRuntime(bundle, undefined, fetchFn);
 
   const emit = (raw: DemoServerMessage) => {
     let msg: DemoServerMessage;

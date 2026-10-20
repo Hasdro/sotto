@@ -48,10 +48,37 @@ export function hasCredentials(route: StageRoute, keys: Record<string, string>):
   return name === null || Boolean(keys[name]);
 }
 
+type Decoder = { decode(bytes?: Uint8Array, opts?: { stream?: boolean }): string };
+
+/** TextDecoder where the runtime has one; a small streaming UTF-8 decoder otherwise. */
+export function makeDecoder(): Decoder {
+  const Native = (globalThis as { TextDecoder?: new () => Decoder }).TextDecoder;
+  if (Native) return new Native();
+  let pending: number[] = [];
+  return {
+    decode(bytes) {
+      const all = [...pending, ...(bytes ?? [])];
+      let out = "";
+      let i = 0;
+      while (i < all.length) {
+        const b = all[i] as number;
+        const len = b < 0x80 ? 1 : b >= 0xf0 ? 4 : b >= 0xe0 ? 3 : b >= 0xc0 ? 2 : 1;
+        if (i + len > all.length) break; // the rest arrives in the next chunk
+        let cp = len === 1 ? b : b & (0xff >> (len + 1));
+        for (let k = 1; k < len; k++) cp = (cp << 6) | ((all[i + k] as number) & 0x3f);
+        out += String.fromCodePoint(cp);
+        i += len;
+      }
+      pending = all.slice(i);
+      return out;
+    },
+  };
+}
+
 /** Parses an SSE byte stream into `data:` payloads (one per event). */
 export async function* sseData(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
   const reader = body.getReader();
-  const decoder = new TextDecoder();
+  const decoder = makeDecoder();
   let buffer = "";
   let data: string[] = [];
   try {
