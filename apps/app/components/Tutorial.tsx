@@ -21,7 +21,12 @@ import { useI18n } from "../lib/locale";
 import { setPrefs, usePrefs } from "../lib/prefs";
 import { useCloud } from "../lib/useCloud";
 
-type Step = { mascot: MascotState; title: StringKey; body: StringKey; demo?: "card" | "colors" };
+export type Step = {
+  mascot: MascotState;
+  title: StringKey;
+  body: StringKey;
+  demo?: "card" | "colors";
+};
 
 const STEPS: readonly Step[] = [
   { mascot: "idle", title: "tutorial.1.title", body: "tutorial.1.body" },
@@ -56,7 +61,15 @@ export function Tutorial() {
   );
 }
 
-export function TutorialDialog({ onClose }: { onClose: (never: boolean) => void }) {
+export function TutorialDialog({
+  onClose,
+  steps = STEPS,
+  testID = "tutorial",
+}: {
+  onClose: (never: boolean) => void;
+  steps?: readonly Step[];
+  testID?: string;
+}) {
   const { t } = useI18n();
   const { color } = useTheme();
   const [i, setI] = useState(0);
@@ -71,13 +84,13 @@ export function TutorialDialog({ onClose }: { onClose: (never: boolean) => void 
       useNativeDriver: false,
     }).start();
   }, [fade]);
-  const step = STEPS[i] as Step;
-  const last = i === STEPS.length - 1;
+  const step = steps[i] as Step;
+  const last = i === steps.length - 1;
   return (
     <Modal transparent visible animationType="fade" onRequestClose={() => onClose(never)}>
       <View style={[styles.scrim, { backgroundColor: `${color.scrim}99` }]}>
         <View
-          testID="tutorial"
+          testID={testID}
           accessibilityViewIsModal
           style={[styles.sheet, { backgroundColor: color.surface, borderColor: color.border }]}
         >
@@ -109,9 +122,9 @@ export function TutorialDialog({ onClose }: { onClose: (never: boolean) => void 
           </Animated.View>
           <View
             style={styles.dots}
-            accessibilityLabel={t("tutorial.step", { n: i + 1, total: STEPS.length })}
+            accessibilityLabel={t("tutorial.step", { n: i + 1, total: steps.length })}
           >
-            {STEPS.map((s, k) => (
+            {steps.map((s, k) => (
               <View
                 key={s.title}
                 style={[

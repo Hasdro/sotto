@@ -396,6 +396,19 @@ const en = {
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
+  "playbook.help": "How it works",
+  "playbook.guide.1.title": "Your playbook is Sotto's memory",
+  "playbook.guide.1.body":
+    "Each entry is a customer question and the answer your company wants given. Prices, hours, policies, objections.",
+  "playbook.guide.2.title": "Sotto matches what the customer asks",
+  "playbook.guide.2.body":
+    "During a call, every customer question is compared with your entries in a few milliseconds.",
+  "playbook.guide.3.title": "A match becomes a green card",
+  "playbook.guide.3.body":
+    "The agent sees your approved answer first. If nothing matches, the AI answers and marks it 'Not in playbook'.",
+  "playbook.guide.4.title": "Unanswered questions grow it",
+  "playbook.guide.4.body":
+    "Questions Sotto could not answer go to the Inbox. Answer one, add it to the playbook, and every agent has it on the next call.",
   "tutorial.1.title": "Meet Sotto",
   "tutorial.1.body":
     "Sotto sits beside your calls and whispers what to say. It only listens to the customer, never to you.",
@@ -899,6 +912,19 @@ const ar: Record<StringKey, string> = {
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
+  "playbook.help": "كيف يعمل",
+  "playbook.guide.1.title": "الدليل هو ذاكرة Sotto",
+  "playbook.guide.1.body":
+    "كل إدخال سؤال من العميل والإجابة التي تريدها شركتك: الأسعار، المواعيد، السياسات، الاعتراضات.",
+  "playbook.guide.2.title": "يطابق Sotto ما يسأله العميل",
+  "playbook.guide.2.body":
+    "أثناء المكالمة، يُقارن كل سؤال من العميل بإدخالاتك خلال أجزاء من الثانية.",
+  "playbook.guide.3.title": "التطابق يصبح بطاقة خضراء",
+  "playbook.guide.3.body":
+    "يرى الوكيل إجابتك المعتمدة أولًا. إن لم يوجد تطابق يجيب الذكاء الاصطناعي ويضع علامة «ليس في الدليل».",
+  "playbook.guide.4.title": "الأسئلة غير المجابة تُثريه",
+  "playbook.guide.4.body":
+    "الأسئلة التي لم يُجب عنها Sotto تذهب إلى الوارد. أجب عنها وأضفها للدليل ليجدها كل وكيل في المكالمة التالية.",
   "tutorial.1.title": "تعرّف على Sotto",
   "tutorial.1.body": "يرافق Sotto مكالماتك ويهمس لك بما تقول. يستمع إلى العميل فقط، لا إليك.",
   "tutorial.2.title": "ابدأ مكالمتك كالمعتاد",

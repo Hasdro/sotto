@@ -19,6 +19,22 @@ import {
 import { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
+import { type Step, TutorialDialog } from "../components/Tutorial";
+import { setPrefs, usePrefs } from "../lib/prefs";
+
+/** What the playbook is and how it feeds the cards (owner, 21 Oct). */
+const PLAYBOOK_GUIDE: readonly Step[] = [
+  { mascot: "idle", title: "playbook.guide.1.title", body: "playbook.guide.1.body" },
+  { mascot: "thinking", title: "playbook.guide.2.title", body: "playbook.guide.2.body" },
+  {
+    mascot: "suggesting",
+    title: "playbook.guide.3.title",
+    body: "playbook.guide.3.body",
+    demo: "card",
+  },
+  { mascot: "reviewing", title: "playbook.guide.4.title", body: "playbook.guide.4.body" },
+];
+
 import { MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
 import { useEscalations } from "../features/escalations/store";
 import { type PlaybookEntry, searchPlaybook } from "../features/playbook/mock";
@@ -41,6 +57,7 @@ export default function PlaybookScreen() {
   const { color } = useTheme();
   const { role } = useRole();
   const [query, setQuery] = useState("");
+  const { playbookHelpSeen } = usePrefs();
   const samples = useEscalations().playbook;
   const server = useServerPlaybook();
   const playbook = server.entries ?? (sampleDataAllowed() ? samples : []);
@@ -50,7 +67,25 @@ export default function PlaybookScreen() {
   const results = useMemo(() => searchPlaybook(playbook, query), [playbook, query]);
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="playbook" style={styles.page}>
-      <PageHeader title={t("playbook.title")} subtitle={t("playbook.subtitle")} />
+      <PageHeader
+        title={t("playbook.title")}
+        subtitle={t("playbook.subtitle")}
+        actions={
+          <Button
+            variant="secondary"
+            label={t("playbook.help")}
+            onPress={() => setPrefs({ playbookHelpSeen: false })}
+            testID="playbook-help"
+          />
+        }
+      />
+      {playbookHelpSeen ? null : (
+        <TutorialDialog
+          steps={PLAYBOOK_GUIDE}
+          testID="playbook-guide"
+          onClose={() => setPrefs({ playbookHelpSeen: true })}
+        />
+      )}
       <View style={styles.search}>
         <TextField
           accessibilityLabel={t("playbook.search")}
