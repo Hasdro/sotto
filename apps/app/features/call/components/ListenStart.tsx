@@ -1,6 +1,7 @@
 import { Button, Panel, radius, size, space, Text, useTheme } from "@sotto/ui";
 import { useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { cloudOrigin } from "../../../lib/cloud";
 import { useI18n } from "../../../lib/locale";
 import { useIsWide } from "../../../lib/responsive";
 import type { AudioSource } from "../mic";
@@ -112,3 +113,29 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.sm },
   actionsNarrow: { flexDirection: "column", flexWrap: "nowrap", alignItems: "stretch" },
 });
+
+/** Phones (T-036): the phone app cannot hear another app's call yet (no native capture until
+ * phone calling, Phase 4), so it says so instead of offering a start that fails. */
+export function PhoneCallsLater() {
+  const { t } = useI18n();
+  const wide = useIsWide();
+  const origin = cloudOrigin();
+  return (
+    <Panel style={[styles.panel, wide ? null : styles.panelNarrow]} testID="phone-calls-later">
+      <Text variant="title" weight="semibold" accessibilityRole="header">
+        {t("call.phone.title")}
+      </Text>
+      <Text variant="body" tone="muted">
+        {t("call.phone.body")}
+      </Text>
+      {origin ? (
+        <Button
+          label={t("call.phone.download")}
+          variant="secondary"
+          onPress={() => void Linking.openURL(`${origin}/downloads/`)}
+          testID="phone-downloads"
+        />
+      ) : null}
+    </Panel>
+  );
+}

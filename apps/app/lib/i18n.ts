@@ -258,6 +258,10 @@ const en = {
   "call.mic.denied": "The microphone is blocked. Allow it in the browser, then try again.",
   "call.mic.unsupported": "This browser cannot share the microphone here. It needs HTTPS.",
   "call.hearing": "Hearing: {text}",
+  "call.phone.title": "Live calls on the phone are coming",
+  "call.phone.body":
+    "Live calls in the phone app arrive with phone calling (Phase 4). Use the Mac or Windows app today.",
+  "call.phone.download": "Get the Mac or Windows app",
   "call.listen.title": "Start listening to a call",
   "call.listen.body":
     "Start your call as usual, then press Start. Sotto listens to the customer and suggests what to say.",
@@ -637,6 +641,10 @@ const ar: Record<StringKey, string> = {
   "call.mic.denied": "الميكروفون محظور. اسمح به في المتصفح ثم حاول مرة أخرى.",
   "call.mic.unsupported": "لا يستطيع هذا المتصفح مشاركة الميكروفون هنا. يلزم HTTPS.",
   "call.hearing": "نسمع: {text}",
+  "call.phone.title": "المكالمات المباشرة على الهاتف قادمة",
+  "call.phone.body":
+    "تصل المكالمات المباشرة في تطبيق الهاتف مع ميزة الاتصال الهاتفي (المرحلة 4). استخدم تطبيق Mac أو Windows اليوم.",
+  "call.phone.download": "احصل على تطبيق Mac أو Windows",
   "call.listen.title": "ابدأ الاستماع إلى مكالمة",
   "call.listen.body": "ابدأ مكالمتك كالمعتاد ثم اضغط ابدأ. يستمع سوتو إلى العميل ويقترح ما تقوله.",
   "call.listen.where": "أين المكالمة؟",

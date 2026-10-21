@@ -85,6 +85,7 @@ describe("in-call screen", () => {
   });
 
   it("a real account starts by listening, never with scripts or typed lines (D-024)", async () => {
+    jest.replaceProperty(RN.Platform, "OS", "web"); // web and desktop hear calls today
     const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
     const s = session(stateFrom([real]));
     await render(<CallView session={s} mock={false} />);
@@ -94,6 +95,19 @@ describe("in-call screen", () => {
     fireEvent.press(screen.getByTestId("start-call"));
     expect(s.startListening).toHaveBeenCalledWith("mic");
   });
+
+  it.each(["ios", "android"] as const)(
+    "on %s, says plainly that live calls come with phone calling (T-036)",
+    async (os) => {
+      jest.replaceProperty(RN.Platform, "OS", os);
+      const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
+      const s = session(stateFrom([real]));
+      await render(<CallView session={s} mock={false} />);
+      expect(screen.getByTestId("phone-calls-later")).toBeOnTheScreen();
+      expect(screen.queryByTestId("listen-start")).toBeNull();
+      expect(screen.getByText(/Use the Mac or Windows app today/)).toBeOnTheScreen();
+    },
+  );
 
   it("a real call shows what Sotto hears and a pause button, with no typing", async () => {
     const real: DemoServerMessage = {

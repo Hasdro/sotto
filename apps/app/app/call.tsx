@@ -27,7 +27,7 @@ import { CardStack } from "../features/call/components/CardStack";
 import { Composer, type MicControl } from "../features/call/components/Composer";
 import { ConfirmEnd } from "../features/call/components/ConfirmEnd";
 import { ListenBar } from "../features/call/components/ListenBar";
-import { ListenStart } from "../features/call/components/ListenStart";
+import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
@@ -165,7 +165,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
         <ScenarioPicker scenarios={state.hello.scenarios} onStart={session.start} />
       ) : null}
       {state.phase === "idle" && !practice ? (
-        <ListenStart computer={computerAudioAvailable()} onStart={session.startListening} />
+        Platform.OS === "web" ? (
+          <ListenStart computer={computerAudioAvailable()} onStart={session.startListening} />
+        ) : (
+          <PhoneCallsLater />
+        )
       ) : null}
       {state.phase === "ended" ? (
         <Panel style={styles.ended} testID="call-ended">
