@@ -62,21 +62,58 @@ export class PlaybookIndex {
     return vec;
   }
 
-  /** Best match regardless of confidence (null only for an empty playbook). */
-  nearest(text: string): PlaybookHit | null {
+  /** The `n` best-scoring entries, best first, whatever their confidence. */
+  ranked(text: string, n: number): PlaybookHit[] {
     const query = this.vector(tokens(text));
-    let best: PlaybookHit | null = null;
-    this.entries.forEach((entry, i) => {
+    const hits = this.entries.map((entry, i) => {
       const vec = this.vectors[i] as Vector;
       let score = 0;
       for (const [t, w] of query) score += w * (vec.get(t) ?? 0);
-      if (best === null || score > best.score) best = { entry, score };
+      return { entry, score };
     });
-    return best;
+    // Stable sort: on a tie the earlier entry wins, as the single-best scan did.
+    return hits.sort((a, b) => b.score - a.score).slice(0, n);
+  }
+
+  /** Best match regardless of confidence (null only for an empty playbook). */
+  nearest(text: string): PlaybookHit | null {
+    return this.ranked(text, 1)[0] ?? null;
   }
 
   lookup(text: string): PlaybookHit | null {
     const hit = this.nearest(text);
     return hit !== null && hit.score >= CONFIDENT ? hit : null;
   }
+}
+
+/** How much playbook text the model gets in `playbook.match` (T-032). */
+export const MATCH_MAX_CHARS = 600;
+/** How many near entries the model sees when none is a confident match (T-032). */
+export const NEAR_ENTRIES = 3;
+
+/** The entries the model may draw on: question, short answer and details each, best first,
+ * capped at `max` characters so the prompt (and its first token) stays small. */
+export function matchText(hits: PlaybookHit[], max = MATCH_MAX_CHARS): string {
+  let out = "";
+  for (const { entry } of hits) {
+    const piece = [entry.question, entry.short_answer, entry.details]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join("\n");
+    const sep = out ? "\n\n" : "";
+    if (out.length + sep.length + piece.length <= max) {
+      out += sep + piece;
+      continue;
+    }
+    const room = max - out.length - sep.length;
+    if (room > 40) out += sep + clip(piece, room);
+    break;
+  }
+  return out;
+}
+
+function clip(text: string, max: number): string {
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${space > max / 2 ? cut.slice(0, space) : cut}…`;
 }

@@ -5,7 +5,7 @@
  * escalation per (call, question).
  */
 import type { CardMessage } from "@sotto/shared";
-import type { PlaybookIndex } from "./playbook.ts";
+import { CONFIDENT, matchText, NEAR_ENTRIES, type PlaybookHit, type PlaybookIndex } from "./playbook.ts";
 import type { ModelRouter, RouteResult } from "./router.ts";
 import { classify, questionHash, renderPrompt, type TurnKind, VerdictParser } from "./turns.ts";
 import {
@@ -58,6 +58,8 @@ type Turn = {
   sttFinalMs: number;
   language: string;
   lookupMs: number;
+  /** The nearest playbook entries (score > 0), best first; the model sees them (T-032). */
+  nearest: PlaybookHit[];
 };
 
 export type SessionDeps = {
@@ -211,6 +213,7 @@ export class CallSession {
       sttFinalMs: Math.max(this.clock.now() - t0, 0),
       language: languageFor(this.deps.company, event.text),
       lookupMs: 0,
+      nearest: [],
     };
     const task = this.runTurn(turn).catch((err) => console.warn("[engine] turn failed", err));
     this.running.add(task);
@@ -230,8 +233,12 @@ export class CallSession {
     await Promise.resolve(); // let the caller send turn_end first (same order as the worker)
     const cardType: CardType = turn.kind === "question" ? "answer" : "objection";
     const started = this.clock.now();
-    const hit = this.deps.playbook.lookup(turn.event.text);
+    // One scan per turn: a confident top entry is the card; otherwise the nearest few go to the
+    // model, which may answer from one of them (T-032).
+    const top = this.deps.playbook.ranked(turn.event.text, NEAR_ENTRIES);
     turn.lookupMs = this.clock.now() - started;
+    turn.nearest = top.filter((h) => h.score > 0);
+    const hit = top[0] !== undefined && top[0].score >= CONFIDENT ? top[0] : null;
     if (hit !== null) {
       new CardWriter(this, cardType, "playbook", null, turn).delta(hit.entry.short_answer, true);
       return;
@@ -354,15 +361,12 @@ export class CallSession {
   }
 
   private request(turn: Turn): LLMRequest {
-    const nearest = this.deps.playbook.lookup(turn.event.text);
     const company = this.deps.company;
     const variables: Record<string, string> = {
       "company.name": company.name,
       "company.tone": company.tone,
       "company.call_goal": company.call_goal,
-      "playbook.match": nearest
-        ? `${nearest.entry.question}\n${nearest.entry.short_answer}\n${nearest.entry.details}`
-        : "",
+      "playbook.match": matchText(turn.nearest),
       "transcript.last_60s": this.context(turn.event.end_ms),
       "turn.kind": turn.kind,
       "turn.text": turn.event.text,

@@ -192,3 +192,32 @@ class PlaybookIndex:
     def lookup(self, text: str) -> PlaybookHit | None:
         best = self.nearest(text)
         return best if best is not None and best.score >= CONFIDENT else None
+
+
+MATCH_MAX_CHARS = 600  # how much playbook text the model gets in `playbook.match` (T-032)
+NEAR_ENTRIES = 3  # how many near entries the model sees when none is a confident match
+
+
+def match_text(hits: list[PlaybookHit], max_chars: int = MATCH_MAX_CHARS) -> str:
+    """The entries the model may draw on: question, short answer and details each, best first,
+    capped at `max_chars` so the prompt (and its first token) stays small. Same as the engine's
+    matchText (packages/engine/src/playbook.ts)."""
+    out = ""
+    for hit in hits:
+        e = hit.entry
+        piece = "\n".join(p.strip() for p in (e.question, e.short_answer, e.details) if p.strip())
+        sep = "\n\n" if out else ""
+        if len(out) + len(sep) + len(piece) <= max_chars:
+            out += sep + piece
+            continue
+        room = max_chars - len(out) - len(sep)
+        if room > 40:
+            out += sep + _clip(piece, room)
+        break
+    return out
+
+
+def _clip(text: str, max_chars: int) -> str:
+    cut = text[: max_chars - 1]
+    space = cut.rfind(" ")
+    return f"{cut[:space] if space > max_chars / 2 else cut}…"

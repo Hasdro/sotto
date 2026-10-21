@@ -4,7 +4,8 @@ import fixture from "./__tests__/bundle.json" with { type: "json" };
 import { checkKeyHost, DemoModel, makeLLM, OpenAIChat, sseData } from "./adapters/llm.ts";
 import { openStt, type SocketLike } from "./adapters/stt.ts";
 import { buildRuntime, type CallSummary, KEEP_WARM_EVERY_MS, LocalCallBridge } from "./call.ts";
-import { PlaybookIndex } from "./playbook.ts";
+import { matchText, PlaybookIndex } from "./playbook.ts";
+import { CallSession } from "./session.ts";
 import { AllProvidersFailed, ModelRouter, type RouteResult } from "./router.ts";
 import { CustomerAudio, EndOfTurnVAD, midThought } from "./spoken.ts";
 import { classify, renderPrompt, VerdictParser } from "./turns.ts";
@@ -21,6 +22,75 @@ const REQ: LLMRequest = {
 };
 
 describe("playbook", () => {
+  const entry = (id: string, question: string, short_answer: string, tags: string[]) => ({
+    id,
+    kind: "faq",
+    question,
+    short_answer,
+    details: "",
+    follow_up: "",
+    tags,
+  });
+  // Six alike entries: a question naming all six keywords scores ≈ 0.40 against each — below the
+  // 0.42 bar, so no playbook card — and on equal scores the first three are the three nearest.
+  const SIX = [
+    entry("deposit", "Deposit terms?", "Ten percent on booking.", ["deposit"]),
+    entry("cards", "Card terms?", "Visa, Mastercard and Amex.", ["card"]),
+    entry("due", "Instalment terms?", "On the first of each month.", ["instalment"]),
+    entry("gym", "Gym terms?", "Yes, on the roof.", ["gym"]),
+    entry("pool", "Pool terms?", "Yes, heated.", ["pool"]),
+    entry("parking", "Parking terms?", "One covered space.", ["parking"]),
+  ];
+  const ASK = "Deposit by card, instalments, and do the gym, pool and parking cost extra?";
+
+  it("gives the model the three nearest entries when no entry is a confident match", async () => {
+    const index = new PlaybookIndex(SIX);
+    expect(index.lookup(ASK)).toBeNull();
+    const seen: LLMRequest[] = [];
+    const capture: LLMAdapter = {
+      provider: "fake",
+      model: "capture",
+      warm: async () => {},
+      async *stream(req) {
+        seen.push(req);
+        yield "ANSWER: Visa works for the deposit.";
+      },
+    };
+    const prompt = bundle.prompts.suggest;
+    if (!prompt) throw new Error("fixture has the suggest prompt");
+    const session = new CallSession({
+      callId: "c",
+      company: { ...bundle.company, ai_answers_allowed: true },
+      router: new ModelRouter({ suggest: { provider: "fake", model: "capture" } }, () => capture, realClock),
+      prompt,
+      playbook: index,
+      clock: realClock,
+      onCard: () => {},
+      onEscalation: () => {},
+      onTiming: () => {},
+    });
+    session.onTranscript(
+      { speaker: "customer", text: ASK, final: true, start_ms: 0, end_ms: 2000 },
+      realClock.now(),
+    );
+    await session.drain();
+    expect(seen).toHaveLength(1);
+    const text = `${seen[0]?.system}\n${seen[0]?.messages.map((m) => m.content).join("\n")}`;
+    for (const e of SIX.slice(0, 3)) {
+      expect(text).toContain(e.question);
+      expect(text).toContain(e.short_answer);
+    }
+    expect(text).not.toContain("Gym terms?");
+  });
+
+  it("caps the entries given to the model at about 600 characters", () => {
+    const long = "word ".repeat(300).trim();
+    const index = new PlaybookIndex(SIX.map((e) => ({ ...e, details: long })));
+    const text = matchText(index.ranked(ASK, 3));
+    expect(text.length).toBeLessThanOrEqual(600);
+    expect(text).toContain("Deposit terms?");
+  });
+
   it("picks the same entry as the Python worker for every demo line", () => {
     const index = new PlaybookIndex(bundle.playbook);
     for (const [text, id] of Object.entries(fixture.lookups)) {

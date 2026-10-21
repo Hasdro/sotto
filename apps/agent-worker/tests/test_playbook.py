@@ -70,5 +70,18 @@ def test_ranks_the_nearest_entries_best_first(index: PlaybookIndex) -> None:
     assert len(top) == 3
     assert [h.score for h in top] == sorted((h.score for h in top), reverse=True)
     best = index.nearest("Is there covered parking for two cars?")
-    assert best is not None and top[0].entry.id == best.entry.id
+    assert best is not None
+    assert top[0].entry.id == best.entry.id
     assert index.lookup("Is there covered parking for two cars?") is not None
+
+
+def test_match_text_gives_the_model_the_near_entries_within_600_characters(
+    index: PlaybookIndex,
+) -> None:
+    """Same as the engine's matchText (T-032): best first, capped so the prompt stays small."""
+    from sotto_worker.playbook.index import match_text
+
+    top = index.ranked("How do the payments work for the flat?", 3)
+    text = match_text(top)
+    assert len(text) <= 600
+    assert text.startswith(top[0].entry.question)

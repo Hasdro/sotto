@@ -13,7 +13,7 @@ import hashlib
 import re
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from sotto_worker.clock import Clock
@@ -22,6 +22,7 @@ from sotto_worker.contracts import LLMRequest, Message, TranscriptEvent
 from sotto_worker.pipeline.trigger import TurnKind, classify
 from sotto_worker.pipeline.verdict import VerdictParser
 from sotto_worker.playbook import PlaybookIndex
+from sotto_worker.playbook.index import CONFIDENT, NEAR_ENTRIES, PlaybookHit, match_text
 from sotto_worker.prompts import PromptContext, PromptRegistry
 from sotto_worker.protocol import CardMessage, CardTiming
 from sotto_worker.room import EchoGate
@@ -149,6 +150,8 @@ class _Turn:
     stt_final_ms: int
     language: str
     lookup_ms: int = 0
+    # The nearest playbook entries (score > 0), best first; the model sees them (T-032).
+    nearest: list[PlaybookHit] = field(default_factory=list)
 
 
 class CallSession:
@@ -237,8 +240,12 @@ class CallSession:
     async def _run_turn(self, turn: _Turn) -> None:
         card_type: CardType = "answer" if turn.kind == "question" else "objection"
         started = self.clock.now_ms()
-        hit = self._playbook.lookup(turn.event.text)
+        # One scan per turn: a confident top entry is the card; otherwise the nearest few go to
+        # the model, which may answer from one of them (T-032).
+        top = self._playbook.ranked(turn.event.text, NEAR_ENTRIES)
         turn.lookup_ms = self.clock.now_ms() - started
+        turn.nearest = [h for h in top if h.score > 0]
+        hit = top[0] if top and top[0].score >= CONFIDENT else None
         if hit is not None:
             writer = _CardWriter(
                 self, card_type=card_type, source="playbook", label=None, turn=turn
@@ -360,12 +367,7 @@ class CallSession:
         return "\n".join(lines)
 
     def _request(self, turn: _Turn) -> LLMRequest:
-        nearest = self._playbook.lookup(turn.event.text)
-        playbook_text = (
-            f"{nearest.entry.question}\n{nearest.entry.short_answer}\n{nearest.entry.details}"
-            if nearest is not None
-            else ""
-        )
+        playbook_text = match_text(turn.nearest)
         variables = {
             "company.name": self.company.name,
             "company.tone": self.company.tone,
