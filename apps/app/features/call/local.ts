@@ -8,6 +8,7 @@ import {
   type CallBundle,
   type CallSummary,
   LocalCallBridge,
+  reviewCall,
   type SttToken,
 } from "@sotto/engine";
 import {
@@ -17,7 +18,12 @@ import {
 } from "@sotto/shared";
 import { Platform } from "react-native";
 import { CloudError, cloudApi } from "../../lib/cloud";
-import { type DeviceEntry, saveDeviceCall } from "../../lib/deviceHistory";
+import {
+  type DeviceEntry,
+  markReviewing,
+  saveDeviceCall,
+  setDeviceReview,
+} from "../../lib/deviceHistory";
 import type { Bridge, BridgeHandlers } from "./bridge";
 
 export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Bridge {
@@ -92,6 +98,18 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       p95_ms: s.p95_ms,
       transcript: transcript.slice(-500),
     });
+    // The review runs after the call, on the summary model; the screens show it when it lands.
+    const lines = transcript.flatMap((e) =>
+      e.kind === "line" ? [{ speaker: e.speaker, text: e.text }] : [],
+    );
+    markReviewing(s.call_id);
+    void reviewCall({
+      router: runtime.router,
+      prompt: bundle.prompts.review,
+      company: runtime.company,
+      lines,
+      now: Date.now(),
+    }).then((review) => setDeviceReview(s.call_id, review));
     void cloudApi("/api/v1/usage", { method: "POST", body: s }).catch((err) =>
       console.warn("[engine] usage not reported", err),
     );

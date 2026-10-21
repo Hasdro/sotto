@@ -2,6 +2,7 @@ export * from "./adapters/llm.ts";
 export * from "./adapters/stt.ts";
 export * from "./call.ts";
 export * from "./playbook.ts";
+export * from "./review.ts";
 export * from "./router.ts";
 export * from "./session.ts";
 export * from "./spoken.ts";

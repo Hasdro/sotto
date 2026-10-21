@@ -35,6 +35,7 @@ import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
 import { useEscalations } from "../features/escalations/store";
+import { CallReviewPanel } from "../features/review/CallReviewPanel";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 
@@ -188,6 +189,9 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
             }
           />
         </Panel>
+      ) : null}
+      {state.phase === "ended" && !practice ? (
+        <CallReviewPanel callId={state.callId ?? null} />
       ) : null}
       {state.phase !== "idle" ? (
         <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />

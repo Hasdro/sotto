@@ -17,6 +17,7 @@ import { cardStrings, clock } from "../../features/call/components/strings";
 import { findCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { useServerCall } from "../../features/history/server";
+import { CallReviewPanel } from "../../features/review/CallReviewPanel";
 import { formatDateTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 import { useIsWide } from "../../lib/responsive";
@@ -110,6 +111,11 @@ export default function CallDetailScreen() {
           </Text>
         </View>
       </View>
+      {sample ? null : (
+        <View style={styles.review}>
+          <CallReviewPanel callId={String(id)} />
+        </View>
+      )}
       <View style={[styles.body, wide ? styles.bodyWide : null]}>
         {wide ? transcript : cards}
         {wide ? cards : transcript}
@@ -125,6 +131,7 @@ const styles = StyleSheet.create({
   head: { gap: space.sm, marginBottom: space.xl },
   metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
   body: { gap: space.xl },
+  review: { marginBottom: space.xl },
   bodyWide: { flexDirection: "row", alignItems: "flex-start" },
   col: { flex: 1, gap: space.md },
   cardRow: { flexDirection: "row", alignItems: "flex-start", gap: space.md },

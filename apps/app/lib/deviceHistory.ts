@@ -13,6 +13,9 @@ export type DeviceEntry =
   | { kind: "card"; type: string; source: string; text: string; at_ms: number }
   | { kind: "escalation"; text: string; at_ms: number };
 
+import type { CallReview } from "@sotto/engine";
+import { useSyncExternalStore } from "react";
+
 export type DeviceCall = {
   id: string;
   started_at: number;
@@ -23,6 +26,8 @@ export type DeviceCall = {
   p50_ms: number | null;
   p95_ms: number | null;
   transcript: DeviceEntry[];
+  /** The after-call review (owner, 21 Oct); null when it could not be made. */
+  review?: CallReview | null;
 };
 
 const PREFIX = "sotto.calls";
@@ -93,4 +98,49 @@ export function deviceCalls(): Omit<DeviceCall, "transcript">[] {
 
 export function deviceCall(id: string): DeviceCall | null {
   return load().find((c) => c.id === id) ?? null;
+}
+
+// --- after-call reviews: written once the summary model answers; screens re-render on change ---
+const reviewing = new Set<string>();
+const listeners = new Set<() => void>();
+let version = 0;
+const changed = () => {
+  version += 1;
+  for (const fn of listeners) fn();
+};
+
+export function markReviewing(id: string): void {
+  reviewing.add(id);
+  changed();
+}
+
+export function setDeviceReview(id: string, review: CallReview | null): void {
+  reviewing.delete(id);
+  const call = deviceCall(id);
+  if (call) saveDeviceCall({ ...call, review });
+  changed();
+}
+
+export type ReviewState =
+  | { status: "pending" }
+  | { status: "ready"; review: CallReview }
+  | { status: "none" };
+
+export function reviewState(id: string): ReviewState {
+  if (reviewing.has(id)) return { status: "pending" };
+  const review = deviceCall(id)?.review;
+  return review ? { status: "ready", review } : { status: "none" };
+}
+
+/** The review of one call, for React; re-renders when it arrives. */
+export function useReview(id: string | null): ReviewState {
+  useSyncExternalStore(
+    (fn) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+    () => version,
+    () => version,
+  );
+  return id ? reviewState(id) : { status: "none" };
 }

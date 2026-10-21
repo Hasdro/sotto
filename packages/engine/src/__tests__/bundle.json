@@ -223,6 +223,17 @@
     ],
     "body": "Subject: Unanswered question from {{escalation.customer}}\n\n{{escalation.agent}} could not answer this question on a call, and the customer is waiting for a reply today:\n\n\"{{escalation.question}}\"\n\nLast moments of the call:\n{{escalation.transcript}}\n\nCustomer: {{escalation.customer}}\nCRM: {{escalation.crm_link}}\n\nAnswer it in Sotto: {{escalation.inbox_link}}\nOnce you approve the answer, it is added to the {{company.name}} playbook.\n"
    },
+   "review": {
+    "key": "review",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "company.call_goal",
+     "call.transcript"
+    ],
+    "body": "You are a senior sales coach reviewing one sales call made by an agent at {{company.name}}. The call goal was: {{company.call_goal}}.\n\nScore the agent from 0 to 10 on each of these, judging only what is in the transcript:\n- opening: greeting, rapport, purpose of the call stated;\n- discovery: questions that uncover the customer's needs, budget and timing;\n- listening: responds to what the customer actually said, does not talk over them;\n- objections: acknowledges concerns and answers them with substance;\n- clarity: short, clear, confident sentences; no jargon;\n- next_step: ends with a concrete, agreed next step.\n\nThen estimate the chance (0 to 100) that this customer buys, from their own words.\n\nReply with ONLY this JSON object, no other text:\n{\"scores\":{\"opening\":0,\"discovery\":0,\"listening\":0,\"objections\":0,\"clarity\":0,\"next_step\":0},\"success\":0,\"sentiment\":\"positive|neutral|negative\",\"summary\":\"two sentences on what happened\",\"tip\":\"one specific thing the agent should do differently next time, at most 30 words\",\"strengths\":[\"up to 3 short phrases\"],\"improve\":[\"up to 3 short phrases\"]}\n\nIf the transcript has fewer than two customer sentences, still reply with the JSON, with low confidence scores of 5 and a tip about drawing the customer out.\n\nTranscript (Customer and Agent lines; the agent's side may be missing):\n{{call.transcript}}\n"
+   },
    "suggest": {
     "key": "suggest",
     "version": 3,
