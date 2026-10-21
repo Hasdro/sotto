@@ -4,7 +4,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, net, protocol, session, shell } = require("electron");
+const { spawn } = require("node:child_process");
+const { app, BrowserWindow, ipcMain, net, protocol, session, shell } = require("electron");
+const { callApp } = require("./call-apps.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -59,7 +61,12 @@ function createWindow() {
     title: "Sotto",
     backgroundColor: "#F1F4F2",
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false },
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "preload.cjs"),
+    },
   });
   win.webContents.setWindowOpenHandler(({ url }) => {
     openExternal(url); // "Get a key" links open in the browser
@@ -106,6 +113,42 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+// Auto pick-up (owner, 21 Oct 2026), macOS: a small helper reports which apps use a microphone;
+// when a call app starts or stops, the page hears it and starts or ends listening by itself.
+let callState = { app: null };
+function watchCalls() {
+  if (process.platform !== "darwin") return;
+  const bin = app.isPackaged
+    ? path.join(process.resourcesPath, "call-watch")
+    : path.join(__dirname, "build", "call-watch");
+  if (!fs.existsSync(bin)) return;
+  const child = spawn(bin, [], { stdio: ["ignore", "pipe", "ignore"] });
+  let buf = "";
+  child.stdout.on("data", (chunk) => {
+    buf += chunk;
+    let nl = buf.indexOf("\n");
+    while (nl >= 0) {
+      const line = buf.slice(0, nl);
+      buf = buf.slice(nl + 1);
+      nl = buf.indexOf("\n");
+      let inputs;
+      try {
+        inputs = JSON.parse(line).inputs;
+      } catch {
+        continue;
+      }
+      const next = { app: Array.isArray(inputs) ? callApp(inputs) : null };
+      if (next.app === callState.app) continue;
+      callState = next;
+      for (const w of BrowserWindow.getAllWindows()) w.webContents.send("call-state", callState);
+    }
+  });
+  child.on("error", () => {}); // no helper, no auto pick-up: the Start button still works
+  app.on("will-quit", () => child.kill());
+}
+ipcMain.handle("call-state", () => callState);
+app.whenReady().then(watchCalls);
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

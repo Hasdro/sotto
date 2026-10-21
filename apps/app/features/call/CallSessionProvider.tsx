@@ -5,6 +5,7 @@
  */
 import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 import { useI18n } from "../../lib/locale";
+import { AutoPickup } from "./autoPickup";
 import type { SocketFactory } from "./bridge";
 import { type CallSession, useCallSession } from "./useCallSession";
 
@@ -29,7 +30,12 @@ export function CallSessionProvider({
     ...(socketFactory ? { socketFactory } : {}),
   });
   const activate = useCallback(() => setActive(true), []);
-  return <SharedCall.Provider value={{ session, activate }}>{children}</SharedCall.Provider>;
+  return (
+    <SharedCall.Provider value={{ session, activate }}>
+      <AutoPickup session={session} activate={activate} />
+      {children}
+    </SharedCall.Provider>
+  );
 }
 
 /** The app-wide call session; the call screen activates it on first visit. */
