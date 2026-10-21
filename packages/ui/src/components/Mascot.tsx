@@ -1,7 +1,8 @@
 /**
- * The Sotto character: a small speech-bubble face that shows what the app is doing (owner, 21 Oct).
- * idle blinks · listening sends out sound rings · thinking looks up with three dots · suggesting
- * hops with a spark · reviewing squints and nods · offline is grey with closed eyes.
+ * The Sotto character: a small rounded face that shows what the app is doing (owner, 21 Oct;
+ * 22 Oct: no tail, a soft smile, no orange). idle blinks · listening sends out sound rings ·
+ * thinking looks up with three dots · suggesting hops with a spark and a big smile · reviewing
+ * is violet, looks down at its notes and nods · offline is grey with closed eyes.
  * Built from Views and the Animated API so it runs on web, desktop and phones without SVG.
  */
 import { useEffect, useRef, useState } from "react";
@@ -69,7 +70,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
     listening: card.answer.accent,
     thinking: card.question.accent,
     suggesting: color.positive,
-    reviewing: card.objection.accent,
+    reviewing: card.signal.accent,
     offline: color.borderStrong,
   };
   const body = tint[state];
@@ -125,9 +126,9 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
   const hop = state === "suggesting" ? -s * 0.08 : state === "reviewing" ? s * 0.03 : -s * 0.03;
   const lift = bob.interpolate({ inputRange: [0, 1], outputRange: [0, hop] });
   const eyeW = s * 0.15;
-  const eyeH = state === "reviewing" ? s * 0.06 : s * 0.2;
+  const eyeH = s * 0.2;
   const closed = state === "offline";
-  const look = state === "thinking" ? -s * 0.04 : 0;
+  const look = state === "thinking" ? -s * 0.04 : state === "reviewing" ? s * 0.03 : 0;
 
   const ring = (v: Animated.Value) => (
     <Animated.View
@@ -209,30 +210,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
               />
             ))}
           </View>
-          <View
-            style={{
-              marginTop: s * 0.07,
-              width: state === "suggesting" ? s * 0.26 : s * 0.16,
-              height: state === "suggesting" ? s * 0.1 : s * 0.04,
-              borderBottomLeftRadius: s * 0.13,
-              borderBottomRightRadius: s * 0.13,
-              backgroundColor: color.onPrimary,
-              opacity: closed ? 0.5 : 0.9,
-            }}
-          />
-          {/* the bubble's tail */}
-          <View
-            style={[
-              styles.tail,
-              {
-                width: s * 0.2,
-                height: s * 0.2,
-                left: s * 0.18,
-                bottom: -s * 0.07,
-                backgroundColor: body,
-              },
-            ]}
-          />
+          <Smile size={s} wide={state === "suggesting"} flat={closed} ink={color.onPrimary} />
         </View>
       </Animated.View>
       {state === "suggesting" ? (
@@ -253,12 +231,57 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
   );
 }
 
+/** A soft "U" smile drawn as the lower half of a ring; wider and fuller when suggesting, a short
+ * line when offline. */
+function Smile({
+  size: s,
+  wide,
+  flat,
+  ink,
+}: {
+  size: number;
+  wide: boolean;
+  flat: boolean;
+  ink: Hex;
+}) {
+  if (flat) {
+    return (
+      <View
+        style={{
+          marginTop: s * 0.08,
+          width: s * 0.14,
+          height: s * 0.035,
+          borderRadius: s,
+          backgroundColor: ink,
+          opacity: 0.6,
+        }}
+      />
+    );
+  }
+  const w = wide ? s * 0.3 : s * 0.22;
+  return (
+    <View
+      style={{
+        marginTop: s * 0.04,
+        width: w,
+        height: w / 2,
+        borderBottomLeftRadius: w / 2,
+        borderBottomRightRadius: w / 2,
+        borderWidth: Math.max(2, s * 0.045),
+        borderTopWidth: 0,
+        borderColor: ink,
+        backgroundColor: wide ? ink : "transparent",
+        opacity: 0.95,
+      }}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   frame: { alignItems: "center", justifyContent: "center" },
   ring: { position: "absolute", borderWidth: 2 },
   dots: { position: "absolute", flexDirection: "row" },
   body: { alignItems: "center", justifyContent: "center" },
   eyes: { flexDirection: "row", alignItems: "center" },
-  tail: { position: "absolute", transform: [{ rotate: "45deg" }], zIndex: -1 },
   spark: { position: "absolute", transform: [{ rotate: "45deg" }], borderRadius: 2 },
 });

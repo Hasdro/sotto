@@ -17,7 +17,7 @@ export default function HistoryScreen() {
   if (!sampleDataAllowed()) {
     return (
       <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
-        <PageHeader title={t("history.title")} subtitle={t("history.subtitle")} />
+        <PageHeader icon="🕘" title={t("history.title")} subtitle={t("history.subtitle")} />
         {mine && mine.length > 0 ? (
           <CallList calls={mine} />
         ) : (
@@ -28,7 +28,7 @@ export default function HistoryScreen() {
   }
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
-      <PageHeader title={t("history.title")} subtitle={t("history.subtitle")} />
+      <PageHeader icon="🕘" title={t("history.title")} subtitle={t("history.subtitle")} />
       {mine && mine.length > 0 ? (
         <>
           <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">

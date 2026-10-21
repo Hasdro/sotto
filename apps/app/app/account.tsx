@@ -36,7 +36,7 @@ export default function AccountScreen() {
   if (!me) {
     return (
       <Screen testID="account">
-        <PageHeader title={t("account.title")} />
+        <PageHeader icon="👤" title={t("account.title")} />
       </Screen>
     );
   }
@@ -52,6 +52,7 @@ export default function AccountScreen() {
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth} testID="account" style={styles.page}>
       <PageHeader
+        icon="👤"
         title={t("account.title")}
         subtitle={t("account.you", { name: me.user.name, role: t(`account.role.${me.user.role}`) })}
       />

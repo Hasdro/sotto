@@ -53,16 +53,18 @@ type NavItem = {
     | "/settings"
     | "/account";
   label: StringKey;
+  /** A picture beside every section name (owner, 22 Oct). */
+  icon: string;
 };
 
 export const NAV: readonly NavItem[] = [
-  { href: "/home", label: "nav.home" },
-  { href: "/call", label: "nav.call" },
-  { href: "/history", label: "nav.history" },
-  { href: "/playbook", label: "nav.playbook" },
-  { href: "/inbox", label: "nav.inbox" },
-  { href: "/admin", label: "nav.admin" },
-  { href: "/settings", label: "nav.settings" },
+  { href: "/home", label: "nav.home", icon: "🏠" },
+  { href: "/call", label: "nav.call", icon: "📞" },
+  { href: "/history", label: "nav.history", icon: "🕘" },
+  { href: "/playbook", label: "nav.playbook", icon: "📘" },
+  { href: "/inbox", label: "nav.inbox", icon: "📥" },
+  { href: "/admin", label: "nav.admin", icon: "🛠️" },
+  { href: "/settings", label: "nav.settings", icon: "⚙️" },
 ];
 
 export function isActive(pathname: string, href: string): boolean {
@@ -70,7 +72,7 @@ export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-const ACCOUNT: NavItem = { href: "/account", label: "nav.account" };
+const ACCOUNT: NavItem = { href: "/account", label: "nav.account", icon: "👤" };
 
 /** The nav items the current role may open (R3); Account when signed in to a server (D-022). */
 function useNav(): readonly NavItem[] {
@@ -131,6 +133,11 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
                 accessibilityState={{ selected: active }}
                 aria-current={active ? "page" : undefined}
                 testID={`nav-${item.href.slice(1)}`}
+                accessibilityLabel={
+                  item.href === "/inbox" && openCount > 0
+                    ? `${t(item.label)} ${openCount}`
+                    : t(item.label)
+                }
                 // Link asChild needs a plain style object (a style function is dropped on web).
                 style={StyleSheet.flatten([
                   styles.sideItem,
@@ -143,6 +150,14 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
                     { backgroundColor: active ? color.primary : "transparent" },
                   ]}
                 />
+                <Text
+                  variant="body"
+                  style={styles.navIcon}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                >
+                  {item.icon}
+                </Text>
                 <Text
                   variant="body"
                   weight={active ? "semibold" : "regular"}
@@ -407,6 +422,7 @@ function Count({ n }: { n: number }) {
 }
 
 const styles = StyleSheet.create({
+  navIcon: { width: 24, textAlign: "center" },
   root: { flex: 1 },
   main: { flex: 1, minWidth: 0 },
   grow: { flex: 1 },

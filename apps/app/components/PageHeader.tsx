@@ -7,17 +7,27 @@ export function PageHeader({
   title,
   subtitle,
   actions,
+  icon,
 }: {
   title: string;
+  /** A picture before the title (owner, 22 Oct). */
+  icon?: string;
   subtitle?: string;
   actions?: ReactNode;
 }) {
   return (
     <View style={styles.wrap}>
       <View style={styles.text}>
-        <Text variant="title" weight="semibold" accessibilityRole="header">
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          {icon ? (
+            <Text variant="title" accessibilityElementsHidden importantForAccessibility="no">
+              {icon}
+            </Text>
+          ) : null}
+          <Text variant="title" weight="semibold" accessibilityRole="header">
+            {title}
+          </Text>
+        </View>
         {subtitle ? (
           <Text variant="body" tone="muted">
             {subtitle}
@@ -38,4 +48,5 @@ const styles = StyleSheet.create({
     marginBottom: space.xl,
   },
   text: { flex: 1, minWidth: 220, gap: space.xs },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
 });

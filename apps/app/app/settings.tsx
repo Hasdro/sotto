@@ -59,9 +59,9 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.page}
       testID="settings"
     >
-      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
+      <PageHeader icon="⚙️" title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
-      <Group title={t("settings.appearance")}>
+      <Group icon="🎨" title={t("settings.appearance")}>
         <Text variant="label" tone="muted">
           {t("settings.theme")}
         </Text>
@@ -90,7 +90,7 @@ export default function SettingsScreen() {
         />
       </Group>
 
-      <Group title={t("settings.calls")}>
+      <Group icon="📞" title={t("settings.calls")}>
         <ToggleRow
           label={t("settings.autoPickup")}
           description={t("settings.autoPickup.body")}
@@ -113,7 +113,7 @@ export default function SettingsScreen() {
         />
       </Group>
 
-      <Group title={t("settings.microphone")}>
+      <Group icon="🎙️" title={t("settings.microphone")}>
         <Text variant="label" tone="muted">
           {t("settings.microphone.body")}
         </Text>
@@ -146,7 +146,7 @@ export default function SettingsScreen() {
         })}
       </Group>
 
-      <Group title={t("settings.help")}>
+      <Group icon="❓" title={t("settings.help")}>
         <Row label={t("settings.tutorial")} body={t("settings.tutorial.body")}>
           <Button
             variant="secondary"
@@ -171,12 +171,12 @@ export default function SettingsScreen() {
       </Group>
 
       {admin ? (
-        <Group title={t("settings.knowledge")}>
+        <Group icon="🧠" title={t("settings.knowledge")}>
           <Knowledge />
         </Group>
       ) : null}
 
-      <Group title={t("settings.integrations")} testID="settings-integrations">
+      <Group icon="🔌" title={t("settings.integrations")} testID="settings-integrations">
         <Row label="Gallabox (WhatsApp)" body={t("settings.integrations.gallabox")}>
           <Badge label={t("settings.soon")} tone="question" />
         </Row>
@@ -185,7 +185,7 @@ export default function SettingsScreen() {
         </Row>
       </Group>
 
-      <Group title={t("settings.about")}>
+      <Group icon="ℹ️" title={t("settings.about")}>
         <View style={styles.about}>
           <Mascot state="idle" size={44} />
           <View style={styles.flex}>
@@ -208,10 +208,12 @@ export default function SettingsScreen() {
 
 function Group({
   title,
+  icon,
   children,
   testID,
 }: {
   title: string;
+  icon?: string;
   children: ReactNode;
   testID?: string;
 }) {
@@ -222,7 +224,7 @@ function Group({
       style={[styles.group, { backgroundColor: color.surface, borderColor: color.border }]}
     >
       <Text variant="heading" weight="semibold">
-        {title}
+        {icon ? `${icon}  ${title}` : title}
       </Text>
       {children}
     </View>

@@ -29,7 +29,7 @@ function AdminLayout() {
   return (
     <ScrollView style={{ backgroundColor: color.background }} contentContainerStyle={styles.page}>
       <View style={styles.column}>
-        <PageHeader title={t("admin.title")} />
+        <PageHeader icon="🛠️" title={t("admin.title")} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
