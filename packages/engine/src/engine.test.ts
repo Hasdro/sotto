@@ -5,8 +5,8 @@ import { checkKeyHost, DemoModel, makeLLM, OpenAIChat, sseData } from "./adapter
 import { openStt, type SocketLike } from "./adapters/stt.ts";
 import { buildRuntime, type CallSummary, KEEP_WARM_EVERY_MS, LocalCallBridge } from "./call.ts";
 import { matchText, PlaybookIndex } from "./playbook.ts";
-import { CallSession } from "./session.ts";
 import { AllProvidersFailed, ModelRouter, type RouteResult } from "./router.ts";
+import { CallSession } from "./session.ts";
 import { CustomerAudio, EndOfTurnVAD, midThought } from "./spoken.ts";
 import { classify, renderPrompt, VerdictParser } from "./turns.ts";
 import type { CallBundle, LLMAdapter, LLMRequest, TranscriptEvent } from "./types.ts";
@@ -61,7 +61,11 @@ describe("playbook", () => {
     const session = new CallSession({
       callId: "c",
       company: { ...bundle.company, ai_answers_allowed: true },
-      router: new ModelRouter({ suggest: { provider: "fake", model: "capture" } }, () => capture, realClock),
+      router: new ModelRouter(
+        { suggest: { provider: "fake", model: "capture" } },
+        () => capture,
+        realClock,
+      ),
       prompt,
       playbook: index,
       clock: realClock,

@@ -5,7 +5,13 @@
  * escalation per (call, question).
  */
 import type { CardMessage } from "@sotto/shared";
-import { CONFIDENT, matchText, NEAR_ENTRIES, type PlaybookHit, type PlaybookIndex } from "./playbook.ts";
+import {
+  CONFIDENT,
+  matchText,
+  NEAR_ENTRIES,
+  type PlaybookHit,
+  type PlaybookIndex,
+} from "./playbook.ts";
 import type { ModelRouter, RouteResult } from "./router.ts";
 import { classify, questionHash, renderPrompt, type TurnKind, VerdictParser } from "./turns.ts";
 import {
