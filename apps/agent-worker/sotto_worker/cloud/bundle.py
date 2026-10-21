@@ -8,7 +8,7 @@ Built from the same seed files the Python worker uses, so both engines share one
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,8 @@ class Seed:
     prompts: dict[str, dict[str, Any]]
     playbook: list[dict[str, Any]]
     scenarios: list[dict[str, Any]]
+    # Example answers every new company starts with (seed/company/examples.yaml).
+    examples: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
     def load(cls, root: Path = SEED) -> Seed:
@@ -88,6 +90,7 @@ class Seed:
             prompts=prompts,
             playbook=playbook,
             scenarios=scenarios,
+            examples=list(yaml.safe_load((root / "company" / "examples.yaml").read_text()) or []),
         )
 
 

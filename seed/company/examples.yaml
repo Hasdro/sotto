@@ -1,0 +1,8 @@
+# Two example playbook answers every new company starts with (owner, 21 Oct 2026). They are the
+# company's own entries: admins edit or delete them like any other. The tag marks them as examples.
+- question: What are your opening hours?
+  answer: "We're open Sunday to Thursday, 9 am to 6 pm, and Saturday 10 am to 2 pm. (Example: edit this to your real hours.)"
+  tags: [example, hours]
+- question: Do you offer a discount if I pay for a year upfront?
+  answer: "Yes. Paying for 12 months upfront saves 10%, and you can still cancel in the first 30 days. (Example: edit this to your real offer.)"
+  tags: [example, pricing]

@@ -49,9 +49,12 @@ def test_company_b_cannot_read_or_change_company_a(client: TestClient, sign_up: 
 
     bundle = client.get("/api/v1/bundle", headers=hb).json()
     assert bundle["keys"] in ({}, None)
-    assert not [e for e in bundle["playbook"] if not e["sample"]]
+    own = [e["question"] for e in bundle["playbook"] if not e["sample"]]
+    assert "A secret?" not in own  # B sees only its own entries: the two examples it started with
+    assert len(own) == 2
     assert bundle["company"]["ai_answers_allowed"] is True  # A's setting did not leak
-    assert client.get("/api/v1/playbook", headers=hb).json()["entries"] == []
+    b_entries = client.get("/api/v1/playbook", headers=hb).json()["entries"]
+    assert [e for e in b_entries if "example" not in e["tags"]] == []
     assert client.get("/api/v1/escalations", headers=hb).json()["items"] == []
     assert [u["email"] for u in client.get("/api/v1/team", headers=hb).json()["users"]] == [
         "admin@b.test"

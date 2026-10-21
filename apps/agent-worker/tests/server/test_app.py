@@ -453,7 +453,7 @@ def test_measuring_a_stage_records_its_speed_and_the_r1_guard_refuses_slow_model
     r = client.post("/api/stages/suggest/benchmark", headers=JSON)
     suggest = next(s for s in r.json()["stages"] if s["id"] == "suggest")
     assert suggest["live"] is True
-    assert suggest["deadline_ms"] == 700
+    assert suggest["deadline_ms"] == 1150  # D-025
     assert (suggest["benchmark"]["p50_ms"], suggest["benchmark"]["worst_ms"]) == (480, 870)
     assert client.post("/api/stages/stt/benchmark", headers=JSON).status_code == 400
 

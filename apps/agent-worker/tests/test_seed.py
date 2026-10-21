@@ -47,7 +47,8 @@ def test_live_stages_have_a_first_token_deadline_within_r2() -> None:
     for name in LIVE_STAGES:
         deadline = stages[name]["first_token_ms"]
         assert isinstance(deadline, int)
-        assert 0 < deadline <= 700, f"{name}: R2 switches to backup after 700 ms"
+        # D-025: measured from the end of speech; must leave room before the holding line (1400 ms).
+        assert 0 < deadline <= 1150, f"{name}: the backup must be raced by 1150 ms (D-025)"
 
 
 def test_backup_is_a_different_provider_host_than_the_primary() -> None:

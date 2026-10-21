@@ -75,11 +75,22 @@ def main(argv: list[str] | None = None) -> int:
     owner.add_argument("--name", default="Owner")
     owner.add_argument("--password-file", type=Path, required=True)
     sub.add_parser("backup")
+    examples = sub.add_parser("add-examples")
+    examples.add_argument("--company", required=True, help="the company's name, e.g. Zylker")
     args = p.parse_args(argv)
     env = os.environ
 
     if args.cmd == "backup":
         print(f"backup written: {backup(env)}")
+        return 0
+    if args.cmd == "add-examples":
+        store = open_store(env)
+        company_id = store.company_by_name(args.company)
+        if company_id is None:
+            print(f"no single company named {args.company!r}", file=sys.stderr)
+            return 1
+        n = store.add_examples(company_id, Seed.load().examples)
+        print(f"{n} example answers added to {args.company}")
         return 0
     if args.cmd == "create-owner":
         store = open_store(env)

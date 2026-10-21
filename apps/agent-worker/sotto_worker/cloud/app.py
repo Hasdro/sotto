@@ -260,6 +260,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             email=str(data.get("email", "")),
             password=str(data.get("password", "")),
             ip=ip_of(request),
+            examples=seed.examples,
         )
         user = store.check_login(str(data.get("email", "")), str(data.get("password", "")))
         if user is None:

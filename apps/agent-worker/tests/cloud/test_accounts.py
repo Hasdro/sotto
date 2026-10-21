@@ -340,7 +340,7 @@ def test_routes_are_validated_against_the_catalog(client: TestClient, sign_up: S
     assert ok.status_code == 200
     stage = client.get("/api/v1/bundle", headers=s["auth"]).json()["stages"]["suggest"]
     assert stage["api_key_env"] == "GEMINI_API_KEY"
-    assert stage["first_token_ms"] == 700
+    assert stage["first_token_ms"] == 1150  # D-025
     wrong_kind = client.put(
         "/api/v1/company/routes/suggest",
         json={"provider": "deepgram", "model": "nova-3"},

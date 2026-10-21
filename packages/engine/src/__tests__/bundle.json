@@ -30,7 +30,7 @@
    "suggest": {
     "provider": "openai_compatible",
     "model": "openai/gpt-oss-20b",
-    "first_token_ms": 700,
+    "first_token_ms": 1150,
     "settings": {
      "max_tokens": 300,
      "temperature": 0.2,

@@ -383,7 +383,14 @@ class CloudStore:
         return user_id
 
     def signup(
-        self, *, company: str, name: str, email: str, password: str, ip: str = ""
+        self,
+        *,
+        company: str,
+        name: str,
+        email: str,
+        password: str,
+        ip: str = "",
+        examples: list[dict[str, Any]] | None = None,
     ) -> tuple[str, str]:
         """A new company on a trial, with the signer as its admin. Returns (company_id, user_id)."""
         t = now_ms()
@@ -408,7 +415,32 @@ class CloudStore:
                 db, company_id=company_id, email=email, name=name, password=password, role="admin"
             )
             self.audit(db, "company.signup", f"{company} ({email})", company_id=company_id, ip=ip)
+        if examples:
+            self.add_examples(company_id, examples)
         return company_id, user_id
+
+    def add_examples(self, company_id: str, examples: list[dict[str, Any]]) -> int:
+        """Adds the example answers this company does not have yet; returns how many."""
+        have = {e["question"] for e in self.playbook(company_id)}
+        added = 0
+        with self._tx() as db:
+            for e in examples:
+                q, a, tags = self._entry(e)
+                if q in have:
+                    continue
+                db.execute(
+                    "INSERT INTO playbook(id, company_id, question, answer, tags_json, updated_at)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), company_id, q, a, json.dumps(tags), now_ms()),
+                )
+                added += 1
+            if added:
+                self.audit(db, "playbook.examples", f"{added} added", company_id=company_id)
+        return added
+
+    def company_by_name(self, name: str) -> str | None:
+        rows = self._q("SELECT id FROM companies WHERE lower(name) = lower(?)", (name.strip(),))
+        return str(rows[0]["id"]) if len(rows) == 1 else None
 
     def create_owner(self, email: str, name: str, password: str) -> str:
         with self._tx() as db:

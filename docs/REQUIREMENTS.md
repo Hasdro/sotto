@@ -31,7 +31,7 @@ top FAQs from the playbook index, streamed cards.
 5. Manager answers in the app; after approval the answer is added to the playbook.
 
 **Provider fallback, per request**
-- Primary model fails or has no first token within 700 ms → backup model (e.g. OpenAI).
+- Primary model fails or has no first token within 700 ms of its own time → backup model (e.g. OpenAI). D-025 (owner, 21 Oct 2026): configured as 1150 ms from the end of speech, since the request leaves ~0.6 s after it.
 - Speech-to-text has a backup vendor too.
 - A company admin can disable any backup provider (data-sharing reasons).
 
