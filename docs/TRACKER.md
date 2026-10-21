@@ -28,14 +28,11 @@ Tags:
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
-  - T-021 done (D-024): Mac app hears Zoom / Google Meet / Yeastar / 3CX calls through the computer's sound; real accounts get no demo data; installed in `/Applications` and the server deployed. Owner tests with Zylker (adds his keys in Admin → Keys & providers);
-  - T-020 done (D-023): phones open navigation from a left drawer (right in Arabic), small-screen polish; APK rebuilt — owner to reinstall and confirm the menu and look;
-  - Mac app real-world test done (T-019); installed `/Applications/Sotto.app` (arm64) for the owner's Zylker account; owner adds keys himself;
-  - T-016 rest: Android APK on a real phone or emulator (Mac needs 12 GB free for the emulator); iPhone on a device (owner's Apple ID in Xcode);
-  - T-011 end-of-turn model;
-  - P4 once LiveKit + Yeastar exist.
+  - Review brief `docs/AGENT-BRIEF-2026-10-21.md`: Batches 0–6 built (T-022…T-043, see "Review remediation" below), committed and pushed; **not deployed** — the server (escalation columns, speech-vendor guard) and the Mac app need the owner's OK to ship.
+  - Parked for the owner (hub decisions): T-029 first-token budget (touches R2's "700 ms"), T-035 manager email (Resend account), T-038 practice call in real accounts (D-024), T-044 web bundle 430/450 KB, and Batch 7.
+  - Earlier: T-021 (D-024) Mac app hears Zoom / Meet / Yeastar — owner tests with Zylker; T-020 APK — owner reinstalls; T-016 rest (Android device, iPhone device); T-011; P4 once LiveKit + Yeastar exist.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-20 17:00. Disk nearly full (≈6 GB free of 228 GB): delete native build intermediates after each phone build (`apps/app/build-phones.sh` does).
+- **Environment last used:** local Mac, 2026-10-21 21:20. Disk ≈56 GB free of 228 GB: delete native build intermediates after each phone build (`apps/app/build-phones.sh` does).
   - ssh to us3 works (root@104.168.48.116; Ubuntu 26.04, 1 vCPU, 1 GB).
   - Android SDK (licence accepted by owner), JDK from Android Studio, Xcode 27.1 (xcode-select still on CommandLineTools → use `DEVELOPER_DIR`), CocoaPods 1.17 (brew).
 - **Blockers (owner):**
@@ -44,9 +41,9 @@ Tags:
 - **Owner hub (single report page):** https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s
   - Source: `docs/owner-hub.html`; format rules in `~/.claude/ARTIFACT-REPORTS.md`.
   - Owner choices are in its db at `decisions/owner`; read them at session start.
-- **Next action:** `cd apps/agent-worker && uv run pytest tests/cloud -q`.
-  - Then read the hub's decisions (ArtifactData `decisions/owner`).
-  - Then pick T-016 or T-017.
+- **Next action:** read the hub's decisions (ArtifactData `decisions/owner`, keys `brief.*`).
+  - If the owner approved shipping: `deploy/push.sh root@104.168.48.116` (server + web app), rebuild the Mac app (`cd apps/desktop && npm run web && npm run dist`).
+  - Then the parked items the owner said yes to, in brief order (B1.2, B3.2, B4.3, B6.3).
 
 ## Phase board
 
@@ -186,6 +183,7 @@ Things only the owner can do, so the agent never waits silently.
 - [x] **Xcode** — Xcode 27.1 installed (xcode-select still points at CommandLineTools; builds use `DEVELOPER_DIR`).
 - [ ] Answer the Phase 0 interview, or simply correct the `ASSUMED:` lines in `docs/BRIEF.md` (D-009)
 - [ ] Agree to `test-calls/PLAN.md` and set a recording date; check whether Yeastar can record split channels
+- [ ] **Review-brief decisions on the hub** (2026-10-21): ship the Batch 0–6 fixes to the server and Mac app; T-029 first-token budget (R2 wording); T-035 manager email (Resend account, sender, recipient); T-038 practice call in real accounts; T-044 web bundle room; Batch 7 items
 - [ ] Supply playbook content (owner says sent 2026-10-20; not found on the Mac, in the repo or on the server — ask where): products and prices, top 20 questions, top 10 objections, never-promise list (P0.3)
 - [ ] Record 10 golden calls with consent (separate customer and agent tracks)
 - [ ] Add 5–10 design references to `docs/design/refs/`
@@ -284,6 +282,14 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-10-21 · local · Opus 5.5 · review brief Batches 0–6 (T-022…T-043)
+- **Done:** B0.1–B0.6, B1.1, B1.3, B1.4, B2.1, B2.2, B3.1, B4.1, B4.2, B5.1–B5.3, B6.1, B6.2 — one commit each (B5.2+B5.3 share one), plus three small style/lint follow-up commits. B2.1 also fixed a bug: the AI path re-ran the confident-only lookup, so the model's `playbook.match` slot was always empty.
+- **Evidence:** pnpm test green (app jest 202, engine 50 with coverage 92.6% stmts / 82.0% branches, worker pytest 373); typecheck + lint green; synthetic replay p50 567 / p95 1148 ms, holding 45%, 0 agent cards, R2 drill p95 1285 ms (unchanged — it cannot see engine-only changes); LIVE replay holding 36% → 27% / 18% after B2.1, p95 1342 → 1203 / 1130 ms; web bundle 430 / 450 KB; screenshots `docs/evidence/brief-2026-10-21/` (local `.test` account, light/dark/Arabic, 390 and 1280 px).
+- **Tried and rejected:** a test fixture with natural questions for B2.1 (lexical scores land above 0.42 or at 0) — used six alike entries whose scores are exact by construction.
+- **Not done:** B1.2, B3.2, B4.3, B6.3 and Batch 7 wait for the owner; nothing deployed (production untouched); the Python worker's D-020 server still has the old key-name notices (reference only); the CRM link in escalations waits for the CRM module; B2.3 embeddings not started (holding 18–27% on live, near the brief's ~20% line — measure on real calls first).
+- **Next:** owner decisions on the hub; then deploy on a yes.
+- **Notes:** a vendor that splits one turn into two finals after the end of speech would now lose the second piece (B1.1); AssemblyAI does not, Speechmatics flushes on ForceEndOfUtterance — watch on real Speechmatics calls.
 
 ### 2026-10-20 · local · Opus 5.5 · T-021 (D-024)
 - **Done:** computer-sound capture in the desktop app (Electron loopback, own window as picture, Info.plist key); "Start listening" panel + listening bar for real accounts; mock stream dev-only; cloud bundle without sample playbook/scenarios and with neutral company defaults; installed `/Applications/Sotto.app`; `deploy/push.sh` to us3 (app 200, API 401).

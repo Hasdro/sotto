@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "20 Oct 2026 · 23:05";
+const UPDATED = "21 Oct 2026 · 21:30";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -158,7 +158,17 @@ const TERMS = {
  "Yeastar":"Your office phone system.",
  "Apple ID":"Your normal Apple account. Added in Xcode, it lets me put a test copy of the app on your own iPhone for free (it expires after 7 days).",
  "simulator":"A pretend iPhone that runs on your Mac. Good for testing screens; it has no real phone line or microphone.",
- "Supabase":"A hosted database + sign-in service we planned earlier. Your new direction (own server) replaces it."
+ "Supabase":"A hosted database + sign-in service we planned earlier. Your new direction (own server) replaces it.",
+ "review":"An independent check of the whole project by another AI agent, looking as a developer, product manager and marketing manager. It wrote the fix list I worked through.",
+ "replay":"A test that plays sample calls through Sotto and measures speed and answers. The 'live' replay uses the real AI services.",
+ "backup AI":"A second AI service from another company. If the main one is slow or down, the backup answers instead.",
+ "first word":"The moment the first word of the AI's answer arrives. Sotto starts the backup if it hasn't arrived in time.",
+ "transcript excerpt":"The last few lines of the conversation just before the customer's question.",
+ "test coverage":"How much of the code automatic tests run through. Higher means fewer hidden mistakes.",
+ "bundle":"The code a browser downloads to open the web app. We keep it under 450 KB so it opens fast on a phone.",
+ "lazy-load":"Download a screen's code only when someone opens that screen, so the first page loads faster.",
+ "Resend":"An email-sending service. Its free plan sends a few thousand emails a month.",
+ "notarise":"Apple's check of a Mac app. Without it, Macs warn 'cannot verify the developer' the first time."
 };
 
 const TABS = [
@@ -170,49 +180,96 @@ const TABS = [
 ];
 
 const OVERVIEW = {
- pct: 74,
- parts:[{label:"Done", v:74, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:23, c:"var(--line)"}],
+ pct: 76,
+ parts:[{label:"Done", v:76, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:21, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
-   short:"The Mac app now hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. In a live test it understood every customer sentence and showed suggestions within about 1.25 s.",
-   full:["The new Mac app is installed in your Applications folder and your server is updated. It's ready for you to test with the Zylker account.",
-         "Before your first call: sign in as Zylker, add your keys under Admin → Keys & providers, and allow 'system audio recording' if your Mac asks.",
-         "I didn't add your keys myself. Putting real keys into an account on your live server is something I'm not allowed to do."]},
+   short:"I worked through the [[review]]'s fix list: 18 fixes are built and tested, 4 wait for your decision. None of it is on your server or in your Mac app yet; that needs your yes.",
+   full:["The review found things a customer could see today, for example sample data in real accounts and a call ending when you open another page. Those are fixed.",
+         "Everything is saved and tested on my side. Your live server, the web app and the Mac app in Applications are unchanged until you say 'ship it' in Your decisions.",
+         "Your Zylker test of the Mac app from last round still applies: the way calls are heard did not change."]},
   {eyebrow:"This round", title:"What changed this round",
-   short:"Sotto now listens to calls in Zoom, Google Meet, Yeastar and 3CX on your Mac. All demo data is removed from real accounts.",
-   full:["1. A new 'Start listening' screen. Choose 'Zoom, Google Meet, Yeastar or 3CX on this computer', and Sotto hears the customer through your Mac's sound. Your own voice never plays from your speakers, so only the customer triggers suggestions.",
-         "2. 'In person or on speakerphone' uses the microphone and is marked 'Approximate', because it can also hear you.",
-         "3. Removed from real accounts: practice calls, typing the customer's lines, the made-up realty company's playbook, tone and goal.",
-         "Live test on your Mac: a recorded customer played through the speakers. Every sentence was transcribed correctly: 1 answer from the playbook and 3 from the AI. Typical time 1.17 s, slowest 1.25 s ([[p95]]).",
-         "Important: with no playbook, the AI won't invent company facts such as prices or payment plans. It shows the holding line and emails your manager. Your playbook documents fix this."]},
+   short:"Privacy and honesty fixes, better answers from your playbook, a setup guide for new companies, and admin pages that show real data.",
+   full:["1. Privacy: call transcripts saved on a computer now belong to one account and are wiped at sign-out, so the next person on a shared laptop can't read them.",
+         "2. A live call no longer ends if the agent opens History or goes back. 'End call' now asks 'End this call?' first.",
+         "3. Real accounts never show sample calls or sample answers. Agents see 'Calls paused — reason' when the plan blocks calls. Messages no longer show technical key names.",
+         "4. Better answers: when no playbook entry matches exactly, the AI now gets your 3 nearest entries. This also fixed a bug where it got none. In the live [[replay]], holding lines dropped from 36% to 18–27%.",
+         "5. Admin: speech services the app can't run are greyed out. A 3-step setup guide shows the keys a new company needs. Team shows your real people and Invite works. The prompt editor and a sample models table are hidden until they're real.",
+         "6. Manager questions now include the [[transcript excerpt]] and who asked. Phones say plainly that live calls come with phone calling and point to the Mac and Windows apps.",
+         "7. Under the hood: the main engine's tests run 10 times faster and must cover at least 80% of its code (now 92%)."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 74% (up from 71%). The Mac app is ready for real Zoom, Meet, Yeastar and 3CX calls. Not done: your real playbook, a dial pad with your real number, and the iPhone app on a real phone.",
-   full:["Done: engine, screens, accounts, subscriptions, your dashboard, and apps for every platform.",
-         "Why it went up: the Mac app hears real calls through the computer's sound, and demo data is gone from real accounts (71% → 74%). Before that: the phone menu and small-screen polish are done (70% → 71%). Earlier: the first real spoken test on the Mac passed (68% → 70%)."]},
+   short:"About 76% (up from 74%). The product is more trustworthy rather than bigger: privacy, honest screens and better answers.",
+   full:["Why it went up: Batches 0–6 of the review list are done (74% → 76%). The admin pages now show real data, manager questions carry their context, and the engine has a quality floor.",
+         "Why not more: the manager email, phone calling and your playbook are still open."]},
   {eyebrow:"Remaining", title:"What is left?",
-   short:"Your real playbook, your check of the new phone menu, real phone calls (LiveKit and Yeastar), then a pilot.",
-   full:["1. Your real [[playbook]]: waiting for the documents.",
-         "2. Phones: the left-side menu is built; it needs your check on your Android phone.",
-         "3. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4). This also brings the customer's voice on phones.",
-         "4. Password reset by email, load test, then a one-week pilot."]},
+   short:"Your decisions on this round, your real playbook, the manager email, real phone calls (LiveKit and Yeastar), then a pilot.",
+   full:["1. Ship this round to your server and Mac app (your yes).",
+         "2. The 4 parked review items: answer timing, manager email, a practice call, and room in the web app's [[bundle]].",
+         "3. Your real [[playbook]]: still waiting for the documents.",
+         "4. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4), then password reset by email, a load test and a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Your playbook documents. Without them the AI answers general sales questions but won't invent Zylker's prices, plans or terms.",
-   full:["Playbook: I still can't find the documents. Until then, any question about company facts gets the [[holding line]] and an email to your manager.",
-         "A dial pad that uses your real number inside the app still needs a [[LiveKit]] account and your [[Yeastar]] admin details (Phase 4). Calls in Yeastar Linkus or 3CX on your Mac already work today."]},
+   short:"Your playbook documents, and your yes to ship this round. The manager email also needs a free Resend account.",
+   full:["Playbook: without it, questions about company facts get the [[holding line]] and go to your manager.",
+         "Manager email: the review rightly says managers must get an email within a minute. Sending email needs a [[Resend]] account (free plan) and a sender address.",
+         "Phone dial pad with your real number: still needs [[LiveKit]] and your [[Yeastar]] admin details."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Test Sotto on a real Zoom, Meet or Yeastar call. 2) Add your keys to Zylker. 3) Tell me where the playbook documents are.",
-   full:["1. Open Sotto from Applications and sign in as Zylker.",
-         "2. Admin → Keys & providers: add the Groq, Gemini, AssemblyAI and Speechmatics keys, and press Test on each.",
-         "3. Start your Zoom, Google Meet, Yeastar (Linkus) or 3CX call. In Sotto, choose 'Zoom, Google Meet, Yeastar or 3CX on this computer' and press Start. If your Mac asks, allow system audio recording.",
-         "4. Tell me what you see: which cards appeared, how fast, and anything that felt wrong.",
-         "5. Tell me where the playbook documents are, or drop them into the sotto folder.",
-         "6. When you're happy, say yes to putting the new Mac and Android apps on your downloads page."]}
+   short:"1) Answer the new questions in Your decisions and press Save. 2) Tell me where the playbook documents are.",
+   full:["1. Open 'Your decisions'. Six new questions have my pick already selected; change any you disagree with and press Save.",
+         "2. If you choose the manager email: create a free account at resend.com and tell me in chat when it's ready. Don't paste the key in chat; add it on the server with me.",
+         "3. Tell me where the playbook documents are, or drop them into the sotto folder.",
+         "4. Still open from last round: test the Mac app on a real Zoom, Meet or Yeastar call with Zylker."]}
  ]
 };
 
-const DECISIONS_LEAD = "All six answered on 20 Oct, and every answer matched my recommendation. All six are now in place (the iPhone one this round). New questions will appear here with my pick pre-selected; press Save and I read your answers at the start of my next round.";
+const DECISIONS_LEAD = "Six new questions from the review round (21 Oct) are at the top, each with my pick pre-selected. The six below them were answered on 20 Oct and are in place. Press Save; I read your answers at the start of my next round.";
 
 const DECISIONS = [
+ {id:"brief_ship", title:"Put this round's fixes live",
+  short:"Recommended: update your server and web app, and replace the Mac app in your Applications folder. The downloads page stays as it is until you test.",
+  full:"The server change is safe for existing data: it adds two empty columns for manager-question context and keeps everything else. I'd check the app, the API and your console afterwards, as last time.",
+  rec:"ship", options:[
+   {v:"ship", l:"Ship to the server, web app and my Mac", d:"Downloads page unchanged; you test first."},
+   {v:"ship_all", l:"Ship everywhere, including the downloads page", d:"New Mac, Windows, Linux and Android files replace the old ones."},
+   {v:"wait", l:"Wait", d:"Nothing changes on your server or Mac."}]},
+ {id:"brief_budget", title:"How long the main AI gets before the backup starts",
+  short:"Recommended: give the main AI until about 1.15 s after the customer stops (now 0.7 s). Its request only starts about 0.6 s in, so today it gets 0.1 s before the [[backup AI]] is started too.",
+  full:"In the live replay the backup started on 2–3 of 11 questions and never won, so those were wasted requests on your free quota. The requirement says 'no [[first word]] within 700 ms → backup'. Raising the value means reading that as '700 ms of the AI's own time'. The 1.5 s target and the holding line at 1.4 s don't change.",
+  rec:"raise", options:[
+   {v:"raise", l:"Raise to about 1.15 s after the customer stops", d:"Fewer wasted backup requests; same 1.5 s target."},
+   {v:"rule", l:"Count the 700 ms from when the question is sent (new rule)", d:"Clearer wording; leaves the backup less time before the holding line."},
+   {v:"keep", l:"Keep it as it is", d:"The backup keeps starting on most slow questions."}]},
+ {id:"brief_email", title:"Email the sales manager within a minute",
+  short:"Recommended: yes, through [[Resend]] (free plan). Each company sets its manager's email in Admin → Settings.",
+  full:"The requirements promise managers an email for every question the AI couldn't answer. Today it only lands in the Inbox. The sending code already exists and is tested. It needs a Resend account and a sender address, for example questions@ your domain or Resend's test address. One email per question, retried if it fails, and it never slows the call.",
+  rec:"resend_manager", options:[
+   {v:"resend_manager", l:"Yes: Resend, to each company's manager address", d:"You create the free Resend account."},
+   {v:"resend_alias", l:"Yes: Resend, to one company-wide address", d:"Simpler; everyone shares one mailbox."},
+   {v:"later", l:"Not now; the Inbox is enough", d:"Managers must check the Inbox themselves."}]},
+ {id:"brief_practice", title:"A 60-second practice call inside real accounts",
+  short:"Recommended: no. You asked last round to remove demo calls from real accounts, and I kept that.",
+  full:"The review suggests a clearly labelled practice call, available before any keys are added, so a new company sees a card appear within a minute. It would stay out of History and usage. It's a good sales moment, but it brings sample content back into real accounts.",
+  rec:"no", options:[
+   {v:"no", l:"No, keep real accounts free of sample content", d:"As you decided last round."},
+   {v:"before_keys", l:"Yes, labelled 'Practice', only until the company adds its keys", d:"Faster first impression for new companies."},
+   {v:"signin", l:"Only on the sign-in page, before an account exists", d:"Prospects try it; accounts stay clean."}]},
+ {id:"brief_bundle", title:"Room in the web app for phone calling",
+  short:"Recommended: [[lazy-load]] the call screen. The web app's [[bundle]] is 430 KB of its 450 KB limit, and phone calling (LiveKit) needs room.",
+  full:"Loading the call screen's code only when it opens frees room without raising the limit. Removing a checking library (zod) from the app is another way, but it's riskier. Raising the limit makes the first load slower on phones.",
+  rec:"lazy", options:[
+   {v:"lazy", l:"Load the call screen when it opens", d:"No limit change; a short delay the first time Call opens."},
+   {v:"zod", l:"Remove the zod library from the app", d:"More work; message checks need rewriting."},
+   {v:"raise", l:"Raise the limit", d:"Slower first load on mobile networks."}]},
+ {id:"brief_later", title:"Bigger items from the review: which to start", multi:true,
+  short:"Recommended: only an off-server backup copy now. Tick anything else you want me to plan; each needs your budget or a business decision first.",
+  full:"Each ticked item gets a short plan with costs before I build anything.",
+  rec:["backup"], options:[
+   {v:"backup", l:"Backup copy off the server, plus a restore drill", d:"Today the nightly backup sits on the same server. A second place may cost a few dollars a month."},
+   {v:"sign", l:"Sign and [[notarise]] the desktop apps, with auto-update", d:"Apple $99/yr; a Windows certificate about $200–400/yr."},
+   {v:"proxy", l:"AI requests through your server instead of agents' devices", d:"Keys never reach devices; adds server cost and load."},
+   {v:"trialkeys", l:"Sotto pays the AI for trials (about $1 per trial)", d:"Faster start for prospects; you carry the cost."},
+   {v:"analytics", l:"Team analytics and coaching", d:"Needs calls uploaded to the server, with consent."},
+   {v:"arabic", l:"Suggestion cards in Arabic too", d:"Changes decision D-018 (cards in English)."},
+   {v:"pricing", l:"Review pricing and trial limits", d:"A business decision for you."}]},
  {id:"keys_where", title:"Where the AI service keys live",
   short:"Recommended: the company admin enters keys once; the server keeps them [[encrypted]] and hands them only to that company's signed-in apps.",
   full:"The apps now call the AI and [[speech-to-text]] services themselves, so each app needs the [[API key]]. Typing keys on every phone is painful and keys get lost. Keeping them on the server, locked per company, means one place to change them. Where a vendor supports it, the app gets a [[short-lived key]] instead of the real one.",
@@ -260,9 +317,10 @@ const SERVER = [
         "Your owner password is now your own, and the one-time password file is deleted (I checked).",
         "The server uses about 280 MB of its 1 GB memory."]},
  {eyebrow:"This round", title:"What I did on us3 this round",
-  short:"Updated the Sotto server: real accounts no longer get the demo company's playbook, practice calls or sales goal.",
-  full:["Installed the new server version. Checked afterwards: the app answers (200), the API asks for sign-in (401), and your console redirects to its sign-in page.",
-        "The downloads page is unchanged. The new Mac and Android apps go up only after you say yes."]},
+  short:"Nothing. The server code is ready (manager questions carry context, and unusable speech services are refused) but goes live only after your yes.",
+  full:["Ready to install: two new columns for the [[transcript excerpt]] and call. They are added automatically to the existing [[database]] with no data lost (tested on an old-format copy).",
+        "Also ready: the server refuses a speech service the app can't run (Deepgram, ElevenLabs), and tells the app which services those are.",
+        "Your live server, its data and the downloads page were not touched. I tested against a throwaway copy on my Mac with a test account."]},
  {eyebrow:"Installed today", title:"What I installed",
   short:"The Sotto account server, [[Caddy]] for the [[HTTPS]] padlock, a firewall, a [[database]] file and a nightly backup. No [[Docker]].",
   full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate and renews it automatically.",
@@ -291,7 +349,7 @@ const SERVER = [
 
 const PLATFORMS = [
  {name:"iPhone", prio:true, st:"run", stl:"Built · simulator",
-  short:"Built with Xcode and tested in the iPhone [[simulator]] on your Mac: it opens to the sign-in screen. A real iPhone needs your [[Apple ID]] added in Xcode.",
+  short:"Built and tested in the iPhone [[simulator]]. The call screen now says plainly that live calls come with phone calling, instead of offering a start that fails.",
   full:"Same code as the other apps, built with [[Xcode]] as you chose. A simulator build needs no Apple account. To put it on your own iPhone, add your Apple ID in Xcode (free, re-install every 7 days). Testers need an Apple Developer account ($99/yr) for [[TestFlight]]. On phones, typed and scripted calls work; speaking as the customer comes with the phone-call work (Phase 4)."},
  {name:"Android", prio:true, st:"ok", stl:"Built · download",
   short:"New build ready: the menu now opens from the left (right in Arabic) and small screens are tidied. Not on the downloads page yet; it goes up when you say yes.",
@@ -300,7 +358,7 @@ const PLATFORMS = [
   short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
   full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
  {name:"Mac", prio:true, st:"ok", stl:"Real calls · installed",
-  short:"The new version hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. It's installed in your Applications folder. The downloads page still has the older version.",
+  short:"Hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. This round's fixes (call survives leaving the screen, 'End this call?', setup guide) go into it after your yes.",
   full:"The first time you start listening to the computer's sound, macOS asks to allow 'system audio recording'. Allow it once. It is not notarised by Apple yet, so the first time you open it you may need to right-click it and choose Open. Notarisation needs the Apple Developer account ($99/yr). The microphone option is for in-person or speakerphone calls."},
  {name:"Linux", st:"ok", stl:"Built · download",
   short:"'Sotto-0.1.0.AppImage' at /downloads: one file that runs on most Linux desktops.", full:"Make it executable (right-click → Properties → Allow executing) and open it."},
@@ -318,27 +376,27 @@ const PHASES = [
  {n:1, name:"Architecture & skeleton", pct:95, st:"run",
   short:"Blueprint approved. Updated today for your new 'apps do the work, server manages' design.",
   done:["One codebase for phone, web and desktop","Automatic checks on every change"], next:["Write the new design down as decision D-022"], you:[]},
- {n:2, name:"Suggestion engine", pct:96, st:"run",
-  short:"Runs on the agent's device and passed a real spoken test on the Mac: 0.6 s playbook, 1.2 s AI.",
-  done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)","Real spoken test on the Mac: 6 fixes"], next:["End-of-turn model","Better playbook matching (payment plan vs price)"], you:["Test recordings, later"]},
+ {n:2, name:"Suggestion engine", pct:97, st:"run",
+  short:"Runs on the agent's device. This round: the AI sees your 3 nearest playbook answers (holding lines 36% → 18–27%), and each card arrives ~0.15 s sooner.",
+  done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)","Real spoken test on the Mac: 6 fixes","AI gets the 3 nearest playbook answers","Quality numbers next to speed in the [[replay]]","Engine [[test coverage]] at least 80%"], next:["Your answer-timing decision","End-of-turn model","Smarter matching once real calls are measured"], you:["Answer-timing decision","Test recordings, later"]},
  {n:3, name:"Design & screens", pct:99, st:"run",
   short:"All screens done in light, dark and Arabic, plus sign-up, log-in and Account.",
-  done:["In-call, history, playbook, inbox, admin screens","Sign-up, log-in and Account pages","Accessibility check on every screen","Menu on the left on phones (your request)","Design polish on small screens"], next:["Fixes from your Android check"], you:["Reinstall the Android app and check the menu","Your top 2–3 other Android annoyances"]},
+  done:["In-call, history, playbook, inbox, admin screens","Sign-up, log-in and Account pages","Accessibility check on every screen","Menu on the left on phones (your request)","Design polish on small screens","No sample data in real accounts; 'End this call?'; setup guide"], next:["Fixes from your Android check"], you:["Reinstall the Android app and check the menu","Your top 2–3 other Android annoyances"]},
  {n:4, name:"Live calls", pct:15, st:"wait",
   short:"Waiting for LiveKit and Yeastar details.",
   done:["Rules for who may start a call"], next:["Phone calls through the app"], you:["[[LiveKit]] account","[[Yeastar]] admin details"]},
- {n:5, name:"Companies & accounts", pct:80, st:"run",
+ {n:5, name:"Companies & accounts", pct:83, st:"run",
   short:"Done on your own server: sign-up, log-in, trials, plans, devices, team invites and your dashboard.",
-  done:["Sign up / log in on every app","Trials and plans; calls pause when a plan ends","Devices: sign one out from the app or your dashboard","Company walls tested: one company cannot see another's data","Your admin dashboard on us3"], next:["Password reset by email"], you:[]},
+  done:["Sign up / log in on every app","Trials and plans; calls pause when a plan ends, and agents are told why","Admin → Team on real data; transcripts wiped at sign-out","Devices: sign one out from the app or your dashboard","Company walls tested: one company cannot see another's data","Your admin dashboard on us3"], next:["Password reset by email"], you:[]},
  {n:6, name:"Prompts & models", pct:65, st:"run",
-  short:"Keys panel, model per job and speed check done.",
-  done:["Keys & providers panel","Your own endpoints (Ollama tested)"], next:["Prompt versions saved on the server"], you:[]},
- {n:7, name:"Escalations & CRM", pct:70, st:"run",
-  short:"Unanswered questions reach the inbox and grow the playbook.",
-  done:["Inbox → playbook loop"], next:["Zoho CRM connector"], you:["Zoho access, later"]},
- {n:8, name:"Apps, hardening & pilot", pct:58, st:"run",
+  short:"Keys panel, model per job and speed check done. The prompt editor is hidden until edits are saved and reach calls.",
+  done:["Keys & providers panel","Your own endpoints (Ollama tested)","Speech services the app can't run are greyed out"], next:["Prompt versions saved on the server, then the editor returns"], you:[]},
+ {n:7, name:"Escalations & CRM", pct:75, st:"run",
+  short:"Unanswered questions reach the inbox with what was said before them, and grow the playbook. The manager email waits for your decision.",
+  done:["Inbox → playbook loop","Questions carry the [[transcript excerpt]] and the agent"], next:["Manager email within a minute","Zoho CRM connector"], you:["Manager-email decision ([[Resend]] account)","Zoho access, later"]},
+ {n:8, name:"Apps, hardening & pilot", pct:60, st:"run",
   short:"Server live on us3. Android, Windows, Mac, Linux and Chrome extension are downloadable. iPhone runs in the simulator.",
-  done:["Server live on us3 with HTTPS, firewall and nightly backup","Security review: high and medium issues fixed","Windows, Mac and Linux installers","Chrome extension","Android test app","iPhone app (simulator)","Downloads page on your server"], next:["iPhone on a real phone","Android app tested on a phone","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
+  done:["Server live on us3 with HTTPS, firewall and nightly backup","Security review: high and medium issues fixed","Three-angle project review: Batches 0–6 fixed","Windows, Mac and Linux installers","Chrome extension","Android test app","iPhone app (simulator)","Downloads page on your server"], next:["iPhone on a real phone","Android app tested on a phone","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
 ];
 /* ======================= END DATA ======================= */
 
@@ -397,9 +455,12 @@ const views = {
    }).join("")}</div>`;
  }
 };
+const isRec = (d, v) => d.multi ? d.rec.includes(v) : d.rec === v;
+const isOn = (d, cur, v) => d.multi ? (cur || []).includes(v) : cur === v;
 function optsHtml(d){
   const cur = choices[d.id]?.v ?? d.rec;
-  return `<div class="opts" role="radiogroup" aria-label="${esc(d.title)}">${d.options.map(o => `<label class="opt${cur === o.v ? " on" : ""}"><input type="radio" name="dc-${d.id}" id="dc-${d.id}-${o.v}" value="${o.v}"${cur === o.v ? " checked" : ""}><span><span class="olab">${esc(o.l)}</span>${o.v === d.rec ? '<span class="rec">Recommended</span>' : ""}<span class="odesc">${rich(o.d || "")}</span></span></label>`).join("")}</div>
+  const type = d.multi ? "checkbox" : "radio";
+  return `<div class="opts" role="${d.multi ? "group" : "radiogroup"}" aria-label="${esc(d.title)}">${d.options.map(o => `<label class="opt${isOn(d, cur, o.v) ? " on" : ""}"><input type="${type}" name="dc-${d.id}" id="dc-${d.id}-${o.v}" value="${o.v}"${isOn(d, cur, o.v) ? " checked" : ""}><span><span class="olab">${esc(o.l)}</span>${isRec(d, o.v) ? '<span class="rec">Recommended</span>' : ""}<span class="odesc">${rich(o.d || "")}</span></span></label>`).join("")}</div>
    <textarea id="dn-${d.id}" placeholder="Optional note" aria-label="Note for ${esc(d.title)}">${esc(choices[d.id]?.note || "")}</textarea>`;
 }
 function render(){
@@ -437,7 +498,8 @@ function toast(m){ const t = $("#toast"); t.textContent = m; t.hidden = false; c
 function wireDecisions(){
   for (const d of DECISIONS){
     document.querySelectorAll(`input[name="dc-${d.id}"]`).forEach(inp => inp.addEventListener("change", () => {
-      choices[d.id] = {...(choices[d.id] || {}), v: inp.value}; dirty = true; local();
+      const v = d.multi ? [...document.querySelectorAll(`input[name="dc-${d.id}"]:checked`)].map(x => x.value) : inp.value;
+      choices[d.id] = {...(choices[d.id] || {}), v}; dirty = true; local();
       document.querySelectorAll(`input[name="dc-${d.id}"]`).forEach(x => x.closest("label").classList.toggle("on", x.checked)); msg(); }));
     const ta = $("#dn-" + d.id); ta.addEventListener("input", () => { choices[d.id] = {...(choices[d.id] || {v:d.rec}), note: ta.value}; dirty = true; local(); msg(); });
   }
@@ -445,7 +507,7 @@ function wireDecisions(){
 }
 function local(){ try { localStorage.setItem("hub.choices", JSON.stringify(choices)); } catch {} }
 function msg(){ const el = $("#saveMsg"); if (!el) return;
-  const changed = DECISIONS.filter(d => choices[d.id] && choices[d.id].v !== d.rec).length;
+  const changed = DECISIONS.filter(d => choices[d.id] && JSON.stringify(choices[d.id].v) !== JSON.stringify(d.rec)).length;
   el.textContent = dirty ? `Unsaved changes. ${changed} differ from my recommendation.` : (choices._savedAt ? `Saved ${new Date(choices._savedAt).toLocaleString()}.` : "Nothing saved yet. Saving with no changes means you accept all my recommendations.");
   const s = $("#saveState"); if (s) s.textContent = ref ? "connected" : "this browser only"; }
 async function save(){
