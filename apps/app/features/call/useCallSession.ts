@@ -5,6 +5,8 @@
 import type { DemoClientMessage } from "@sotto/shared";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { Locale } from "../../lib/i18n";
+import { prefs } from "../../lib/prefs";
+import { saveRecording } from "../../lib/recordings";
 import { useCloud } from "../../lib/useCloud";
 import {
   type Bridge,
@@ -24,6 +26,7 @@ import {
   startMic,
 } from "./mic";
 import { connectMockBridge } from "./mock-stream";
+import { Recorder } from "./recorder";
 import { initialSessionState, type SessionState, type Speaker, sessionReducer } from "./session";
 
 /** Delay between automatic reconnect attempts while the bridge is offline. */
@@ -109,10 +112,15 @@ export function useCallSession(opts: {
   // Odd while a start waits for the browser's permission prompt. Bumped on every stop, so a
   // permission granted after the user pressed stop (or after the call ended) is let go at once.
   const micAttempt = useRef(0);
+  // The recording (owner, 21 Oct): one per call, saved when the call ends.
+  const recorder = useRef<Recorder | null>(null);
+  const agentMic = useRef<MicHandle | null>(null);
   const stopMic = useCallback(() => {
     if (micAttempt.current % 2 === 1) micAttempt.current += 1; // cancel a pending start
     micHandle.current?.stop();
     micHandle.current = null;
+    agentMic.current?.stop();
+    agentMic.current = null;
     setMic((m) => (m === "on" || m === "starting" ? "off" : m));
   }, []);
   const toggleMic = useCallback(
@@ -129,7 +137,11 @@ export function useCallSession(opts: {
       const chosen = which ?? sourceRef.current;
       sourceRef.current = chosen;
       setSource(chosen);
-      const onFrame = (pcm: ArrayBuffer) => bridge.current?.sendAudio(pcm);
+      if (prefs().record && !recorder.current) recorder.current = new Recorder();
+      const onFrame = (pcm: ArrayBuffer) => {
+        bridge.current?.sendAudio(pcm);
+        recorder.current?.add("customer", pcm);
+      };
       (chosen === "mic" ? startMic(onFrame) : startCapture(chosen, onFrame))
         .then((handle) => {
           if (micAttempt.current !== attempt) {
@@ -139,6 +151,16 @@ export function useCallSession(opts: {
           micAttempt.current += 1; // even: settled
           micHandle.current = handle;
           setMic("on");
+          // The computer's sound has only the customer; the agent's side comes from the
+          // microphone, for the recording only. No microphone: the customer's side alone.
+          if (chosen === "computer" && recorder.current) {
+            startMic((pcm) => recorder.current?.add("agent", pcm))
+              .then((h) => {
+                if (micHandle.current === handle) agentMic.current = h;
+                else h.stop();
+              })
+              .catch(() => {});
+          }
         })
         .catch((err: unknown) => {
           if (micAttempt.current !== attempt) return;
@@ -151,9 +173,14 @@ export function useCallSession(opts: {
   );
   // The microphone never outlives the call or the connection.
   const callOver = state.phase !== "live" || state.connection !== "open";
+  const callId = state.callId;
   useEffect(() => {
-    if (callOver) stopMic();
-  }, [callOver, stopMic]);
+    if (!callOver) return;
+    stopMic();
+    const rec = recorder.current;
+    recorder.current = null;
+    if (rec && !rec.empty && callId) void saveRecording(callId, rec.wav());
+  }, [callOver, stopMic, callId]);
   useEffect(() => stopMic, [stopMic]);
 
   return {

@@ -16,6 +16,7 @@ import { StyleSheet, View } from "react-native";
 import { cardStrings, clock } from "../../features/call/components/strings";
 import { findCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
+import { RecordingPlayer } from "../../features/history/RecordingPlayer";
 import { useServerCall } from "../../features/history/server";
 import { CallReviewPanel } from "../../features/review/CallReviewPanel";
 import { formatDateTime } from "../../lib/format";
@@ -116,6 +117,7 @@ export default function CallDetailScreen() {
           <CallReviewPanel callId={String(id)} />
         </View>
       )}
+      {sample ? null : <RecordingPlayer callId={String(id)} />}
       <View style={[styles.body, wide ? styles.bodyWide : null]}>
         {wide ? transcript : cards}
         {wide ? cards : transcript}

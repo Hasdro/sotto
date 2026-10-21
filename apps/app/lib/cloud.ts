@@ -9,6 +9,7 @@
 import type { CallBundle } from "@sotto/engine";
 import { Platform } from "react-native";
 import { clearDeviceCalls, setDeviceOwner } from "./deviceHistory";
+import { clearRecordings } from "./recordings";
 
 export type CloudUser = {
   id: string;
@@ -227,6 +228,7 @@ async function request<T>(
 async function signedOut(error?: string) {
   reads.clear();
   clearDeviceCalls();
+  void clearRecordings();
   setDeviceOwner(null);
   token = null;
   await write(TOKEN_KEY, null);

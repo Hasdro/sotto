@@ -397,6 +397,7 @@ const en = {
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
+  "history.detail.recording": "Recording",
   "review.pending.title": "Reviewing your call…",
   "review.pending.body": "Scores and a tip appear here in a few seconds.",
   "review.none":
@@ -935,6 +936,7 @@ const ar: Record<StringKey, string> = {
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
+  "history.detail.recording": "التسجيل",
   "review.pending.title": "جارٍ تقييم مكالمتك…",
   "review.pending.body": "ستظهر الدرجات ونصيحة هنا خلال ثوانٍ.",
   "review.none":
