@@ -122,6 +122,7 @@ def build_bundle(
             "steps": p.steps,
             "models": list(p.models),
             "base_url": p.route.get("base_url") or p.test_url,
+            "client": p.client,
         }
         for pid, p in seed.catalog.providers.items()
     }

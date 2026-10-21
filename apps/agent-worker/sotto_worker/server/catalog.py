@@ -29,6 +29,7 @@ class Provider:
     models: tuple[str, ...] = ()
     test_url: str | None = None  # LLM vendors without an OpenAI-compatible base_url
     custom: bool = False  # an endpoint the owner added in the panel (Ollama, vLLM, …)
+    client: bool = True  # the apps' own engine can run it (D-022 calls run on the device)
 
     def models_url(self) -> str | None:
         """Where "Test" lists models: the vendor's own models endpoint (LLM vendors only)."""
@@ -66,6 +67,7 @@ class Catalog:
                 route=dict(p["route"]),
                 models=tuple(p.get("models") or ()),
                 test_url=p.get("test_url"),
+                client=bool(p.get("client", True)),
             )
             for pid, p in cast(dict[str, dict[str, Any]], raw["providers"]).items()
         }

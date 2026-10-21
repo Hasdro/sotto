@@ -110,7 +110,7 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 
 - [x] T-022 B0.1 Customer transcripts do not survive sign-out — device calls are kept per company + user (`sotto.calls.<company>.<user>`), cleared on sign-out, old shared key discarded. Evidence: `__tests__/device-history.test.ts` (A signs out, B signs in, B sees nothing); app jest 183 passed
-- [ ] T-023 B0.2 Speech vendors the app cannot run are not selectable (Deepgram, ElevenLabs)
+- [x] T-023 B0.2 Speech vendors the app cannot run are not selectable (Deepgram, ElevenLabs) — catalogue flag `client: false`, passed in the bundle, greyed out in the stage picker with "not available in the app yet"; the server refuses such a route for `stt`/`stt_backup`; worker adapters kept. Evidence: `test_speech_vendors_the_app_cannot_run_are_refused`, keys jest "does not let a speech stage pick…"; pytest 366 passed, app jest 184 passed
 - [ ] T-024 B0.3 No sample rows in a real account's History or Playbook
 - [ ] T-025 B0.4 Leaving the call screen keeps the call; End asks first
 - [ ] T-026 B0.5 Agents and the call screen are told when the plan blocks calls

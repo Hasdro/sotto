@@ -126,6 +126,8 @@ export type CallBundle = {
       steps: string;
       models: string[];
       base_url?: string | null;
+      /** False: only the Python worker runs this vendor; the apps cannot use it yet. */
+      client?: boolean;
     }
   >;
   overrides?: string[];

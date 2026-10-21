@@ -74,7 +74,8 @@
      "openai/gpt-oss-20b",
      "openai/gpt-oss-120b"
     ],
-    "base_url": "https://api.groq.com/openai/v1"
+    "base_url": "https://api.groq.com/openai/v1",
+    "client": true
    },
    "gemini": {
     "name": "Google Gemini",
@@ -86,7 +87,8 @@
     "models": [
      "gemini-2.5-flash"
     ],
-    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"
+    "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "client": true
    },
    "openrouter": {
     "name": "OpenRouter",
@@ -96,7 +98,8 @@
     "free": "Free models capped at about 50 requests a day",
     "steps": "Sign up, choose Create API Key, set a credit limit, copy it (starts with sk-or-v1-).",
     "models": [],
-    "base_url": "https://openrouter.ai/api/v1"
+    "base_url": "https://openrouter.ai/api/v1",
+    "client": true
    },
    "openai": {
     "name": "OpenAI",
@@ -106,7 +109,8 @@
     "free": "Paid from the first request",
     "steps": "Sign in, choose Create new secret key, copy it.",
     "models": [],
-    "base_url": "https://api.openai.com/v1/models"
+    "base_url": "https://api.openai.com/v1/models",
+    "client": true
    },
    "anthropic": {
     "name": "Anthropic (Claude)",
@@ -116,7 +120,8 @@
     "free": "Paid",
     "steps": "Sign in, choose Create Key, copy it.",
     "models": [],
-    "base_url": "https://api.anthropic.com/v1/models"
+    "base_url": "https://api.anthropic.com/v1/models",
+    "client": true
    },
    "deepgram": {
     "name": "Deepgram",
@@ -128,7 +133,8 @@
     "models": [
      "nova-3"
     ],
-    "base_url": null
+    "base_url": null,
+    "client": false
    },
    "assemblyai": {
     "name": "AssemblyAI",
@@ -140,7 +146,8 @@
     "models": [
      "universal-streaming-english"
     ],
-    "base_url": null
+    "base_url": null,
+    "client": true
    },
    "speechmatics": {
     "name": "Speechmatics",
@@ -153,7 +160,8 @@
      "standard",
      "enhanced"
     ],
-    "base_url": null
+    "base_url": null,
+    "client": true
    },
    "elevenlabs": {
     "name": "ElevenLabs (Scribe)",
@@ -165,7 +173,8 @@
     "models": [
      "scribe_v2_realtime"
     ],
-    "base_url": null
+    "base_url": null,
+    "client": false
    }
   },
   "stage_slots": {

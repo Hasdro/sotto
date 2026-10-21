@@ -289,6 +289,7 @@ const en = {
   "admin.keys.reset": "Use default",
   "admin.keys.default": "Default",
   "admin.keys.custom": "Your choice",
+  "admin.keys.notInApp": "{names}: not available in the app yet.",
   "admin.keys.noKey": "{name} has no key yet, so this job falls back to the default or to demo AI.",
   "admin.keys.measure": "Measure speed",
   "admin.keys.measuring": "Measuring…",
@@ -650,6 +651,7 @@ const ar: Record<StringKey, string> = {
   "admin.keys.reset": "استخدم الافتراضي",
   "admin.keys.default": "افتراضي",
   "admin.keys.custom": "اختيارك",
+  "admin.keys.notInApp": "{names}: غير متاح في التطبيق بعد.",
   "admin.keys.noKey":
     "لا يوجد مفتاح لـ {name} بعد، لذلك تعود هذه المهمة إلى الافتراضي أو إلى الذكاء التجريبي.",
   "admin.keys.measure": "قِس السرعة",

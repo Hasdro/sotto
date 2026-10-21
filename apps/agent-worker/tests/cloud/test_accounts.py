@@ -307,6 +307,31 @@ def test_routes_are_validated_against_the_catalog(client: TestClient, sign_up: S
     assert wrong_kind.status_code == 400
 
 
+def test_speech_vendors_the_app_cannot_run_are_refused(client: TestClient, sign_up: SignUp) -> None:
+    """Picking Deepgram used to pass the key test and then leave calls with no speech-to-text."""
+    s = sign_up()
+    for stage in ("stt", "stt_backup"):
+        for vendor, model in (("deepgram", "nova-3"), ("elevenlabs", "scribe_v2_realtime")):
+            r = client.put(
+                f"/api/v1/company/routes/{stage}",
+                json={"provider": vendor, "model": model},
+                headers=s["auth"],
+            )
+            assert r.status_code == 400, (stage, vendor)
+            assert "not available in the app" in r.json()["error"]
+    ok = client.put(
+        "/api/v1/company/routes/stt",
+        json={"provider": "speechmatics", "model": "enhanced"},
+        headers=s["auth"],
+    )
+    assert ok.status_code == 200
+    providers = client.get("/api/v1/bundle", headers=s["auth"]).json()["providers"]
+    assert providers["deepgram"]["client"] is False
+    assert providers["elevenlabs"]["client"] is False
+    assert providers["assemblyai"]["client"] is True
+    assert providers["groq"]["client"] is True
+
+
 def test_cors_preflight_and_headers_on_the_app_api(client: TestClient) -> None:
     r = client.options(
         "/api/v1/me", headers={"origin": "app://sotto", "access-control-request-method": "GET"}

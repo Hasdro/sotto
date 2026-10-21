@@ -21,6 +21,8 @@ export type Provider = {
   /** An endpoint the owner added (Ollama, vLLM, LM Studio…): no key page; its own address. */
   custom?: boolean;
   base_url?: string | null;
+  /** False: the apps cannot run this vendor yet, so no stage may pick it. */
+  client?: boolean;
 };
 
 export type StageChoice = {

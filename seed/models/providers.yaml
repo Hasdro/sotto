@@ -76,6 +76,7 @@ providers:
     route:
       provider: deepgram
     models: [nova-3]
+    client: false  # the Python worker runs it; the apps (packages/engine) do not yet
   assemblyai:
     name: AssemblyAI
     kind: stt
@@ -106,6 +107,7 @@ providers:
     route:
       provider: elevenlabs
     models: [scribe_v2_realtime]
+    client: false  # the Python worker runs it; the apps (packages/engine) do not yet
 
 # Stages the panel lets the owner set, and which kind of vendor each takes.
 stages:

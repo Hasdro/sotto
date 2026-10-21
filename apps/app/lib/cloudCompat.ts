@@ -64,6 +64,7 @@ function providersState(result?: { ok: boolean; detail: string }) {
       id,
       name: p.name,
       kind: p.kind,
+      client: p.client !== false,
       key_page: p.key_page,
       steps: p.steps,
       free: p.free,

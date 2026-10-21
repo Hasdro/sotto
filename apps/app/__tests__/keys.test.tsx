@@ -109,6 +109,35 @@ describe("Keys & providers (P6.7)", () => {
     });
   });
 
+  it("does not let a speech stage pick a vendor the app cannot run", async () => {
+    const data = state();
+    const deepgram = data.providers[1];
+    if (!deepgram) throw new Error("fixture has Deepgram");
+    data.providers = [
+      ...data.providers.slice(0, 1),
+      { ...deepgram, client: false },
+      { ...deepgram, id: "assemblyai", name: "AssemblyAI", client: true },
+    ];
+    data.stages = [
+      {
+        id: "stt",
+        label: "Speech-to-text (main)",
+        kind: "stt",
+        provider_id: "assemblyai",
+        model: "nova-3",
+        source: "default",
+      },
+    ];
+    const calls = mockFetch([data]);
+    await wrap(<KeysScreen />);
+    const off = await screen.findByTestId("stage-stt-vendor-deepgram");
+    expect(off.props.accessibilityState?.disabled ?? off.props["aria-disabled"]).toBe(true);
+    await fireEvent.press(off);
+    expect(screen.getByTestId("stage-stt-save").props.accessibilityState?.disabled).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(screen.getAllByText(/not available in the app yet/).length).toBeGreaterThan(0);
+  });
+
   it("shows a stage's measured speed and measures it again on request (P6.4)", async () => {
     const measured = state();
     const stage = measured.stages[0];

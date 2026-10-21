@@ -357,7 +357,8 @@ function StageRow({
   const { t } = useI18n();
   const { color } = useTheme();
   const options = providers.filter((p) => p.kind === stage.kind);
-  const [vendor, setVendor] = useState(stage.provider_id ?? options[0]?.id ?? "");
+  const usable = (p: Provider) => p.client !== false;
+  const [vendor, setVendor] = useState(stage.provider_id ?? options.find(usable)?.id ?? "");
   const [model, setModel] = useState(stage.model ?? "");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -367,8 +368,9 @@ function StageRow({
   const chosen = options.find((p) => p.id === vendor);
   const dirty = vendor !== stage.provider_id || model !== stage.model;
   const pick = (id: string) => {
-    setVendor(id);
     const next = options.find((p) => p.id === id);
+    if (next && !usable(next)) return;
+    setVendor(id);
     if (next && !next.models.includes(model)) setModel(next.models[0] ?? "");
   };
   const act = (action: () => Promise<ProvidersState>) => {
@@ -397,11 +399,15 @@ function StageRow({
         >
           {options.map((p) => {
             const active = p.id === vendor;
+            const off = !usable(p);
             return (
               <Pressable
                 key={p.id}
                 accessibilityRole="radio"
                 aria-checked={active}
+                aria-disabled={off}
+                accessibilityState={{ checked: active, disabled: off }}
+                disabled={off}
                 onPress={() => pick(p.id)}
                 testID={`stage-${stage.id}-vendor-${p.id}`}
                 style={[
@@ -415,7 +421,7 @@ function StageRow({
                 <Text
                   variant="label"
                   weight={active ? "semibold" : "regular"}
-                  tone={active ? "primary" : "default"}
+                  tone={active ? "primary" : off ? "muted" : "default"}
                 >
                   {p.name}
                 </Text>
@@ -423,6 +429,16 @@ function StageRow({
             );
           })}
         </View>
+        {options.some((p) => !usable(p)) ? (
+          <Text variant="label" tone="muted">
+            {t("admin.keys.notInApp", {
+              names: options
+                .filter((p) => !usable(p))
+                .map((p) => p.name)
+                .join(", "),
+            })}
+          </Text>
+        ) : null}
         {chosen && !chosen.key_set ? (
           <Text variant="label" tone="notice">
             {t("admin.keys.noKey", { name: chosen.name })}

@@ -438,6 +438,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             seed.catalog.route_for(stage, provider, model, seed.routing.stages.get(stage))
         except ValueError as e:
             raise CloudError("invalid", str(e)) from None
+        chosen = seed.catalog.providers.get(provider)
+        if chosen is not None and not chosen.client:
+            raise CloudError("invalid", f"{chosen.name} is not available in the app yet")
         store.set_route(who, stage, provider, model.strip(), ip=ip_of(request))
         return JSONResponse({"ok": True})
 
