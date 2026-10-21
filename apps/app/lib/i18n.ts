@@ -196,6 +196,12 @@ const en = {
   "admin.team": "Team",
   "admin.prompts": "Prompts",
   "admin.models": "Models",
+  "admin.later.prompts.title": "Prompt editing comes in a later phase",
+  "admin.later.prompts.body":
+    "Calls use Sotto's tested default prompts. Editing them here returns once edits are saved and reach your calls.",
+  "admin.later.models.title": "Models are chosen in Keys & providers",
+  "admin.later.models.body":
+    "Pick each job's vendor and model, and measure its speed, in Admin → Keys & providers.",
   "admin.settings": "Settings",
   "admin.team.subtitle": "People in your company and their roles. Admins invite people here.",
   "admin.team.noServer.title": "Team needs a Sotto account",
@@ -590,6 +596,12 @@ const ar: Record<StringKey, string> = {
   "admin.team": "الفريق",
   "admin.prompts": "التعليمات",
   "admin.models": "النماذج",
+  "admin.later.prompts.title": "تعديل التعليمات يأتي في مرحلة لاحقة",
+  "admin.later.prompts.body":
+    "تستخدم المكالمات تعليمات Sotto الافتراضية المختبرة. يعود تعديلها هنا عندما تُحفظ التعديلات وتصل إلى مكالماتك.",
+  "admin.later.models.title": "تُختار النماذج من المفاتيح والمزوّدين",
+  "admin.later.models.body":
+    "اختر مزوّد كل مهمة ونموذجها، وقِس سرعته، من الإدارة ← المفاتيح والمزوّدون.",
   "admin.settings": "الإعدادات",
   "admin.team.subtitle": "الأشخاص في شركتك وأدوارهم. يدعو المسؤولون الأشخاص من هنا.",
   "admin.team.noServer.title": "الفريق يحتاج إلى حساب Sotto",

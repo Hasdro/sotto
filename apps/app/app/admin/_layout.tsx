@@ -1,4 +1,5 @@
-/** Admin area (R3, R6): team, prompts, models, settings. Mock data; real logic in Phases 5–6. */
+/** Admin area (R3, R6): team, keys and models, settings. The prompt studio and a separate models
+ * table return when they are real (T-040, T-041). */
 import { layout, minTouchTarget, space, Text, useTheme } from "@sotto/ui";
 import { Link, Slot, usePathname } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -9,8 +10,6 @@ import { useI18n } from "../../lib/locale";
 
 const TABS: readonly { href: string; label: StringKey }[] = [
   { href: "/admin", label: "admin.team" },
-  { href: "/admin/prompts", label: "admin.prompts" },
-  { href: "/admin/models", label: "admin.models" },
   { href: "/admin/keys", label: "admin.keys" },
   { href: "/admin/settings", label: "admin.settings" },
 ];

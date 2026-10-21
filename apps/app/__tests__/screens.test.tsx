@@ -100,18 +100,19 @@ describe("mock screens", () => {
     expect(screen.queryByText("Hana Saleh")).toBeNull();
   });
 
-  it("admin prompts lists versions", async () => {
+  it("admin hides the prompt editor until edits are saved and reach calls (T-040)", async () => {
     await open("/admin/prompts");
-    expect(screen.getByText("suggest")).toBeOnTheScreen();
-    expect(screen.getByText("Published v4")).toBeOnTheScreen();
+    expect(screen.getByText("Prompt editing comes in a later phase")).toBeOnTheScreen();
+    expect(screen.queryByText("Published v4")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Prompts" })).toBeNull();
   });
 
-  it("admin models shows provider, model and benchmark per stage (R6)", async () => {
+  it("admin models points to Keys & providers instead of sample numbers (T-041)", async () => {
     await open("/admin/models");
-    expect(screen.getByText("Live suggestion")).toBeOnTheScreen();
-    expect(screen.getByText(/^520 ms/)).toBeOnTheScreen();
-    expect(screen.getAllByText("Meets target").length).toBeGreaterThan(0);
-    expect(screen.getByText("Too slow")).toBeOnTheScreen();
+    expect(screen.getByText("Models are chosen in Keys & providers")).toBeOnTheScreen();
+    expect(screen.queryByText(/^520 ms/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Models" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Keys & providers" })).toBeOnTheScreen();
   });
 
   it("settings switches the app to Arabic", async () => {
@@ -138,11 +139,11 @@ describe("mock screens", () => {
   });
 
   it("a page outside the role's areas shows why instead of the page", async () => {
-    await open("/admin/prompts");
-    expect(screen.getByText("Published v4")).toBeOnTheScreen();
+    await open("/admin/settings");
+    expect(screen.getByText("App language")).toBeOnTheScreen();
     await openMenu();
     await fireEvent.press(screen.getByTestId("role-switch-manager"));
-    expect(screen.queryByText("Published v4")).toBeNull();
+    expect(screen.queryByText("App language")).toBeNull();
     expect(screen.getByText("Not available for this role")).toBeOnTheScreen();
     expect(screen.getByText("This page isn't open to the Sales manager role.")).toBeOnTheScreen();
   });
@@ -173,28 +174,6 @@ describe("mock screens", () => {
     expect(
       screen.getByText("Keep it to 25 words so the agent can say it from one card."),
     ).toBeOnTheScreen();
-  });
-
-  it("prompt studio: draft, publish, then roll back with one click (R6)", async () => {
-    await open("/admin/prompts/suggest");
-    expect(screen.getByText("Calls use v4")).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId("publish-5"));
-    expect(screen.getByText("Calls use v5")).toBeOnTheScreen();
-
-    await fireEvent.changeText(
-      screen.getByTestId("prompt-editor"),
-      "Company: {{company.name}}\nDeal: {{crm.deal.stage}}",
-    );
-    expect(screen.getByText("Not in this prompt's variables: crm.deal.stage")).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByTestId("prompt-editor"), "Company: {{company.name}}");
-    await fireEvent.press(screen.getByTestId("var-company.tone"));
-    await fireEvent.press(screen.getByTestId("save-draft"));
-    expect(screen.getByText("+ Company: {{company.name}}{{company.tone}}")).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId("publish-6"));
-    expect(screen.getByText("Calls use v6")).toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByTestId("rollback-4"));
-    expect(screen.getByText("Calls use v4")).toBeOnTheScreen();
   });
 });
 

@@ -10,7 +10,6 @@ import { AccessGate } from "../components/AccessGate";
 import { AppShell } from "../components/AppShell";
 import { CallSessionProvider } from "../features/call/CallSessionProvider";
 import { EscalationStoreProvider } from "../features/escalations/store";
-import { PromptStoreProvider } from "../features/prompts/store";
 import { LocaleProvider, useI18n } from "../lib/locale";
 import { RoleProvider } from "../lib/role";
 
@@ -26,9 +25,7 @@ export default function RootLayout() {
     <LocaleProvider>
       <RoleProvider>
         <EscalationStoreProvider>
-          <PromptStoreProvider>
-            <Root />
-          </PromptStoreProvider>
+          <Root />
         </EscalationStoreProvider>
       </RoleProvider>
     </LocaleProvider>
