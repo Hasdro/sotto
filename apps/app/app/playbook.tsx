@@ -1,7 +1,8 @@
 /**
  * Playbook, searchable (R2 step 1: approved answers come first; R3: managers edit it, P3.5).
  * On a Sotto server it shows the playbook calls actually use, and managers and admins can add,
- * edit and remove their own answers; without a server it shows the sample playbook.
+ * edit and remove their own answers; only the local demo (no Sotto server) shows the sample
+ * playbook, so a real account never sees another company's answers (T-024).
  */
 import {
   Badge,
@@ -22,6 +23,7 @@ import { MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
 import { useEscalations } from "../features/escalations/store";
 import { type PlaybookEntry, searchPlaybook } from "../features/playbook/mock";
 import { type EntryInput, parseTags, useServerPlaybook } from "../features/playbook/server";
+import { sampleDataAllowed } from "../lib/cloud";
 import { formatDate } from "../lib/format";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -41,7 +43,8 @@ export default function PlaybookScreen() {
   const [query, setQuery] = useState("");
   const samples = useEscalations().playbook;
   const server = useServerPlaybook();
-  const playbook = server.entries ?? samples;
+  const playbook = server.entries ?? (sampleDataAllowed() ? samples : []);
+  const nothingYet = playbook.length === 0;
   const canEdit = server.entries !== null && role !== "agent";
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const results = useMemo(() => searchPlaybook(playbook, query), [playbook, query]);
@@ -78,7 +81,12 @@ export default function PlaybookScreen() {
           />
         </Panel>
       ) : null}
-      {results.length === 0 ? (
+      {nothingYet ? (
+        <EmptyState
+          title={t("playbook.none.title")}
+          body={t(canEdit ? "playbook.none.bodyEdit" : "playbook.none.body")}
+        />
+      ) : results.length === 0 ? (
         <EmptyState title={t("playbook.empty.title")} body={t("playbook.empty.body")} />
       ) : (
         <Panel padded={false}>

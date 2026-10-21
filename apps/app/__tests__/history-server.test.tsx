@@ -39,9 +39,9 @@ const routes = {
 };
 
 describe("history from this server (D-020)", () => {
-  it("maps a server call to a practice call with its lines and cards", () => {
+  it("maps a server call to a past call with its outcome, lines and cards", () => {
     const call = toPastCall(DETAIL as Parameters<typeof toPastCall>[0]);
-    expect(call.outcome).toBe("practice");
+    expect(call.outcome).toBe("live");
     expect(call.minutes).toBe(2);
     expect(call.transcript).toEqual([
       { speaker: "customer", text: "Is parking included?", atMs: 4200 },

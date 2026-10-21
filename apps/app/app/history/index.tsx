@@ -1,17 +1,30 @@
-/** Call history (R3: own history on every device). Mock data until Phase 5. */
-import { Badge, layout, Panel, radius, Screen, space, Text, useTheme } from "@sotto/ui";
+/** Call history (R3: own history on every device). Sample calls only in the local demo (T-024). */
+import { Badge, EmptyState, layout, Panel, radius, Screen, space, Text, useTheme } from "@sotto/ui";
 import { Link } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { PageHeader } from "../../components/PageHeader";
 import { PAST_CALLS, type PastCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { useServerCalls } from "../../features/history/server";
+import { sampleDataAllowed } from "../../lib/cloud";
 import { formatDateTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 
 export default function HistoryScreen() {
   const { t } = useI18n();
   const mine = useServerCalls();
+  if (!sampleDataAllowed()) {
+    return (
+      <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
+        <PageHeader title={t("history.title")} subtitle={t("history.subtitle")} />
+        {mine && mine.length > 0 ? (
+          <CallList calls={mine} />
+        ) : (
+          <EmptyState title={t("history.none.title")} body={t("history.none.body")} />
+        )}
+      </Screen>
+    );
+  }
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
       <PageHeader title={t("history.title")} subtitle={t("history.subtitle")} />

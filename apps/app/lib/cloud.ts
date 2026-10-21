@@ -158,6 +158,11 @@ export function subscribeCloud(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
+/** Sample calls and answers belong to the local demo only: a build that names a Sotto server is
+ * a real product, so its History and Playbook never fall back to another company's samples. */
+export function sampleDataAllowed(): boolean {
+  return cloudOrigin() === null;
+}
 export function cloudActive(): boolean {
   return state.status === "signed_in";
 }

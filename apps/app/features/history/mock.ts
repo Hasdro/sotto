@@ -1,8 +1,9 @@
 /** Mock call history (Phase 3, no real data). Fictional customers of the demo company. */
 import type { CardSource, CardType } from "@sotto/shared";
 
-/** "practice": a call made on the demo server (D-020), not a real customer. */
-export type Outcome = "meeting" | "followUp" | "lost" | "practice";
+/** "practice": a call with sample answers (no AI key), not a real customer; "live": a real call
+ * whose result Sotto does not know (the agent records it in the CRM). */
+export type Outcome = "meeting" | "followUp" | "lost" | "practice" | "live";
 
 export type PastCard = { type: CardType; source: CardSource; text: string; atMs: number };
 export type PastLine = { speaker: "customer" | "agent"; text: string; atMs: number };

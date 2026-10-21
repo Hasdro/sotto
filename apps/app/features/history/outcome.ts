@@ -7,4 +7,5 @@ export const OUTCOME_TONE: Record<Outcome, BadgeTone> = {
   followUp: "objection",
   lost: "neutral",
   practice: "primary",
+  live: "neutral",
 };

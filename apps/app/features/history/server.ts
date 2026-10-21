@@ -1,6 +1,6 @@
 /**
- * Calls made on this Sotto server (D-020): `/api/calls`. They are shown above the sample calls,
- * so a practice call you just made appears in History with its transcript and cards.
+ * Calls made on this Sotto server (D-020) or this device (D-022): `/api/calls`. In the local demo
+ * they are shown above the sample calls; a real account shows only its own (T-024).
  */
 import type { CardSource, CardType } from "@sotto/shared";
 import { useEffect, useState } from "react";
@@ -45,7 +45,7 @@ export function toPastCall(call: ServerCallSummary | ServerCallDetail): PastCall
     company: "",
     startedAt: new Date(call.started_at).toISOString(),
     minutes: Math.max(1, Math.round((end - call.started_at) / 60000)),
-    outcome: "practice",
+    outcome: call.mode === "live" ? "live" : "practice",
     transcript,
     cards,
   };
