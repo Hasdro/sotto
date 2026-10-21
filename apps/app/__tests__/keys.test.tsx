@@ -81,6 +81,27 @@ describe("Keys & providers (P6.7)", () => {
     expect(screen.getByTestId("get-key-groq")).toBeOnTheScreen();
   });
 
+  it("hides unused vendors behind Add a provider, and searches by name (owner, 21 Oct)", async () => {
+    const extra = state();
+    extra.providers.push({
+      ...extra.providers[0],
+      id: "mistral",
+      name: "Mistral",
+      key_set: false,
+      key_source: null,
+    } as (typeof extra.providers)[number]);
+    mockFetch([extra]);
+    await wrap(<KeysScreen />);
+    expect(await screen.findByTestId("provider-groq")).toBeOnTheScreen(); // used by a stage
+    expect(screen.queryByTestId("provider-mistral")).toBeNull();
+    await fireEvent.press(screen.getByTestId("keys-add"));
+    await fireEvent.press(screen.getByTestId("keys-add-mistral"));
+    expect(screen.getByTestId("provider-mistral")).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId("keys-search"), "deep");
+    expect(screen.queryByTestId("provider-groq")).toBeNull();
+    expect(screen.getByTestId("provider-deepgram")).toBeOnTheScreen();
+  });
+
   it("saves a key once, clears the field and never shows it again", async () => {
     const calls = mockFetch([state(), state({ key_set: true, key_source: "panel" })]);
     await wrap(<KeysScreen />);

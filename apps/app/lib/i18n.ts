@@ -396,6 +396,8 @@ const en = {
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
+  "admin.keys.search": "Search providers",
+  "admin.keys.add": "Add a provider",
   "playbook.help": "How it works",
   "playbook.guide.1.title": "Your playbook is Sotto's memory",
   "playbook.guide.1.body":
@@ -912,6 +914,8 @@ const ar: Record<StringKey, string> = {
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
+  "admin.keys.search": "ابحث عن مزوّد",
+  "admin.keys.add": "أضف مزوّدًا",
   "playbook.help": "كيف يعمل",
   "playbook.guide.1.title": "الدليل هو ذاكرة Sotto",
   "playbook.guide.1.body":

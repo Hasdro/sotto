@@ -17,8 +17,8 @@ import {
   useTheme,
 } from "@sotto/ui";
 import { router } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, Easing, Linking, Pressable, StyleSheet, View } from "react-native";
 import {
   keyStatus,
   keysApi,
@@ -47,6 +47,8 @@ type Load =
 export default function KeysScreen() {
   const { t } = useI18n();
   const [load, setLoad] = useState<Load>({ status: "loading" });
+  const [query, setQuery] = useState("");
+  const [added, setAdded] = useState<string[]>([]);
   const refresh = useCallback(() => {
     keysApi
       .list()
@@ -70,14 +72,39 @@ export default function KeysScreen() {
   }
   const { data } = load;
   const update = (next: ProvidersState) => setLoad({ status: "ready", data: next });
-  const group = (kind: ProviderKind) => data.providers.filter((p) => p.kind === kind);
+  // Only vendors in use, with a key, or picked from "Add a provider" are shown (owner, 21 Oct).
+  const inUse = new Set(data.stages.map((st) => st.provider_id));
+  const shown = (p: Provider) => p.key_set || p.custom || inUse.has(p.id) || added.includes(p.id);
+  const q = query.trim().toLowerCase();
+  const match = (p: Provider) => !q || p.name.toLowerCase().includes(q) || p.id.includes(q);
+  const group = (kind: ProviderKind) =>
+    data.providers.filter((p) => p.kind === kind && shown(p) && match(p));
+  const more = data.providers.filter((p) => !shown(p) && match(p));
   return (
     <Stack gap="xl" testID="admin-keys">
       <Text variant="body" tone="muted">
         {t("admin.keys.subtitle")}
       </Text>
       <SetupChecklist data={data} />
-      <Section title={t("admin.keys.llm")}>
+      <View style={styles.tools}>
+        <View style={styles.grow}>
+          <TextField
+            accessibilityLabel={t("admin.keys.search")}
+            placeholder={t("admin.keys.search")}
+            value={query}
+            onChangeText={setQuery}
+            testID="keys-search"
+          />
+        </View>
+        <AddProvider
+          options={more}
+          onPick={(id) => {
+            setAdded((list) => [...list, id]);
+            setQuery("");
+          }}
+        />
+      </View>
+      <Section title={t("admin.keys.llm")} count={group("llm").length}>
         {group("llm").map((p) => (
           <ProviderCard key={p.id} provider={p} onChange={update} />
         ))}
@@ -85,7 +112,7 @@ export default function KeysScreen() {
       <Section title={t("admin.keys.custom.title")} hint={t("admin.keys.custom.hint")}>
         <EndpointForm onChange={update} />
       </Section>
-      <Section title={t("admin.keys.stt")}>
+      <Section title={t("admin.keys.stt")} count={group("stt").length}>
         {group("stt").map((p) => (
           <ProviderCard key={p.id} provider={p} onChange={update} />
         ))}
@@ -189,26 +216,139 @@ function SetupChecklist({ data }: { data: ProvidersState }) {
 function Section({
   title,
   hint,
+  count,
+  closed = false,
   children,
 }: {
   title: string;
   hint?: string;
+  count?: number;
+  closed?: boolean;
   children: React.ReactNode;
 }) {
+  const { color } = useTheme();
+  const [open, setOpen] = useState(!closed);
   return (
     <Stack gap="md">
-      <View>
-        <Text variant="heading" weight="semibold" accessibilityRole="header">
-          {title}
-        </Text>
-        {hint ? (
-          <Text variant="label" tone="muted">
-            {hint}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        style={styles.sectionHead}
+      >
+        <Chevron open={open} />
+        <View style={styles.grow}>
+          <Text variant="heading" weight="semibold" accessibilityRole="header">
+            {title}
           </Text>
+          {hint ? (
+            <Text variant="label" tone="muted">
+              {hint}
+            </Text>
+          ) : null}
+        </View>
+        {count !== undefined ? (
+          <View style={[styles.count, { backgroundColor: color.surfaceSunken }]}>
+            <Text variant="label" weight="semibold">
+              {String(count)}
+            </Text>
+          </View>
         ) : null}
-      </View>
-      {children}
+      </Pressable>
+      {open ? <Reveal>{children}</Reveal> : null}
     </Stack>
+  );
+}
+
+/** A small turning arrow for open/closed rows. */
+function Chevron({ open }: { open: boolean }) {
+  const { color } = useTheme();
+  const turn = useRef(new Animated.Value(open ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(turn, { toValue: open ? 1 : 0, duration: 160, useNativeDriver: false }).start();
+  }, [open, turn]);
+  return (
+    <Animated.View
+      style={[
+        styles.chevron,
+        {
+          borderColor: color.textMuted,
+          transform: [
+            { rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["-45deg", "45deg"] }) },
+          ],
+        },
+      ]}
+    />
+  );
+}
+
+/** Fades and slides content in when a section opens. */
+function Reveal({ children }: { children: React.ReactNode }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(v, {
+      toValue: 1,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [v]);
+  return (
+    <Animated.View
+      style={{
+        gap: 12,
+        opacity: v,
+        transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/** "Add a provider": a pick list of the vendors not shown yet. */
+function AddProvider({ options, onPick }: { options: Provider[]; onPick: (id: string) => void }) {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const [open, setOpen] = useState(false);
+  if (options.length === 0) return null;
+  return (
+    <View style={styles.addWrap}>
+      <Button
+        variant="secondary"
+        label={t("admin.keys.add")}
+        onPress={() => setOpen(!open)}
+        testID="keys-add"
+      />
+      {open ? (
+        <View
+          accessibilityRole="menu"
+          style={[
+            styles.menu,
+            { backgroundColor: color.surface, borderColor: color.border, shadowColor: color.scrim },
+          ]}
+          testID="keys-add-menu"
+        >
+          {options.map((p) => (
+            <Pressable
+              key={p.id}
+              accessibilityRole="menuitem"
+              onPress={() => {
+                setOpen(false);
+                onPick(p.id);
+              }}
+              style={styles.menuItem}
+              testID={`keys-add-${p.id}`}
+            >
+              <Text weight="medium">{p.name}</Text>
+              <Text variant="label" tone="muted" numberOfLines={1}>
+                {`${t(p.kind === "llm" ? "admin.keys.llm" : "admin.keys.stt")} · ${p.free}`}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -228,6 +368,7 @@ function ProviderCard({
   const [busy, setBusy] = useState<null | "save" | "test" | "remove">(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const status = STATUS[keyStatus(p)];
+  const [open, setOpen] = useState(!p.key_set || Boolean(p.custom));
 
   const run = (
     kind: "save" | "test" | "remove",
@@ -249,121 +390,132 @@ function ProviderCard({
   return (
     <Panel testID={`provider-${p.id}`}>
       <Stack gap="sm">
-        <Stack direction="row" align="center" justify="space-between" gap="sm" wrap>
-          <Text variant="body" weight="semibold">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          onPress={() => setOpen(!open)}
+          style={styles.cardHead}
+          testID={`provider-toggle-${p.id}`}
+        >
+          <Chevron open={open} />
+          <Text variant="body" weight="semibold" style={styles.grow}>
             {p.name}
           </Text>
           <Badge label={t(status.label)} tone={status.tone} dot />
-        </Stack>
-        {p.custom ? (
-          <Text variant="label" tone="muted">
-            {p.base_url}
-          </Text>
-        ) : (
-          <>
-            <Text variant="label" tone="muted">
-              {p.free}
-            </Text>
-            <Text variant="label">{p.steps}</Text>
-          </>
-        )}
-        {p.custom ? null : (
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => void Linking.openURL(p.key_page)}
-            style={styles.link}
-            testID={`get-key-${p.id}`}
-          >
-            <Text variant="label" weight="semibold" tone="primary">
-              {`${t("admin.keys.getKey")} ↗`}
-            </Text>
-          </Pressable>
-        )}
-        <View style={styles.row}>
-          <TextField
-            accessibilityLabel={t("admin.keys.input", { name: p.name })}
-            placeholder={t("admin.keys.input", { name: p.name })}
-            value={key}
-            onChangeText={setKey}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="off"
-            maxLength={400}
-            testID={`key-input-${p.id}`}
-          />
-          <Button
-            label={t("admin.keys.save")}
-            disabled={key.trim().length === 0 || busy !== null}
-            onPress={() =>
-              run(
-                "save",
-                () => keysApi.saveKey(p.id, key.trim()),
-                () => t("admin.keys.saved"),
-              )
-            }
-            testID={`key-save-${p.id}`}
-          />
-        </View>
-        {p.key_set || p.custom ? (
-          <Stack direction="row" gap="sm" wrap>
-            <Button
-              label={busy === "test" ? t("admin.keys.testing") : t("admin.keys.test")}
-              variant="secondary"
-              disabled={busy !== null}
-              onPress={() =>
-                run(
-                  "test",
-                  () => keysApi.test(p.id),
-                  (s) => s.result?.detail ?? "",
-                )
-              }
-              testID={`key-test-${p.id}`}
-            />
-            {p.key_source === "panel" ? (
-              <Button
-                label={t("admin.keys.remove")}
-                variant="ghost"
-                disabled={busy !== null}
-                onPress={() =>
-                  run(
-                    "remove",
-                    () => keysApi.removeKey(p.id),
-                    () => t("admin.keys.removed"),
-                  )
-                }
-                testID={`key-remove-${p.id}`}
-              />
-            ) : null}
+        </Pressable>
+        {open ? (
+          <Reveal>
             {p.custom ? (
+              <Text variant="label" tone="muted">
+                {p.base_url}
+              </Text>
+            ) : (
+              <>
+                <Text variant="label" tone="muted">
+                  {p.free}
+                </Text>
+                <Text variant="label">{p.steps}</Text>
+              </>
+            )}
+            {p.custom ? null : (
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL(p.key_page)}
+                style={styles.link}
+                testID={`get-key-${p.id}`}
+              >
+                <Text variant="label" weight="semibold" tone="primary">
+                  {`${t("admin.keys.getKey")} ↗`}
+                </Text>
+              </Pressable>
+            )}
+            <View style={styles.row}>
+              <TextField
+                accessibilityLabel={t("admin.keys.input", { name: p.name })}
+                placeholder={t("admin.keys.input", { name: p.name })}
+                value={key}
+                onChangeText={setKey}
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                maxLength={400}
+                testID={`key-input-${p.id}`}
+              />
               <Button
-                label={t("admin.keys.custom.remove")}
-                variant="ghost"
-                disabled={busy !== null}
+                label={t("admin.keys.save")}
+                disabled={key.trim().length === 0 || busy !== null}
                 onPress={() =>
                   run(
-                    "remove",
-                    () => keysApi.removeEndpoint(p.id),
-                    () => "",
+                    "save",
+                    () => keysApi.saveKey(p.id, key.trim()),
+                    () => t("admin.keys.saved"),
                   )
                 }
-                testID={`endpoint-remove-${p.id}`}
+                testID={`key-save-${p.id}`}
               />
+            </View>
+            {p.key_set || p.custom ? (
+              <Stack direction="row" gap="sm" wrap>
+                <Button
+                  label={busy === "test" ? t("admin.keys.testing") : t("admin.keys.test")}
+                  variant="secondary"
+                  disabled={busy !== null}
+                  onPress={() =>
+                    run(
+                      "test",
+                      () => keysApi.test(p.id),
+                      (s) => s.result?.detail ?? "",
+                    )
+                  }
+                  testID={`key-test-${p.id}`}
+                />
+                {p.key_source === "panel" ? (
+                  <Button
+                    label={t("admin.keys.remove")}
+                    variant="ghost"
+                    disabled={busy !== null}
+                    onPress={() =>
+                      run(
+                        "remove",
+                        () => keysApi.removeKey(p.id),
+                        () => t("admin.keys.removed"),
+                      )
+                    }
+                    testID={`key-remove-${p.id}`}
+                  />
+                ) : null}
+                {p.custom ? (
+                  <Button
+                    label={t("admin.keys.custom.remove")}
+                    variant="ghost"
+                    disabled={busy !== null}
+                    onPress={() =>
+                      run(
+                        "remove",
+                        () => keysApi.removeEndpoint(p.id),
+                        () => "",
+                      )
+                    }
+                    testID={`endpoint-remove-${p.id}`}
+                  />
+                ) : null}
+              </Stack>
             ) : null}
-          </Stack>
-        ) : null}
-        {message ? (
-          <Text
-            variant="label"
-            tone={message.ok ? "positive" : "danger"}
-            accessibilityLiveRegion="polite"
-          >
-            {message.text}
-          </Text>
-        ) : p.test?.ok === false && p.test.detail ? (
-          <Text variant="label" tone="danger">
-            {p.test.detail}
-          </Text>
+            {message ? (
+              <Text
+                variant="label"
+                tone={message.ok ? "positive" : "danger"}
+                accessibilityLiveRegion="polite"
+              >
+                {message.text}
+              </Text>
+            ) : p.test?.ok === false && p.test.detail ? (
+              <Text variant="label" tone="danger">
+                {p.test.detail}
+              </Text>
+            ) : null}
+          </Reveal>
         ) : null}
       </Stack>
     </Panel>
@@ -641,6 +793,34 @@ function Speed({
 }
 
 const styles = StyleSheet.create({
+  tools: { flexDirection: "row", alignItems: "flex-start", gap: 12, flexWrap: "wrap", zIndex: 10 },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  cardHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  chevron: { width: 8, height: 8, borderRightWidth: 2, borderBottomWidth: 2, marginHorizontal: 4 },
+  count: {
+    minWidth: 28,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  addWrap: { position: "relative" },
+  menu: {
+    position: "absolute",
+    top: 52,
+    right: 0,
+    width: 320,
+    maxHeight: 360,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 6,
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    overflow: "scroll",
+  },
+  menuItem: { paddingHorizontal: 14, paddingVertical: 10, gap: 2 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
   stepMark: {
     width: 28,
