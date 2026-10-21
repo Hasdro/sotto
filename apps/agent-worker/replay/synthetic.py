@@ -222,8 +222,13 @@ def stage_values(records: Sequence[CardTimingRecord]) -> dict[str, list[int]]:
 
 
 def format_report(
-    report: ReplayReport, profile: LatencyProfile, *, header: str | None = None
+    report: ReplayReport,
+    profile: LatencyProfile,
+    *,
+    header: str | None = None,
+    kind: str = "synthetic",
 ) -> str:
+    """`kind` names what was measured, so a PASS here is never read as the R1 gate (T-031)."""
     lines = [
         header
         or (
@@ -244,12 +249,16 @@ def format_report(
     total = max(len(report.records), 1)
     by_source = {src: sum(1 for r in report.records if r.source == src) for src in SOURCES}
     fallbacks = sum(1 for r in report.records if r.fallback_reason)
+    r1 = "PASS" if s.p95_ms <= R1_P95_MS else "FAIL"
     lines += [
         "cards by source: " + ", ".join(f"{k} {v}" for k, v in by_source.items()),
         f"holding rate {100 * by_source['holding'] / total:.0f}% · backup/fallback rate "
         f"{100 * fallbacks / total:.0f}%",
+        f"backup started on {fallbacks} of {len(report.records)} turns · backup won "
+        f"{by_source['backup']}",
         "",
-        f"R1 p95 ≤ {R1_P95_MS} ms: {'PASS' if s.p95_ms <= R1_P95_MS else 'FAIL'}",
+        f"R1 p95 ≤ {R1_P95_MS} ms: {r1} ({kind} — not the R1 gate)",
+        "  The R1 gate needs real recorded calls (test-calls/, P2.8); this run does not count.",
         f"R4 agent-triggered cards: {report.agent_triggered} "
         f"({'PASS' if not report.agent_triggered else 'FAIL'})",
         f"Expectations: {'PASS' if not report.unmet_expectations else 'FAIL'}",

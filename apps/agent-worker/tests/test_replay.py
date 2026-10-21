@@ -60,3 +60,16 @@ def test_cli_reports_stages_and_the_outage_drill(
     assert "model first token" in out
     assert "holding rate" in out
     assert "all providers down" in out
+
+
+def test_cli_does_not_claim_the_r1_gate_and_reports_the_backup_race(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The synthetic PASS is not the R1 acceptance gate; real recorded calls are (T-031)."""
+    assert main(["--all", "--calls-dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "PASS (synthetic — not the R1 gate)" in out
+    assert "R1 p95 ≤ 1500 ms: PASS\n" not in out
+    assert "real recorded calls" in out
+    assert "backup started on" in out
+    assert "backup won" in out

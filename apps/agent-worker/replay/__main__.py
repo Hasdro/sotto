@@ -89,7 +89,7 @@ async def run_live(env: Mapping[str, str]) -> int:
         f"+ STT {LIVE_FINAL_AFTER_T0_MS} ms). A model-latency smoke test, not the golden-call "
         "R1 gate."
     )
-    print(format_report(report, LatencyProfile(), header=header))
+    print(format_report(report, LatencyProfile(), header=header, kind="live smoke test"))
     return 0 if report.passed else 1
 
 
