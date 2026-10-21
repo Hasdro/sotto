@@ -150,6 +150,11 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       bridge.audio(pcm);
       return true;
     },
+    agent: {
+      start: () => bridge.agentStart(),
+      push: (pcm) => bridge.agentAudio(pcm),
+      stop: () => bridge.agentStop(),
+    },
     close() {
       bridge.close();
     },

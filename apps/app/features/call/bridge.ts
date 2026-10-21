@@ -42,6 +42,8 @@ export type Bridge = {
   send: (msg: DemoClientMessage) => boolean;
   /** Raw customer audio (PCM16 mono 16 kHz) after an `audio_start`. False if not open. */
   sendAudio: (pcm: ArrayBuffer) => boolean;
+  /** The agent's microphone as context for the AI (owner, 22 Oct); calls on this device only. */
+  agent?: { start: () => void; push: (pcm: ArrayBuffer) => void; stop: () => void };
   close: () => void;
 };
 

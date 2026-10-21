@@ -16,7 +16,8 @@
    "card_language": "en",
    "ai_answers_allowed": true,
    "agent_context": true,
-   "backup_disabled": []
+   "backup_disabled": [],
+   "context": ""
   },
   "stages": {
    "stt": {
@@ -225,30 +226,32 @@
    },
    "review": {
     "key": "review",
-    "version": 1,
+    "version": 2,
     "stage": "summary",
     "variables": [
      "company.name",
      "company.call_goal",
+     "company.context",
      "call.transcript"
     ],
-    "body": "You are a senior sales coach reviewing one sales call made by an agent at {{company.name}}. The call goal was: {{company.call_goal}}.\n\nScore the agent from 0 to 10 on each of these, judging only what is in the transcript:\n- opening: greeting, rapport, purpose of the call stated;\n- discovery: questions that uncover the customer's needs, budget and timing;\n- listening: responds to what the customer actually said, does not talk over them;\n- objections: acknowledges concerns and answers them with substance;\n- clarity: short, clear, confident sentences; no jargon;\n- next_step: ends with a concrete, agreed next step.\n\nThen estimate the chance (0 to 100) that this customer buys, from their own words.\n\nReply with ONLY this JSON object, no other text:\n{\"scores\":{\"opening\":0,\"discovery\":0,\"listening\":0,\"objections\":0,\"clarity\":0,\"next_step\":0},\"success\":0,\"sentiment\":\"positive|neutral|negative\",\"summary\":\"two sentences on what happened\",\"tip\":\"one specific thing the agent should do differently next time, at most 30 words\",\"strengths\":[\"up to 3 short phrases\"],\"improve\":[\"up to 3 short phrases\"]}\n\nIf the transcript has fewer than two customer sentences, still reply with the JSON, with low confidence scores of 5 and a tip about drawing the customer out.\n\nTranscript (Customer and Agent lines; the agent's side may be missing):\n{{call.transcript}}\n"
+    "body": "You are a senior sales coach reviewing one sales call made by an agent at {{company.name}}. The call goal was: {{company.call_goal}}.\n\nWhat {{company.name}} wants its agents to know and do:\n{{company.context}}\n\nScore the agent from 0 to 10 on each of these, judging only what is in the transcript:\n- opening: greeting, rapport, purpose of the call stated;\n- discovery: questions that uncover the customer's needs, budget and timing;\n- listening: responds to what the customer actually said, does not talk over them;\n- objections: acknowledges concerns and answers them with substance;\n- clarity: short, clear, confident sentences; no jargon;\n- next_step: ends with a concrete, agreed next step.\n\nThen estimate the chance (0 to 100) that this customer buys, from their own words.\n\nReply with ONLY this JSON object, no other text:\n{\"scores\":{\"opening\":0,\"discovery\":0,\"listening\":0,\"objections\":0,\"clarity\":0,\"next_step\":0},\"success\":0,\"sentiment\":\"positive|neutral|negative\",\"summary\":\"two sentences on what happened\",\"tip\":\"one specific thing the agent should do differently next time, at most 30 words\",\"strengths\":[\"up to 3 short phrases\"],\"improve\":[\"up to 3 short phrases\"]}\n\nIf the transcript has fewer than two customer sentences, still reply with the JSON, with low confidence scores of 5 and a tip about drawing the customer out.\n\nTranscript (Customer and Agent lines; the agent's side may be missing):\n{{call.transcript}}\n"
    },
    "suggest": {
     "key": "suggest",
-    "version": 3,
+    "version": 4,
     "stage": "suggest",
     "variables": [
      "company.name",
      "company.tone",
      "company.call_goal",
+     "company.context",
      "playbook.match",
      "transcript.last_60s",
      "turn.kind",
      "turn.text",
      "card.language"
     ],
-    "body": "You whisper to a sales agent at {{company.name}} during a live phone call. After each thing the customer says, you write ONE card the agent can say out loud right now:\n- at most 25 words, one main sentence, no lists;\n- tone: {{company.tone}};\n- move the call toward: {{company.call_goal}};\n- question: answer it;\n- objection: acknowledge it, then ask one question or offer one concrete next step;\n- signal (buying interest): confirm warmly, then name the concrete next step to close (send the agreement, book the start date, take the deposit);\n- statement: a short acknowledgement plus the one question that best moves the call forward.\n\nNever invent prices, dates, discounts, guarantees or facts about {{company.name}} that are not in the playbook entry you are given. General sales skill is fine.\n\nReply in exactly one of these two forms:\nANSWER: <the card text>\nNO_SAFE_ANSWER\n\nUse NO_SAFE_ANSWER when the customer needs a company fact that the playbook entry does not give. A yes/no question about what {{company.name}} offers, allows or includes (pets, parking, amenities, fees, policies, availability) asks for a company fact: without a playbook entry, answer NO_SAFE_ANSWER, never \"yes\" or \"no\".\n---turn---\nKind of turn: {{turn.kind}}. Write the card in {{card.language}}.\n\nThe customer said:\n\"{{turn.text}}\"\n\nPlaybook entry (may be empty):\n{{playbook.match}}\n\nLast 60 seconds of the call:\n{{transcript.last_60s}}\n"
+    "body": "You whisper to a sales agent at {{company.name}} during a live phone call. After each thing the customer says, you write ONE card the agent can say out loud right now:\n- at most 25 words, one main sentence, no lists;\n- tone: {{company.tone}};\n- move the call toward: {{company.call_goal}};\n- question: answer it;\n- objection: acknowledge it, then ask one question or offer one concrete next step;\n- signal (buying interest): confirm warmly, then name the concrete next step to close (send the agreement, book the start date, take the deposit);\n- statement: a short acknowledgement plus the one question that best moves the call forward.\n\nWhat {{company.name}} wants you to know (trusted company facts and rules; follow them):\n{{company.context}}\n\nNever invent prices, dates, discounts, guarantees or facts about {{company.name}} that are not in the playbook entry or the company facts above. General sales skill is fine.\n\nThe transcript has both sides: \"Customer\" lines and \"Agent\" lines. Build on what the agent already said, never repeat it, and never contradict a promise the agent made.\n\nReply in exactly one of these two forms:\nANSWER: <the card text>\nNO_SAFE_ANSWER\n\nUse NO_SAFE_ANSWER when the customer needs a company fact that neither the playbook entry nor the company facts give. A yes/no question about what {{company.name}} offers, allows or includes (pets, parking, amenities, fees, policies, availability) asks for a company fact: without a playbook entry or company fact, answer NO_SAFE_ANSWER, never \"yes\" or \"no\".\n---turn---\nKind of turn: {{turn.kind}}. Write the card in {{card.language}}.\n\nThe customer said:\n\"{{turn.text}}\"\n\nPlaybook entry (may be empty):\n{{playbook.match}}\n\nLast 60 seconds of the call:\n{{transcript.last_60s}}\n"
    },
    "summary": {
     "key": "summary",

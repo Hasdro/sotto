@@ -94,6 +94,8 @@ export type CompanyProfile = {
   ai_answers_allowed: boolean;
   agent_context: boolean;
   backup_disabled: string[];
+  /** Company knowledge the AI reads on every card and review (owner, 22 Oct 2026). */
+  context?: string;
 };
 
 export type ScenarioLine = { speaker: Speaker; text: string; gap_ms: number; duration_ms: number };

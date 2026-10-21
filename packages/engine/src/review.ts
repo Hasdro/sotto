@@ -94,6 +94,7 @@ export async function reviewCall(opts: {
     const body = renderPrompt(opts.prompt.body, {
       "company.name": opts.company.name,
       "company.call_goal": opts.company.call_goal,
+      "company.context": opts.company.context?.trim() || "(none)",
       "call.transcript": transcriptText(opts.lines).slice(-12_000),
     });
     let out = "";

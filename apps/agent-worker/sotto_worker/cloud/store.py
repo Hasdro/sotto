@@ -51,7 +51,10 @@ SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "agent_context": (bool, ()),
     "card_language": (str, ("auto", "en", "ar")),
     "audio_retention_days": (int, (0, 7, 30, 90, 365)),
+    # Company knowledge the AI reads on every card and review (owner, 22 Oct 2026).
+    "context": (str, ()),
 }
+CONTEXT_MAX_CHARS = 8000
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -692,6 +695,10 @@ class CloudStore:
             kind, allowed = SETTINGS[key]
             if type(value) is not kind or (allowed and value not in allowed):
                 raise CloudError("invalid", f"bad value for {key}")
+            if key == "context" and isinstance(value, str):
+                value = value.strip()
+                if len(value) > CONTEXT_MAX_CHARS:
+                    raise CloudError("too_large", f"keep it under {CONTEXT_MAX_CHARS} characters")
             clean[key] = value
         t = now_ms()
         with self._tx() as db:

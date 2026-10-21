@@ -26,6 +26,7 @@ class CompanyProfile:
     ai_answers_allowed: bool = True
     agent_context: bool = True
     backup_disabled: tuple[str, ...] = ()
+    context: str = ""  # company knowledge the AI reads (owner, 22 Oct 2026)
     extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod

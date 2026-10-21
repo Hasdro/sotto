@@ -16,7 +16,7 @@
       "text": "أهلا، نعم شفته.",
       "gap_ms": 400,
       "duration_ms": 1500,
-      "expect": "no_card"
+      "expect": "ai_or_holding"
     },
     {
       "speaker": "customer",

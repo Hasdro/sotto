@@ -155,6 +155,7 @@ def build_bundle(
             "ai_answers_allowed": settings.get("ai_answers_allowed", profile.ai_answers_allowed),
             "agent_context": settings.get("agent_context", profile.agent_context),
             "backup_disabled": backup_off,
+            "context": settings.get("context", ""),
         },
         "stages": stages,
         "overrides": sorted(routes),

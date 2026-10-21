@@ -202,6 +202,20 @@ export class LocalCallBridge {
     this.call?.audioFrame(pcm);
   }
 
+  /** The agent's own microphone (owner, 22 Oct 2026): transcribed as context for the AI only;
+   * it never triggers a card (R4). Desktop calls on the computer's sound only. */
+  agentStart(): void {
+    void this.call?.agentStart();
+  }
+
+  agentAudio(pcm: ArrayBuffer): void {
+    this.call?.agentFrame(pcm);
+  }
+
+  agentStop(): void {
+    void this.call?.agentStop();
+  }
+
   close(): void {
     void this.call?.end();
     this.call = null;
@@ -217,6 +231,7 @@ export class LocalCall {
   private readonly timings: CardTimingRecord[] = [];
   private escalations = 0;
   private audio: CustomerAudio | null = null;
+  private agent: CustomerAudio | null = null;
   private sttVendorUsed: string | null = null;
   private keepWarm: ReturnType<typeof setInterval> | null = null;
   private playback: AbortController | null = null;
@@ -312,6 +327,35 @@ export class LocalCall {
     this.audio?.push(pcm);
   }
 
+  async agentStart(): Promise<void> {
+    const { sttRoutes, company } = this.deps.runtime;
+    if (this.agent || this.ended || !company.agent_context || !sttRoutes.length) return;
+    if (!this.deps.tokens) return;
+    const agent = new CustomerAudio({
+      routes: sttRoutes,
+      tokens: this.deps.tokens,
+      clock: this.clock,
+      onTurn: (e, t0) => this.turn("agent", e.text, e.start_ms, e.end_ms, t0),
+      onPartial: () => {},
+      onNotice: () => {}, // the agent's side failing must not alarm the call screen
+      ...(this.deps.socketFactory ? { socketFactory: this.deps.socketFactory } : {}),
+    });
+    this.agent = agent;
+    await agent.start().catch(() => {
+      if (this.agent === agent) this.agent = null;
+    });
+  }
+
+  agentFrame(pcm: ArrayBuffer): void {
+    this.agent?.push(pcm);
+  }
+
+  async agentStop(): Promise<void> {
+    const agent = this.agent;
+    this.agent = null;
+    await agent?.stop();
+  }
+
   async audioStop(): Promise<void> {
     const audio = this.audio;
     this.audio = null;
@@ -321,7 +365,7 @@ export class LocalCall {
 
   async end(): Promise<void> {
     if (this.ended) return;
-    await this.audioStop();
+    await Promise.all([this.audioStop(), this.agentStop()]);
     this.ended = true;
     this.playback?.abort();
     if (this.keepWarm) clearInterval(this.keepWarm);

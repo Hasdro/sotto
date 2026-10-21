@@ -108,6 +108,64 @@ describe("local call bridge", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(summary()?.stt_vendor).toBe("assemblyai");
   });
+  it("hears the agent as context: an agent line is transcribed but never asks for a card", async () => {
+    const socks: (SocketLike & { emit: (m: unknown) => void; open: () => void })[] = [];
+    const runtime = buildRuntime({
+      ...bundle,
+      keys: { GROQ_API_KEY: "k" },
+      key_status: { ASSEMBLYAI_API_KEY: 1 },
+    });
+    const { b, msgs } = bridge({
+      runtime,
+      tokens: async () => ({ token: "t", param: "token" }),
+      socketFactory: () => {
+        const s = {
+          readyState: 0,
+          binaryType: "",
+          onopen: null as ((ev: unknown) => void) | null,
+          onclose: null as ((ev: { code?: number; reason?: string }) => void) | null,
+          onerror: null,
+          onmessage: null as ((ev: { data: unknown }) => void) | null,
+          send(d: string | ArrayBuffer) {
+            if (typeof d === "string" && d.includes("Terminate")) s.emit({ type: "Termination" });
+          },
+          close() {},
+          emit(m: unknown) {
+            s.onmessage?.({ data: JSON.stringify(m) });
+          },
+          open() {
+            s.readyState = 1;
+            s.onopen?.({});
+          },
+        };
+        socks.push(s);
+        return s;
+      },
+    });
+    b.handle({ type: "audio_start", sample_rate: 16000 });
+    b.agentStart();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(socks).toHaveLength(2); // one stream per side
+    const agent = socks[1] as (typeof socks)[number];
+    agent.open();
+    b.agentAudio(new Int16Array(320).buffer);
+    agent.emit({
+      type: "Turn",
+      transcript: "Our premium plan is ninety dollars a month.",
+      end_of_turn: true,
+      turn_is_formatted: true,
+      words: [{ start: 0, end: 900 }],
+    });
+    b.agentStop();
+    await new Promise((r) => setTimeout(r, 20));
+    const lines = msgs.filter((m) => m.type === "transcript");
+    expect(lines.map((m) => [m.speaker, m.text])).toEqual([
+      ["agent", "Our premium plan is ninety dollars a month."],
+    ]);
+    expect(msgs.some((m) => m.type === "turn_end" || m.type === "card")).toBe(false);
+    b.handle({ type: "end" });
+    await new Promise((r) => setTimeout(r, 20));
+  });
 });
 
 describe("ids", () => {

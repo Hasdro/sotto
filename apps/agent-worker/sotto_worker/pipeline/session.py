@@ -384,6 +384,7 @@ class CallSession:
             "company.name": self.company.name,
             "company.tone": self.company.tone,
             "company.call_goal": self.company.call_goal,
+            "company.context": self.company.context or "(none)",
             "playbook.match": playbook_text,
             "transcript.last_60s": self._context(turn.event.end_ms),
             "turn.kind": turn.kind,

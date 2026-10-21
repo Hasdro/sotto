@@ -394,6 +394,7 @@ export class CallSession {
       "company.name": company.name,
       "company.tone": company.tone,
       "company.call_goal": company.call_goal,
+      "company.context": company.context?.trim() || "(none)",
       "playbook.match": matchText(turn.nearest),
       "transcript.last_60s": this.context(turn.event.end_ms),
       "turn.kind": turn.kind,

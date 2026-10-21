@@ -119,6 +119,7 @@ export function useCallSession(opts: {
     if (micAttempt.current % 2 === 1) micAttempt.current += 1; // cancel a pending start
     micHandle.current?.stop();
     micHandle.current = null;
+    if (agentMic.current) bridge.current?.agent?.stop();
     agentMic.current?.stop();
     agentMic.current = null;
     setMic((m) => (m === "on" || m === "starting" ? "off" : m));
@@ -151,15 +152,22 @@ export function useCallSession(opts: {
           micAttempt.current += 1; // even: settled
           micHandle.current = handle;
           setMic("on");
-          // The computer's sound has only the customer; the agent's side comes from the
-          // microphone, for the recording only. No microphone: the customer's side alone.
-          if (chosen === "computer" && recorder.current) {
-            startMic((pcm) => recorder.current?.add("agent", pcm))
+          // The computer's sound has only the customer. The agent's microphone adds their side: as
+          // context for the AI (never a card trigger, R4) and for the recording.
+          if (chosen === "computer") {
+            startMic((pcm) => {
+              bridge.current?.agent?.push(pcm);
+              recorder.current?.add("agent", pcm);
+            })
               .then((h) => {
-                if (micHandle.current === handle) agentMic.current = h;
-                else h.stop();
+                if (micHandle.current !== handle) {
+                  h.stop();
+                  return;
+                }
+                agentMic.current = h;
+                bridge.current?.agent?.start();
               })
-              .catch(() => {});
+              .catch(() => {}); // no microphone: the customer's side alone
           }
         })
         .catch((err: unknown) => {
