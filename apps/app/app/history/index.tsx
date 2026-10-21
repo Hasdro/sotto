@@ -1,7 +1,9 @@
 /** Call history (R3: own history on every device). Sample calls only in the local demo (T-024). */
+
 import { Badge, EmptyState, layout, Panel, radius, Screen, space, Text, useTheme } from "@sotto/ui";
-import { Link } from "expo-router";
-import { Pressable, StyleSheet, View } from "react-native";
+
+import { StyleSheet, View } from "react-native";
+import { AppLink } from "../../components/AppLink";
 import { PageHeader } from "../../components/PageHeader";
 import { PAST_CALLS, type PastCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
@@ -62,72 +64,72 @@ function CallList({ calls }: { calls: readonly PastCall[] }) {
                 ? card.objection.accent
                 : card.warning.accent;
         return (
-          <Link key={call.id} href={`/history/${call.id}`} asChild>
-            <Pressable
-              accessibilityRole="link"
-              testID={`history-row-${call.id}`}
-              style={(state) =>
-                StyleSheet.flatten([
-                  styles.row,
-                  i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null,
-                  (state as { hovered?: boolean }).hovered
-                    ? { backgroundColor: color.surfaceSunken }
-                    : null,
-                ])
-              }
+          <AppLink
+            key={call.id}
+            href={`/history/${call.id}`}
+            accessibilityRole="link"
+            testID={`history-row-${call.id}`}
+            style={(state) =>
+              StyleSheet.flatten([
+                styles.row,
+                i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null,
+                (state as { hovered?: boolean }).hovered
+                  ? { backgroundColor: color.surfaceSunken }
+                  : null,
+              ])
+            }
+          >
+            <View
+              style={[styles.icon, { backgroundColor: color.surfaceSunken }]}
+              accessibilityLabel={meta.name}
             >
-              <View
-                style={[styles.icon, { backgroundColor: color.surfaceSunken }]}
-                accessibilityLabel={meta.name}
-              >
-                <Text variant="heading">{meta.icon}</Text>
-              </View>
-              <View style={styles.main}>
-                <Text variant="body" weight="semibold" numberOfLines={1}>
-                  {call.customer}
-                </Text>
-                <View style={styles.facts}>
-                  {call.company ? (
-                    <Text variant="label" tone="muted">{`🏢 ${call.company}`}</Text>
-                  ) : null}
-                  <Text
-                    variant="label"
-                    tone="muted"
-                  >{`📅 ${formatDate(call.startedAt, locale)}`}</Text>
-                  <Text
-                    variant="label"
-                    tone="muted"
-                  >{`🕒 ${formatTime(call.startedAt, locale)}`}</Text>
-                  <Text variant="label" tone="muted">
-                    {`⏳ ${t("history.minutes", { count: call.minutes })}`}
-                  </Text>
-                  <Text variant="label" tone="muted">{`🃏 ${cards}`}</Text>
-                  <Text variant="label" tone="muted">{`${meta.icon} ${meta.name}`}</Text>
-                </View>
-              </View>
-              <View style={styles.meta}>
-                <Badge
-                  tone={OUTCOME_TONE[call.outcome]}
-                  label={t(`history.outcome.${call.outcome}`)}
-                />
-                {tone && call.success !== undefined ? (
-                  <View
-                    style={styles.chance}
-                    accessibilityLabel={t("history.chance", { n: call.success })}
-                  >
-                    <View style={[styles.track, { backgroundColor: color.surfaceSunken }]}>
-                      <View
-                        style={[styles.fill, { width: `${call.success}%`, backgroundColor: tone }]}
-                      />
-                    </View>
-                    <Text variant="label" weight="semibold" color={tone}>
-                      {`${call.success}%`}
-                    </Text>
-                  </View>
+              <Text variant="heading">{meta.icon}</Text>
+            </View>
+            <View style={styles.main}>
+              <Text variant="body" weight="semibold" numberOfLines={1}>
+                {call.customer}
+              </Text>
+              <View style={styles.facts}>
+                {call.company ? (
+                  <Text variant="label" tone="muted">{`🏢 ${call.company}`}</Text>
                 ) : null}
+                <Text
+                  variant="label"
+                  tone="muted"
+                >{`📅 ${formatDate(call.startedAt, locale)}`}</Text>
+                <Text
+                  variant="label"
+                  tone="muted"
+                >{`🕒 ${formatTime(call.startedAt, locale)}`}</Text>
+                <Text variant="label" tone="muted">
+                  {`⏳ ${t("history.minutes", { count: call.minutes })}`}
+                </Text>
+                <Text variant="label" tone="muted">{`🃏 ${cards}`}</Text>
+                <Text variant="label" tone="muted">{`${meta.icon} ${meta.name}`}</Text>
               </View>
-            </Pressable>
-          </Link>
+            </View>
+            <View style={styles.meta}>
+              <Badge
+                tone={OUTCOME_TONE[call.outcome]}
+                label={t(`history.outcome.${call.outcome}`)}
+              />
+              {tone && call.success !== undefined ? (
+                <View
+                  style={styles.chance}
+                  accessibilityLabel={t("history.chance", { n: call.success })}
+                >
+                  <View style={[styles.track, { backgroundColor: color.surfaceSunken }]}>
+                    <View
+                      style={[styles.fill, { width: `${call.success}%`, backgroundColor: tone }]}
+                    />
+                  </View>
+                  <Text variant="label" weight="semibold" color={tone}>
+                    {`${call.success}%`}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </AppLink>
         );
       })}
     </Panel>

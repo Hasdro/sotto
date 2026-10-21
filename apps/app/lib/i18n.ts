@@ -445,7 +445,7 @@ const en = {
     "Questions Sotto could not answer go to the Inbox. Answer one, add it to the playbook, and every agent has it on the next call.",
   "tutorial.1.title": "Meet Sotto",
   "tutorial.1.body":
-    "Sotto sits beside your calls and whispers what to say. It only listens to the customer, never to you.",
+    "Sotto sits beside your calls and whispers what to say. Cards come from what the customer says; it also hears you, so it knows what you already said.",
   "tutorial.2.title": "Start your call as usual",
   "tutorial.2.body":
     "When Zoom, Teams, Meet, 3CX or Yeastar starts a call, Sotto starts listening by itself.",
@@ -495,7 +495,7 @@ const en = {
     "Sotto notices when Zoom, Teams, Meet, 3CX or Yeastar starts using your microphone, and starts by itself. It stops when the call ends.",
   "settings.record": "Record my calls",
   "settings.record.body":
-    "Both sides are saved on this computer so you can listen again in History.",
+    "Both sides are saved on this computer, and uploaded to your company for 30 days, so you and your manager can listen again in History.",
   "settings.sounds": "Sounds",
   "settings.sounds.body": "A soft tone when a new card appears.",
   "settings.microphone": "Microphone",
@@ -994,7 +994,8 @@ const ar: Record<StringKey, string> = {
   "playbook.guide.4.body":
     "الأسئلة التي لم يُجب عنها Sotto تذهب إلى الوارد. أجب عنها وأضفها للدليل ليجدها كل وكيل في المكالمة التالية.",
   "tutorial.1.title": "تعرّف على Sotto",
-  "tutorial.1.body": "يرافق Sotto مكالماتك ويهمس لك بما تقول. يستمع إلى العميل فقط، لا إليك.",
+  "tutorial.1.body":
+    "يرافق Sotto مكالماتك ويهمس لك بما تقول. تأتي البطاقات مما يقوله العميل، ويسمعك أيضًا ليعرف ما قلته.",
   "tutorial.2.title": "ابدأ مكالمتك كالمعتاد",
   "tutorial.2.body":
     "عندما يبدأ Zoom أو Teams أو Meet أو 3CX أو Yeastar مكالمة، يبدأ Sotto بالاستماع تلقائيًا.",
@@ -1040,7 +1041,8 @@ const ar: Record<StringKey, string> = {
   "settings.autoPickup.body":
     "يلاحظ Sotto عندما يبدأ Zoom أو Teams أو Meet أو 3CX أو Yeastar باستخدام الميكروفون، فيبدأ تلقائيًا ويتوقف عند انتهاء المكالمة.",
   "settings.record": "سجّل مكالماتي",
-  "settings.record.body": "يُحفظ الطرفان على هذا الجهاز لتستمع إليها مجددًا في السجل.",
+  "settings.record.body":
+    "يُحفظ الطرفان على هذا الجهاز ويُرفعان إلى شركتك لمدة ٣٠ يومًا، لتستمع إليها أنت ومديرك مجددًا في السجل.",
   "settings.sounds": "الأصوات",
   "settings.sounds.body": "نغمة خفيفة عند ظهور بطاقة جديدة.",
   "settings.microphone": "الميكروفون",

@@ -3,9 +3,11 @@
  * recent calls, so the app opens on something useful instead of an empty call screen.
  * Everything here is already on the device (session, bundle, on-device calls): no extra requests.
  */
+
 import { Badge, Button, type Hex, Mascot, radius, space, Text, useTheme } from "@sotto/ui";
-import { Link, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useRouter } from "expo-router";
+import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { AppLink } from "../../components/AppLink";
 import { providerOf } from "../../lib/cloudCompat";
 import { deviceCalls } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
@@ -141,16 +143,14 @@ export function HomeScreen() {
       ) : null}
       <Section title={t("home.playbook")} testID="home-playbook">
         <Row label={t("home.entries")} value={String(bundle?.playbook.length ?? 0)} />
-        <Link href="/inbox" asChild>
-          <Pressable accessibilityRole="link">
-            <Row
-              label={t("home.openQuestions")}
-              value={
-                <Badge label={String(openCount)} tone={openCount > 0 ? "objection" : "neutral"} />
-              }
-            />
-          </Pressable>
-        </Link>
+        <AppLink href="/inbox" accessibilityRole="link">
+          <Row
+            label={t("home.openQuestions")}
+            value={
+              <Badge label={String(openCount)} tone={openCount > 0 ? "objection" : "neutral"} />
+            }
+          />
+        </AppLink>
       </Section>
     </View>
   );
@@ -200,35 +200,35 @@ export function HomeScreen() {
               <Text tone="muted">{t("home.noCalls")}</Text>
             ) : (
               calls.slice(0, 6).map((c, i) => (
-                <Link key={c.id} href={`/history/${c.id}`} asChild>
-                  <Pressable
-                    accessibilityRole="link"
-                    testID={i === 0 ? "home-last-call" : undefined}
-                    style={(state) => [
-                      styles.callRow,
-                      { borderColor: color.border },
-                      i === 0 ? { backgroundColor: card.answer.fill } : null,
-                      (state as { hovered?: boolean }).hovered
-                        ? { backgroundColor: color.surfaceSunken }
-                        : null,
-                    ]}
-                  >
-                    <View style={styles.flex}>
-                      <Text weight="medium" numberOfLines={1}>
-                        {i === 0 ? `${t("home.lastCall")} · ${c.title}` : c.title}
-                      </Text>
-                      <Text variant="label" tone="muted">
-                        {`${fmtDay(c.started_at)} ${fmtTime(c.started_at)} · ${t("home.cardsN", { n: c.cards })}`}
-                      </Text>
-                    </View>
-                    {c.p95_ms !== null ? (
-                      <Badge
-                        label={`${(c.p95_ms / 1000).toFixed(1)} s`}
-                        tone={c.p95_ms <= 1500 ? "answer" : "warning"}
-                      />
-                    ) : null}
-                  </Pressable>
-                </Link>
+                <AppLink
+                  key={c.id}
+                  href={`/history/${c.id}`}
+                  accessibilityRole="link"
+                  testID={i === 0 ? "home-last-call" : undefined}
+                  style={(state) => [
+                    styles.callRow,
+                    { borderColor: color.border },
+                    i === 0 ? { backgroundColor: card.answer.fill } : null,
+                    (state as { hovered?: boolean }).hovered
+                      ? { backgroundColor: color.surfaceSunken }
+                      : null,
+                  ]}
+                >
+                  <View style={styles.flex}>
+                    <Text weight="medium" numberOfLines={1}>
+                      {i === 0 ? `${t("home.lastCall")} · ${c.title}` : c.title}
+                    </Text>
+                    <Text variant="label" tone="muted">
+                      {`${fmtDay(c.started_at)} ${fmtTime(c.started_at)} · ${t("home.cardsN", { n: c.cards })}`}
+                    </Text>
+                  </View>
+                  {c.p95_ms !== null ? (
+                    <Badge
+                      label={`${(c.p95_ms / 1000).toFixed(1)} s`}
+                      tone={c.p95_ms <= 1500 ? "answer" : "warning"}
+                    />
+                  ) : null}
+                </AppLink>
               ))
             )}
           </Section>

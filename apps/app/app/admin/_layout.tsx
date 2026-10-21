@@ -1,8 +1,10 @@
 /** Admin area (R3, R6): team, keys and models, settings. The prompt studio and a separate models
  * table return when they are real (T-040, T-041). */
+
 import { layout, minTouchTarget, space, Text, useTheme } from "@sotto/ui";
-import { Link, Slot, usePathname } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Slot, usePathname } from "expo-router";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { AppLink } from "../../components/AppLink";
 import { PageHeader } from "../../components/PageHeader";
 import { RoleGate } from "../../components/RoleGate";
 import type { StringKey } from "../../lib/i18n";
@@ -41,25 +43,25 @@ function AdminLayout() {
             const active =
               tab.href === "/admin" ? pathname === tab.href : pathname.startsWith(tab.href);
             return (
-              <Link key={tab.href} href={tab.href} asChild>
-                <Pressable
-                  accessibilityRole="link"
-                  accessibilityState={{ selected: active }}
-                  aria-current={active ? "page" : undefined}
-                  style={StyleSheet.flatten([
-                    styles.tab,
-                    { borderBottomColor: active ? color.primary : "transparent" },
-                  ])}
+              <AppLink
+                key={tab.href}
+                href={tab.href}
+                accessibilityRole="link"
+                accessibilityState={{ selected: active }}
+                aria-current={active ? "page" : undefined}
+                style={StyleSheet.flatten([
+                  styles.tab,
+                  { borderBottomColor: active ? color.primary : "transparent" },
+                ])}
+              >
+                <Text
+                  variant="body"
+                  weight={active ? "semibold" : "regular"}
+                  tone={active ? "primary" : "muted"}
                 >
-                  <Text
-                    variant="body"
-                    weight={active ? "semibold" : "regular"}
-                    tone={active ? "primary" : "muted"}
-                  >
-                    {t(tab.label)}
-                  </Text>
-                </Pressable>
-              </Link>
+                  {t(tab.label)}
+                </Text>
+              </AppLink>
             );
           })}
         </ScrollView>

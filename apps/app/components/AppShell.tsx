@@ -17,7 +17,7 @@ import {
   useTheme,
   Wordmark,
 } from "@sotto/ui";
-import { Link, usePathname } from "expo-router";
+import { usePathname } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
@@ -37,6 +37,7 @@ import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
+import { AppLink } from "./AppLink";
 import { PlanBanner } from "./PlanBanner";
 import { ProfilePopup } from "./ProfilePopup";
 import { RoleSwitch } from "./RoleSwitch";
@@ -127,49 +128,50 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
         {nav.map((item) => {
           const active = isActive(pathname, item.href);
           return (
-            <Link key={item.href} href={item.href} asChild onPress={onClose}>
-              <Pressable
-                accessibilityRole="link"
-                accessibilityState={{ selected: active }}
-                aria-current={active ? "page" : undefined}
-                testID={`nav-${item.href.slice(1)}`}
-                accessibilityLabel={
-                  item.href === "/inbox" && openCount > 0
-                    ? `${t(item.label)} ${openCount}`
-                    : t(item.label)
-                }
-                // Link asChild needs a plain style object (a style function is dropped on web).
-                style={StyleSheet.flatten([
-                  styles.sideItem,
-                  active ? { backgroundColor: color.surfaceSunken } : null,
-                ])}
+            <AppLink
+              key={item.href}
+              href={item.href}
+              onNavigate={onClose}
+              accessibilityRole="link"
+              accessibilityState={{ selected: active }}
+              aria-current={active ? "page" : undefined}
+              testID={`nav-${item.href.slice(1)}`}
+              accessibilityLabel={
+                item.href === "/inbox" && openCount > 0
+                  ? `${t(item.label)} ${openCount}`
+                  : t(item.label)
+              }
+              // Link asChild needs a plain style object (a style function is dropped on web).
+              style={StyleSheet.flatten([
+                styles.sideItem,
+                active ? { backgroundColor: color.surfaceSunken } : null,
+              ])}
+            >
+              <View
+                style={[
+                  styles.sideBar,
+                  { backgroundColor: active ? color.primary : "transparent" },
+                ]}
+              />
+              <Text
+                variant="body"
+                style={styles.navIcon}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
               >
-                <View
-                  style={[
-                    styles.sideBar,
-                    { backgroundColor: active ? color.primary : "transparent" },
-                  ]}
-                />
-                <Text
-                  variant="body"
-                  style={styles.navIcon}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no"
-                >
-                  {item.icon}
-                </Text>
-                <Text
-                  variant="body"
-                  weight={active ? "semibold" : "regular"}
-                  tone={active ? "primary" : "default"}
-                  style={styles.grow}
-                  numberOfLines={1}
-                >
-                  {t(item.label)}
-                </Text>
-                {item.href === "/inbox" && openCount > 0 ? <Count n={openCount} /> : null}
-              </Pressable>
-            </Link>
+                {item.icon}
+              </Text>
+              <Text
+                variant="body"
+                weight={active ? "semibold" : "regular"}
+                tone={active ? "primary" : "default"}
+                style={styles.grow}
+                numberOfLines={1}
+              >
+                {t(item.label)}
+              </Text>
+              {item.href === "/inbox" && openCount > 0 ? <Count n={openCount} /> : null}
+            </AppLink>
           );
         })}
       </View>
