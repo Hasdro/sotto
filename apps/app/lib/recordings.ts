@@ -92,6 +92,7 @@ export function setCallBusy(on: boolean): void {
 export function uploadSoon(delay = IDLE_MS): void {
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => void uploadPending(), delay);
+  (timer as { unref?: () => void }).unref?.(); // never keeps a test run or app exit waiting
 }
 
 /** Uploads every recording not on the server yet, one at a time; stops at the first call or
