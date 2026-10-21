@@ -36,7 +36,7 @@ nav.tabs button{flex:0 0 auto;border:0;background:none;color:var(--muted);font:5
 nav.tabs button[aria-selected="true"]{background:var(--brand-soft);color:var(--brand)}
 nav.tabs .n{font:500 11px var(--mono);background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:0 6px}
 button:focus-visible,.term:focus-visible,label.opt:focus-within{outline:2px solid var(--brand);outline-offset:2px}
-main .wrap{display:grid;gap:14px;padding-block:20px 72px}
+main .wrap{display:grid;gap:14px;padding-block:20px 110px}
 .lead{margin:0 0 4px;color:var(--muted);max-width:70ch}
 h2.tabtitle{margin:4px 0 0;font-size:24px;font-weight:600;letter-spacing:-.015em;text-wrap:balance}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:10px;min-width:0}
@@ -58,17 +58,8 @@ h2.tabtitle{margin:4px 0 0;font-size:24px;font-weight:600;letter-spacing:-.015em
 #tip b{display:block;font-size:12px;opacity:.75;margin-bottom:2px}
 .pill{display:inline-flex;align-items:center;font:500 11px var(--mono);letter-spacing:.04em;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.run{background:var(--brand-soft);color:var(--brand)}
-.meterbar{height:14px;border-radius:999px;background:var(--line);overflow:hidden;display:flex}
-.meterbar i{display:block;height:100%}
-.big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.big strong{font-size:40px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
 @media (max-width:720px){.grid2{grid-template-columns:1fr}}
-.tbl{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font:500 11px var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
-tr:last-child td{border-bottom:0}
 .opts{display:grid;gap:7px}
 label.opt{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
 label.opt.on{border-color:var(--brand);background:var(--brand-soft)}
@@ -76,29 +67,22 @@ label.opt input{margin:4px 0 0;accent-color:var(--brand)}
 .olab{font-weight:500}
 .rec{font:500 10px var(--mono);color:var(--brand);margin-left:6px;letter-spacing:.06em;text-transform:uppercase}
 .odesc{display:block;color:var(--muted);font-size:13.5px}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .what{flex:1 1 260px;min-width:0}
+select{font:14px var(--display);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.group{font:500 11px var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin:10px 0 0}
 .card:not(.detailed) .odesc{display:none}
 textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:14px var(--display);color:var(--ink);background:var(--bg);resize:vertical}
-.savebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.savebar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding-block:10px calc(10px + env(safe-area-inset-bottom,0px))}
+.savebar .wrap{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.savebar.dirty{border-top:2px solid var(--warn)}
 .savebar p{margin:0;color:var(--muted)}
 .btn{border:1px solid var(--brand);background:var(--brand);color:var(--brand-ink);font:500 14px var(--display);padding:8px 16px;border-radius:10px;cursor:pointer}
 .save{font:500 12px var(--mono);color:var(--muted)}
-.plat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}
-@media (max-width:860px){.plat{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:520px){.plat{grid-template-columns:1fr}}
-.metro{display:grid;gap:10px}
-.phase{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:start}
-.dot{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font:600 15px var(--mono);border:2px solid var(--line);background:var(--surface)}
-.dot.run{border-color:var(--brand);color:var(--brand)} .dot.done{background:var(--ok);border-color:var(--ok);color:var(--surface)} .dot.wait{border-color:var(--warn);color:var(--warn)}
-.pbar{height:6px;border-radius:999px;background:var(--line);overflow:hidden}
-.pbar i{display:block;height:100%;background:var(--brand)}
-.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-@media (max-width:720px){.cols{grid-template-columns:1fr}}
-.cols h4{margin:0 0 4px;font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.cols ul{font-size:14px}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:9px 14px;border-radius:10px;font-size:14px;z-index:40}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:9px 14px;border-radius:10px;font-size:14px;z-index:40}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
-
 <header>
   <div class="wrap">
     <div class="top">
@@ -112,222 +96,169 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
   </div>
 </header>
 <main><div class="wrap" id="panel"></div></main>
+<div class="savebar" id="savebar"><div class="wrap"><p id="saveMsg">Nothing changed yet.</p><span class="save" id="saveState"></span><button type="button" class="btn" id="saveBtn">Save my choices</button></div></div>
 <div id="tip" hidden></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "21 Oct 2026 · 23:30";
+const UPDATED = "22 Oct 2026 · 01:40";
 
-/* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
+/* Glossary: any [[Term]] or [[shown text|Term]] below gets a hover definition. */
 const TERMS = {
- "server":"A computer on the internet that is always on. Ours is 'us3' (104.168.48.116).",
- "us3":"Your rented server in the US. 1 processor, 1 GB memory, 10 GB disk, Ubuntu 26.04.",
- "client app":"The app your customers' sales agents install: phone, computer, browser or Chrome extension.",
- "admin dashboard":"A private web page on the server, only for you, to see and manage every customer company.",
- "API key":"A secret password a service (like Groq or AssemblyAI) gives you so programs can use it and bill you.",
- "speech-to-text":"A service that turns the customer's voice into written words, live, while they speak.",
- "AI model":"The program that reads the conversation and writes the suggestion (for example Groq or Gemini).",
- "p95":"95 out of 100 cards are at least this fast. We use it so a few slow cards cannot hide behind a good average.",
- "playbook":"Your approved answers: products, prices, common questions and objections.",
- "holding line":"The safe sentence shown when there is no good answer: 'Good question, let me confirm and send it to you today.'",
- "escalation":"A question the AI could not answer, sent to the sales manager to answer once and add to the playbook.",
- "tenant":"One customer company inside Sotto. Each company only ever sees its own data.",
- "database":"Where the server keeps accounts, companies, plans and usage numbers.",
- "SQLite":"A database stored in one file on the server. Simple, fast, and plenty for thousands of users. Easy to back up by copying the file.",
- "Postgres":"A bigger database program that runs as its own service. Worth it later if we grow past one server.",
- "HTTPS":"The padlock in the browser: traffic between app and server is encrypted.",
- "Caddy":"A small web server program that gets the HTTPS padlock certificate automatically and passes traffic to Sotto.",
- "systemd":"Ubuntu's built-in service manager. It starts Sotto when the server boots and restarts it if it crashes.",
- "Docker":"A tool that packages a program with everything it needs. We skipped it on us3 because 1 GB memory is tight.",
- "Electron":"A proven way to turn a web app into an installable Windows, Mac and Linux program (Slack, VS Code and WhatsApp desktop use it).",
- "Tauri":"A lighter alternative to Electron. Smaller downloads, but needs extra build tools for each operating system.",
- "Expo":"The toolkit we use to build the iPhone, Android and web app from one codebase.",
- "PWA":"Progressive web app: a website that can be installed like an app from Chrome or Edge, with its own icon and window.",
- "APK":"An Android app file you can install directly on a phone without the Play Store, for testing.",
- "TestFlight":"Apple's official way to send test versions of an iPhone app to testers. Needs an Apple Developer account ($99 a year).",
- "Xcode":"Apple's free tool for building iPhone apps. Only runs on a Mac and is about 12 GB.",
- "Chrome extension":"A small add-on that lives in the Chrome toolbar. Ours opens Sotto in a side panel next to any web phone.",
- "sideload":"Install an app directly from a file instead of from an app store.",
- "encrypted":"Scrambled with a secret key so that anyone who copies the file cannot read it.",
- "trial":"Free period for a new company: 14 days, 3 seats, 300 call minutes.",
- "seat":"One user (agent, manager or admin) who can sign in for a company.",
- "sslip.io":"A free service that gives any server an address like 104-168-48-116.sslip.io so it can get HTTPS without buying a domain.",
- "short-lived key":"A key that works for a few minutes only. Some vendors (like AssemblyAI) can issue these so the real key never leaves the server.",
- "LiveKit":"A service that carries live call audio between the phone network and the app.",
- "Yeastar":"Your office phone system.",
- "Apple ID":"Your normal Apple account. Added in Xcode, it lets me put a test copy of the app on your own iPhone for free (it expires after 7 days).",
- "simulator":"A pretend iPhone that runs on your Mac. Good for testing screens; it has no real phone line or microphone.",
- "Supabase":"A hosted database + sign-in service we planned earlier. Your new direction (own server) replaces it.",
- "review":"An independent check of the whole project by another AI agent, looking as a developer, product manager and marketing manager. It wrote the fix list I worked through.",
- "replay":"A test that plays sample calls through Sotto and measures speed and answers. The 'live' replay uses the real AI services.",
- "backup AI":"A second AI service from another company. If the main one is slow or down, the backup answers instead.",
- "first word":"The moment the first word of the AI's answer arrives. Sotto starts the backup if it hasn't arrived in time.",
- "transcript excerpt":"The last few lines of the conversation just before the customer's question.",
- "test coverage":"How much of the code automatic tests run through. Higher means fewer hidden mistakes.",
- "bundle":"The code a browser downloads to open the web app. We keep it under 450 KB so it opens fast on a phone.",
- "lazy-load":"Download a screen's code only when someone opens that screen, so the first page loads faster.",
- "Resend":"An email-sending service. Its free plan sends a few thousand emails a month.",
- "notarise":"Apple's check of a Mac app. Without it, Macs warn 'cannot verify the developer' the first time."
+ "server":"Your rented computer on the internet (us3) that manages accounts, plans and now call recordings.",
+ "auto pick-up":"Sotto notices when Zoom, Teams, Meet, 3CX or Yeastar starts using the microphone, and starts listening by itself. It stops when the call app lets the microphone go.",
+ "OAuth":"The 'Sign in with Google' / 'Connect Zoho' button flow. The person approves on Google's or Zoho's own page; Sotto never sees their password.",
+ "API key":"A secret password a service gives you so programs can use it. You type it into Sotto's Settings yourself; never into a chat.",
+ "Resend":"The email-sending service you signed up for. It needs a verified sending domain to email anyone other than you.",
+ "domain":"A web address you own, like yourcompany.com. Email services need one to send from (for example questions@yourcompany.com).",
+ "data center":"Zoho keeps each account in one region (.com US, .eu Europe, .in India, .sa Saudi Arabia, .com.au Australia…). Sotto must talk to the right one.",
+ "WhatsApp template":"A message WhatsApp has approved in advance (for example 'Thanks for your call, here is the brochure'). Businesses may only start a WhatsApp chat with a template.",
+ "Gallabox":"Your WhatsApp Business platform. It has an API to send approved templates.",
+ "speech-to-text":"The service that turns the customer's voice into words, live.",
+ "Whisper":"An open speech-to-text model that can run on the Mac itself, so audio never leaves the computer.",
+ "p95":"95 out of 100 cards are at least this fast. Our limit is 1.5 s.",
+ "notarise":"Apple's check of a Mac app. Without it, the first open needs right-click → Open.",
+ "Opus":"A modern audio format. A call recording in Opus is about 10 times smaller than today's WAV files, with no audible loss for speech.",
+ "off-server backup":"A copy of your database kept somewhere other than us3, so one broken server can't lose everything.",
+ "playbook":"Your approved answers: products, prices, common questions and objections."
 };
 
 const TABS = [
- {id:"overview", label:"Where we are"},
- {id:"decisions", label:"Your decisions", badge:()=>DECISIONS.filter(d => !choices[d.id]).length},
- {id:"server", label:"Server"},
- {id:"apps", label:"Apps & platforms"},
- {id:"map", label:"Build map"}
+ {id:"waiting", label:"Waiting on you", badge:()=>DECISIONS.filter(d => d.kind !== "test" && !saved(d.id)).length},
+ {id:"ideas", label:"Suggestions", badge:()=>IDEAS.filter(d => !saved(d.id)).length}
 ];
 
-const OVERVIEW = {
- pct: 77,
- parts:[{label:"Done", v:77, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:21, c:"var(--line)"}],
- cards:[
-  {eyebrow:"Status", title:"Where are we?",
-   short:"This round is live: your server and web app are updated, and the new Sotto is in your Applications folder.",
-   full:["Server: I backed up the [[database]] first, then installed. Your company and users are intact, and the two new columns for manager-question context are in place.",
-         "Checked afterwards: the app, the API, your console and the downloads page all answer, with no errors in the server log.",
-         "Mac: rebuilt and replaced in Applications, then opened. The downloads page still has last round's installers until you test."]},
-  {eyebrow:"This round", title:"What is in this round",
-   short:"Privacy and honesty fixes, better answers from your playbook, a setup guide for new companies, and admin pages that show real data.",
-   full:["1. Privacy: call transcripts saved on a computer belong to one account and are wiped at sign-out.",
-         "2. A live call no longer ends if the agent opens another page, and 'End call' asks first.",
-         "3. Real accounts never show sample calls or answers. Agents see 'Calls paused — reason' when the plan blocks calls.",
-         "4. Better answers: the AI gets your 3 nearest playbook entries. In the live [[replay]], holding lines dropped from 36% to 18–27%.",
-         "5. Admin: a 3-step setup guide, Team on real data with working Invite, and unusable speech services greyed out.",
-         "6. Manager questions include the [[transcript excerpt]] and who asked."]},
-  {eyebrow:"Progress", title:"How much is done?",
-   short:"About 77% (up from 76%): this round is now live. It goes up again with your playbook and the manager email.",
-   full:["Why it went up: the review fixes are live on your server, web app and Mac (76% → 77%).",
-         "Why not more: the manager email, phone calling and your playbook are still open."]},
-  {eyebrow:"Remaining", title:"What is left?",
-   short:"Your test of this round, 5 decisions, your playbook, then phone calling (LiveKit and Yeastar) and a pilot.",
-   full:["1. Your test of this round on the Mac and the web app.",
-         "2. Five decisions in 'Your decisions': answer timing, manager email, practice call, room in the web app, and bigger review items.",
-         "3. Your real [[playbook]]: still waiting for the documents.",
-         "4. Real phone calls through [[LiveKit]] and [[Yeastar]], then password reset by email, a load test and a one-week pilot."]},
-  {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Your playbook documents, and the 5 open decisions.",
-   full:["Decisions: the manager email and answer timing wait for your Save.",
-         "Playbook: without it, questions about company facts get the [[holding line]] and go to your manager.",
-         "Phone dial pad: still needs [[LiveKit]] and your [[Yeastar]] admin details."]},
-  {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Try the new Mac app. 2) Answer the 5 decisions and press Save. 3) Tell me where the playbook documents are.",
-   full:["1. Open Sotto from Applications: open History during a call (the call keeps going) and press End call (it asks first).",
-         "2. Open 'Your decisions': five questions have my pick already selected; change any you disagree with and press Save.",
-         "3. Tell me where the playbook documents are, or drop them into the sotto folder.",
-         "4. Test the Mac app on a real Zoom, Meet or Yeastar call with Zylker. Say yes and I put the new installers on the downloads page."]}
- ]
-};
+const WAITING_LEAD = "Only what I need from you. The new Sotto is in your Applications folder and the server is updated. Try each item on your Mac and mark it, answer the decisions (my pick is pre-selected), then press Save at the bottom.";
 
-const DECISIONS_LEAD = "Five open questions from this round, each with my pick pre-selected. Answered decisions are removed from this page. Press Save; I read your answers at the start of my next round.";
-
+/* kind: test (pick list per row, no recommendation), radio, multi (checkbox per item), select (pick list). */
 const DECISIONS = [
- {id:"brief_budget", title:"How long the main AI gets before the backup starts",
-  short:"Recommended: give the main AI until about 1.15 s after the customer stops (now 0.7 s). Its request only starts about 0.6 s in, so today it gets 0.1 s before the [[backup AI]] is started too.",
-  full:"In the live replay the backup started on 2–3 of 11 questions and never won, so those were wasted requests on your free quota. The requirement says 'no [[first word]] within 700 ms → backup'. Raising the value means reading that as '700 ms of the AI's own time'. The 1.5 s target and the holding line at 1.4 s don't change.",
-  rec:"raise", options:[
-   {v:"raise", l:"Raise to about 1.15 s after the customer stops", d:"Fewer wasted backup requests; same 1.5 s target."},
-   {v:"rule", l:"Count the 700 ms from when the question is sent (new rule)", d:"Clearer wording; leaves the backup less time before the holding line."},
-   {v:"keep", l:"Keep it as it is", d:"The backup keeps starting on most slow questions."}]},
- {id:"brief_email", title:"Email the sales manager within a minute",
-  short:"Recommended: yes, through [[Resend]] (free plan). Each company sets its manager's email in Admin → Settings.",
-  full:"The requirements promise managers an email for every question the AI couldn't answer. Today it only lands in the Inbox. The sending code already exists and is tested. It needs a Resend account and a sender address, for example questions@ your domain or Resend's test address. One email per question, retried if it fails, and it never slows the call.",
-  rec:"resend_manager", options:[
-   {v:"resend_manager", l:"Yes: Resend, to each company's manager address", d:"You create the free Resend account."},
-   {v:"resend_alias", l:"Yes: Resend, to one company-wide address", d:"Simpler; everyone shares one mailbox."},
-   {v:"later", l:"Not now; the Inbox is enough", d:"Managers must check the Inbox themselves."}]},
- {id:"brief_practice", title:"A 60-second practice call inside real accounts",
-  short:"Recommended: no. You asked last round to remove demo calls from real accounts, and I kept that.",
-  full:"The review suggests a clearly labelled practice call, available before any keys are added, so a new company sees a card appear within a minute. It would stay out of History and usage. It's a good sales moment, but it brings sample content back into real accounts.",
-  rec:"no", options:[
-   {v:"no", l:"No, keep real accounts free of sample content", d:"As you decided last round."},
-   {v:"before_keys", l:"Yes, labelled 'Practice', only until the company adds its keys", d:"Faster first impression for new companies."},
-   {v:"signin", l:"Only on the sign-in page, before an account exists", d:"Prospects try it; accounts stay clean."}]},
- {id:"brief_bundle", title:"Room in the web app for phone calling",
-  short:"Recommended: [[lazy-load]] the call screen. The web app's [[bundle]] is 430 KB of its 450 KB limit, and phone calling (LiveKit) needs room.",
-  full:"Loading the call screen's code only when it opens frees room without raising the limit. Removing a checking library (zod) from the app is another way, but it's riskier. Raising the limit makes the first load slower on phones.",
-  rec:"lazy", options:[
-   {v:"lazy", l:"Load the call screen when it opens", d:"No limit change; a short delay the first time Call opens."},
-   {v:"zod", l:"Remove the zod library from the app", d:"More work; message checks need rewriting."},
-   {v:"raise", l:"Raise the limit", d:"Slower first load on mobile networks."}]},
- {id:"brief_later", title:"Bigger items from the review: which to start", multi:true,
-  short:"Recommended: only an off-server backup copy now. Tick anything else you want me to plan; each needs your budget or a business decision first.",
-  full:"Each ticked item gets a short plan with costs before I build anything.",
-  rec:["backup"], options:[
-   {v:"backup", l:"Backup copy off the server, plus a restore drill", d:"Today the nightly backup sits on the same server. A second place may cost a few dollars a month."},
-   {v:"sign", l:"Sign and [[notarise]] the desktop apps, with auto-update", d:"Apple $99/yr; a Windows certificate about $200–400/yr."},
-   {v:"proxy", l:"AI requests through your server instead of agents' devices", d:"Keys never reach devices; adds server cost and load."},
-   {v:"trialkeys", l:"Sotto pays the AI for trials (about $1 per trial)", d:"Faster start for prospects; you carry the cost."},
-   {v:"analytics", l:"Team analytics and coaching", d:"Needs calls uploaded to the server, with consent."},
-   {v:"arabic", l:"Suggestion cards in Arabic too", d:"Changes decision D-018 (cards in English)."},
-   {v:"pricing", l:"Review pricing and trial limits", d:"A business decision for you."}]},
+ {id:"test_r1", kind:"test", eyebrow:"Test on your Mac", title:"This round's new features",
+  short:"Open Sotto from Applications, then mark each line. 'Problem' plus a note is all I need.",
+  full:"Auto pick-up and recording were checked here with a simulated Zoom call and speech through the speakers. Not checked yet: a real Zoom or Yeastar call, Arabic and dark mode on the new screens.",
+  rows:[
+   {v:"pickup", l:"Start a Zoom, Teams, Meet or Yeastar call: Sotto opens the call screen and listens by itself, then ends when you hang up ([[auto pick-up]])"},
+   {v:"cards", l:"Every customer sentence gets a card; buying interest shows a violet card"},
+   {v:"review", l:"After the call: chance to close, six skill sliders, the customer's mood and one tip"},
+   {v:"recording", l:"History → the call → Recording: both sides play back"},
+   {v:"home", l:"Home page: your details, company, AI in use, today's numbers, last call"},
+   {v:"tutorial", l:"Tutorial after sign-in, 'Don't show this again', replay from Settings → Help"},
+   {v:"settings", l:"Settings and the profile popup (click your name at the bottom left)"},
+   {v:"keys", l:"Admin → Keys & providers: sections open and close, search, 'Add a provider'"},
+   {v:"playbook", l:"Playbook → 'How it works', and the 2 example answers in Zylker"},
+   {v:"speed", l:"Tabs open instantly when you switch between them"}]},
+ {id:"playbook_docs", kind:"radio", eyebrow:"Still blocked", title:"Your playbook documents",
+  short:"I still can't find them. Without them, questions about your prices and products get the holding line.",
+  full:"Drop them into the sotto folder (any format: PDF, Word, Excel, notes) or tell me where they are in the note. I turn them into playbook answers and you approve them.",
+  rec:"folder", options:[
+   {v:"folder", l:"I'll put them in the sotto folder", d:"I pick them up at the start of my next round."},
+   {v:"elsewhere", l:"They are somewhere else (see my note)", d:"Write the place in the note."},
+   {v:"none", l:"I don't have documents; draft from my website", d:"Write the website address in the note."}]},
+ {id:"google", kind:"radio", eyebrow:"Decision", title:"Sign in with Google",
+  short:"Recommended: yes. It needs a free Google sign-in key that only you can create (about 10 minutes); I'll give you click-by-click steps.",
+  full:"Google requires the app owner to create the sign-in client in Google Cloud Console under your Google account. You then paste two values into the server through a hidden prompt (never in chat). It works on the web app and the Mac app; phones come later. Existing email-and-password accounts keep working, and a Google sign-in with the same email joins the same account.",
+  rec:"yes", options:[
+   {v:"yes", l:"Yes, send me the steps", d:"About 10 minutes of your time in Google Cloud Console; free."},
+   {v:"later", l:"Later", d:"Email and password only for now."}]},
+ {id:"zoho_mode", kind:"radio", eyebrow:"Decision", title:"Zoho CRM: how companies connect",
+  short:"Recommended: each company's admin presses 'Connect Zoho' once in Settings → Integrations ([[OAuth]]). During a 3CX or Yeastar call, Sotto finds the caller in Zoho and shows the account and deals beside the cards.",
+  full:"You create one Zoho API client for Sotto in api-console.zoho.com (free, about 5 minutes); every company then connects its own Zoho with one click. Sotto reads contacts, accounts and deals by phone number. With several matching contacts, a pick list switches between them. What it reads is also given to the AI as context. Writing call summaries back to Zoho is listed under Suggestions.",
+  rec:"oauth", options:[
+   {v:"oauth", l:"Connect Zoho per company (one click for each admin)", d:"Works for Zylker and every future customer."},
+   {v:"zylker", l:"Only Zylker for now, set up by me with a key you create", d:"Faster to try; other companies need the first option later."},
+   {v:"later", l:"Later", d:"No CRM side panel yet."}]},
+ {id:"zoho_dc", kind:"select", eyebrow:"Decision", title:"Zoho CRM: which region is Zylker's Zoho in?",
+  short:"Zoho keeps each account in one [[data center]]. Pick the one in Zylker's Zoho address bar (crm.zoho.com, crm.zoho.eu, crm.zoho.sa…).",
+  full:"If you're not sure, open Zoho CRM and look at the address bar. Each company picks its own region when it connects, so this choice only matters for the first test with Zylker.",
+  rec:"com", options:[
+   {v:"com", l:"zoho.com (United States)"},{v:"eu", l:"zoho.eu (Europe)"},{v:"in", l:"zoho.in (India)"},
+   {v:"sa", l:"zoho.sa (Saudi Arabia)"},{v:"ae", l:"zoho.ae (United Arab Emirates)"},{v:"au", l:"zoho.com.au (Australia)"},{v:"jp", l:"zoho.jp (Japan)"},{v:"cn", l:"zoho.com.cn (China)"}]},
+ {id:"gallabox", kind:"radio", eyebrow:"Decision", title:"WhatsApp after the call (Gallabox)",
+  short:"Recommended: after the call, the agent picks an approved [[WhatsApp template]] and presses Send. Nothing goes out without the agent's click.",
+  full:"Gallabox has an API for sending approved templates; I'll confirm the details against its current documentation before building. Each company's admin enters its Gallabox [[API key]] in Settings → Integrations (never in chat). The customer's number comes from Zoho or the 3CX/Yeastar caller ID. Fully automatic sending risks messaging the wrong person when caller ID is missing.",
+  rec:"agent", options:[
+   {v:"agent", l:"Agent picks a template and presses Send after the call", d:"Safe; one click for the agent."},
+   {v:"auto", l:"Send a chosen template automatically when the call ends", d:"No click; may message the wrong number if caller ID is missing."},
+   {v:"later", l:"Later", d:"No WhatsApp yet."}]},
+ {id:"email_from", kind:"radio", eyebrow:"Decision", title:"Manager emails: which address they come from",
+  short:"Recommended: a [[domain]] you already own, for example questions@yourcompany.com. [[Resend]] only sends to strangers from a verified domain.",
+  full:"You add three DNS records that Resend gives you (I'll list them exactly). Then you enter the Resend key on the server through a hidden prompt; it never goes into chat. Until then, Resend's test address only delivers to your own email, which is fine for a first test.",
+  rec:"own", options:[
+   {v:"own", l:"A domain I own (write it in the note)", d:"Best delivery; about 10 minutes of DNS work."},
+   {v:"buy", l:"Buy a new domain for Sotto", d:"About $10–15 a year; ask me before buying anything."},
+   {v:"test", l:"Resend's test address for now", d:"Emails only reach you, the account owner."}]},
+ {id:"consent", kind:"radio", eyebrow:"Decision", title:"Telling customers the call is recorded",
+  short:"Recommended: recording stays on, and the call screen shows the agent a 'Tell the customer this call is recorded' reminder.",
+  full:"In many countries the customer must be told about recording. Each agent can already turn recording off in Settings. Recordings are kept 30 days on the Mac and on the server; only the agent who made the call and the company's admins and managers can play them.",
+  rec:"remind", options:[
+   {v:"remind", l:"Keep recording on, with a reminder on the call screen", d:"The agent tells the customer."},
+   {v:"off", l:"Recording off unless the agent turns it on", d:"Fewer recordings to review."},
+   {v:"none", l:"No reminder", d:"Your company takes care of telling customers."}]},
+ {id:"backup", kind:"radio", eyebrow:"Decision", title:"Where the off-server backup goes",
+  short:"Recommended: Backblaze B2. At today's size it costs a few cents a month, with a nightly copy and a monthly restore test.",
+  full:"You chose an [[off-server backup]] last round. Today the nightly backup sits on us3 itself. Backblaze B2 stores the database copy (and, if you want, the recordings) encrypted. You create the account and enter its key on the server through a hidden prompt. I'll ask before anything is charged.",
+  rec:"b2", options:[
+   {v:"b2", l:"Backblaze B2", d:"Pay per use: cents a month now, about $6 per terabyte later."},
+   {v:"mac", l:"Copy to my Mac every night", d:"Free; only works while your Mac is on."},
+   {v:"hetzner", l:"Hetzner Storage Box", d:"About €4 a month flat, 1 TB."}]},
+ {id:"local_stt", kind:"radio", eyebrow:"Decision", title:"Speech-to-text on the Mac itself",
+  short:"Recommended: add [[Whisper]] on the Mac as an option a company can choose. Keep AssemblyAI as the default until it proves it can stay under 1.5 s.",
+  full:"Local speech-to-text keeps audio on the computer and costs nothing per minute, but needs an Apple-silicon Mac and about 1 GB of download. The cards still need to arrive within 1.5 s ([[p95]]), so I benchmark it on your Mac before it can be picked. us3 is too small to run it for everyone.",
+  rec:"option", options:[
+   {v:"option", l:"Add it as an option, benchmarked first", d:"Private and free per minute; cloud stays the default."},
+   {v:"default", l:"Make it the default on Macs", d:"Only if the benchmark meets 1.5 s."},
+   {v:"later", l:"Later", d:"Cloud speech-to-text only."}]},
+ {id:"pricing", kind:"radio", eyebrow:"Decision", title:"How companies will pay",
+  short:"Recommended: per seat per month, with call minutes included. Write your price idea in the note and I'll draft a plan page for you to approve.",
+  full:"You asked for pricing last round. Seats are simple to explain and match how trials already work (3 seats, 300 minutes). Payment by card (Stripe) comes later and needs your account and approval.",
+  rec:"seat", options:[
+   {v:"seat", l:"Per seat per month, minutes included", d:"Simple; matches the trial."},
+   {v:"minute", l:"Per call minute", d:"Fair for light users; bills vary month to month."},
+   {v:"flat", l:"One price per company", d:"Simplest; big teams pay the same as small ones."}]}
 ];
 
-const SERVER = [
- {eyebrow:"Live now", title:"Your server is running",
-  short:"Live with the [[HTTPS]] padlock. The app is at 104-168-48-116.[[sslip.io]]. Your private [[admin dashboard]] has its own address: owner.104-168-48-116.sslip.io.",
-  full:["App: https://104-168-48-116.sslip.io. Your console: https://owner.104-168-48-116.sslip.io (separate on purpose, see the security card).",
-        "Your owner password is now your own, and the one-time password file is deleted (I checked).",
-        "The server uses about 280 MB of its 1 GB memory."]},
- {eyebrow:"This round", title:"What I did on us3 this round",
-  short:"Updated the server and web app, after a database backup. Everything answers and your data is intact.",
-  full:["Backup: a copy of the [[database]] taken just before the update, kept on the server next to the nightly ones.",
-        "Installed: manager questions now carry the [[transcript excerpt]] and the call; the server refuses speech services the app can't run (Deepgram, ElevenLabs).",
-        "Checked: app, API, console and downloads page answer; the new columns exist; no errors in the server log; your company and users are still there.",
-        "Not changed: the downloads page, until you test."]}
-];
+const IDEAS_LEAD = "Tick what you want next; my picks are pre-ticked. Parts you asked for that aren't built yet come first, then my ideas for making Sotto better.";
 
-const PLATFORMS = [
- {name:"iPhone", prio:true, st:"run", stl:"Built · simulator",
-  short:"Built and tested in the iPhone [[simulator]]. The call screen now says plainly that live calls come with phone calling, instead of offering a start that fails.",
-  full:"Same code as the other apps, built with [[Xcode]] as you chose. A simulator build needs no Apple account. To put it on your own iPhone, add your Apple ID in Xcode (free, re-install every 7 days). Testers need an Apple Developer account ($99/yr) for [[TestFlight]]. On phones, typed and scripted calls work; speaking as the customer comes with the phone-call work (Phase 4)."},
- {name:"Android", prio:true, st:"ok", stl:"Built · download",
-  short:"New build ready: the menu now opens from the left (right in Arabic) and small screens are tidied. Not on the downloads page yet; it goes up when you say yes.",
-  full:"An [[APK]] you can [[sideload]]: Android asks you to allow installing from your browser the first time. Built for phones from about 2017 onward. Sign-up, log-in and typed or scripted calls work; speaking as the customer comes with Phase 4. The Play Store later needs a Google Play account ($25 once) and a proper signing key, which I'd create then."},
- {name:"Windows", prio:true, st:"ok", stl:"Built · download",
-  short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
-  full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
- {name:"Mac", prio:true, st:"ok", stl:"Real calls · installed",
-  short:"Hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. This round's build is installed in your Applications folder. The downloads page still has last round's installer until you test.",
-  full:"The first time you start listening to the computer's sound, macOS asks to allow 'system audio recording'. Allow it once. It is not notarised by Apple yet, so the first time you open it you may need to right-click it and choose Open. Notarisation needs the Apple Developer account ($99/yr). The microphone option is for in-person or speakerphone calls."},
- {name:"Linux", st:"ok", stl:"Built · download",
-  short:"'Sotto-0.1.0.AppImage' at /downloads: one file that runs on most Linux desktops.", full:"Make it executable (right-click → Properties → Allow executing) and open it."},
- {name:"Web", st:"ok", stl:"Live",
-  short:"Live at https://104-168-48-116.sslip.io with sign-up and log-in. Calls run in the browser.", full:"The heavy work runs in the browser, not on the server. I checked that Groq, Gemini, OpenAI, OpenRouter and Anthropic all accept calls straight from a browser. Transcripts stay on the device; only the numbers go to your dashboard."},
- {name:"Chrome extension", st:"ok", stl:"Built · download",
-  short:"'sotto-extension-0.1.0.zip' at /downloads. It opens Sotto in Chrome's side panel next to any web phone or CRM.",
-  full:"To install: unzip it, open chrome://extensions, turn on Developer mode, then choose 'Load unpacked' and pick the folder. On first install a tab asks once for the microphone, because Chrome can't ask inside a side panel. The Chrome Web Store needs a $5 developer account later."}
-];
-
-const PHASES = [
- {n:0, name:"Brief & playbook", pct:60, st:"wait",
-  short:"Your answers are in. I couldn't find the playbook documents yet: tell me where they are.",
-  done:["Your earlier answers applied: English calls, close the sale, all four card types","Trial 14 days, 3 seats, 300 minutes"], next:["Draft your playbook from your documents"], you:["Tell me where the playbook documents are"]},
- {n:1, name:"Architecture & skeleton", pct:95, st:"run",
-  short:"Blueprint approved. Updated today for your new 'apps do the work, server manages' design.",
-  done:["One codebase for phone, web and desktop","Automatic checks on every change"], next:["Write the new design down as decision D-022"], you:[]},
- {n:2, name:"Suggestion engine", pct:97, st:"run",
-  short:"Runs on the agent's device. This round: the AI sees your 3 nearest playbook answers (holding lines 36% → 18–27%), and each card arrives ~0.15 s sooner.",
-  done:["Playbook answers ~0.5 s, AI answers 0.8–1.3 s","Backup AI and backup [[speech-to-text]]","AssemblyAI main, Speechmatics backup (D-021)","Real spoken test on the Mac: 6 fixes","AI gets the 3 nearest playbook answers","Quality numbers next to speed in the [[replay]]","Engine [[test coverage]] at least 80%"], next:["Your answer-timing decision","End-of-turn model","Smarter matching once real calls are measured"], you:["Answer-timing decision","Test recordings, later"]},
- {n:3, name:"Design & screens", pct:99, st:"run",
-  short:"All screens done in light, dark and Arabic, plus sign-up, log-in and Account.",
-  done:["In-call, history, playbook, inbox, admin screens","Sign-up, log-in and Account pages","Accessibility check on every screen","Menu on the left on phones (your request)","Design polish on small screens","No sample data in real accounts; 'End this call?'; setup guide"], next:["Fixes from your Android check"], you:["Reinstall the Android app and check the menu","Your top 2–3 other Android annoyances"]},
- {n:4, name:"Live calls", pct:15, st:"wait",
-  short:"Waiting for LiveKit and Yeastar details.",
-  done:["Rules for who may start a call"], next:["Phone calls through the app"], you:["[[LiveKit]] account","[[Yeastar]] admin details"]},
- {n:5, name:"Companies & accounts", pct:83, st:"run",
-  short:"Done on your own server: sign-up, log-in, trials, plans, devices, team invites and your dashboard.",
-  done:["Sign up / log in on every app","Trials and plans; calls pause when a plan ends, and agents are told why","Admin → Team on real data; transcripts wiped at sign-out","Devices: sign one out from the app or your dashboard","Company walls tested: one company cannot see another's data","Your admin dashboard on us3"], next:["Password reset by email"], you:[]},
- {n:6, name:"Prompts & models", pct:65, st:"run",
-  short:"Keys panel, model per job and speed check done. The prompt editor is hidden until edits are saved and reach calls.",
-  done:["Keys & providers panel","Your own endpoints (Ollama tested)","Speech services the app can't run are greyed out"], next:["Prompt versions saved on the server, then the editor returns"], you:[]},
- {n:7, name:"Escalations & CRM", pct:75, st:"run",
-  short:"Unanswered questions reach the inbox with what was said before them, and grow the playbook. The manager email waits for your decision.",
-  done:["Inbox → playbook loop","Questions carry the [[transcript excerpt]] and the agent"], next:["Manager email within a minute","Zoho CRM connector"], you:["Manager-email decision ([[Resend]] account)","Zoho access, later"]},
- {n:8, name:"Apps, hardening & pilot", pct:60, st:"run",
-  short:"Server live on us3. Android, Windows, Mac, Linux and Chrome extension are downloadable. iPhone runs in the simulator.",
-  done:["Server live on us3 with HTTPS, firewall and nightly backup","Security review: high and medium issues fixed","Three-angle project review: Batches 0–6 fixed","Windows, Mac and Linux installers","Chrome extension","Android test app","iPhone app (simulator)","Downloads page on your server"], next:["iPhone on a real phone","Android app tested on a phone","Load test, then pilot"], you:["Apple Developer ($99/yr) and Google Play ($25) when ready","A pilot company"]}
+const IDEAS = [
+ {id:"idea_missing", eyebrow:"Your list: not built yet", title:"Parts you asked for that are still to do",
+  short:"Pre-ticked: all of them, in this order once the Mac test passes.",
+  full:"Google sign-in, Zoho, WhatsApp and local speech-to-text depend on the decisions on the first tab.",
+  rec:["reports","admin","claude_ui","google","zoho","gallabox","local_stt","mascot_more"], options:[
+   {v:"reports", l:"Reports with charts", d:"Calls per day, cards by kind, speed, review scores and success rate, per agent and per week."},
+   {v:"admin", l:"More admin tools", d:"Per-agent usage, the team's recordings, device control, an activity log, company settings in one place."},
+   {v:"claude_ui", l:"Look and feel in the style of the Claude desktop app", d:"Calmer sidebar, a command search (⌘K), tighter spacing, softer colours."},
+   {v:"google", l:"Sign in with Google", d:"Needs your Google client (first tab)."},
+   {v:"zoho", l:"Zoho CRM side panel during calls", d:"Contact, account and deals; contact pick list; AI context."},
+   {v:"gallabox", l:"WhatsApp template after the call", d:"Through Gallabox."},
+   {v:"local_stt", l:"Speech-to-text on the Mac", d:"Whisper, benchmarked first."},
+   {v:"mascot_more", l:"Sotto character in more places", d:"Empty pages, loading, errors and the Mac menu-bar icon."}]},
+ {id:"idea_calls", eyebrow:"My suggestions", title:"During the call",
+  short:"Pre-ticked: a small always-on-top window beside Zoom, and keyboard shortcuts.",
+  full:"Agents usually have Zoom or the softphone full-screen; a small floating card window means they never switch apps mid-call.",
+  rec:["mini","keys"], options:[
+   {v:"mini", l:"Mini window that floats beside Zoom or the softphone", d:"Cards only, always on top; one click back to the full app."},
+   {v:"keys", l:"Keyboard shortcuts", d:"Start or end listening, copy the card, next card, from any app."},
+   {v:"talk", l:"Talk-time meter", d:"Shows the agent when they talk much more than the customer."},
+   {v:"notes", l:"Quick notes during the call", d:"Saved with the call and sent to Zoho."},
+   {v:"live_mgr", l:"Manager sees the team's live calls", d:"Who is on a call now, and the cards they're getting."}]},
+ {id:"idea_after", eyebrow:"My suggestions", title:"After the call",
+  short:"Pre-ticked: a draft follow-up email, saving the summary to Zoho, and each agent's progress over time.",
+  full:"These reuse the review that already runs after every call, so they're quick to add.",
+  rec:["followup","crm_write","trend"], options:[
+   {v:"followup", l:"Draft follow-up email to the customer", d:"Written from the call; the agent edits and sends it."},
+   {v:"crm_write", l:"Save the call summary and next step to the Zoho deal", d:"Needs the Zoho connection."},
+   {v:"trend", l:"Each agent's progress over time", d:"Skill scores by week and one coaching focus."},
+   {v:"search", l:"Search all calls", d:"Find every call where a customer said 'discount' or named a competitor."},
+   {v:"objections", l:"Top objections report", d:"Which objections come up most, and which answers win."}]},
+ {id:"idea_platform", eyebrow:"My suggestions", title:"Running the business",
+  short:"Pre-ticked: smaller recordings (a tenth of the size), so the server holds far more calls.",
+  full:"Today a recording is about 2 MB per minute; us3 has 5.6 GB free, so about 50 hours of calls. In [[Opus]] it holds about 500 hours.",
+  rec:["opus"], options:[
+   {v:"opus", l:"Store recordings as Opus", d:"About 10 times smaller, same quality for speech."},
+   {v:"notarise", l:"Apple-approved Mac app with automatic updates", d:"Apple Developer account, $99 a year; I ask before any purchase."},
+   {v:"stripe", l:"Card payments and invoices (Stripe)", d:"After the pricing decision."},
+   {v:"arabic", l:"Arabic speech and Arabic cards", d:"Changes an earlier decision (cards in English)."},
+   {v:"windows", l:"Auto pick-up on Windows", d:"After the Mac version is stable, as you asked."}]}
 ];
 /* ======================= END DATA ======================= */
 
@@ -340,8 +271,13 @@ function rich(text){
   });
 }
 let detailed = {}; try { detailed = JSON.parse(localStorage.getItem("hub.detail") || "{}"); } catch {}
-let tab = "overview"; try { tab = location.hash.slice(1) || localStorage.getItem("hub.tab") || "overview"; } catch {}
-if (!TABS.some(t => t.id === tab)) tab = "overview";
+let tab = "waiting"; try { tab = location.hash.slice(1) || localStorage.getItem("hub.tab") || "waiting"; } catch {}
+if (!TABS.some(t => t.id === tab)) tab = "waiting";
+
+const ALL = () => [...DECISIONS, ...IDEAS.map(d => ({...d, kind:"multi"}))];
+const byId = id => ALL().find(d => d.id === id);
+const TEST_OPTS = [{v:"", l:"Not tried yet"},{v:"works", l:"Works"},{v:"problem", l:"Problem (see note)"}];
+const recOf = d => d.kind === "test" ? Object.fromEntries(d.rows.map(r => [r.v, ""])) : d.rec;
 
 function card({id, eyebrow, title, short, full, extra = ""}){
   const isD = !!detailed[id];
@@ -352,53 +288,40 @@ function card({id, eyebrow, title, short, full, extra = ""}){
     <div class="body"><div class="short"><p>${rich(short)}</p></div><div class="full">${fullHtml}</div>${extra}</div></article>`;
 }
 
-function renderTabs(){
-  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge && t.badge() ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
+function controls(d){
+  const cur = choices[d.id]?.v ?? recOf(d);
+  let html = "";
+  if (d.kind === "test"){
+    html = `<div>${d.rows.map(r => `<div class="row"><span class="what">${rich(r.l)}</span><select data-d="${d.id}" data-row="${r.v}" aria-label="${esc(r.l.replace(/\[\[|\]\]/g, ""))}">${TEST_OPTS.map(o => `<option value="${o.v}"${(cur[r.v] || "") === o.v ? " selected" : ""}>${o.l}</option>`).join("")}</select></div>`).join("")}</div>`;
+  } else if (d.kind === "select"){
+    html = `<select data-d="${d.id}" aria-label="${esc(d.title)}">${d.options.map(o => `<option value="${o.v}"${cur === o.v ? " selected" : ""}>${esc(o.l)}${o.v === d.rec ? " — Recommended" : ""}</option>`).join("")}</select>`;
+  } else {
+    const multi = d.kind === "multi"; const on = v => multi ? (cur || []).includes(v) : cur === v;
+    const isRec = v => multi ? d.rec.includes(v) : d.rec === v;
+    html = `<div class="opts" role="${multi ? "group" : "radiogroup"}" aria-label="${esc(d.title)}">${d.options.map(o => `<label class="opt${on(o.v) ? " on" : ""}"><input type="${multi ? "checkbox" : "radio"}" name="dc-${d.id}" data-d="${d.id}" value="${o.v}"${on(o.v) ? " checked" : ""}><span><span class="olab">${esc(o.l)}</span>${isRec(o.v) ? '<span class="rec">Recommended</span>' : ""}<span class="odesc">${rich(o.d || "")}</span></span></label>`).join("")}</div>`;
+  }
+  return html + `<textarea data-note="${d.id}" placeholder="Optional note" aria-label="Note for ${esc(d.title)}">${esc(choices[d.id]?.note || "")}</textarea>`;
 }
+
 const views = {
- overview(){
-  const o = OVERVIEW;
-  const meter = `<div class="card"><div class="eyebrow">Overall progress</div><div class="big"><strong>${o.pct}%</strong><span class="lead">of the full product</span></div>
-   <div class="meterbar" role="img" aria-label="${o.parts.map(p => p.label + " " + p.v + "%").join(", ")}">${o.parts.map(p => `<i style="width:${p.v}%;background:${p.c}"></i>`).join("")}</div>
-   <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)">${o.parts.map(p => `<span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${p.c};margin-right:5px;vertical-align:-1px"></i>${p.label} ${p.v}%</span>`).join("")}</div></div>`;
-  return `<h2 class="tabtitle">Where we are</h2><p class="lead">Each card has a Short and a Detailed view. Purple underlined words show a definition when you hover or tap.</p>${meter}<div class="grid2">${o.cards.map((c, i) => card({id:"o" + i, ...c})).join("")}</div>`;
+ waiting(){
+  return `<h2 class="tabtitle">Waiting on you</h2><p class="lead">${rich(WAITING_LEAD)}</p>
+   ${DECISIONS.map(d => card({id:"d-" + d.id, eyebrow:d.eyebrow, title:d.title, short:d.short, full:d.full, extra:controls(d)})).join("")}`;
  },
- decisions(){
-  return `<h2 class="tabtitle">Your decisions</h2><p class="lead">${rich(DECISIONS_LEAD)}</p>
-   ${DECISIONS.map(d => card({id:"d-" + d.id, eyebrow:"Decision", title:d.title, short:d.short, full:d.full, extra:optsHtml(d)})).join("")}
-   <div class="savebar"><p id="saveMsg">Nothing changed yet.</p><span class="save" id="saveState"></span><button type="button" class="btn" id="saveBtn">Save my choices</button></div>`;
- },
- server(){
-  return `<h2 class="tabtitle">Server (us3)</h2><p class="lead">Your server only manages accounts and subscriptions. Calls never pass through it.</p>${SERVER.map((c, i) => card({id:"s" + i, ...c})).join("")}`;
- },
- apps(){
-  const pill = p => `<span class="pill ${p.st}">${esc(p.stl)}</span>`;
-  return `<h2 class="tabtitle">Apps & platforms</h2><p class="lead">One codebase for every platform. Your priority: phones, Windows and Mac.</p>
-   <div class="plat">${PLATFORMS.map((p, i) => card({id:"p" + i, eyebrow:p.prio ? "Priority" : "Platform", title:p.name, short:p.short, full:p.full, extra:`<div>${pill(p)}</div>`})).join("")}</div>`;
- },
- map(){
-  const avg = Math.round(PHASES.reduce((a, p) => a + p.pct, 0) / PHASES.length);
-  return `<h2 class="tabtitle">Build map</h2><p class="lead">Nine phases from idea to pilot; average phase completion ${avg}%. Switch a phase to Detailed to see what is done, what is next, and what is waiting on you.</p>
-   <div class="metro">${PHASES.map(p => {
-     const li = a => a.length ? `<ul>${a.map(x => `<li>${rich(x)}</li>`).join("")}</ul>` : `<p class="lead">Nothing</p>`;
-     const extra = `<div class="pbar" role="img" aria-label="${p.pct}% done"><i style="width:${p.pct}%"></i></div><div class="full"><div class="cols"><div><h4>Done</h4>${li(p.done)}</div><div><h4>Next</h4>${li(p.next)}</div><div><h4>Needs you</h4>${li(p.you)}</div></div></div>`;
-     return `<div class="phase"><div class="dot ${p.pct >= 100 ? "done" : p.st}">${p.n}</div>${card({id:"m" + p.n, eyebrow:`Phase ${p.n} · ${p.pct}%`, title:p.name, short:p.short, full:[], extra})}</div>`;
-   }).join("")}</div>`;
+ ideas(){
+  return `<h2 class="tabtitle">Suggestions</h2><p class="lead">${rich(IDEAS_LEAD)}</p>
+   ${IDEAS.map(d => card({id:"i-" + d.id, eyebrow:d.eyebrow, title:d.title, short:d.short, full:d.full, extra:controls({...d, kind:"multi"})})).join("")}`;
  }
 };
-const isRec = (d, v) => d.multi ? d.rec.includes(v) : d.rec === v;
-const isOn = (d, cur, v) => d.multi ? (cur || []).includes(v) : cur === v;
-function optsHtml(d){
-  const cur = choices[d.id]?.v ?? d.rec;
-  const type = d.multi ? "checkbox" : "radio";
-  return `<div class="opts" role="${d.multi ? "group" : "radiogroup"}" aria-label="${esc(d.title)}">${d.options.map(o => `<label class="opt${isOn(d, cur, o.v) ? " on" : ""}"><input type="${type}" name="dc-${d.id}" id="dc-${d.id}-${o.v}" value="${o.v}"${isOn(d, cur, o.v) ? " checked" : ""}><span><span class="olab">${esc(o.l)}</span>${isRec(d, o.v) ? '<span class="rec">Recommended</span>' : ""}<span class="odesc">${rich(o.d || "")}</span></span></label>`).join("")}</div>
-   <textarea id="dn-${d.id}" placeholder="Optional note" aria-label="Note for ${esc(d.title)}">${esc(choices[d.id]?.note || "")}</textarea>`;
+
+function renderTabs(){
+  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge() ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
 }
 function render(){
   renderTabs();
   $("#stamp").textContent = "Updated " + UPDATED;
   $("#panel").innerHTML = views[tab]();
-  if (tab === "decisions") wireDecisions();
+  msg();
 }
 
 document.addEventListener("click", e => {
@@ -421,40 +344,56 @@ document.addEventListener("mouseover", e => { const t = e.target.closest(".term"
 document.addEventListener("mouseout", e => { if (e.target.closest(".term")) tip.hidden = true; });
 document.addEventListener("focusin", e => { const t = e.target.closest(".term"); if (t) showTip(t); });
 document.addEventListener("focusout", e => { if (e.target.closest(".term")) tip.hidden = true; });
+document.addEventListener("click", e => { const t = e.target.closest(".term"); if (t){ tip.hidden ? showTip(t) : (tip.hidden = true); } });
 window.addEventListener("scroll", () => { tip.hidden = true; }, {passive:true});
 
-let choices = {}; let ref = null; let dirty = false;
-try { choices = JSON.parse(localStorage.getItem("hub.choices") || "{}"); } catch {}
+/* Choices: kept in this browser until Save, then written to the artifact's db (decisions/owner). */
+let choices = {}; let ref = null; let dirty = false; let savedIds = new Set();
+try { choices = JSON.parse(localStorage.getItem("hub.choices.r2") || "{}"); } catch {}
+const saved = id => savedIds.has(id);
+function local(){ try { localStorage.setItem("hub.choices.r2", JSON.stringify(choices)); } catch {} }
 function toast(m){ const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
-function wireDecisions(){
-  for (const d of DECISIONS){
-    document.querySelectorAll(`input[name="dc-${d.id}"]`).forEach(inp => inp.addEventListener("change", () => {
-      const v = d.multi ? [...document.querySelectorAll(`input[name="dc-${d.id}"]:checked`)].map(x => x.value) : inp.value;
-      choices[d.id] = {...(choices[d.id] || {}), v}; dirty = true; local();
-      document.querySelectorAll(`input[name="dc-${d.id}"]`).forEach(x => x.closest("label").classList.toggle("on", x.checked)); msg(); }));
-    const ta = $("#dn-" + d.id); ta.addEventListener("input", () => { choices[d.id] = {...(choices[d.id] || {v:d.rec}), note: ta.value}; dirty = true; local(); msg(); });
-  }
-  $("#saveBtn").onclick = save; msg();
+function touched(){ dirty = true; local(); msg(); }
+
+document.addEventListener("change", e => {
+  const el = e.target; const id = el.dataset.d; if (!id) return; const d = byId(id);
+  if (d.kind === "test"){ choices[id] = {...(choices[id] || {}), v: {...(choices[id]?.v || recOf(d)), [el.dataset.row]: el.value}}; }
+  else if (d.kind === "multi"){ choices[id] = {...(choices[id] || {}), v: [...document.querySelectorAll(`input[name="dc-${id}"]:checked`)].map(x => x.value)}; }
+  else { choices[id] = {...(choices[id] || {}), v: el.value}; }
+  document.querySelectorAll(`input[name="dc-${id}"]`).forEach(x => x.closest("label").classList.toggle("on", x.checked));
+  touched();
+});
+document.addEventListener("input", e => { const id = e.target.dataset.note; if (!id) return; const d = byId(id);
+  choices[id] = {...(choices[id] || {v: recOf(d)}), note: e.target.value}; touched(); });
+
+function msg(){
+  const el = $("#saveMsg"); $("#savebar").classList.toggle("dirty", dirty);
+  const differ = ALL().filter(d => d.kind !== "test" && choices[d.id] && JSON.stringify(choices[d.id].v) !== JSON.stringify(d.rec)).length;
+  el.textContent = dirty ? `Unsaved changes on this page. ${differ} differ from my recommendation.` : (choices._savedAt ? `Saved ${new Date(choices._savedAt).toLocaleString()}.` : "Not saved yet. Saving without changes accepts all my recommendations.");
+  $("#saveState").textContent = ref ? "connected" : "this browser only";
 }
-function local(){ try { localStorage.setItem("hub.choices", JSON.stringify(choices)); } catch {} }
-function msg(){ const el = $("#saveMsg"); if (!el) return;
-  const changed = DECISIONS.filter(d => choices[d.id] && JSON.stringify(choices[d.id].v) !== JSON.stringify(d.rec)).length;
-  el.textContent = dirty ? `Unsaved changes. ${changed} differ from my recommendation.` : (choices._savedAt ? `Saved ${new Date(choices._savedAt).toLocaleString()}.` : "Nothing saved yet. Saving with no changes means you accept all my recommendations.");
-  const s = $("#saveState"); if (s) s.textContent = ref ? "connected" : "this browser only"; }
 async function save(){
-  const out = {}; for (const d of DECISIONS) out[d.id] = {v: choices[d.id]?.v ?? d.rec, note: choices[d.id]?.note || "", recommended: d.rec};
+  const answers = {}; for (const d of ALL()) answers[d.id] = {v: choices[d.id]?.v ?? recOf(d), note: choices[d.id]?.note || "", recommended: recOf(d)};
   choices._savedAt = new Date().toISOString(); local(); dirty = false;
   if (!ref){ msg(); toast("Saved in this browser only (not connected)"); return; }
-  try { await ref.set({answers: out, savedAt: choices._savedAt}); toast("Saved. Claude will read these next round."); }
+  try { await ref.set({round: "2026-10-22", answers, savedAt: choices._savedAt}); toast("Saved. Claude reads these at the start of the next round."); }
   catch { toast("Could not save. Try again."); }
   msg();
 }
+$("#saveBtn").onclick = save;
 render();
 (async () => {
   let db = null; try { db = window.claude?.use ? await window.claude.use("db") : null; } catch {}
   if (!db) return;
   ref = db.doc("decisions/owner");
-  ref.onSnapshot(snap => { if (snap.exists && !dirty){ const a = snap.data().answers || {}; for (const k in a) choices[k] = {v:a[k].v, note:a[k].note || ""}; choices._savedAt = snap.data().savedAt; local(); render(); } }, () => {});
+  ref.onSnapshot(snap => {
+    if (!snap.exists || dirty) return;
+    const data = snap.data();
+    if (data.round !== "2026-10-22") return; // last round's answers are already done
+    const a = data.answers || {}; savedIds = new Set(Object.keys(a));
+    for (const k in a) choices[k] = {v: a[k].v, note: a[k].note || ""};
+    choices._savedAt = data.savedAt; local(); render();
+  }, () => {});
   msg();
 })();
 </script>
