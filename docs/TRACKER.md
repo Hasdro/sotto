@@ -130,7 +130,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [x] T-040 B5.2 Prompt studio hidden until prompts persist — Prompts tab removed; its routes say "Prompt editing comes in a later phase" (calls use the tested default prompts); the in-memory store is no longer mounted; the studio logic and its tests stay in `features/prompts`. The R6 prompt-studio acceptance (v2 → test → publish → roll back) returns with persistence: needs a `prompt_versions` table and `build_bundle` shipping the published body (its own task). The UI test of the hidden editor was removed with it
 - [x] T-041 B5.3 Models screen hidden (duplicate of Keys & providers speed check) — Models tab removed; the route points to Keys & providers, where the real per-stage choice and measured speed live. Evidence (T-040/T-041): screens tests "admin hides the prompt editor…", "admin models points to Keys & providers…"; app jest 202 passed. One commit for both (shared tab list and strings)
 - [ ] T-042 B6.1 Engine coverage floor 80%
-- [ ] T-043 B6.2 Engine tests on a fake clock (< 2 s)
+- [x] T-043 B6.2 Engine tests on a fake clock (< 2 s) — vitest fake timers (setTimeout, performance, Date) in the six slow tests; one spoken-turn test keeps real timers end to end. Evidence: three runs, 29 passed each, 779 / 632 / 621 ms (was 7.1 s)
 - [ ] T-044 B6.3 Web bundle 430/450 KB `[OWNER]` (raise, cut zod, or lazy-load the call screen)
 
 ### Phase 4

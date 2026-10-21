@@ -1,5 +1,5 @@
 import { DemoServerMessage } from "@sotto/shared";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fixture from "./__tests__/bundle.json" with { type: "json" };
 import { checkKeyHost, DemoModel, makeLLM, OpenAIChat, sseData } from "./adapters/llm.ts";
 import { openStt, type SocketLike } from "./adapters/stt.ts";
@@ -13,6 +13,18 @@ import type { CallBundle, LLMAdapter, LLMRequest, TranscriptEvent } from "./type
 import { realClock } from "./types.ts";
 
 const bundle = fixture.bundle as unknown as CallBundle;
+
+/** Fake timers for one test: its waits are instant and exact, so the suite is fast and never
+ * flakes on a busy machine (T-043). One spoken-turn test keeps real timers end to end. */
+function fakeTime() {
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "performance", "Date"],
+  });
+}
+const pass = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+afterEach(() => {
+  vi.useRealTimers();
+});
 const REQ: LLMRequest = {
   system: "",
   messages: [{ role: "user", content: "hi" }],
@@ -313,6 +325,7 @@ describe("model adapters", () => {
 
 describe("local call (demo protocol, offline model)", () => {
   it("answers from the playbook, holds and escalates unknown facts, coaches objections", async () => {
+    fakeTime();
     const sent: unknown[] = [];
     let summary: CallSummary | null = null;
     const runtime = buildRuntime(bundle);
@@ -332,9 +345,9 @@ describe("local call (demo protocol, offline model)", () => {
       text: "Honestly the location is out of our budget.",
     });
     bridge.handle({ type: "say", speaker: "agent", text: "What's the payment plan?" });
-    await realClock.sleep(2200);
+    await pass(2200);
     bridge.handle({ type: "end" });
-    await realClock.sleep(50);
+    await pass(50);
     const msgs = sent as { type: string; card?: { source: string; done: boolean } }[];
     expect(msgs[0]?.type).toBe("hello");
     const done = msgs.filter((m) => m.type === "card" && m.card?.done).map((m) => m.card?.source);
@@ -350,6 +363,7 @@ describe("local call (demo protocol, offline model)", () => {
     });
   });
   it("reads a short lead-in sentence together with the question that follows it (T-019)", async () => {
+    fakeTime();
     const sent: unknown[] = [];
     const bridge = new LocalCallBridge({
       runtime: buildRuntime(bundle),
@@ -362,9 +376,9 @@ describe("local call (demo protocol, offline model)", () => {
       text: "My wife worries about the noise from the main road.",
     });
     bridge.handle({ type: "say", speaker: "customer", text: "What would you tell her?" });
-    await realClock.sleep(2200);
+    await pass(2200);
     bridge.handle({ type: "end" });
-    await realClock.sleep(50);
+    await pass(50);
     const msgs = sent as { type: string; question?: string; speaker?: string }[];
     const escalations = msgs.filter((m) => m.type === "escalation").map((m) => m.question);
     expect(escalations).toEqual([
@@ -526,6 +540,7 @@ describe("spoken turns", () => {
   });
 
   it("releases a sentence-ending final at once, but waits for a final without punctuation", async () => {
+    fakeTime();
     let sock: FakeSocket | null = null;
     const turns: string[] = [];
     const audio = new CustomerAudio({
@@ -558,12 +573,13 @@ describe("spoken turns", () => {
     expect(turns).toEqual(["Is there parking?"]); // no settle wait (T-028)
     turn("what about storage", 1300);
     expect(turns).toHaveLength(1); // no punctuation: the tail wait still applies
-    await realClock.sleep(450);
+    await pass(450);
     expect(turns).toEqual(["Is there parking?", "what about storage"]);
     await audio.stop();
   });
 
   it("sends one turn with t0 at the end of speech", async () => {
+    // Real timers on purpose: one end-to-end check that audio becomes a turn on a real clock.
     let sock: FakeSocket | null = null;
     const turns: [string, number][] = [];
     const audio = new CustomerAudio({
@@ -612,6 +628,7 @@ describe("spoken turns: audio from before the vendor connects (T-019)", () => {
   });
 
   it("keeps the first words and a second sentence close behind the first", async () => {
+    fakeTime();
     let sock: FakeSocket | null = null;
     const turns: string[] = [];
     const audio = new CustomerAudio({
@@ -636,12 +653,12 @@ describe("spoken turns: audio from before the vendor connects (T-019)", () => {
     for (let i = 0; i < 20; i++) audio.push(quiet()); // end of turn sends the batch
     const first = sentMs(s) - 1200; // where this sentence starts on the vendor's clock
     s.emit(final("My wife worries about the noise from the main road.", first, first + 800));
-    await realClock.sleep(250);
+    await pass(250);
     for (let i = 0; i < 40; i++) audio.push(loud());
     for (let i = 0; i < 20; i++) audio.push(quiet());
     const second = sentMs(s) - 1200;
     s.emit(final("What would you tell her?", second, second + 800));
-    await realClock.sleep(250);
+    await pass(250);
     expect(turns).toEqual([
       "My wife worries about the noise from the main road.",
       "What would you tell her?",
@@ -651,6 +668,7 @@ describe("spoken turns: audio from before the vendor connects (T-019)", () => {
   });
 
   it("joins a sentence the vendor cut after a dangling word", async () => {
+    fakeTime();
     let sock: FakeSocket | null = null;
     const turns: string[] = [];
     const audio = new CustomerAudio({
@@ -671,9 +689,9 @@ describe("spoken turns: audio from before the vendor connects (T-019)", () => {
     for (let i = 0; i < 40; i++) audio.push(loud());
     for (let i = 0; i < 20; i++) audio.push(quiet());
     s.emit(final("Is parking included with the.", 0, 600));
-    await realClock.sleep(220); // the vendor's tail arrives after the settle time
+    await pass(220); // the vendor's tail arrives after the settle time
     s.emit(final("Apartment?", 700, 800));
-    await realClock.sleep(700);
+    await pass(700);
     expect(turns).toEqual(["Is parking included with the apartment?"]);
     expect(midThought("Is parking included with the.")).toBe(true);
     expect(midThought("Is it included?")).toBe(false);
