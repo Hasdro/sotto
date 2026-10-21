@@ -25,6 +25,7 @@ Set on 2026-10-18 (P1.8). The owner deferred the interview (D-009), so the numbe
 | Live-path latency (R1) | replay p95 total ≤ **1500 ms** | R1 makes this the maximum, not the average | `pnpm replay --all`. A stub until P2.8: it exits 0 only when there are no golden calls, and fails if calls exist but the harness does not. |
 | Worker coverage, overall | ≥ **90%** statements + branches | The worker is the product's core and is mostly pure logic with fakes, so 90% is cheap to hold. Today it is 96%. | `pnpm test:worker` (runs `scripts/check_coverage.py`) |
 | Coverage of `sotto_worker/pipeline/`, `router/`, `adapters/` | ≥ **90%** each | These decide what the agent sees and when (R1, R2, R4). They start to count with their first file (P2.1). | same |
+| Engine coverage (`packages/engine`, the live pipeline since D-022) | ≥ **80%** statements + branches; **90%** at Phase 8 | The engine runs every real call, so it needs a floor like the worker's. Set 2026-10-21 (T-042) at 92.6% statements / 82.0% branches. | `pnpm --filter @sotto/engine test` (vitest + `@vitest/coverage-v8`, thresholds in `packages/engine/vitest.config.ts`) |
 | Colour contrast of every token pair the app uses for text | ≥ **4.5 : 1** (WCAG 2.2 AA), light and dark | ENGINEERING §11 | `pnpm --filter @sotto/ui test` |
 | Web bundle | ≤ **450 KB** gzipped JS in total | Today it is 291 KB, which is mostly React Native Web and Expo Router. That leaves about 150 KB for LiveKit and the call UI before a PWA on 4G feels slow. | `python3 scripts/check_bundle_size.py apps/app/dist` (CI, after `export:web`) |
 | Dependency advisories | none at **high** or above in production npm deps; none in Python runtime deps | Known exploitable issues must not ship | CI `audit` job: `pnpm audit --prod --audit-level high`, `uvx pip-audit --strict` |
@@ -33,7 +34,7 @@ Set on 2026-10-18 (P1.8). The owner deferred the interview (D-009), so the numbe
 
 | Metric | Today | Becomes enforced |
 |---|---|---|
-| TypeScript coverage (`packages/*`, `apps/app`) | not measured | P2.1: add `@vitest/coverage-v8` with a floor for `packages/shared` |
+| TypeScript coverage (`packages/shared`, `packages/ui`, `apps/app`) | not measured (`packages/engine` is enforced above) | add `@vitest/coverage-v8` with a floor for `packages/shared` |
 | Accessibility of screens (axe-core) | 11 screens × light/dark/Arabic RTL = 33 checks, 0 serious/critical (2026-10-20) | `pnpm a11y` on the web build, in CI; zero serious or critical violations (WCAG 2.1 A/AA) |
 | Stop-hook duration | ~8 s | Keep it under 20 s (P1.4); move slow suites to CI if it grows |
 
