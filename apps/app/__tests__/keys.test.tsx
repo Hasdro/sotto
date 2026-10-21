@@ -138,6 +138,45 @@ describe("Keys & providers (P6.7)", () => {
     expect(screen.getAllByText(/not available in the app yet/).length).toBeGreaterThan(0);
   });
 
+  function freshCompany(): ProvidersState {
+    const fresh = state();
+    const assembly = fresh.providers[1] as ProvidersState["providers"][number];
+    fresh.providers = [
+      fresh.providers[0] as ProvidersState["providers"][number],
+      { ...assembly, id: "assemblyai", name: "AssemblyAI", key_set: false, key_source: null },
+    ];
+    fresh.stages = [
+      ...fresh.stages,
+      {
+        id: "stt",
+        label: "Speech-to-text (main)",
+        kind: "stt",
+        provider_id: "assemblyai",
+        model: "nova-3",
+        source: "default",
+      },
+    ];
+    return fresh;
+  }
+
+  it("guides a new company through three setup steps (T-037)", async () => {
+    mockFetch([freshCompany()]);
+    await wrap(<KeysScreen />);
+    expect(await screen.findByTestId("setup-checklist")).toBeOnTheScreen();
+    expect(screen.getByTestId("setup-suggest")).toHaveTextContent(/Groq/);
+    expect(screen.getByTestId("setup-stt")).toHaveTextContent(/AssemblyAI/);
+    expect(screen.getByTestId("setup-playbook")).toHaveTextContent(/Add one playbook answer/);
+  });
+
+  it("drops the setup steps once both keys are set (T-037)", async () => {
+    const done = freshCompany();
+    for (const p of done.providers) p.key_set = true;
+    mockFetch([done]);
+    await wrap(<KeysScreen />);
+    await screen.findByTestId("admin-keys");
+    expect(screen.queryByTestId("setup-checklist")).toBeNull();
+  });
+
   it("shows a stage's measured speed and measures it again on request (P6.4)", async () => {
     const measured = state();
     const stage = measured.stages[0];

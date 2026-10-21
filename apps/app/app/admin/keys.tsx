@@ -16,6 +16,7 @@ import {
   TextField,
   useTheme,
 } from "@sotto/ui";
+import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import {
@@ -75,6 +76,7 @@ export default function KeysScreen() {
       <Text variant="body" tone="muted">
         {t("admin.keys.subtitle")}
       </Text>
+      <SetupChecklist data={data} />
       <Section title={t("admin.keys.llm")}>
         {group("llm").map((p) => (
           <ProviderCard key={p.id} provider={p} onChange={update} />
@@ -94,6 +96,93 @@ export default function KeysScreen() {
         ))}
       </Section>
     </Stack>
+  );
+}
+
+/** First run (T-037): the three things a new company needs before a call helps. Shown until both
+ * keys are set; each step uses the vendor's own catalogue copy and "Get a key" link. */
+function SetupChecklist({ data }: { data: ProvidersState }) {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const vendorOf = (stageId: string) => {
+    const id = data.stages.find((s) => s.id === stageId)?.provider_id;
+    return data.providers.find((p) => p.id === id) ?? null;
+  };
+  const model = vendorOf("suggest");
+  const speech = vendorOf("stt");
+  if (model?.key_set && speech?.key_set) return null;
+  const steps: { id: string; title: string; done: boolean; vendor: Provider | null }[] = [
+    { id: "suggest", title: t("admin.keys.setup.model"), done: !!model?.key_set, vendor: model },
+    { id: "stt", title: t("admin.keys.setup.stt"), done: !!speech?.key_set, vendor: speech },
+    {
+      id: "playbook",
+      title: t("admin.keys.setup.playbook"),
+      done: (data.playbook_entries ?? 0) > 0,
+      vendor: null,
+    },
+  ];
+  return (
+    <Panel testID="setup-checklist">
+      <Stack gap="md">
+        <Text variant="heading" weight="semibold" accessibilityRole="header">
+          {t("admin.keys.setup.title")}
+        </Text>
+        {steps.map((step, i) => (
+          <View key={step.id} style={styles.step} testID={`setup-${step.id}`}>
+            <View
+              style={[
+                styles.stepMark,
+                {
+                  backgroundColor: color.surfaceSunken,
+                  borderColor: step.done ? color.positive : color.border,
+                },
+              ]}
+              accessibilityLabel={t(step.done ? "admin.keys.setup.done" : "admin.keys.setup.todo")}
+            >
+              <Text
+                variant="label"
+                weight="semibold"
+                color={step.done ? color.positive : undefined}
+              >
+                {step.done ? "✓" : String(i + 1)}
+              </Text>
+            </View>
+            <Stack gap="xs" style={styles.stepBody}>
+              <Text variant="body" weight="semibold">
+                {step.vendor ? `${step.title} — ${step.vendor.name}` : step.title}
+              </Text>
+              {step.vendor && !step.done && step.vendor.steps ? (
+                <Text variant="label" tone="muted">
+                  {step.vendor.steps}
+                </Text>
+              ) : null}
+              {!step.done && step.vendor?.key_page ? (
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => void Linking.openURL(step.vendor?.key_page ?? "")}
+                  style={styles.stepLink}
+                >
+                  <Text variant="label" weight="semibold" tone="primary">
+                    {`${t("admin.keys.getKey")} ↗`}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {!step.done && step.id === "playbook" ? (
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => router.push("/playbook")}
+                  style={styles.stepLink}
+                >
+                  <Text variant="label" weight="semibold" tone="primary">
+                    {t("admin.keys.setup.openPlaybook")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </Stack>
+          </View>
+        ))}
+      </Stack>
+    </Panel>
   );
 }
 
@@ -552,6 +641,17 @@ function Speed({
 }
 
 const styles = StyleSheet.create({
+  step: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
+  stepMark: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepLink: { minHeight: minTouchTarget, justifyContent: "center", alignSelf: "flex-start" },
+  stepBody: { flex: 1, minWidth: 0 },
   speed: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },
   grow: { flexGrow: 1, flexShrink: 1, minWidth: 200 },
   row: { flexDirection: "row", alignItems: "flex-end", gap: space.sm, flexWrap: "wrap" },

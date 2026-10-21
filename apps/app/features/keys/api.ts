@@ -50,6 +50,8 @@ export type ProvidersState = {
   providers: Provider[];
   stages: StageChoice[];
   result?: { ok: boolean; detail: string };
+  /** The company's own playbook answers (setup checklist step 3, T-037). */
+  playbook_entries?: number;
 };
 
 const enc = encodeURIComponent;

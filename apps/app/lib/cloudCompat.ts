@@ -91,7 +91,8 @@ function providersState(result?: { ok: boolean; detail: string }) {
       benchmark: (provider && route && benchmarks.get(`${provider}/${route.model}`)) || null,
     };
   });
-  return { providers, stages, ...(result ? { result } : {}) };
+  const playbook_entries = b.playbook.filter((e) => !e.sample).length;
+  return { providers, stages, playbook_entries, ...(result ? { result } : {}) };
 }
 
 async function testProvider(id: string) {
