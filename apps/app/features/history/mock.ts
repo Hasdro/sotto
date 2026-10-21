@@ -23,6 +23,8 @@ export type PastCall = {
   source?: CallSource;
   /** Cards shown, when the list has no card details. */
   cardCount?: number;
+  /** What the agent typed during the call. */
+  notes?: string;
   /** The review's chance to close, 0–100, when there is a review. */
   success?: number;
 };

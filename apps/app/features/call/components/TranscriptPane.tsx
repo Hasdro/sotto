@@ -4,6 +4,7 @@ import { ScrollView, type ScrollViewInstance, StyleSheet, View } from "react-nat
 import { useI18n } from "../../../lib/locale";
 import type { TranscriptEntry } from "../session";
 import { clock } from "./strings";
+import { TalkMeter } from "./TalkMeter";
 
 type Props = {
   lines: readonly TranscriptEntry[];
@@ -48,6 +49,7 @@ export function TranscriptPane({ lines, limit, scroll }: Props) {
       >
         {t("call.transcript")}
       </Text>
+      <TalkMeter lines={lines} />
       {scroll ? (
         <ScrollView
           ref={ref}

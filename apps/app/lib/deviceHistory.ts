@@ -29,6 +29,8 @@ export type DeviceCall = {
   transcript: DeviceEntry[];
   /** Where the call came from: Zoom, Teams, the microphone… (owner, 22 Oct). */
   source?: CallSource;
+  /** What the agent typed during the call (owner, 22 Oct). */
+  notes?: string;
   /** The after-call review (owner, 21 Oct); null when it could not be made. */
   review?: CallReview | null;
 };

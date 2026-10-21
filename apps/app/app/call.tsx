@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSharedCall } from "../features/call/CallSessionProvider";
 import { CallHeader } from "../features/call/components/CallHeader";
+import { CallNotes } from "../features/call/components/CallNotes";
 import { CardStack } from "../features/call/components/CardStack";
 import { Composer, type MicControl } from "../features/call/components/Composer";
 import { ConfirmEnd } from "../features/call/components/ConfirmEnd";
@@ -229,6 +230,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           <View style={styles.sideScroll}>
             <TranscriptPane lines={state.transcript} scroll />
           </View>
+          {!practice && state.phase !== "idle" ? (
+            <View style={styles.sideNotes}>
+              <CallNotes />
+            </View>
+          ) : null}
           {practice ? (
             <Composer onSay={session.say} disabled={!live} mic={mic} partial={state.partial} />
           ) : live ? (
@@ -248,6 +254,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           {state.phase !== "idle" ? (
             <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
           ) : null}
+          {!practice && state.phase !== "idle" ? <CallNotes /> : null}
         </ScrollView>
         {toast}
         {confirm}
@@ -274,6 +281,7 @@ const styles = StyleSheet.create({
   mainNarrow: { padding: space.lg, gap: space.xl },
   side: { width: layout.transcriptWidth, borderStartWidth: 1 },
   sideScroll: { flex: 1, padding: space.lg },
+  sideNotes: { paddingHorizontal: space.lg, paddingBottom: space.md },
   ended: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
   toast: { position: "absolute", bottom: space.md, start: space.md, end: space.md },
   toastWide: { bottom: space.xl, start: space.xxl, end: undefined, maxWidth: layout.toastMaxWidth },

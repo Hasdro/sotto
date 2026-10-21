@@ -19,6 +19,7 @@ export type ServerCallSummary = {
   p95_ms: number | null;
   source?: string;
   review?: { success?: number } | null;
+  notes?: string;
 };
 
 type Entry =
@@ -53,6 +54,7 @@ export function toPastCall(call: ServerCallSummary | ServerCallDetail): PastCall
     cards,
     ...(isCallSource(call.source) ? { source: call.source } : {}),
     cardCount: call.cards,
+    ...(call.notes ? { notes: call.notes } : {}),
     ...(typeof call.review?.success === "number" ? { success: call.review.success } : {}),
   };
 }

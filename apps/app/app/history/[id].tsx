@@ -123,6 +123,14 @@ export default function CallDetailScreen() {
         </View>
       )}
       {sample ? null : <RecordingPlayer callId={String(id)} />}
+      {call.notes ? (
+        <Panel style={styles.notes} testID="call-detail-notes">
+          <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
+            {`📝 ${t("history.detail.notes")}`}
+          </Text>
+          <Text>{call.notes}</Text>
+        </Panel>
+      ) : null}
       <View style={[styles.body, wide ? styles.bodyWide : null]}>
         {wide ? transcript : cards}
         {wide ? cards : transcript}
@@ -139,6 +147,7 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
   body: { gap: space.xl },
   review: { marginBottom: space.xl },
+  notes: { gap: space.xs, marginBottom: space.xl },
   bodyWide: { flexDirection: "row", alignItems: "flex-start" },
   col: { flex: 1, gap: space.md },
   cardRow: { flexDirection: "row", alignItems: "flex-start", gap: space.md },

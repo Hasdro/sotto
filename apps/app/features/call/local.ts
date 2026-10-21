@@ -17,6 +17,7 @@ import {
   parseDemoServerMessage,
 } from "@sotto/shared";
 import { Platform } from "react-native";
+import { callNotes } from "../../lib/callNotes";
 import { type CallSource, callSource } from "../../lib/callSource";
 import { CloudError, cloudApi } from "../../lib/cloud";
 import {
@@ -100,6 +101,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       p50_ms: s.p50_ms,
       p95_ms: s.p95_ms,
       source,
+      notes: callNotes(true),
       transcript: transcript.slice(-500),
     });
     // The review runs after the call, on the summary model; the screens show it when it lands.

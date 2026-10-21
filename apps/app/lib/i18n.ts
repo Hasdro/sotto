@@ -397,6 +397,13 @@ const en = {
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
+  "call.talk.a11y": "Customer {customer}% of the talking, you {agent}%",
+  "call.talk.tooMuch":
+    "You're doing most of the talking. Ask a question and let the customer speak.",
+  "call.notes": "Notes",
+  "call.notes.placeholder":
+    "Type anything to remember: names, numbers, next steps. Saved with the call.",
+  "history.detail.notes": "Notes",
   "history.search": "Search what was said in your calls",
   "history.search.none": "No call on this computer mentions “{q}”.",
   "reports.objections": "Top objections",
@@ -1000,6 +1007,12 @@ const ar: Record<StringKey, string> = {
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
+  "call.talk.a11y": "العميل {customer}٪ من الحديث، وأنت {agent}٪",
+  "call.talk.tooMuch": "أنت تتحدث معظم الوقت. اطرح سؤالًا ودع العميل يتحدث.",
+  "call.notes": "ملاحظات",
+  "call.notes.placeholder":
+    "اكتب ما تريد تذكره: الأسماء والأرقام والخطوات التالية. تُحفظ مع المكالمة.",
+  "history.detail.notes": "ملاحظات",
   "history.search": "ابحث فيما قيل في مكالماتك",
   "history.search.none": "لا توجد مكالمة على هذا الكمبيوتر تذكر “{q}”.",
   "reports.objections": "أبرز الاعتراضات",
