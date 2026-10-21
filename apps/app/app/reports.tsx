@@ -73,7 +73,11 @@ export default function ReportsScreen() {
         }
       />
       {rows === "error" ? (
-        <EmptyState title={t("reports.error.title")} body={t("reports.error.body")} />
+        <EmptyState
+          mascot="offline"
+          title={t("reports.error.title")}
+          body={t("reports.error.body")}
+        />
       ) : report && report.calls === 0 ? (
         <EmptyState title={t("reports.none.title")} body={t("reports.none.body")} />
       ) : report ? (

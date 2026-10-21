@@ -77,7 +77,11 @@ export function NotInThisBuild() {
   const { t } = useI18n();
   return (
     <Screen testID="call-not-in-build" style={styles.center}>
-      <EmptyState title={t("call.notInThisBuild.title")} body={t("call.notInThisBuild.body")} />
+      <EmptyState
+        mascot="offline"
+        title={t("call.notInThisBuild.title")}
+        body={t("call.notInThisBuild.body")}
+      />
     </Screen>
   );
 }
@@ -106,6 +110,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
     return (
       <Screen testID="call-offline" style={styles.center}>
         <EmptyState
+          mascot="offline"
           title={t("call.offline.title")}
           body={t("call.offline.body")}
           code={t("call.offline.command")}

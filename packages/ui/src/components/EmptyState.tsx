@@ -2,6 +2,7 @@ import { StyleSheet, View } from "react-native";
 import { useTheme } from "../theme.tsx";
 import { radius, space } from "../tokens.ts";
 import { Button } from "./Button.tsx";
+import { Mascot, type MascotState } from "./Mascot.tsx";
 import { Text } from "./Text.tsx";
 
 export type EmptyStateProps = {
@@ -11,13 +12,23 @@ export type EmptyStateProps = {
   code?: string;
   action?: { label: string; onPress: () => void };
   testID?: string;
+  /** The Sotto character above the title (owner, 22 Oct); "offline" for errors, null for none. */
+  mascot?: MascotState | null;
 };
 
 /** What to do next when there is nothing to show. Never a blank screen. */
-export function EmptyState({ title, body, code, action, testID }: EmptyStateProps) {
+export function EmptyState({
+  title,
+  body,
+  code,
+  action,
+  testID,
+  mascot = "idle",
+}: EmptyStateProps) {
   const { color } = useTheme();
   return (
     <View testID={testID} accessibilityRole="summary" style={styles.wrap}>
+      {mascot ? <Mascot state={mascot} size={56} label="" /> : null}
       <Text variant="heading" weight="semibold" accessibilityRole="header" style={styles.center}>
         {title}
       </Text>

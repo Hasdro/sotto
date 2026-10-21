@@ -10,10 +10,13 @@ const {
   BrowserWindow,
   globalShortcut,
   ipcMain,
+  Menu,
+  nativeImage,
   net,
   protocol,
   session,
   shell,
+  Tray,
 } = require("electron");
 const { callApp } = require("./call-apps.cjs");
 
@@ -121,9 +124,39 @@ function showMini(show) {
   void miniWin.loadURL(`${ORIGIN}/mini`);
 }
 
+// The menu-bar icon (owner, 22 Oct 2026): Sotto's face, "● Live" during a call, and a menu.
+let tray = null;
+function createTray() {
+  if (process.platform !== "darwin" || tray) return;
+  const icon = nativeImage.createFromPath(path.join(__dirname, "icon.png")).resize({ width: 18 });
+  tray = new Tray(icon);
+  tray.setToolTip("Sotto");
+  const focusMain = () => {
+    if (!mainWin) return createWindow();
+    if (mainWin.isMinimized()) mainWin.restore();
+    mainWin.show();
+    mainWin.focus();
+  };
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Open Sotto", click: focusMain },
+      { label: "Show the mini window", accelerator: "Control+Alt+M", click: () => showMini(true) },
+      {
+        label: "Start or end listening",
+        accelerator: "Control+Alt+S",
+        click: () => mainWin?.webContents.send("shortcut", "listen"),
+      },
+      { type: "separator" },
+      { label: "Quit Sotto", role: "quit" },
+    ]),
+  );
+}
+
 let lastMini = null;
 ipcMain.on("mini-state", (event, state) => {
   if (event.sender !== mainWin?.webContents) return; // only the main window feeds it
+  if (tray && Boolean(state?.live) !== Boolean(lastMini?.live))
+    tray.setTitle(state?.live ? " ● Live" : "");
   lastMini = state;
   if (miniWin && !miniWin.isDestroyed()) miniWin.webContents.send("mini-state", state);
 });
@@ -204,6 +237,7 @@ app.whenReady().then(() => {
   );
   createWindow();
   registerShortcuts();
+  createTray();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
