@@ -311,6 +311,25 @@ describe("local call (demo protocol, offline model)", () => {
     expect(both.company.backup_disabled).not.toContain("suggest_backup");
     expect(both.sttRoutes.map((r) => r.provider)).toEqual(["assemblyai"]);
   });
+  it("tells the agent in plain words when real AI or the backup is off (no key names)", () => {
+    const none = buildRuntime({ ...bundle, keys: {} });
+    expect(none.notes).toEqual(["Real AI answers are off — ask your admin to connect a model."]);
+    const noBackup = buildRuntime({ ...bundle, keys: { GROQ_API_KEY: "k" } });
+    expect(noBackup.notes).toEqual([
+      "The backup AI is off — ask your admin to connect a second model.",
+    ]);
+    for (const note of [...none.notes, ...noBackup.notes]) expect(note).not.toMatch(/_API_KEY/);
+  });
+  it("says plainly when speech-to-text is not connected (no key names)", async () => {
+    const msgs: DemoServerMessage[] = [];
+    const runtime = buildRuntime({ ...bundle, keys: {} });
+    const bridge = new LocalCallBridge({ runtime, send: (m) => msgs.push(m) });
+    bridge.handle({ type: "audio_start", sample_rate: 16000 });
+    await new Promise((r) => setTimeout(r, 0));
+    const errors = msgs.filter((m) => m.type === "error").map((m) => m.message);
+    expect(errors).toEqual(["Speech-to-text is off — ask your admin to connect it."]);
+    bridge.close();
+  });
 });
 
 class FakeSocket implements SocketLike {

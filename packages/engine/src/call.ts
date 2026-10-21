@@ -4,7 +4,7 @@
  * Ported from sotto_worker/server/calls.py + runtime.py.
  */
 import type { DemoClientMessage, DemoServerMessage } from "@sotto/shared";
-import { hasCredentials, keyEnvOf, makeLLM } from "./adapters/llm.ts";
+import { hasCredentials, makeLLM } from "./adapters/llm.ts";
 import {
   type SocketFactory,
   STT_VENDORS,
@@ -55,8 +55,8 @@ export function buildRuntime(
   const notes: string[] = [];
   let mode: "fake" | "live" = "live";
   const primary = stages.suggest;
+  // Agents read these notes: plain words, no key names (the admin sees the vendor on Keys).
   if (!primary || !hasCredentials(primary, keys)) {
-    const missing = primary ? keyEnvOf(primary) : "a suggestion model";
     stages.suggest = {
       provider: "fake",
       model: "demo",
@@ -64,12 +64,12 @@ export function buildRuntime(
     };
     delete stages.suggest_backup;
     mode = "fake";
-    notes.push(`sample answers: add ${missing} in Keys & providers for real AI`);
+    notes.push("Real AI answers are off — ask your admin to connect a model.");
   } else {
     const backup = stages.suggest_backup;
     if (backup && !hasCredentials(backup, keys)) {
       disabled.add("suggest_backup");
-      notes.push(`backup AI off: add ${keyEnvOf(backup)} in Keys & providers`);
+      notes.push("The backup AI is off — ask your admin to connect a second model.");
     }
   }
   const status = bundle.key_status ?? {};
@@ -289,7 +289,7 @@ export class LocalCall {
     if (!sttRoutes.length || !this.deps.tokens) {
       this.deps.send({
         type: "error",
-        message: "no speech-to-text key is set (Admin → Keys & providers)",
+        message: "Speech-to-text is off — ask your admin to connect it.",
       });
       return;
     }
