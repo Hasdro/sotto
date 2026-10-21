@@ -127,6 +127,11 @@ const en = {
     "Trial: last day · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
   "plan.expired":
     "Your trial has ended. Sign-in still works, but calls are blocked. Your data is kept for 30 days.",
+  "plan.paused": "Calls paused — {reason}. Ask your admin.",
+  "plan.reason.expired": "the plan has expired",
+  "plan.reason.suspended": "the account is suspended",
+  "plan.reason.minutes": "the monthly minutes are used up",
+  "plan.reason.other": "the plan does not allow calls right now",
   "plan.suspended": "This account is suspended. Calls are blocked; your data is kept for 30 days.",
   "history.title": "Call history",
   "history.subtitle": "Your recent calls with their transcripts and cards.",
@@ -502,6 +507,11 @@ const ar: Record<StringKey, string> = {
     "فترة تجريبية: اليوم الأخير · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
   "plan.expired":
     "انتهت الفترة التجريبية. يمكنك تسجيل الدخول، لكن المكالمات متوقفة. نحتفظ ببياناتك 30 يوماً.",
+  "plan.paused": "المكالمات متوقفة — {reason}. تواصل مع المسؤول.",
+  "plan.reason.expired": "انتهت صلاحية الخطة",
+  "plan.reason.suspended": "الحساب موقوف",
+  "plan.reason.minutes": "نفدت دقائق هذا الشهر",
+  "plan.reason.other": "الخطة لا تسمح بالمكالمات حالياً",
   "plan.suspended": "هذا الحساب موقوف. المكالمات متوقفة؛ نحتفظ ببياناتك 30 يوماً.",
   "history.title": "سجل المكالمات",
   "history.subtitle": "مكالماتك الأخيرة مع نصوصها والبطاقات.",
