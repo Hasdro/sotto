@@ -115,4 +115,26 @@ describe("server reads", () => {
     await cloud.cloudApi("/api/v1/team");
     expect(log).toEqual(["GET /api/v1/team"]);
   });
+
+  it("uploads a recording as the file itself, with this device's sign-in", async () => {
+    await signedIn();
+    const sent = jest.fn(async () => new Response("{}", { status: 200 }));
+    const wav = new Blob(["RIFF"], { type: "audio/wav" });
+    await cloud.cloudApi("/api/v1/recordings/c1", { method: "PUT", raw: wav }, sent as never);
+    const [url, init] = sent.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://cloud.example.test/api/v1/recordings/c1");
+    expect(init.body).toBe(wav);
+    expect((init.headers as Record<string, string>)["content-type"]).toBe("audio/wav");
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer t");
+  });
+
+  it("plays a recording from the server, or nothing when there is none", async () => {
+    await signedIn();
+    const ok = jest.fn(async () => new Response("RIFF", { status: 200 }));
+    expect(await (await cloud.cloudBlob("/api/v1/recordings/c1", ok as never))?.text()).toBe(
+      "RIFF",
+    );
+    const missing = jest.fn(async () => new Response("{}", { status: 404 }));
+    expect(await cloud.cloudBlob("/api/v1/recordings/c2", missing as never)).toBeNull();
+  });
 });

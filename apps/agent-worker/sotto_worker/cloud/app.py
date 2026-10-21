@@ -25,6 +25,7 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.cloud.bundle import Seed, build_bundle
+from sotto_worker.cloud.recordings import Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
 from sotto_worker.server.catalog import apply_overrides
 
@@ -112,6 +113,7 @@ class CloudConfig:
     stt_minter: Callable[[str, str], Awaitable[dict[str, Any]]] | None = None
     key_tester: Callable[[str, str, str], Awaitable[list[str]]] | None = None
     log: Callable[[str], None] = field(default=lambda _line: None)
+    recordings: Recordings | None = None  # None: recordings are not kept on this server
 
 
 async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
@@ -204,6 +206,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "too_large": HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
         "no_seats": HTTPStatus.CONFLICT,
         "plan_blocked": HTTPStatus.PAYMENT_REQUIRED,
+        "storage_full": HTTPStatus.INSUFFICIENT_STORAGE,
     }
 
     def handle(
@@ -375,6 +378,29 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def usage(request: Request, who: Principal) -> Response:
         call_id = store.report_usage(who, await body(request), platform_of(request))
         return JSONResponse({"ok": True, "id": call_id})
+
+    def recordings_on() -> Recordings:
+        if config.recordings is None:
+            raise CloudError("not_found", "recordings are not kept on this server")
+        return config.recordings
+
+    @app_route
+    async def recording_put(request: Request, who: Principal) -> Response:
+        rec = recordings_on()
+        call_id = store.recording_call(who, request.path_params["call_id"], upload=True)
+        size = await rec.save(who.company, call_id, request.stream())
+        store.set_recording(who, call_id, size)
+        rec.prune()
+        return JSONResponse({"ok": True, "bytes": size})
+
+    @app_route
+    async def recording_get(request: Request, who: Principal) -> Response:
+        rec = recordings_on()
+        call_id = store.recording_call(who, request.path_params["call_id"], upload=False)
+        path = rec.path(who.company, call_id)
+        if not path.exists():
+            raise CloudError("not_found", "no recording for this call")
+        return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private"})
 
     @app_route
     async def company_usage(_request: Request, who: Principal) -> Response:
@@ -729,6 +755,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/calls/start", call_start, methods=["POST"]),
         Route(f"{api}/usage", usage, methods=["POST"]),
         Route(f"{api}/company/usage", company_usage),
+        Route(f"{api}/recordings/{{call_id}}", recording_put, methods=["PUT"]),
+        Route(f"{api}/recordings/{{call_id}}", recording_get),
         Route(f"{api}/company/settings", settings_put, methods=["PUT"]),
         Route(f"{api}/company/keys/{{env}}", key_put, methods=["PUT"]),
         Route(f"{api}/company/keys/{{env}}", key_delete, methods=["DELETE"]),

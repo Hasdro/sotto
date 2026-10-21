@@ -18,6 +18,7 @@ from pathlib import Path
 from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.passwords import new_temporary_password
+from sotto_worker.cloud.recordings import Recordings
 from sotto_worker.cloud.store import CloudStore
 from sotto_worker.runtime import REPO_ROOT
 from sotto_worker.server.vault import MIN_SECRET_CHARS, Vault
@@ -116,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
         static_dir=static,
         secure_cookies=bool(origin and origin.startswith("https://")),
         log=lambda s: print(s, flush=True),
+        recordings=Recordings(data_dir(env) / "recordings"),
     )
     app = create_cloud_app(config, store, Seed.load())
     import uvicorn

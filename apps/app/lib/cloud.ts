@@ -175,7 +175,7 @@ const reads = new Map<string, { at: number; value: Promise<unknown> }>();
 /** JSON request to the management server with this device's token. */
 export async function cloudApi<T>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; raw?: Blob } = {},
   fetcher: typeof fetch = fetch,
 ): Promise<T> {
   if ((init.method ?? "GET") !== "GET") {
@@ -190,22 +190,37 @@ export async function cloudApi<T>(
   return value;
 }
 
+/** A file from the management server (a call recording), or null if there is none. */
+export async function cloudBlob(path: string, fetcher: typeof fetch = fetch): Promise<Blob | null> {
+  const origin = cloudOrigin();
+  if (!origin || !token) return null;
+  try {
+    const r = await fetcher(`${origin}${path}`, {
+      headers: { authorization: `Bearer ${token}`, "x-sotto-platform": devicePlatform() },
+    });
+    return r.ok ? await r.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(
   path: string,
-  init: { method?: string; body?: unknown },
+  init: { method?: string; body?: unknown; raw?: Blob },
   fetcher: typeof fetch,
 ): Promise<T> {
   const origin = cloudOrigin();
   if (!origin) throw new CloudError(0, "off", "no Sotto server configured");
   const headers: Record<string, string> = { "x-sotto-platform": devicePlatform() };
   if (init.body !== undefined) headers["content-type"] = "application/json";
+  if (init.raw) headers["content-type"] = init.raw.type || "application/octet-stream";
   if (token) headers.authorization = `Bearer ${token}`;
   let response: Response;
   try {
     response = await fetcher(`${origin}${path}`, {
       method: init.method ?? "GET",
       headers,
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
     });
   } catch {
     throw new CloudError(0, "offline", "Cannot reach the Sotto server. Check your connection.");

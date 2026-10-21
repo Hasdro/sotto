@@ -6,7 +6,7 @@ import type { DemoClientMessage } from "@sotto/shared";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { Locale } from "../../lib/i18n";
 import { prefs } from "../../lib/prefs";
-import { saveRecording } from "../../lib/recordings";
+import { saveRecording, setCallBusy } from "../../lib/recordings";
 import { useCloud } from "../../lib/useCloud";
 import {
   type Bridge,
@@ -174,6 +174,8 @@ export function useCallSession(opts: {
   // The microphone never outlives the call or the connection.
   const callOver = state.phase !== "live" || state.connection !== "open";
   const callId = state.callId;
+  // Recordings upload only between calls (and once at app start).
+  useEffect(() => setCallBusy(!callOver), [callOver]);
   useEffect(() => {
     if (!callOver) return;
     stopMic();

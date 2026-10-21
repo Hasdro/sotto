@@ -283,6 +283,7 @@ def plan_state(row: sqlite3.Row | dict[str, Any], used_minutes: int, t: int) -> 
 ADDED_COLUMNS = (
     ("escalations", "transcript_excerpt", "TEXT"),  # T-034: the conversation around the question
     ("escalations", "call_id", "TEXT"),
+    ("usage", "recording_bytes", "INTEGER"),  # owner, 22 Oct 2026: uploaded call recording
 )
 EXCERPT_MAX_CHARS = 2000
 
@@ -1101,6 +1102,27 @@ class CloudStore:
                 row,
             )
         return call_id
+
+    def recording_call(self, who: Principal, call_id: str, *, upload: bool) -> str:
+        """The call's own company-scoped id, if this person may upload (the agent who made the
+        call) or play (that agent, or the company's admins and managers) its recording."""
+        rows = self._q(
+            "SELECT user_id FROM usage WHERE id = ? AND company_id = ?",
+            (f"{who.company}:{call_id}", who.company),
+        )
+        if not rows:
+            raise CloudError("not_found", "no such call")
+        mine = rows[0]["user_id"] == who.user_id
+        if not (mine or (not upload and who.role in ("admin", "manager"))):
+            raise CloudError("not_found", "no such call")
+        return call_id
+
+    def set_recording(self, who: Principal, call_id: str, size: int | None) -> None:
+        with self._tx() as db:
+            db.execute(
+                "UPDATE usage SET recording_bytes = ? WHERE id = ? AND company_id = ?",
+                (size, f"{who.company}:{call_id}", who.company),
+            )
 
     def company_usage(self, who: Principal, days: int = 30) -> list[dict[str, Any]]:
         who.require("admin", "manager")
