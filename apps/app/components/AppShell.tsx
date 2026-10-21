@@ -48,6 +48,7 @@ type NavItem = {
     | "/home"
     | "/call"
     | "/history"
+    | "/reports"
     | "/playbook"
     | "/inbox"
     | "/admin"
@@ -62,6 +63,7 @@ export const NAV: readonly NavItem[] = [
   { href: "/home", label: "nav.home", icon: "🏠" },
   { href: "/call", label: "nav.call", icon: "📞" },
   { href: "/history", label: "nav.history", icon: "🕘" },
+  { href: "/reports", label: "nav.reports", icon: "📊" },
   { href: "/playbook", label: "nav.playbook", icon: "📘" },
   { href: "/inbox", label: "nav.inbox", icon: "📥" },
   { href: "/admin", label: "nav.admin", icon: "🛠️" },

@@ -288,8 +288,10 @@ ADDED_COLUMNS = (
     ("escalations", "call_id", "TEXT"),
     ("usage", "recording_bytes", "INTEGER"),  # owner, 22 Oct 2026: uploaded call recording
     ("usage", "source", "TEXT"),  # owner, 22 Oct 2026: zoom, teams, meet, 3cx, mic…
+    ("usage", "review_json", "TEXT"),  # owner, 22 Oct 2026: the after-call review's numbers
 )
 EXCERPT_MAX_CHARS = 2000
+REVIEW_DIMENSIONS = ("opening", "discovery", "listening", "objections", "clarity", "next_step")
 # Where a call came from (owner, 22 Oct 2026); anything else is stored as "computer".
 CALL_SOURCES = frozenset(
     {
@@ -1134,6 +1136,32 @@ class CloudStore:
             raise CloudError("not_found", "no such call")
         return call_id
 
+    def set_review(self, who: Principal, call_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        """The after-call review's numbers for Reports (owner, 22 Oct 2026): six skill scores
+        0-10, the chance to close 0-100 and the customer's mood. No words from the call."""
+        self.recording_call(who, call_id, upload=True)  # the agent's own call, same company
+        scores = data.get("scores")
+        if not isinstance(scores, dict) or set(scores) != set(REVIEW_DIMENSIONS):
+            raise CloudError("invalid", "scores must name the six skills")
+        clean: dict[str, Any] = {"scores": {}}
+        for k in REVIEW_DIMENSIONS:
+            v = scores[k]
+            if type(v) is not int or not 0 <= v <= 10:
+                raise CloudError("invalid", f"{k} must be 0 to 10")
+            clean["scores"][k] = v
+        success, mood = data.get("success"), data.get("sentiment")
+        if type(success) is not int or not 0 <= success <= 100:
+            raise CloudError("invalid", "success must be 0 to 100")
+        if mood not in ("positive", "neutral", "negative"):
+            raise CloudError("invalid", "sentiment must be positive, neutral or negative")
+        clean["success"], clean["sentiment"] = success, mood
+        with self._tx() as db:
+            db.execute(
+                "UPDATE usage SET review_json = ? WHERE id = ? AND company_id = ?",
+                (json.dumps(clean), f"{who.company}:{call_id}", who.company),
+            )
+        return clean
+
     def set_recording(self, who: Principal, call_id: str, size: int | None) -> None:
         with self._tx() as db:
             db.execute(
@@ -1142,14 +1170,24 @@ class CloudStore:
             )
 
     def company_usage(self, who: Principal, days: int = 30) -> list[dict[str, Any]]:
-        who.require("admin", "manager")
+        """Calls of the last `days` days: the whole company for admins and managers, an agent's
+        own calls for an agent (Reports, owner 22 Oct 2026). Numbers only, never call words."""
+        who.require("admin", "manager", "agent")
         since = now_ms() - days * DAY_MS
+        only = who.user_id if who.role == "agent" else None
         rows = self._q(
-            "SELECT u.*, us.email FROM usage u JOIN users us ON us.id = u.user_id"
-            " WHERE u.company_id = ? AND u.started_at >= ? ORDER BY u.started_at DESC LIMIT 500",
-            (who.company, since),
+            "SELECT u.*, us.email, us.name FROM usage u JOIN users us ON us.id = u.user_id"
+            " WHERE u.company_id = ? AND u.started_at >= ? AND (? IS NULL OR u.user_id = ?)"
+            " ORDER BY u.started_at DESC LIMIT 2000",
+            (who.company, since, only, only),
         )
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            row = dict(r)
+            raw = row.pop("review_json", None)
+            row["review"] = json.loads(raw) if raw else None
+            out.append(row)
+        return out
 
     # --- owner (platform) ------------------------------------------------------------------------
     def owner_stats(self) -> dict[str, Any]:

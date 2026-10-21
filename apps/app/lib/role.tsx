@@ -12,12 +12,20 @@ import { type Member, TEAM } from "../features/admin/mock";
 export type ViewRole = "agent" | "manager" | "admin";
 export const VIEW_ROLES: readonly ViewRole[] = ["agent", "manager", "admin"];
 
-export type Area = "/home" | "/call" | "/history" | "/playbook" | "/inbox" | "/admin" | "/settings";
+export type Area =
+  | "/home"
+  | "/call"
+  | "/history"
+  | "/reports"
+  | "/playbook"
+  | "/inbox"
+  | "/admin"
+  | "/settings";
 
 export const ROLE_AREAS: Record<ViewRole, readonly Area[]> = {
-  agent: ["/home", "/call", "/history", "/playbook", "/settings"],
-  manager: ["/home", "/call", "/history", "/playbook", "/inbox", "/settings"],
-  admin: ["/home", "/call", "/history", "/playbook", "/inbox", "/admin", "/settings"],
+  agent: ["/home", "/call", "/history", "/reports", "/playbook", "/settings"],
+  manager: ["/home", "/call", "/history", "/reports", "/playbook", "/inbox", "/settings"],
+  admin: ["/home", "/call", "/history", "/reports", "/playbook", "/inbox", "/admin", "/settings"],
 };
 
 const AREAS: readonly Area[] = ["/call", "/history", "/playbook", "/inbox", "/admin"];

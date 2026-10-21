@@ -385,6 +385,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return config.recordings
 
     @app_route
+    async def review_post(request: Request, who: Principal) -> Response:
+        review = store.set_review(who, request.path_params["call_id"], await body(request))
+        return JSONResponse({"ok": True, "review": review})
+
+    @app_route
     async def recording_put(request: Request, who: Principal) -> Response:
         rec = recordings_on()
         call_id = store.recording_call(who, request.path_params["call_id"], upload=True)
@@ -403,8 +408,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private"})
 
     @app_route
-    async def company_usage(_request: Request, who: Principal) -> Response:
-        return JSONResponse({"calls": store.company_usage(who)})
+    async def company_usage(request: Request, who: Principal) -> Response:
+        days = request.query_params.get("days", "30")
+        span = int(days) if days in ("7", "30", "90") else 30
+        return JSONResponse({"calls": store.company_usage(who, span)})
 
     @app_route
     async def settings_put(request: Request, who: Principal) -> Response:
@@ -755,6 +762,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/calls/start", call_start, methods=["POST"]),
         Route(f"{api}/usage", usage, methods=["POST"]),
         Route(f"{api}/company/usage", company_usage),
+        Route(f"{api}/calls/{{call_id}}/review", review_post, methods=["POST"]),
         Route(f"{api}/recordings/{{call_id}}", recording_put, methods=["PUT"]),
         Route(f"{api}/recordings/{{call_id}}", recording_get),
         Route(f"{api}/company/settings", settings_put, methods=["PUT"]),

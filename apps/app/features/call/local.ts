@@ -113,7 +113,17 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       company: runtime.company,
       lines,
       now: Date.now(),
-    }).then((review) => setDeviceReview(s.call_id, review));
+    }).then((review) => {
+      setDeviceReview(s.call_id, review);
+      // Reports (owner, 22 Oct): only the numbers go to the server, never the summary or tips.
+      if (review) {
+        const { scores, success, sentiment } = review;
+        void cloudApi(`/api/v1/calls/${encodeURIComponent(s.call_id)}/review`, {
+          method: "POST",
+          body: { scores, success, sentiment },
+        }).catch(() => {}); // the usage report may not have landed yet: Reports just lack it
+      }
+    });
     void cloudApi("/api/v1/usage", { method: "POST", body: { ...s, source } }).catch((err) =>
       console.warn("[engine] usage not reported", err),
     );
