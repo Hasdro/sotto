@@ -40,6 +40,7 @@ import { useCloud } from "../lib/useCloud";
 import { PlanBanner } from "./PlanBanner";
 import { ProfilePopup } from "./ProfilePopup";
 import { RoleSwitch } from "./RoleSwitch";
+import { Tutorial } from "./Tutorial";
 
 type NavItem = {
   href:
@@ -97,6 +98,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </View>
       {wide ? null : <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
+      <Tutorial />
     </View>
   );
 }
