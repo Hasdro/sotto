@@ -14,7 +14,7 @@ import {
 import { cloudOrigin } from "../../lib/cloud";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
-import { INBOX } from "../inbox/mock";
+import { countByStatus, INBOX } from "../inbox/mock";
 import { PLAYBOOK } from "../playbook/mock";
 import { addToPlaybook, type EscalationState, type FlowError, saveAnswer } from "./flow";
 import { escalationsApi, loadServerInbox } from "./server";
@@ -108,4 +108,9 @@ export function useEscalations(): StoreValue {
       reload: () => {},
     }
   );
+}
+
+/** Open questions, for the menu badge and Home. */
+export function useOpenCount(): number {
+  return countByStatus(useEscalations().inbox).open;
 }

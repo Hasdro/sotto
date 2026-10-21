@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   EmptyState,
+  Mascot,
   Panel,
   radius,
   SegmentedControl,
@@ -68,6 +69,13 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
       >
         <Stack gap="lg">
           <Wordmark name={t("app.name")} />
+          <View style={styles.mascots}>
+            {(["idle", "listening", "thinking", "suggesting", "reviewing", "offline"] as const).map(
+              (m) => (
+                <Mascot key={m} state={m} size={48} />
+              ),
+            )}
+          </View>
           {TYPES.map((type) => (
             <SuggestionCard
               key={type}
@@ -167,6 +175,7 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
 }
 
 const styles = StyleSheet.create({
+  mascots: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   page: { padding: space.lg },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: space.lg },
   variant: {

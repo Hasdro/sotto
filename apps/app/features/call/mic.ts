@@ -8,6 +8,8 @@
  * Web only; phone calls get their audio from LiveKit in Phase 4.
  */
 
+import { prefs } from "../../lib/prefs";
+
 export const TARGET_RATE = 16000;
 export const FRAME_SAMPLES = 320; // 20 ms at 16 kHz
 
@@ -97,6 +99,7 @@ export async function startCapture(
           })
         : await media.getUserMedia({
             audio: {
+              ...(prefs().micId ? { deviceId: { exact: prefs().micId as string } } : {}),
               channelCount: 1,
               echoCancellation: true,
               noiseSuppression: true,

@@ -41,8 +41,9 @@ describe("mock data helpers", () => {
     );
   });
 
-  it("marks the active navigation item, with / and /call both meaning the call screen", () => {
-    expect(isActive("/", "/call")).toBe(true);
+  it("marks the active navigation item, with / and /home both meaning Home", () => {
+    expect(isActive("/", "/home")).toBe(true);
+    expect(isActive("/", "/call")).toBe(false);
     expect(isActive("/call", "/call")).toBe(true);
     expect(isActive("/history/c-1", "/history")).toBe(true);
     expect(isActive("/historyx", "/history")).toBe(false);

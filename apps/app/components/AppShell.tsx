@@ -4,6 +4,7 @@
  * English, right in Arabic). Items are real links (anchors on web) with the current page marked
  * for assistive tech.
  */
+
 import {
   layout,
   minTouchTarget,
@@ -29,8 +30,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEscalations } from "../features/escalations/store";
-import { countByStatus } from "../features/inbox/mock";
+import { useOpenCount } from "../features/escalations/store";
 import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -38,23 +38,34 @@ import { useIsWide } from "../lib/responsive";
 import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
 import { PlanBanner } from "./PlanBanner";
+import { ProfilePopup } from "./ProfilePopup";
 import { RoleSwitch } from "./RoleSwitch";
 
 type NavItem = {
-  href: "/call" | "/history" | "/playbook" | "/inbox" | "/admin" | "/account";
+  href:
+    | "/home"
+    | "/call"
+    | "/history"
+    | "/playbook"
+    | "/inbox"
+    | "/admin"
+    | "/settings"
+    | "/account";
   label: StringKey;
 };
 
 export const NAV: readonly NavItem[] = [
+  { href: "/home", label: "nav.home" },
   { href: "/call", label: "nav.call" },
   { href: "/history", label: "nav.history" },
   { href: "/playbook", label: "nav.playbook" },
   { href: "/inbox", label: "nav.inbox" },
   { href: "/admin", label: "nav.admin" },
+  { href: "/settings", label: "nav.settings" },
 ];
 
 export function isActive(pathname: string, href: string): boolean {
-  if (href === "/call") return pathname === "/" || pathname.startsWith("/call");
+  if (href === "/home") return pathname === "/" || pathname.startsWith("/home");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -90,10 +101,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function useOpenCount(): number {
-  return countByStatus(useEscalations().inbox).open;
-}
-
 /** Brand, links, role switch and the user footer: the sidebar and the drawer show the same. */
 function NavPanel({ onClose }: { onClose?: () => void }) {
   const { color } = useTheme();
@@ -105,6 +112,7 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
   const cloud = useCloud();
   const signedIn = cloud.status === "signed_in";
   const persona = signedIn ? { name: cloud.me.user.name } : personaFor(role);
+  const [profile, setProfile] = useState(false);
   return (
     <>
       <View style={styles.brand}>
@@ -154,7 +162,14 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
           <RoleSwitch />
         </View>
       )}
-      <View style={[styles.user, { borderTopColor: color.border }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("profile.open")}
+        disabled={!signedIn}
+        onPress={() => setProfile(true)}
+        testID="profile-open"
+        style={[styles.user, { borderTopColor: color.border }]}
+      >
         <View style={[styles.avatar, { backgroundColor: color.surfaceSunken }]}>
           <Text variant="label" weight="semibold">
             {persona.name.slice(0, 1)}
@@ -170,7 +185,8 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
               : t(`role.${role}`)}
           </Text>
         </View>
-      </View>
+      </Pressable>
+      <ProfilePopup open={profile} onClose={() => setProfile(false)} />
     </>
   );
 }

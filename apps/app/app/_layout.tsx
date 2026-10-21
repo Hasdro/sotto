@@ -11,6 +11,7 @@ import { AppShell } from "../components/AppShell";
 import { CallSessionProvider } from "../features/call/CallSessionProvider";
 import { EscalationStoreProvider } from "../features/escalations/store";
 import { LocaleProvider, useI18n } from "../lib/locale";
+import { usePrefs } from "../lib/prefs";
 import { RoleProvider } from "../lib/role";
 
 export default function RootLayout() {
@@ -34,8 +35,9 @@ export default function RootLayout() {
 
 function Root() {
   const { dir } = useI18n();
+  const { theme } = usePrefs();
   return (
-    <UIProvider direction={dir}>
+    <UIProvider direction={dir} scheme={theme === "system" ? null : theme}>
       <Themed dir={dir} />
     </UIProvider>
   );

@@ -44,7 +44,7 @@ function bundle(): CallBundle {
   return s.bundle;
 }
 
-function providerOf(b: CallBundle, route: StageRoute | undefined): string | null {
+export function providerOf(b: CallBundle, route: StageRoute | undefined): string | null {
   if (!route) return null;
   if (route.provider === "openai_compatible") {
     return (

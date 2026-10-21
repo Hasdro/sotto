@@ -1,6 +1,6 @@
-/** The app opens on the in-call screen (R1, R2, R4): it is the product. */
+/** The app opens on Home (owner, 21 Oct); a call starts from there or by itself. */
 import { Redirect } from "expo-router";
 
 export default function Index() {
-  return <Redirect href="/call" />;
+  return <Redirect href="/home" />;
 }
