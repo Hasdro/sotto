@@ -29,7 +29,9 @@ const STT_KEY_ENV: Record<string, string> = {
   assemblyai: "ASSEMBLYAI_API_KEY",
   speechmatics: "SPEECHMATICS_API_KEY",
 };
-const KEEP_WARM_EVERY_MS = 25_000;
+/** Warm once at call start, then at the HTTP keep-alive (120 s): each ping spends the company's
+ * own vendor quota, and every 25 s cost ten agents ~24 of Groq's ~30 free requests a minute. */
+export const KEEP_WARM_EVERY_MS = 120_000;
 const MAX_LINE_CHARS = 2000;
 
 export type Runtime = {

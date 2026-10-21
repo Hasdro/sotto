@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import fixture from "./__tests__/bundle.json" with { type: "json" };
 import { checkKeyHost, DemoModel, makeLLM, OpenAIChat, sseData } from "./adapters/llm.ts";
 import { openStt, type SocketLike } from "./adapters/stt.ts";
-import { buildRuntime, type CallSummary, LocalCallBridge } from "./call.ts";
+import { buildRuntime, type CallSummary, KEEP_WARM_EVERY_MS, LocalCallBridge } from "./call.ts";
 import { PlaybookIndex } from "./playbook.ts";
 import { AllProvidersFailed, ModelRouter, type RouteResult } from "./router.ts";
 import { CustomerAudio, EndOfTurnVAD, midThought } from "./spoken.ts";
@@ -310,6 +310,10 @@ describe("local call (demo protocol, offline model)", () => {
     });
     expect(both.company.backup_disabled).not.toContain("suggest_backup");
     expect(both.sttRoutes.map((r) => r.provider)).toEqual(["assemblyai"]);
+  });
+  it("keeps the model warm no more often than the HTTP keep-alive (rate-limit quota)", () => {
+    // Every warm ping spends the company's own vendor quota (Groq free tier: ~30 requests/min).
+    expect(KEEP_WARM_EVERY_MS).toBeGreaterThanOrEqual(120_000);
   });
   it("tells the agent in plain words when real AI or the backup is off (no key names)", () => {
     const none = buildRuntime({ ...bundle, keys: {} });
