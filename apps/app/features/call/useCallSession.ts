@@ -50,6 +50,8 @@ export type MicState = "off" | "starting" | "on" | MicError;
 export function useCallSession(opts: {
   mock: boolean;
   locale: Locale;
+  /** False until the call screen first opens (CallSessionProvider): nothing connects before. */
+  enabled?: boolean;
   /** Tests inject a fake socket; the app uses the browser/RN WebSocket. */
   socketFactory?: SocketFactory;
 }): CallSession {
@@ -59,6 +61,7 @@ export function useCallSession(opts: {
   // The locale only matters to the mock script; the real bridge must not reconnect on a language switch.
   const mockLocale: Locale | null = opts.mock ? opts.locale : null;
   const { socketFactory } = opts;
+  const enabled = opts.enabled ?? true;
   const cloud = useCloud();
   // Signed in to the management server (D-022): calls run on this device with this bundle.
   const bundle = cloud.status === "signed_in" ? cloud.bundle : null;
@@ -67,6 +70,7 @@ export function useCallSession(opts: {
     // `attempt` is a dependency on purpose: bumping it reconnects.
     void attempt;
     if (!demoEnabled()) return; // production build: no localhost socket, no mock data
+    if (!enabled) return;
     const handlers: BridgeHandlers = {
       onStatus: (status) => dispatch({ type: "connection", status }),
       onMessage: (msg) => {
@@ -85,7 +89,7 @@ export function useCallSession(opts: {
       b.close();
       bridge.current = null;
     };
-  }, [mockLocale, attempt, socketFactory, bundle]);
+  }, [mockLocale, attempt, socketFactory, bundle, enabled]);
 
   // While offline, try again every RETRY_MS for as long as it lasts, so starting `pnpm demo`
   // after the app just works. A failed attempt leaves the state "offline", so this must be an

@@ -19,11 +19,13 @@ import {
   useTheme,
 } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { useSharedCall } from "../features/call/CallSessionProvider";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CardStack } from "../features/call/components/CardStack";
 import { Composer, type MicControl } from "../features/call/components/Composer";
+import { ConfirmEnd } from "../features/call/components/ConfirmEnd";
 import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart } from "../features/call/components/ListenStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
@@ -43,16 +45,28 @@ export default function CallScreen() {
 
 function DemoCallScreen() {
   const params = useLocalSearchParams<{ mock?: string }>();
-  const { locale } = useI18n();
   const mock = __DEV__ && params.mock === "1"; // never in a release build (D-024)
-  const session = useCallSession({ mock, locale });
+  return mock ? <MockCallScreen /> : <SharedCallScreen />;
+}
+
+/** The real call: held by CallSessionProvider, so leaving this screen keeps it live (T-025). */
+function SharedCallScreen() {
+  const { session, activate } = useSharedCall();
+  useEffect(activate, [activate]);
   // An escalated question is now in the manager's inbox on the server: refresh the badge.
   const { reload } = useEscalations();
   const escalated = session.state.escalations.length;
   useEffect(() => {
-    if (escalated > 0 && !mock) reload();
-  }, [escalated, mock, reload]);
-  return <CallView session={session} mock={mock} />;
+    if (escalated > 0) reload();
+  }, [escalated, reload]);
+  return <CallView session={session} mock={false} />;
+}
+
+/** `?mock=1` (development only): a canned call owned by this screen alone. */
+function MockCallScreen() {
+  const { locale } = useI18n();
+  const session = useCallSession({ mock: true, locale });
+  return <CallView session={session} mock />;
 }
 
 /** Production builds: no local demo bridge and no mock calls (D-013). Exported for tests. */
@@ -73,6 +87,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   const { state } = session;
   const notice = state.notice;
   const { dismissNotice } = session;
+  const [confirming, setConfirming] = useState(false);
+  const live = state.phase === "live";
+  useEffect(() => {
+    if (!live) setConfirming(false);
+  }, [live]);
 
   useEffect(() => {
     if (!notice) return;
@@ -101,7 +120,6 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   }
 
   const cards = selectCards(state.cards);
-  const live = state.phase === "live";
   const vendor = state.hello.stt_vendor ?? null;
   // Practice (development only): scripted scenarios or the mock stream, with typed lines. A real
   // account has neither (D-024): the call is heard, never typed.
@@ -127,8 +145,18 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       startedAt={state.startedAt}
       endedAt={state.endedAt}
       mock={mock}
-      onEnd={session.end}
+      onEnd={() => setConfirming(true)}
       wide={wide}
+    />
+  );
+  const confirm = (
+    <ConfirmEnd
+      open={confirming}
+      onCancel={() => setConfirming(false)}
+      onConfirm={() => {
+        setConfirming(false);
+        session.end();
+      }}
     />
   );
   const main = (
@@ -183,6 +211,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           {header}
           <ScrollView contentContainerStyle={styles.mainWide}>{main}</ScrollView>
           {toast}
+          {confirm}
         </View>
         <View
           style={[styles.side, { backgroundColor: color.surface, borderStartColor: color.border }]}
@@ -211,6 +240,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           ) : null}
         </ScrollView>
         {toast}
+        {confirm}
       </View>
       {live && practice ? (
         <Composer onSay={session.say} disabled={false} compact mic={mic} partial={state.partial} />

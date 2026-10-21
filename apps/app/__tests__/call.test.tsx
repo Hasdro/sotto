@@ -260,10 +260,17 @@ describe("in-call screen", () => {
     expect(s.say).not.toHaveBeenCalled();
   });
 
-  it("ends the call", async () => {
+  it("asks before ending the call, and ends it once on confirm", async () => {
     const s = session(stateFrom([hello, { type: "call_started", call_id: CALL }]));
     await render(<CallView session={s} mock={false} />);
-    await fireEvent.press(screen.getByRole("button", { name: "End call" }));
+    await fireEvent.press(screen.getByTestId("end-call"));
+    expect(s.end).not.toHaveBeenCalled();
+    expect(screen.getByText("End this call?")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("confirm-end-keep"));
+    expect(screen.queryByTestId("confirm-end")).toBeNull();
+    expect(s.end).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByTestId("end-call"));
+    await fireEvent.press(screen.getByTestId("confirm-end-yes"));
     expect(s.end).toHaveBeenCalledTimes(1);
   });
 
