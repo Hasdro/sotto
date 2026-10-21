@@ -28,7 +28,7 @@ Tags:
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** D-022 build. Client apps run calls (packages/engine). The us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console. It is live at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
 - **Next task (Claude):**
-  - Review brief `docs/AGENT-BRIEF-2026-10-21.md`: Batches 0–6 built (T-022…T-043, see "Review remediation" below), committed and pushed; **not deployed** — the server (escalation columns, speech-vendor guard) and the Mac app need the owner's OK to ship.
+  - Review brief `docs/AGENT-BRIEF-2026-10-21.md`: Batches 0–6 built (T-022…T-043, see "Review remediation" below), committed, pushed and **deployed 2026-10-21** on the owner's OK: us3 server + web app (db backed up first to `/var/lib/sotto/cloud.db.pre-2026-10-21`; app/API/console/downloads 200, new escalation columns present, no errors), Mac app rebuilt and replaced in /Applications. Downloads page not updated (waits for the owner's test).
   - Parked for the owner (hub decisions): T-029 first-token budget (touches R2's "700 ms"), T-035 manager email (Resend account), T-038 practice call in real accounts (D-024), T-044 web bundle 430/450 KB, and Batch 7.
   - Earlier: T-021 (D-024) Mac app hears Zoom / Meet / Yeastar — owner tests with Zylker; T-020 APK — owner reinstalls; T-016 rest (Android device, iPhone device); T-011; P4 once LiveKit + Yeastar exist.
 - **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1

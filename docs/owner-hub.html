@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "21 Oct 2026 · 23:00";
+const UPDATED = "21 Oct 2026 · 23:30";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -180,14 +180,14 @@ const TABS = [
 ];
 
 const OVERVIEW = {
- pct: 76,
- parts:[{label:"Done", v:76, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:21, c:"var(--line)"}],
+ pct: 77,
+ parts:[{label:"Done", v:77, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:21, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
-   short:"You said ship this round. The code is pushed, but your server and your Mac app are not updated yet: my tools were blocked from reaching the server and from building the Mac app.",
-   full:["Pushed: all 18 review fixes are on GitHub (draft pull request #1), tested.",
-         "Not done: updating your live server and web app, and replacing Sotto in your Applications folder. My permission settings refused both steps, so nothing on your server or Mac changed.",
-         "To finish: allow those two steps (see 'What I need from you'), and I run them, back up the server database first, and check the app, the API and your console afterwards."]},
+   short:"This round is live: your server and web app are updated, and the new Sotto is in your Applications folder.",
+   full:["Server: I backed up the [[database]] first, then installed. Your company and users are intact, and the two new columns for manager-question context are in place.",
+         "Checked afterwards: the app, the API, your console and the downloads page all answer, with no errors in the server log.",
+         "Mac: rebuilt and replaced in Applications, then opened. The downloads page still has last round's installers until you test."]},
   {eyebrow:"This round", title:"What is in this round",
    short:"Privacy and honesty fixes, better answers from your playbook, a setup guide for new companies, and admin pages that show real data.",
    full:["1. Privacy: call transcripts saved on a computer belong to one account and are wiped at sign-out.",
@@ -197,26 +197,26 @@ const OVERVIEW = {
          "5. Admin: a 3-step setup guide, Team on real data with working Invite, and unusable speech services greyed out.",
          "6. Manager questions include the [[transcript excerpt]] and who asked."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 76%. It goes up once this round is live on your server and Mac and you have tested it.",
-   full:["Why 76%: the review fixes are built and tested, but not live yet.",
+   short:"About 77% (up from 76%): this round is now live. It goes up again with your playbook and the manager email.",
+   full:["Why it went up: the review fixes are live on your server, web app and Mac (76% → 77%).",
          "Why not more: the manager email, phone calling and your playbook are still open."]},
   {eyebrow:"Remaining", title:"What is left?",
-   short:"Put this round live, answer 5 decisions, your playbook, then phone calling (LiveKit and Yeastar) and a pilot.",
-   full:["1. Update the server, web app and Mac app (waiting on your permission).",
+   short:"Your test of this round, 5 decisions, your playbook, then phone calling (LiveKit and Yeastar) and a pilot.",
+   full:["1. Your test of this round on the Mac and the web app.",
          "2. Five decisions in 'Your decisions': answer timing, manager email, practice call, room in the web app, and bigger review items.",
          "3. Your real [[playbook]]: still waiting for the documents.",
          "4. Real phone calls through [[LiveKit]] and [[Yeastar]], then password reset by email, a load test and a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Permission to update the server and build the Mac app, and your playbook documents.",
-   full:["Permission: Claude Code's safety mode stopped me from connecting to your server and from running the Mac app build.",
+   short:"Your playbook documents, and the 5 open decisions.",
+   full:["Decisions: the manager email and answer timing wait for your Save.",
          "Playbook: without it, questions about company facts get the [[holding line]] and go to your manager.",
          "Phone dial pad: still needs [[LiveKit]] and your [[Yeastar]] admin details."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Allow me to update the server and build the Mac app. 2) Answer the 5 decisions and press Save. 3) Tell me where the playbook documents are.",
-   full:["1. Approve the server update and the Mac build when Claude Code asks, or add a permission rule for them.",
+   short:"1) Try the new Mac app. 2) Answer the 5 decisions and press Save. 3) Tell me where the playbook documents are.",
+   full:["1. Open Sotto from Applications: open History during a call (the call keeps going) and press End call (it asks first).",
          "2. Open 'Your decisions': five questions have my pick already selected; change any you disagree with and press Save.",
          "3. Tell me where the playbook documents are, or drop them into the sotto folder.",
-         "4. After the update: test the Mac app on a real Zoom, Meet or Yeastar call with Zylker."]}
+         "4. Test the Mac app on a real Zoom, Meet or Yeastar call with Zylker. Say yes and I put the new installers on the downloads page."]}
  ]
 };
 
@@ -271,10 +271,11 @@ const SERVER = [
         "Your owner password is now your own, and the one-time password file is deleted (I checked).",
         "The server uses about 280 MB of its 1 GB memory."]},
  {eyebrow:"This round", title:"What I did on us3 this round",
-  short:"Nothing yet. You said ship, but the connection to the server was blocked by my permission settings.",
-  full:["Ready to install: two new columns for the [[transcript excerpt]] and call, added automatically with no data lost (tested on an old-format copy).",
-        "Also ready: the server refuses a speech service the app can't run (Deepgram, ElevenLabs).",
-        "Plan once allowed: back up the [[database]], install, then check the app, the API and your console."]}
+  short:"Updated the server and web app, after a database backup. Everything answers and your data is intact.",
+  full:["Backup: a copy of the [[database]] taken just before the update, kept on the server next to the nightly ones.",
+        "Installed: manager questions now carry the [[transcript excerpt]] and the call; the server refuses speech services the app can't run (Deepgram, ElevenLabs).",
+        "Checked: app, API, console and downloads page answer; the new columns exist; no errors in the server log; your company and users are still there.",
+        "Not changed: the downloads page, until you test."]}
 ];
 
 const PLATFORMS = [
@@ -288,7 +289,7 @@ const PLATFORMS = [
   short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
   full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
  {name:"Mac", prio:true, st:"ok", stl:"Real calls · installed",
-  short:"Hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. This round's fixes go into it once the Mac build is allowed; the copy in Applications is still last round's.",
+  short:"Hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. This round's build is installed in your Applications folder. The downloads page still has last round's installer until you test.",
   full:"The first time you start listening to the computer's sound, macOS asks to allow 'system audio recording'. Allow it once. It is not notarised by Apple yet, so the first time you open it you may need to right-click it and choose Open. Notarisation needs the Apple Developer account ($99/yr). The microphone option is for in-person or speakerphone calls."},
  {name:"Linux", st:"ok", stl:"Built · download",
   short:"'Sotto-0.1.0.AppImage' at /downloads: one file that runs on most Linux desktops.", full:"Make it executable (right-click → Properties → Allow executing) and open it."},
