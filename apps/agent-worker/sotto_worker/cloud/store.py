@@ -53,6 +53,8 @@ SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "audio_retention_days": (int, (0, 7, 30, 90, 365)),
     # Company knowledge the AI reads on every card and review (owner, 22 Oct 2026).
     "context": (str, ()),
+    # Where unanswered questions are emailed (R2 step 4); empty = the managers (owner, 22 Oct).
+    "manager_email": (str, ()),
 }
 CONTEXT_MAX_CHARS = 8000
 
@@ -307,6 +309,7 @@ class CloudStore:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self._db.row_factory = sqlite3.Row
+        self.last_escalation_new = False  # set by add_escalation: was the question new?
         self._db.executescript(SCHEMA)
         self._add_missing_columns()
 
@@ -705,6 +708,10 @@ class CloudStore:
             kind, allowed = SETTINGS[key]
             if type(value) is not kind or (allowed and value not in allowed):
                 raise CloudError("invalid", f"bad value for {key}")
+            if key == "manager_email" and isinstance(value, str):
+                value = value.strip()
+                if value and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value):
+                    raise CloudError("invalid", "that is not an email address")
             if key == "context" and isinstance(value, str):
                 value = value.strip()
                 if len(value) > CONTEXT_MAX_CHARS:
@@ -916,7 +923,9 @@ class CloudStore:
                 (who.company, q),
             ).fetchone()
             if dup:
+                self.last_escalation_new = False
                 return str(dup["id"])
+            self.last_escalation_new = True
             item_id = str(uuid.uuid4())
             t = now_ms()
             db.execute(
@@ -925,6 +934,22 @@ class CloudStore:
                 (item_id, who.company, who.user_id, q, t, t, context, call),
             )
         return item_id
+
+    def escalation_recipients(self, company_id: str) -> list[str]:
+        """Who gets the manager email (R2 step 4): the company's manager address if an admin set
+        one, else every active manager, else every active admin."""
+        settings = self.settings(company_id)
+        chosen = str(settings.get("manager_email") or "").strip()
+        if chosen:
+            return [chosen]
+        for role in ("manager", "admin"):
+            rows = self._q(
+                "SELECT email FROM users WHERE company_id = ? AND role = ? AND active = 1",
+                (company_id, role),
+            )
+            if rows:
+                return [str(r["email"]) for r in rows]
+        return []
 
     def escalations(self, who: Principal) -> list[dict[str, Any]]:
         who.require("admin", "manager")

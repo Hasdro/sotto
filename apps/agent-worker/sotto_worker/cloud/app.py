@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import mimetypes
 import time
@@ -25,8 +26,10 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.cloud.bundle import Seed, build_bundle
+from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.recordings import Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
+from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
 
 MAX_BODY = 16 * 1024
@@ -114,6 +117,7 @@ class CloudConfig:
     key_tester: Callable[[str, str, str], Awaitable[list[str]]] | None = None
     log: Callable[[str], None] = field(default=lambda _line: None)
     recordings: Recordings | None = None  # None: recordings are not kept on this server
+    mailer: EmailSender | None = None  # None: manager emails are off (Inbox only)
 
 
 async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
@@ -414,6 +418,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return JSONResponse({"calls": store.company_usage(who, span)})
 
     @app_route
+    async def settings_get(_request: Request, who: Principal) -> Response:
+        who.require("admin")
+        return JSONResponse({"settings": store.settings(who.company)})
+
+    @app_route
     async def settings_put(request: Request, who: Principal) -> Response:
         store.set_settings(who, await body(request), ip=ip_of(request))
         return JSONResponse({"settings": store.settings(who.company)})
@@ -507,13 +516,43 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         if not escalation_limit.hit(who.user_id):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many questions sent")
         data = await body(request)
+        excerpt = str(data.get("transcript_excerpt", ""))
         item = store.add_escalation(
-            who,
-            str(data.get("question", "")),
-            str(data.get("transcript_excerpt", "")),
-            str(data.get("call_id", "")),
+            who, str(data.get("question", "")), excerpt, str(data.get("call_id", ""))
         )
+        if config.mailer is not None and store.last_escalation_new:
+            email_managers(who, item, str(data.get("question", ""))[:500], excerpt[-2000:])
         return JSONResponse({"id": item}, status_code=HTTPStatus.CREATED)
+
+    pending_mail: set[asyncio.Task[bool]] = set()
+
+    def email_managers(who: Principal, item: str, question: str, excerpt: str) -> None:
+        """One email per new question to the company's managers, in the background (R2)."""
+        mailer = config.mailer
+        template = (seed.prompts.get("escalation_email") or {}).get("body", "")
+        to = store.escalation_recipients(who.company)
+        if mailer is None or not template or not to:
+            return
+        origin = config.public_origin or "http://localhost:8788"
+        message = render_escalation(
+            str(template),
+            {
+                "company.name": str(store.company_row(who.company)["name"]),
+                "escalation.question": question,
+                "escalation.transcript": excerpt or "(not available)",
+                "escalation.agent": who.name or who.email,
+                "escalation.customer": "the customer",
+                "escalation.crm_link": "(not connected)",
+                "escalation.inbox_link": f"{origin}/inbox",
+            },
+        )
+        for address in to:
+            msg = EmailMessage(to=address, subject=message.subject, text=message.text)
+            task = asyncio.create_task(
+                send_with_retries(mailer, msg, f"esc-{item}-{address}", log=config.log)
+            )
+            pending_mail.add(task)
+            task.add_done_callback(pending_mail.discard)
 
     @app_route
     async def escalations_get(_request: Request, who: Principal) -> Response:
@@ -769,6 +808,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/calls/{{call_id}}/review", review_post, methods=["POST"]),
         Route(f"{api}/recordings/{{call_id}}", recording_put, methods=["PUT"]),
         Route(f"{api}/recordings/{{call_id}}", recording_get),
+        Route(f"{api}/company/settings", settings_get),
         Route(f"{api}/company/settings", settings_put, methods=["PUT"]),
         Route(f"{api}/company/keys/{{env}}", key_put, methods=["PUT"]),
         Route(f"{api}/company/keys/{{env}}", key_delete, methods=["DELETE"]),

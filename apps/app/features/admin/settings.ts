@@ -13,6 +13,8 @@ export type CompanySettings = {
   card_language: CardLanguage;
   /** Company knowledge the AI reads on every card and review (owner, 22 Oct). */
   context?: string;
+  /** Where unanswered questions are emailed; empty = the company's managers (owner, 22 Oct). */
+  manager_email?: string;
 };
 
 /** Without a server (dev mock, tests) the screen keeps working on these local values. */

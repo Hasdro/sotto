@@ -1,6 +1,16 @@
 /** Admin: company settings (R2 AI answers and backup provider, R4 agent context) and app language. */
-import { Divider, Panel, SegmentedControl, Stack, space, Text, ToggleRow } from "@sotto/ui";
-import type { ReactNode } from "react";
+import {
+  Button,
+  Divider,
+  Panel,
+  SegmentedControl,
+  Stack,
+  space,
+  Text,
+  TextField,
+  ToggleRow,
+} from "@sotto/ui";
+import { type ReactNode, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { type CardLanguage, useCompanySettings } from "../../features/admin/settings";
 import type { Locale } from "../../lib/i18n";
@@ -55,6 +65,12 @@ export default function SettingsScreen() {
           />
         </View>
       </Section>
+      <Section title={`📧 ${t("admin.settings.email")}`}>
+        <ManagerEmail
+          value={settings.manager_email ?? ""}
+          onSave={(v) => change({ manager_email: v })}
+        />
+      </Section>
       <Section title={t("admin.settings.display")}>
         <View style={styles.field}>
           <Text variant="body" weight="medium">
@@ -73,6 +89,35 @@ export default function SettingsScreen() {
         </View>
       </Section>
     </Stack>
+  );
+}
+
+function ManagerEmail({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const { t } = useI18n();
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const valid = text.trim() === "" || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(text.trim());
+  return (
+    <View style={styles.field}>
+      <TextField
+        label={t("admin.settings.managerEmail")}
+        placeholder="sales.manager@yourcompany.com"
+        value={text}
+        onChangeText={setText}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        testID="manager-email"
+      />
+      <Text variant="label" tone={valid ? "muted" : "danger"}>
+        {valid ? t("admin.settings.managerEmailHint") : t("admin.settings.managerEmailBad")}
+      </Text>
+      <Button
+        label={t("settings.knowledge.save")}
+        disabled={!valid || text.trim() === value.trim()}
+        onPress={() => onSave(text.trim())}
+        testID="manager-email-save"
+      />
+    </View>
   );
 }
 

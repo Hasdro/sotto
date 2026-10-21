@@ -273,7 +273,11 @@ export async function cloudCompat(path: string, init: Init = {}): Promise<unknow
       await refreshCloud();
       return { settings: { ...settingsFromBundle(), ...r.settings } };
     }
-    return { settings: settingsFromBundle() };
+    // Admins also see settings that never go into the call bundle (the manager's email).
+    const own = await cloudApi<{ settings: Record<string, unknown> }>("/api/v1/company/settings")
+      .then((r) => r.settings)
+      .catch(() => ({}));
+    return { settings: { ...settingsFromBundle(), ...own } };
   }
 
   if (area === "escalations") {

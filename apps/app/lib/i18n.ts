@@ -397,6 +397,11 @@ const en = {
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
+  "admin.settings.email": "Manager emails",
+  "admin.settings.managerEmail": "Send unanswered questions to",
+  "admin.settings.managerEmailHint":
+    "Each question the AI could not answer is emailed here within a minute. Leave it empty to email your managers (or admins when there are none).",
+  "admin.settings.managerEmailBad": "That is not an email address.",
   "followup.title": "Follow-up email to the customer",
   "followup.draft": "Draft it",
   "followup.drafting": "Writing…",
@@ -1026,6 +1031,11 @@ const ar: Record<StringKey, string> = {
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
+  "admin.settings.email": "رسائل المدير",
+  "admin.settings.managerEmail": "أرسل الأسئلة غير المجابة إلى",
+  "admin.settings.managerEmailHint":
+    "يُرسل كل سؤال لم يستطع الذكاء الاصطناعي الإجابة عنه إلى هذا العنوان خلال دقيقة. اتركه فارغًا لإرساله إلى المديرين (أو المشرفين إن لم يوجد مديرون).",
+  "admin.settings.managerEmailBad": "هذا ليس عنوان بريد إلكتروني.",
   "followup.title": "بريد متابعة إلى العميل",
   "followup.draft": "اكتبه",
   "followup.drafting": "جارٍ الكتابة…",
