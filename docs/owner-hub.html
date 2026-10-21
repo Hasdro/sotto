@@ -102,163 +102,177 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "22 Oct 2026 · 01:40";
+const UPDATED = "22 Oct 2026 · 03:30";
+const ROUND = "2026-10-22b";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] below gets a hover definition. */
 const TERMS = {
- "server":"Your rented computer on the internet (us3) that manages accounts, plans and now call recordings.",
+ "server":"Your rented computer on the internet (us3) that manages accounts, plans, recordings and manager emails.",
  "auto pick-up":"Sotto notices when Zoom, Teams, Meet, 3CX or Yeastar starts using the microphone, and starts listening by itself. It stops when the call app lets the microphone go.",
- "OAuth":"The 'Sign in with Google' / 'Connect Zoho' button flow. The person approves on Google's or Zoho's own page; Sotto never sees their password.",
- "API key":"A secret password a service gives you so programs can use it. You type it into Sotto's Settings yourself; never into a chat.",
- "Resend":"The email-sending service you signed up for. It needs a verified sending domain to email anyone other than you.",
- "domain":"A web address you own, like yourcompany.com. Email services need one to send from (for example questions@yourcompany.com).",
- "data center":"Zoho keeps each account in one region (.com US, .eu Europe, .in India, .sa Saudi Arabia, .com.au Australia…). Sotto must talk to the right one.",
- "WhatsApp template":"A message WhatsApp has approved in advance (for example 'Thanks for your call, here is the brochure'). Businesses may only start a WhatsApp chat with a template.",
- "Gallabox":"Your WhatsApp Business platform. It has an API to send approved templates.",
- "speech-to-text":"The service that turns the customer's voice into words, live.",
+ "mini window":"A small card window that stays on top of Zoom or your softphone during a call.",
+ "SMTP":"The standard way programs send email through a mailbox, like your Hostinger mailbox. Sotto logs in to it the way a mail app does.",
+ "OAuth":"The 'Sign in with Google' / 'Connect Zoho' flow. The person approves on Google's or Zoho's own page; Sotto never sees their password.",
+ "API key":"A secret password a service gives you so programs can use it. You type it into a hidden prompt or Sotto's Settings yourself; never into a chat.",
+ "data center":"Zoho keeps each account in one region; yours is zoho.com (United States).",
+ "WhatsApp template":"A message WhatsApp has approved in advance. Businesses may only start a WhatsApp chat with a template.",
+ "Opus":"A modern audio format: a call recording is about 10 times smaller than plain WAV, with no audible loss for speech.",
  "Whisper":"An open speech-to-text model that can run on the Mac itself, so audio never leaves the computer.",
  "p95":"95 out of 100 cards are at least this fast. Our limit is 1.5 s.",
- "notarise":"Apple's check of a Mac app. Without it, the first open needs right-click → Open.",
- "Opus":"A modern audio format. A call recording in Opus is about 10 times smaller than today's WAV files, with no audible loss for speech.",
+ "replay":"A test that plays sample calls through Sotto and measures speed and answers, with the real AI services.",
  "off-server backup":"A copy of your database kept somewhere other than us3, so one broken server can't lose everything.",
- "playbook":"Your approved answers: products, prices, common questions and objections."
+ "playbook":"Your approved answers: products, prices, common questions and objections.",
+ "AI knowledge":"The new Settings box where an admin tells the AI what it must always know about the company. Every card and call review uses it."
 };
 
 const TABS = [
  {id:"waiting", label:"Waiting on you", badge:()=>DECISIONS.filter(d => d.kind !== "test" && !saved(d.id)).length},
+ {id:"results", label:"Done this round"},
  {id:"ideas", label:"Suggestions", badge:()=>IDEAS.filter(d => !saved(d.id)).length}
 ];
 
-const WAITING_LEAD = "Only what I need from you. The new Sotto is in your Applications folder and the server is updated. Try each item on your Mac and mark it, answer the decisions (my pick is pre-selected), then press Save at the bottom.";
+const WAITING_LEAD = "Only what I need from you. The new Sotto is in your Applications folder and the server is updated. Please sign in again (my testing signed the Mac app out; fixed so it can't happen again), try each line and mark it, then press Save at the bottom.";
 
-/* kind: test (pick list per row, no recommendation), radio, multi (checkbox per item), select (pick list). */
+/* kind: test (pick list per row), radio, select, multi (checkbox per item). */
 const DECISIONS = [
- {id:"test_r1", kind:"test", eyebrow:"Test on your Mac", title:"This round's new features",
-  short:"Open Sotto from Applications, then mark each line. 'Problem' plus a note is all I need.",
-  full:"Auto pick-up and recording were checked here with a simulated Zoom call and speech through the speakers. Not checked yet: a real Zoom or Yeastar call, Arabic and dark mode on the new screens.",
+ {id:"test_r2", kind:"test", eyebrow:"Test on your Mac", title:"This round's changes",
+  short:"Open Sotto from Applications and mark each line. 'Problem' plus a note is all I need.",
+  full:"Checked here with a simulated Zoom/Teams call and speech through the speakers: auto pick-up, mini window, recording, upload, ending by the shortcut. Not checked: a real Zoom or Yeastar call with a real customer, Arabic and dark mode on the new screens.",
   rows:[
-   {v:"pickup", l:"Start a Zoom, Teams, Meet or Yeastar call: Sotto opens the call screen and listens by itself, then ends when you hang up ([[auto pick-up]])"},
-   {v:"cards", l:"Every customer sentence gets a card; buying interest shows a violet card"},
-   {v:"review", l:"After the call: chance to close, six skill sliders, the customer's mood and one tip"},
-   {v:"recording", l:"History → the call → Recording: both sides play back"},
-   {v:"home", l:"Home page: your details, company, AI in use, today's numbers, last call"},
-   {v:"tutorial", l:"Tutorial after sign-in, 'Don't show this again', replay from Settings → Help"},
-   {v:"settings", l:"Settings and the profile popup (click your name at the bottom left)"},
-   {v:"keys", l:"Admin → Keys & providers: sections open and close, search, 'Add a provider'"},
-   {v:"playbook", l:"Playbook → 'How it works', and the 2 example answers in Zylker"},
-   {v:"speed", l:"Tabs open instantly when you switch between them"}]},
- {id:"playbook_docs", kind:"radio", eyebrow:"Still blocked", title:"Your playbook documents",
-  short:"I still can't find them. Without them, questions about your prices and products get the holding line.",
-  full:"Drop them into the sotto folder (any format: PDF, Word, Excel, notes) or tell me where they are in the note. I turn them into playbook answers and you approve them.",
-  rec:"folder", options:[
-   {v:"folder", l:"I'll put them in the sotto folder", d:"I pick them up at the start of my next round."},
-   {v:"elsewhere", l:"They are somewhere else (see my note)", d:"Write the place in the note."},
-   {v:"none", l:"I don't have documents; draft from my website", d:"Write the website address in the note."}]},
- {id:"google", kind:"radio", eyebrow:"Decision", title:"Sign in with Google",
-  short:"Recommended: yes. It needs a free Google sign-in key that only you can create (about 10 minutes); I'll give you click-by-click steps.",
-  full:"Google requires the app owner to create the sign-in client in Google Cloud Console under your Google account. You then paste two values into the server through a hidden prompt (never in chat). It works on the web app and the Mac app; phones come later. Existing email-and-password accounts keep working, and a Google sign-in with the same email joins the same account.",
-  rec:"yes", options:[
-   {v:"yes", l:"Yes, send me the steps", d:"About 10 minutes of your time in Google Cloud Console; free."},
-   {v:"later", l:"Later", d:"Email and password only for now."}]},
- {id:"zoho_mode", kind:"radio", eyebrow:"Decision", title:"Zoho CRM: how companies connect",
-  short:"Recommended: each company's admin presses 'Connect Zoho' once in Settings → Integrations ([[OAuth]]). During a 3CX or Yeastar call, Sotto finds the caller in Zoho and shows the account and deals beside the cards.",
-  full:"You create one Zoho API client for Sotto in api-console.zoho.com (free, about 5 minutes); every company then connects its own Zoho with one click. Sotto reads contacts, accounts and deals by phone number. With several matching contacts, a pick list switches between them. What it reads is also given to the AI as context. Writing call summaries back to Zoho is listed under Suggestions.",
-  rec:"oauth", options:[
-   {v:"oauth", l:"Connect Zoho per company (one click for each admin)", d:"Works for Zylker and every future customer."},
-   {v:"zylker", l:"Only Zylker for now, set up by me with a key you create", d:"Faster to try; other companies need the first option later."},
-   {v:"later", l:"Later", d:"No CRM side panel yet."}]},
- {id:"zoho_dc", kind:"select", eyebrow:"Decision", title:"Zoho CRM: which region is Zylker's Zoho in?",
-  short:"Zoho keeps each account in one [[data center]]. Pick the one in Zylker's Zoho address bar (crm.zoho.com, crm.zoho.eu, crm.zoho.sa…).",
-  full:"If you're not sure, open Zoho CRM and look at the address bar. Each company picks its own region when it connects, so this choice only matters for the first test with Zylker.",
-  rec:"com", options:[
-   {v:"com", l:"zoho.com (United States)"},{v:"eu", l:"zoho.eu (Europe)"},{v:"in", l:"zoho.in (India)"},
-   {v:"sa", l:"zoho.sa (Saudi Arabia)"},{v:"ae", l:"zoho.ae (United Arab Emirates)"},{v:"au", l:"zoho.com.au (Australia)"},{v:"jp", l:"zoho.jp (Japan)"},{v:"cn", l:"zoho.com.cn (China)"}]},
- {id:"gallabox", kind:"radio", eyebrow:"Decision", title:"WhatsApp after the call (Gallabox)",
-  short:"Recommended: after the call, the agent picks an approved [[WhatsApp template]] and presses Send. Nothing goes out without the agent's click.",
-  full:"Gallabox has an API for sending approved templates; I'll confirm the details against its current documentation before building. Each company's admin enters its Gallabox [[API key]] in Settings → Integrations (never in chat). The customer's number comes from Zoho or the 3CX/Yeastar caller ID. Fully automatic sending risks messaging the wrong person when caller ID is missing.",
-  rec:"agent", options:[
-   {v:"agent", l:"Agent picks a template and presses Send after the call", d:"Safe; one click for the agent."},
-   {v:"auto", l:"Send a chosen template automatically when the call ends", d:"No click; may message the wrong number if caller ID is missing."},
+   {v:"agent", l:"Talk on a real call: the transcript shows your lines too (amber, right) and cards build on what you said"},
+   {v:"knowledge", l:"Settings → 🧠 [[AI knowledge]]: write or import a few facts, then ask about them on a call"},
+   {v:"source", l:"The call shows its source (🎥 Zoom, 👥 Teams, 📞 Yeastar…) on the call screen and in History"},
+   {v:"colors", l:"Customer lines are blue on the left, yours amber on the right"},
+   {v:"dim", l:"Older cards are faded; hovering one brings it back"},
+   {v:"speed", l:"Switching sections is instant (it used to restart the whole app every click)"},
+   {v:"mini", l:"The [[mini window]] appears beside Zoom when a call starts; ⌃⌥S starts or ends, ⌃⌥C copies the card, ⌃⌥M shows it"},
+   {v:"menubar", l:"Sotto's face in the Mac menu bar, '● Live' during a call"},
+   {v:"notes", l:"📝 Notes and the talk-time meter during a call; notes appear in History"},
+   {v:"followup", l:"After a call: ✉️ Draft the follow-up email, edit, copy"},
+   {v:"reports", l:"📊 Reports: numbers, calls per day, sources, skills, agents, top objections"},
+   {v:"admin", l:"Admin → 🎧 Recordings, 💻 Devices, 📜 Activity"},
+   {v:"search", l:"History → search what was said"},
+   {v:"palette", l:"⌘K quick search from anywhere"},
+   {v:"face", l:"The Sotto face: no tail, soft smile, violet (not orange) while reviewing"}]},
+ {id:"mailbox", kind:"radio", eyebrow:"Needs you · 10 minutes", title:"Manager emails from your Hostinger mailbox",
+  short:"Yes, Hostinger works and it's built. Create a mailbox such as sotto@agncompu.com in Hostinger, then run one command on the server that asks for its password without showing it.",
+  full:["1. Hostinger hPanel → Emails → agncompu.com → Create email account: sotto@agncompu.com (any strong password).",
+        "2. In Terminal on your Mac: ssh root@104.168.48.116 — then paste: sudo -u sotto bash -c 'set -a; . /etc/sotto/cloud.env; set +a; cd /opt/sotto/apps/agent-worker; .venv/bin/python -m sotto_worker.cloud email-setup' — press Enter for smtp.hostinger.com and 465, type the mailbox, then its password (nothing shows while you type).",
+        "3. Then: systemctl restart sotto-cloud. To test, run the same command with 'email-test --to you@agncompu.com' in place of 'email-setup'.",
+        "4. In Sotto, Admin → Settings → 📧 Manager emails: the address that should receive unanswered questions (empty = your managers).",
+        "Or tell me 'go' and I'll walk you through it live. The password is stored encrypted on the server and never passes through chat."],
+  rec:"hostinger", options:[
+   {v:"hostinger", l:"I'll set up sotto@agncompu.com (Hostinger)", d:"No new service; uses your existing email hosting."},
+   {v:"resend", l:"Use Resend instead", d:"Needs DNS records on agncompu.com; better delivery at high volume."},
+   {v:"later", l:"Later", d:"Unanswered questions stay in the Inbox only."}]},
+ {id:"google_client", kind:"radio", eyebrow:"Needs you · 10 minutes", title:"Sign in with Google: create the Google sign-in client",
+  short:"Not built yet: it needs a Google 'OAuth client' that only you can create under your Google account. Tell me when it exists and I'll build and test it the same day.",
+  full:["1. console.cloud.google.com → create a project 'Sotto'.",
+        "2. APIs & Services → OAuth consent screen: External, app name Sotto, your support email, domain sslip.io for now.",
+        "3. Credentials → Create credentials → OAuth client ID → Web application. Authorised redirect URI: https://104-168-48-116.sslip.io/api/v1/auth/google/callback",
+        "4. Keep the Client ID and Client secret. I'll give you a hidden-prompt command to put them on the server (never in chat)."],
+  rec:"will_do", options:[
+   {v:"will_do", l:"I'll create it this week", d:"I build Google sign-in as soon as it exists."},
+   {v:"help", l:"Walk me through it live", d:"Screen by screen, about 10 minutes."},
+   {v:"later", l:"Later", d:"Email and password only."}]},
+ {id:"zoho_client", kind:"radio", eyebrow:"Needs you · 5 minutes", title:"Zoho CRM: create Sotto's Zoho client",
+  short:"Checked: Zoho's current API finds a contact by phone across all phone fields, so the 3CX/Yeastar caller can be matched. It needs one 'server-based' client in Zoho's API console (zoho.com, as you chose).",
+  full:["1. api-console.zoho.com → Add client → Server-based Applications.",
+        "2. Name Sotto, homepage https://104-168-48-116.sslip.io, redirect URI https://104-168-48-116.sslip.io/api/v1/integrations/zoho/callback",
+        "3. Keep the Client ID and Client secret for the hidden-prompt command. Each company's admin then presses 'Connect Zoho' once (read access to contacts, accounts and deals)."],
+  rec:"will_do", options:[
+   {v:"will_do", l:"I'll create it this week", d:"Then I build the call side panel and saving summaries to deals."},
+   {v:"help", l:"Walk me through it live", d:"About 5 minutes."},
+   {v:"later", l:"Later", d:"No CRM panel yet."}]},
+ {id:"gallabox_key", kind:"radio", eyebrow:"Needs you · 5 minutes", title:"Gallabox: an API key for WhatsApp templates",
+  short:"Checked: Gallabox can send approved [[WhatsApp template]] messages through its API with a workspace key. Create the key in Gallabox; the admin pastes it into Settings → Integrations (never chat).",
+  full:"Gallabox → Settings → Developer / API keys → create a key. Tell me the names of 1–2 approved templates to offer after a call (for example a thank-you with brochure). I confirm the exact request fields against Gallabox's reference once the key exists, then build the 'Send WhatsApp' button.",
+  rec:"will_do", options:[
+   {v:"will_do", l:"I'll create the key and list the templates", d:"Write the template names in the note."},
    {v:"later", l:"Later", d:"No WhatsApp yet."}]},
- {id:"email_from", kind:"radio", eyebrow:"Decision", title:"Manager emails: which address they come from",
-  short:"Recommended: a [[domain]] you already own, for example questions@yourcompany.com. [[Resend]] only sends to strangers from a verified domain.",
-  full:"You add three DNS records that Resend gives you (I'll list them exactly). Then you enter the Resend key on the server through a hidden prompt; it never goes into chat. Until then, Resend's test address only delivers to your own email, which is fine for a first test.",
-  rec:"own", options:[
-   {v:"own", l:"A domain I own (write it in the note)", d:"Best delivery; about 10 minutes of DNS work."},
-   {v:"buy", l:"Buy a new domain for Sotto", d:"About $10–15 a year; ask me before buying anything."},
-   {v:"test", l:"Resend's test address for now", d:"Emails only reach you, the account owner."}]},
- {id:"consent", kind:"radio", eyebrow:"Decision", title:"Telling customers the call is recorded",
-  short:"Recommended: recording stays on, and the call screen shows the agent a 'Tell the customer this call is recorded' reminder.",
-  full:"In many countries the customer must be told about recording. Each agent can already turn recording off in Settings. Recordings are kept 30 days on the Mac and on the server; only the agent who made the call and the company's admins and managers can play them.",
+ {id:"price", kind:"select", eyebrow:"Decision", title:"Price per seat (you chose per-seat pricing)",
+  short:"Pick a starting price per seat per month, with 1,000 call minutes per seat included. I'll draft the plan page and a trial-to-paid email for your approval.",
+  full:"Running cost per agent is roughly $8–15 a month at a few hours of calls a day (speech-to-text plus AI on your current vendors). $29 leaves room for support and the server; you can change it any time.",
+  rec:"29", options:[
+   {v:"19", l:"$19 per seat / month"},{v:"29", l:"$29 per seat / month"},{v:"39", l:"$39 per seat / month"},{v:"49", l:"$49 per seat / month"},{v:"other", l:"Another price (write it in the note)"}]},
+ {id:"backup_reminder", kind:"radio", eyebrow:"Reminder you asked for", title:"The off-server backup is still off",
+  short:"As you asked, it stays off and I'm reminding you. Today one broken server could lose all accounts; a nightly copy to your Mac costs nothing.",
+  full:"Turning it on means a nightly copy of the database (and, if you want, the recordings) to your Mac while it's on. Backblaze B2 is the always-on alternative at a few cents a month.",
   rec:"remind", options:[
-   {v:"remind", l:"Keep recording on, with a reminder on the call screen", d:"The agent tells the customer."},
-   {v:"off", l:"Recording off unless the agent turns it on", d:"Fewer recordings to review."},
-   {v:"none", l:"No reminder", d:"Your company takes care of telling customers."}]},
- {id:"backup", kind:"radio", eyebrow:"Decision", title:"Where the off-server backup goes",
-  short:"Recommended: Backblaze B2. At today's size it costs a few cents a month, with a nightly copy and a monthly restore test.",
-  full:"You chose an [[off-server backup]] last round. Today the nightly backup sits on us3 itself. Backblaze B2 stores the database copy (and, if you want, the recordings) encrypted. You create the account and enter its key on the server through a hidden prompt. I'll ask before anything is charged.",
-  rec:"b2", options:[
-   {v:"b2", l:"Backblaze B2", d:"Pay per use: cents a month now, about $6 per terabyte later."},
-   {v:"mac", l:"Copy to my Mac every night", d:"Free; only works while your Mac is on."},
-   {v:"hetzner", l:"Hetzner Storage Box", d:"About €4 a month flat, 1 TB."}]},
- {id:"local_stt", kind:"radio", eyebrow:"Decision", title:"Speech-to-text on the Mac itself",
-  short:"Recommended: add [[Whisper]] on the Mac as an option a company can choose. Keep AssemblyAI as the default until it proves it can stay under 1.5 s.",
-  full:"Local speech-to-text keeps audio on the computer and costs nothing per minute, but needs an Apple-silicon Mac and about 1 GB of download. The cards still need to arrive within 1.5 s ([[p95]]), so I benchmark it on your Mac before it can be picked. us3 is too small to run it for everyone.",
-  rec:"option", options:[
-   {v:"option", l:"Add it as an option, benchmarked first", d:"Private and free per minute; cloud stays the default."},
-   {v:"default", l:"Make it the default on Macs", d:"Only if the benchmark meets 1.5 s."},
-   {v:"later", l:"Later", d:"Cloud speech-to-text only."}]},
- {id:"pricing", kind:"radio", eyebrow:"Decision", title:"How companies will pay",
-  short:"Recommended: per seat per month, with call minutes included. Write your price idea in the note and I'll draft a plan page for you to approve.",
-  full:"You asked for pricing last round. Seats are simple to explain and match how trials already work (3 seats, 300 minutes). Payment by card (Stripe) comes later and needs your account and approval.",
-  rec:"seat", options:[
-   {v:"seat", l:"Per seat per month, minutes included", d:"Simple; matches the trial."},
-   {v:"minute", l:"Per call minute", d:"Fair for light users; bills vary month to month."},
-   {v:"flat", l:"One price per company", d:"Simplest; big teams pay the same as small ones."}]}
+   {v:"mac_now", l:"Turn on the nightly copy to my Mac now", d:"Free; runs when your Mac is on."},
+   {v:"remind", l:"Keep it off; remind me next round", d:"As you said."}]},
+ {id:"playbook_docs", kind:"radio", eyebrow:"Still blocked", title:"Your playbook documents",
+  short:"Still not in the sotto folder (I checked this round). Without them, questions about your prices and products get the holding line. Meanwhile, Settings → 🧠 AI knowledge is a quick way to give the AI your key facts.",
+  full:"Drop the documents into the sotto/playbook folder (PDF, Word, Excel, notes) or say where they are in the note.",
+  rec:"folder", options:[
+   {v:"folder", l:"I'll put them in sotto/playbook", d:"I turn them into answers for your approval."},
+   {v:"knowledge", l:"I'll use the AI knowledge box for now", d:"Quick; less precise than playbook answers."},
+   {v:"website", l:"Draft from my website (address in the note)", d:"I draft, you approve."}]}
 ];
 
-const IDEAS_LEAD = "Tick what you want next; my picks are pre-ticked. Parts you asked for that aren't built yet come first, then my ideas for making Sotto better.";
+const RESULTS = [
+ {eyebrow:"Your fixes", title:"Everything from your list and recording",
+  short:"All twelve done and installed: the agent heard as context, AI knowledge, call sources, colours, faded cards, faster sections, icons, the face, and the rest.",
+  full:["Agent as context: your microphone is transcribed beside the customer; the AI sees both sides and builds on what you said. Your words never trigger a card.",
+        "AI knowledge in Settings, with 'Import text files'. Used by every card and every call review.",
+        "Call source tags with icons on the call screen and in History; History rows show 📅 date, 🕒 time, ⏳ length, 🃏 cards and a chance-to-close bar.",
+        "Customer blue on the left, you amber on the right. Older cards faded until hovered.",
+        "Section switching: every click was restarting the whole app. Fixed: about 0.05 s per switch, measured in the Mac app.",
+        "Icons in the sidebar, page titles and Settings. The face lost its tail, got a soft smile, and is violet instead of orange while reviewing."]},
+ {eyebrow:"Your ticks", title:"Suggestions you ticked last round",
+  short:"Built: Reports, admin tools, quick search, Sotto's face in more places, mini window, shortcuts, talk meter, notes, follow-up email, agent progress, search, top objections, smaller recordings, manager email.",
+  full:["📊 Reports: calls, minutes, chance to close, speed, calls per day, call sources, card sources, skills, each agent's trend and the skill to coach. Agents see only their own. Only numbers go to the server; never words from calls.",
+        "🛠️ Admin: 🎧 the team's recordings, 💻 every signed-in device, 📜 who changed what.",
+        "Recordings are now [[Opus]]: a 13-second test call was 35 KB instead of about 400 KB, and louder.",
+        "Manager emails through your Hostinger mailbox ([[SMTP]]): built and tested; waits for the mailbox (first tab).",
+        "⌘K quick search, in the spirit of the Claude app. A full Claude-style redesign is not done; this round added the search, icons and calmer cards."]},
+ {eyebrow:"Not done", title:"What I did not build, and why",
+  short:"Google sign-in, Zoho, Gallabox (need your keys), speech-to-text on the Mac (needs a speed test first), the manager's live view (bigger server change), Windows auto pick-up (after the Mac is stable, as you said).",
+  full:["Google, Zoho, Gallabox: feasibility checked against their current documentation; each needs a client or key only you can create (first tab).",
+        "[[Whisper]] on the Mac: not started. It must prove it stays under 1.5 s before it can be offered; next round.",
+        "Manager's live view of team calls: needs the server to relay live cards; planned for next round.",
+        "Saving call summaries to Zoho deals: comes with the Zoho connection."]},
+ {eyebrow:"Evidence", title:"How I checked it",
+  short:"All automatic tests pass (about 950), and the live [[replay]] stays fast: typical 0.57 s, slowest ([[p95]]) 1.05 s, within the 1.5 s limit.",
+  full:["Tests: app 246, server 410, engine 61, interface 146, shared 25, functions 12; coverage and safety checks pass.",
+        "End to end in the Mac app: a simulated Zoom/Teams call started by itself, the mini window opened, the computer's sound was captured, the recording was saved as Opus and uploaded, the shortcut ended the call.",
+        "Two mistakes to own: I changed two replay expectations after checking only the live replay, which broke the offline replay tests until I fixed it; and a change to the mini window briefly broke sound capture, which the end-to-end check caught before it reached you."]},
+ {eyebrow:"Server", title:"Updated on us3",
+  short:"Backed up first, then updated. Running with no errors; the new columns for call sources and review numbers are in place. Downloads page unchanged until you test.",
+  full:"Backups this round: /var/lib/sotto/cloud.db.pre-2026-10-22, -22b and -22c (consistent copies). 5.6 GB free on the disk."}
+];
+
+const IDEAS_LEAD = "New ideas only (what you ticked last round is built or waiting on the first tab). Tick what you want next; my picks are pre-ticked.";
 
 const IDEAS = [
- {id:"idea_missing", eyebrow:"Your list: not built yet", title:"Parts you asked for that are still to do",
-  short:"Pre-ticked: all of them, in this order once the Mac test passes.",
-  full:"Google sign-in, Zoho, WhatsApp and local speech-to-text depend on the decisions on the first tab.",
-  rec:["reports","admin","claude_ui","google","zoho","gallabox","local_stt","mascot_more"], options:[
-   {v:"reports", l:"Reports with charts", d:"Calls per day, cards by kind, speed, review scores and success rate, per agent and per week."},
-   {v:"admin", l:"More admin tools", d:"Per-agent usage, the team's recordings, device control, an activity log, company settings in one place."},
-   {v:"claude_ui", l:"Look and feel in the style of the Claude desktop app", d:"Calmer sidebar, a command search (⌘K), tighter spacing, softer colours."},
-   {v:"google", l:"Sign in with Google", d:"Needs your Google client (first tab)."},
-   {v:"zoho", l:"Zoho CRM side panel during calls", d:"Contact, account and deals; contact pick list; AI context."},
-   {v:"gallabox", l:"WhatsApp template after the call", d:"Through Gallabox."},
-   {v:"local_stt", l:"Speech-to-text on the Mac", d:"Whisper, benchmarked first."},
-   {v:"mascot_more", l:"Sotto character in more places", d:"Empty pages, loading, errors and the Mac menu-bar icon."}]},
- {id:"idea_calls", eyebrow:"My suggestions", title:"During the call",
-  short:"Pre-ticked: a small always-on-top window beside Zoom, and keyboard shortcuts.",
-  full:"Agents usually have Zoom or the softphone full-screen; a small floating card window means they never switch apps mid-call.",
-  rec:["mini","keys"], options:[
-   {v:"mini", l:"Mini window that floats beside Zoom or the softphone", d:"Cards only, always on top; one click back to the full app."},
-   {v:"keys", l:"Keyboard shortcuts", d:"Start or end listening, copy the card, next card, from any app."},
-   {v:"talk", l:"Talk-time meter", d:"Shows the agent when they talk much more than the customer."},
-   {v:"notes", l:"Quick notes during the call", d:"Saved with the call and sent to Zoho."},
-   {v:"live_mgr", l:"Manager sees the team's live calls", d:"Who is on a call now, and the cards they're getting."}]},
- {id:"idea_after", eyebrow:"My suggestions", title:"After the call",
-  short:"Pre-ticked: a draft follow-up email, saving the summary to Zoho, and each agent's progress over time.",
-  full:"These reuse the review that already runs after every call, so they're quick to add.",
-  rec:["followup","crm_write","trend"], options:[
-   {v:"followup", l:"Draft follow-up email to the customer", d:"Written from the call; the agent edits and sends it."},
-   {v:"crm_write", l:"Save the call summary and next step to the Zoho deal", d:"Needs the Zoho connection."},
-   {v:"trend", l:"Each agent's progress over time", d:"Skill scores by week and one coaching focus."},
-   {v:"search", l:"Search all calls", d:"Find every call where a customer said 'discount' or named a competitor."},
-   {v:"objections", l:"Top objections report", d:"Which objections come up most, and which answers win."}]},
- {id:"idea_platform", eyebrow:"My suggestions", title:"Running the business",
-  short:"Pre-ticked: smaller recordings (a tenth of the size), so the server holds far more calls.",
-  full:"Today a recording is about 2 MB per minute; us3 has 5.6 GB free, so about 50 hours of calls. In [[Opus]] it holds about 500 hours.",
-  rec:["opus"], options:[
-   {v:"opus", l:"Store recordings as Opus", d:"About 10 times smaller, same quality for speech."},
-   {v:"notarise", l:"Apple-approved Mac app with automatic updates", d:"Apple Developer account, $99 a year; I ask before any purchase."},
-   {v:"stripe", l:"Card payments and invoices (Stripe)", d:"After the pricing decision."},
-   {v:"arabic", l:"Arabic speech and Arabic cards", d:"Changes an earlier decision (cards in English)."},
-   {v:"windows", l:"Auto pick-up on Windows", d:"After the Mac version is stable, as you asked."}]}
+ {id:"idea_calls2", eyebrow:"During the call", title:"Help in the moment",
+  short:"Pre-ticked: the customer's name and company picked up from the call, and a 'what worked before' hint on objections.",
+  full:"Both reuse what Sotto already hears; neither adds cost per call beyond a few words of AI.",
+  rec:["names","worked"], options:[
+   {v:"names", l:"Name each call after the customer and company it hears", d:"History shows 'Sara · Palm Homes' instead of a date."},
+   {v:"worked", l:"'What worked before' under objection cards", d:"The team's best answer to the same objection, from calls that closed."},
+   {v:"mood", l:"Customer mood line on the call screen", d:"A soft colour line that rises and falls with the customer's tone."},
+   {v:"redact", l:"Hide card numbers and IDs from transcripts automatically", d:"Safer recordings and history."}]},
+ {id:"idea_after2", eyebrow:"After the call", title:"Close the loop",
+  short:"Pre-ticked: one-click outcome at the end of each call (meeting booked, follow-up, lost) feeding Reports.",
+  full:"Outcomes make the chance-to-close estimate measurable against what really happened.",
+  rec:["outcome"], options:[
+   {v:"outcome", l:"One-click call outcome", d:"Meeting booked · Follow-up · Not interested; shown in Reports."},
+   {v:"tasks", l:"Next-step reminders", d:"The agreed next step becomes a reminder (and a Zoho task once connected)."},
+   {v:"practice", l:"60-second practice of the weakest skill", d:"The AI plays the customer; the agent answers out loud."}]},
+ {id:"idea_team", eyebrow:"For managers", title:"Running the team",
+  short:"Pre-ticked: a short daily email to managers with yesterday's calls, top objections and one coaching focus per agent.",
+  full:"Uses the mailbox from the first tab; numbers only, no words from calls.",
+  rec:["digest"], options:[
+   {v:"digest", l:"Daily digest email to managers", d:"Calls, close chances, top objections, one coaching focus each."},
+   {v:"board", l:"Team leaderboard", d:"Friendly ranking by calls and chance to close; can be turned off."},
+   {v:"alerts", l:"Alert when an agent's scores drop", d:"An email when a skill falls two weeks in a row."}]},
+ {id:"idea_platform2", eyebrow:"The product", title:"Polish and reach",
+  short:"Pre-ticked: a health page that checks every key and service in one place.",
+  full:"Most support questions will be 'why no cards?'; one page that tests keys, speech-to-text and the AI answers it.",
+  rec:["health"], options:[
+   {v:"health", l:"Health check page", d:"Tests keys, speech-to-text, AI speed and the microphone in one click."},
+   {v:"gulf", l:"Gulf Arabic speech-to-text trial", d:"Compare vendors on Gulf dialect calls."},
+   {v:"brand", l:"Company logo and colours in the app", d:"Each customer company sees its own brand."}]}
 ];
 /* ======================= END DATA ======================= */
 
@@ -308,6 +322,10 @@ const views = {
   return `<h2 class="tabtitle">Waiting on you</h2><p class="lead">${rich(WAITING_LEAD)}</p>
    ${DECISIONS.map(d => card({id:"d-" + d.id, eyebrow:d.eyebrow, title:d.title, short:d.short, full:d.full, extra:controls(d)})).join("")}`;
  },
+ results(){
+  return `<h2 class="tabtitle">Done this round</h2><p class="lead">What changed, what I did not do and why, and how I checked it.</p>
+   ${RESULTS.map((c, i) => card({id:"r" + i, ...c})).join("")}`;
+ },
  ideas(){
   return `<h2 class="tabtitle">Suggestions</h2><p class="lead">${rich(IDEAS_LEAD)}</p>
    ${IDEAS.map(d => card({id:"i-" + d.id, eyebrow:d.eyebrow, title:d.title, short:d.short, full:d.full, extra:controls({...d, kind:"multi"})})).join("")}`;
@@ -315,7 +333,7 @@ const views = {
 };
 
 function renderTabs(){
-  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge() ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
+  $("#tabs").innerHTML = TABS.map(t => `<button type="button" role="tab" data-t="${t.id}" aria-selected="${t.id === tab}">${esc(t.label)}${t.badge && t.badge() ? `<span class="n">${t.badge()}</span>` : ""}</button>`).join("");
 }
 function render(){
   renderTabs();
@@ -349,9 +367,9 @@ window.addEventListener("scroll", () => { tip.hidden = true; }, {passive:true});
 
 /* Choices: kept in this browser until Save, then written to the artifact's db (decisions/owner). */
 let choices = {}; let ref = null; let dirty = false; let savedIds = new Set();
-try { choices = JSON.parse(localStorage.getItem("hub.choices.r2") || "{}"); } catch {}
+try { choices = JSON.parse(localStorage.getItem("hub.choices." + ROUND) || "{}"); } catch {}
 const saved = id => savedIds.has(id);
-function local(){ try { localStorage.setItem("hub.choices.r2", JSON.stringify(choices)); } catch {} }
+function local(){ try { localStorage.setItem("hub.choices." + ROUND, JSON.stringify(choices)); } catch {} }
 function toast(m){ const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
 function touched(){ dirty = true; local(); msg(); }
 
@@ -376,7 +394,7 @@ async function save(){
   const answers = {}; for (const d of ALL()) answers[d.id] = {v: choices[d.id]?.v ?? recOf(d), note: choices[d.id]?.note || "", recommended: recOf(d)};
   choices._savedAt = new Date().toISOString(); local(); dirty = false;
   if (!ref){ msg(); toast("Saved in this browser only (not connected)"); return; }
-  try { await ref.set({round: "2026-10-22", answers, savedAt: choices._savedAt}); toast("Saved. Claude reads these at the start of the next round."); }
+  try { await ref.set({round: ROUND, answers, savedAt: choices._savedAt}); toast("Saved. Claude reads these at the start of the next round."); }
   catch { toast("Could not save. Try again."); }
   msg();
 }
@@ -389,7 +407,7 @@ render();
   ref.onSnapshot(snap => {
     if (!snap.exists || dirty) return;
     const data = snap.data();
-    if (data.round !== "2026-10-22") return; // last round's answers are already done
+    if (data.round !== ROUND) return; // last round's answers are already done
     const a = data.answers || {}; savedIds = new Set(Object.keys(a));
     for (const k in a) choices[k] = {v: a[k].v, note: a[k].note || ""};
     choices._savedAt = data.savedAt; local(); render();
