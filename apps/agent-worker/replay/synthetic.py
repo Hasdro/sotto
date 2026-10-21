@@ -24,6 +24,7 @@ from sotto_worker.contracts import (
     TranscriptEvent,
 )
 from sotto_worker.pipeline.session import CallSession, Escalation
+from sotto_worker.playbook.index import CONFIDENT, PlaybookIndex
 from sotto_worker.protocol import CardMessage
 from sotto_worker.router import ModelRouter, RoutingConfig, StageRoute
 from sotto_worker.runtime import build_demo_runtime
@@ -98,6 +99,8 @@ class ReplayReport:
     per_call: dict[str, LatencySummary] = field(default_factory=dict)
     records: list[CardTimingRecord] = field(default_factory=list)
     escalations: int = 0
+    # Top-1 playbook score of each customer turn that got a card (T-033: matching quality).
+    top1_scores: list[float] = field(default_factory=list)
 
     @property
     def summary(self) -> LatencySummary:
@@ -183,7 +186,9 @@ async def replay_synthetic(
             await session.on_transcript(event, t0_ms=t)
             await clock.advance(6000)
             t = clock.now_ms() - profile.final_after_t0_ms
-            check_line(report, scenario, line, [c for c in cards if c.seq == 0][before:])
+            new_cards = [c for c in cards if c.seq == 0][before:]
+            check_line(report, scenario, line, new_cards)
+            record_match(report, base.playbook, line, new_cards)
         await session.close()
         report.cards += len(records)
         report.escalations += len(escalations)
@@ -191,6 +196,19 @@ async def replay_synthetic(
         if records:
             report.per_call[scenario.id] = summarise(records)
     return report
+
+
+def record_match(
+    report: ReplayReport,
+    playbook: PlaybookIndex,
+    line: ScriptLine,
+    new_cards: Sequence[CardMessage],
+) -> None:
+    """The best playbook score for each customer turn that got a card (T-033)."""
+    if line.speaker != "customer" or not new_cards:
+        return
+    best = playbook.nearest(line.text)
+    report.top1_scores += [best.score if best is not None else 0.0] * len(new_cards)
 
 
 def check_line(
@@ -219,6 +237,19 @@ def stage_values(records: Sequence[CardTimingRecord]) -> dict[str, list[int]]:
         "model first token": [r.first_token_ms for r in records if r.first_token_ms is not None],
         "first word shown": [r.first_delta_ms for r in records],
     }
+
+
+def match_quality(report: ReplayReport, by_source: dict[str, int], total: int) -> str:
+    """Playbook share, holding share and how close the matcher came (T-033)."""
+    scores = report.top1_scores
+    mean = sum(scores) / len(scores) if scores else 0.0
+    low = sum(1 for s in scores if s < CONFIDENT)
+    return (
+        f"playbook cards {100 * by_source['playbook'] / total:.0f}% · holding "
+        f"{100 * by_source['holding'] / total:.0f}% · mean top-1 score {mean:.2f} · "
+        f"turns below {CONFIDENT}: {low} of {len(scores)} "
+        f"({100 * low / max(len(scores), 1):.0f}%)"
+    )
 
 
 def format_report(
@@ -256,6 +287,7 @@ def format_report(
         f"{100 * fallbacks / total:.0f}%",
         f"backup started on {fallbacks} of {len(report.records)} turns · backup won "
         f"{by_source['backup']}",
+        match_quality(report, by_source, total),
         "",
         f"R1 p95 ≤ {R1_P95_MS} ms: {r1} ({kind} — not the R1 gate)",
         "  The R1 gate needs real recorded calls (test-calls/, P2.8); this run does not count.",

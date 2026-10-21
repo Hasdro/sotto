@@ -73,3 +73,22 @@ def test_cli_does_not_claim_the_r1_gate_and_reports_the_backup_race(
     assert "real recorded calls" in out
     assert "backup started on" in out
     assert "backup won" in out
+
+
+def test_cli_reports_how_well_the_playbook_matches(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A quality number next to latency, so a matching change can be judged (T-033)."""
+    assert main(["--all", "--calls-dir", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "playbook cards" in out
+    assert "mean top-1 score" in out
+    assert "below 0.42" in out
+
+
+async def test_replay_records_the_top_match_score_of_each_customer_turn() -> None:
+    report = await replay_synthetic(load_all(DEMO / "calls"), LatencyProfile(seed=7))
+    assert len(report.top1_scores) == report.cards
+    assert all(0.0 <= s <= 1.0 + 1e-9 for s in report.top1_scores)
+    playbook_cards = sum(1 for r in report.records if r.source == "playbook")
+    assert sum(1 for s in report.top1_scores if s >= 0.42) == playbook_cards

@@ -174,11 +174,21 @@ class PlaybookIndex:
         norm = math.sqrt(sum(v * v for v in vec.values())) or 1.0
         return {t: v / norm for t, v in vec.items()}
 
-    def lookup(self, text: str) -> PlaybookHit | None:
+    def ranked(self, text: str, n: int) -> list[PlaybookHit]:
+        """The `n` best-scoring entries, best first, whatever their confidence."""
         query = self._vector(_tokens(text))
-        best: PlaybookHit | None = None
-        for entry, vec in zip(self.entries, self._vectors, strict=True):
-            score = sum(w * vec.get(t, 0.0) for t, w in query.items())
-            if best is None or score > best.score:
-                best = PlaybookHit(entry, score)
+        hits = [
+            PlaybookHit(entry, sum(w * vec.get(t, 0.0) for t, w in query.items()))
+            for entry, vec in zip(self.entries, self._vectors, strict=True)
+        ]
+        # Stable sort: on a tie the earlier entry wins, as the single-best scan did.
+        return sorted(hits, key=lambda h: -h.score)[:n]
+
+    def nearest(self, text: str) -> PlaybookHit | None:
+        """Best match regardless of confidence (None only for an empty playbook)."""
+        top = self.ranked(text, 1)
+        return top[0] if top else None
+
+    def lookup(self, text: str) -> PlaybookHit | None:
+        best = self.nearest(text)
         return best if best is not None and best.score >= CONFIDENT else None

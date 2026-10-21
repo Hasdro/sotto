@@ -63,3 +63,12 @@ def test_finds_the_right_entry(index: PlaybookIndex, utterance: str, expected: s
 )
 def test_returns_nothing_without_a_confident_match(index: PlaybookIndex, utterance: str) -> None:
     assert index.lookup(utterance) is None
+
+
+def test_ranks_the_nearest_entries_best_first(index: PlaybookIndex) -> None:
+    top = index.ranked("Is there covered parking for two cars?", 3)
+    assert len(top) == 3
+    assert [h.score for h in top] == sorted((h.score for h in top), reverse=True)
+    best = index.nearest("Is there covered parking for two cars?")
+    assert best is not None and top[0].entry.id == best.entry.id
+    assert index.lookup("Is there covered parking for two cars?") is not None

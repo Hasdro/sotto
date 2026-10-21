@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from replay.synthetic import ReplayReport, check_line
+from replay.synthetic import ReplayReport, check_line, record_match
 from sotto_worker.adapters.factory import has_credentials, platform_key
 from sotto_worker.clock import RealClock
 from sotto_worker.contracts import TranscriptEvent
@@ -133,7 +133,9 @@ async def replay_live(
             )
             await session.on_transcript(event, t0_ms=t0)
             await session.drain()
-            check_line(report, scenario, line, [c for c in cards if c.seq == 0][before:])
+            new_cards = [c for c in cards if c.seq == 0][before:]
+            check_line(report, scenario, line, new_cards)
+            record_match(report, runtime.playbook, line, new_cards)
         await session.close()
         report.cards += len(records)
         report.escalations += len(escalations)

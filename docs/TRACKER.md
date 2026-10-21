@@ -120,7 +120,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [x] T-030 B1.3 Keep-warm every 120 s, not 25 s (rate-limit fix) — still warms once at call start. Evidence: engine test on `KEEP_WARM_EVERY_MS` ≥ 120 000; replay p50 567 / p95 1148, holding 45% (unchanged)
 - [x] T-031 B1.4 Replay says "synthetic — not the R1 gate"; reports backup starts/wins — prints `PASS (synthetic — not the R1 gate)` plus a line that only real recorded calls count; `--live` says "live smoke test"; exit code unchanged. Evidence: `test_cli_does_not_claim_the_r1_gate_and_reports_the_backup_race`; replay: backup started on 0 of 11 turns, won 0
 - [ ] T-032 B2.1 Top three playbook entries go to the model when the direct match misses
-- [ ] T-033 B2.2 Replay reports playbook share, holding share, mean top-1 score, share below 0.42
+- [x] T-033 B2.2 Replay reports playbook share, holding share, mean top-1 score, share below 0.42 — synthetic and live replays. Baseline 21 Oct: playbook cards 45% · holding 45% · mean top-1 0.33 · 6 of 11 turns below 0.42 (55%). Evidence: `test_cli_reports_how_well_the_playbook_matches`, `test_replay_records_the_top_match_score_of_each_customer_turn`, `test_ranks_the_nearest_entries_best_first`
 - [ ] T-034 B3.1 Escalations carry the transcript excerpt, agent and call
 - [ ] T-035 B3.2 Email the manager within a minute `[OWNER]` (Resend account, sender, recipient)
 - [ ] T-036 B4.1 Phones say plainly that live calls come with phone calling (Phase 4)
