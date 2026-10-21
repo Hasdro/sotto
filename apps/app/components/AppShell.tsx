@@ -38,6 +38,7 @@ import { useIsWide } from "../lib/responsive";
 import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
 import { AppLink } from "./AppLink";
+import { CommandPalette } from "./CommandPalette";
 import { PlanBanner } from "./PlanBanner";
 import { ProfilePopup } from "./ProfilePopup";
 import { RoleSwitch } from "./RoleSwitch";
@@ -104,8 +105,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       </View>
       {wide ? null : <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
       <Tutorial />
+      <Palette />
     </View>
   );
+}
+
+/** ⌘K quick search over the sections this person may open (owner, 22 Oct). */
+function Palette() {
+  const nav = useNav();
+  return <CommandPalette sections={nav} />;
 }
 
 /** Brand, links, role switch and the user footer: the sidebar and the drawer show the same. */
