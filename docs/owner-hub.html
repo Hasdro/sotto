@@ -117,7 +117,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "21 Oct 2026 · 21:30";
+const UPDATED = "21 Oct 2026 · 23:00";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] in the text below gets a hover definition. */
 const TERMS = {
@@ -184,53 +184,45 @@ const OVERVIEW = {
  parts:[{label:"Done", v:76, c:"var(--ok)"},{label:"In progress now", v:3, c:"var(--brand)"},{label:"Not started", v:21, c:"var(--line)"}],
  cards:[
   {eyebrow:"Status", title:"Where are we?",
-   short:"I worked through the [[review]]'s fix list: 18 fixes are built and tested, 4 wait for your decision. None of it is on your server or in your Mac app yet; that needs your yes.",
-   full:["The review found things a customer could see today, for example sample data in real accounts and a call ending when you open another page. Those are fixed.",
-         "Everything is saved and tested on my side. Your live server, the web app and the Mac app in Applications are unchanged until you say 'ship it' in Your decisions.",
-         "Your Zylker test of the Mac app from last round still applies: the way calls are heard did not change."]},
-  {eyebrow:"This round", title:"What changed this round",
+   short:"You said ship this round. The code is pushed, but your server and your Mac app are not updated yet: my tools were blocked from reaching the server and from building the Mac app.",
+   full:["Pushed: all 18 review fixes are on GitHub (draft pull request #1), tested.",
+         "Not done: updating your live server and web app, and replacing Sotto in your Applications folder. My permission settings refused both steps, so nothing on your server or Mac changed.",
+         "To finish: allow those two steps (see 'What I need from you'), and I run them, back up the server database first, and check the app, the API and your console afterwards."]},
+  {eyebrow:"This round", title:"What is in this round",
    short:"Privacy and honesty fixes, better answers from your playbook, a setup guide for new companies, and admin pages that show real data.",
-   full:["1. Privacy: call transcripts saved on a computer now belong to one account and are wiped at sign-out, so the next person on a shared laptop can't read them.",
-         "2. A live call no longer ends if the agent opens History or goes back. 'End call' now asks 'End this call?' first.",
-         "3. Real accounts never show sample calls or sample answers. Agents see 'Calls paused — reason' when the plan blocks calls. Messages no longer show technical key names.",
-         "4. Better answers: when no playbook entry matches exactly, the AI now gets your 3 nearest entries. This also fixed a bug where it got none. In the live [[replay]], holding lines dropped from 36% to 18–27%.",
-         "5. Admin: speech services the app can't run are greyed out. A 3-step setup guide shows the keys a new company needs. Team shows your real people and Invite works. The prompt editor and a sample models table are hidden until they're real.",
-         "6. Manager questions now include the [[transcript excerpt]] and who asked. Phones say plainly that live calls come with phone calling and point to the Mac and Windows apps.",
-         "7. Under the hood: the main engine's tests run 10 times faster and must cover at least 80% of its code (now 92%)."]},
+   full:["1. Privacy: call transcripts saved on a computer belong to one account and are wiped at sign-out.",
+         "2. A live call no longer ends if the agent opens another page, and 'End call' asks first.",
+         "3. Real accounts never show sample calls or answers. Agents see 'Calls paused — reason' when the plan blocks calls.",
+         "4. Better answers: the AI gets your 3 nearest playbook entries. In the live [[replay]], holding lines dropped from 36% to 18–27%.",
+         "5. Admin: a 3-step setup guide, Team on real data with working Invite, and unusable speech services greyed out.",
+         "6. Manager questions include the [[transcript excerpt]] and who asked."]},
   {eyebrow:"Progress", title:"How much is done?",
-   short:"About 76% (up from 74%). The product is more trustworthy rather than bigger: privacy, honest screens and better answers.",
-   full:["Why it went up: Batches 0–6 of the review list are done (74% → 76%). The admin pages now show real data, manager questions carry their context, and the engine has a quality floor.",
+   short:"About 76%. It goes up once this round is live on your server and Mac and you have tested it.",
+   full:["Why 76%: the review fixes are built and tested, but not live yet.",
          "Why not more: the manager email, phone calling and your playbook are still open."]},
   {eyebrow:"Remaining", title:"What is left?",
-   short:"Your decisions on this round, your real playbook, the manager email, real phone calls (LiveKit and Yeastar), then a pilot.",
-   full:["1. Ship this round to your server and Mac app (your yes).",
-         "2. The 4 parked review items: answer timing, manager email, a practice call, and room in the web app's [[bundle]].",
+   short:"Put this round live, answer 5 decisions, your playbook, then phone calling (LiveKit and Yeastar) and a pilot.",
+   full:["1. Update the server, web app and Mac app (waiting on your permission).",
+         "2. Five decisions in 'Your decisions': answer timing, manager email, practice call, room in the web app, and bigger review items.",
          "3. Your real [[playbook]]: still waiting for the documents.",
-         "4. Real phone calls through [[LiveKit]] and [[Yeastar]] (Phase 4), then password reset by email, a load test and a one-week pilot."]},
+         "4. Real phone calls through [[LiveKit]] and [[Yeastar]], then password reset by email, a load test and a one-week pilot."]},
   {eyebrow:"Blockers", title:"What is holding us up?",
-   short:"Your playbook documents, and your yes to ship this round. The manager email also needs a free Resend account.",
-   full:["Playbook: without it, questions about company facts get the [[holding line]] and go to your manager.",
-         "Manager email: the review rightly says managers must get an email within a minute. Sending email needs a [[Resend]] account (free plan) and a sender address.",
-         "Phone dial pad with your real number: still needs [[LiveKit]] and your [[Yeastar]] admin details."]},
+   short:"Permission to update the server and build the Mac app, and your playbook documents.",
+   full:["Permission: Claude Code's safety mode stopped me from connecting to your server and from running the Mac app build.",
+         "Playbook: without it, questions about company facts get the [[holding line]] and go to your manager.",
+         "Phone dial pad: still needs [[LiveKit]] and your [[Yeastar]] admin details."]},
   {eyebrow:"Your to-do", title:"What I need from you",
-   short:"1) Answer the new questions in Your decisions and press Save. 2) Tell me where the playbook documents are.",
-   full:["1. Open 'Your decisions'. Six new questions have my pick already selected; change any you disagree with and press Save.",
-         "2. If you choose the manager email: create a free account at resend.com and tell me in chat when it's ready. Don't paste the key in chat; add it on the server with me.",
+   short:"1) Allow me to update the server and build the Mac app. 2) Answer the 5 decisions and press Save. 3) Tell me where the playbook documents are.",
+   full:["1. Approve the server update and the Mac build when Claude Code asks, or add a permission rule for them.",
+         "2. Open 'Your decisions': five questions have my pick already selected; change any you disagree with and press Save.",
          "3. Tell me where the playbook documents are, or drop them into the sotto folder.",
-         "4. Still open from last round: test the Mac app on a real Zoom, Meet or Yeastar call with Zylker."]}
+         "4. After the update: test the Mac app on a real Zoom, Meet or Yeastar call with Zylker."]}
  ]
 };
 
-const DECISIONS_LEAD = "Six new questions from the review round (21 Oct) are at the top, each with my pick pre-selected. The six below them were answered on 20 Oct and are in place. Press Save; I read your answers at the start of my next round.";
+const DECISIONS_LEAD = "Five open questions from this round, each with my pick pre-selected. Answered decisions are removed from this page. Press Save; I read your answers at the start of my next round.";
 
 const DECISIONS = [
- {id:"brief_ship", title:"Put this round's fixes live",
-  short:"Recommended: update your server and web app, and replace the Mac app in your Applications folder. The downloads page stays as it is until you test.",
-  full:"The server change is safe for existing data: it adds two empty columns for manager-question context and keeps everything else. I'd check the app, the API and your console afterwards, as last time.",
-  rec:"ship", options:[
-   {v:"ship", l:"Ship to the server, web app and my Mac", d:"Downloads page unchanged; you test first."},
-   {v:"ship_all", l:"Ship everywhere, including the downloads page", d:"New Mac, Windows, Linux and Android files replace the old ones."},
-   {v:"wait", l:"Wait", d:"Nothing changes on your server or Mac."}]},
  {id:"brief_budget", title:"How long the main AI gets before the backup starts",
   short:"Recommended: give the main AI until about 1.15 s after the customer stops (now 0.7 s). Its request only starts about 0.6 s in, so today it gets 0.1 s before the [[backup AI]] is started too.",
   full:"In the live replay the backup started on 2–3 of 11 questions and never won, so those were wasted requests on your free quota. The requirement says 'no [[first word]] within 700 ms → backup'. Raising the value means reading that as '700 ms of the AI's own time'. The 1.5 s target and the holding line at 1.4 s don't change.",
@@ -270,44 +262,6 @@ const DECISIONS = [
    {v:"analytics", l:"Team analytics and coaching", d:"Needs calls uploaded to the server, with consent."},
    {v:"arabic", l:"Suggestion cards in Arabic too", d:"Changes decision D-018 (cards in English)."},
    {v:"pricing", l:"Review pricing and trial limits", d:"A business decision for you."}]},
- {id:"keys_where", title:"Where the AI service keys live",
-  short:"Recommended: the company admin enters keys once; the server keeps them [[encrypted]] and hands them only to that company's signed-in apps.",
-  full:"The apps now call the AI and [[speech-to-text]] services themselves, so each app needs the [[API key]]. Typing keys on every phone is painful and keys get lost. Keeping them on the server, locked per company, means one place to change them. Where a vendor supports it, the app gets a [[short-lived key]] instead of the real one.",
-  rec:"server", options:[
-   {v:"server", l:"Admin enters once; server hands them to signed-in apps", d:"One place to manage. Server sends a few bytes at call start, nothing heavy."},
-   {v:"device", l:"Each device enters its own keys", d:"Server never sees keys. Every agent must paste keys on every device."},
-   {v:"owner", l:"You provide the keys for all companies and bill them", d:"Simplest for customers; you pay the AI bills and charge in the subscription."}]},
- {id:"db", title:"Which database runs on the server",
-  short:"Recommended: [[SQLite]], one file, backed up every night. Move to [[Postgres]] later if needed.",
-  full:"us3 has 1 GB of memory. SQLite uses almost none and handles thousands of users and companies easily. Postgres would take a third of the memory for no benefit at our size. Switching later is a one-day job because the code talks to the database through one module.",
-  rec:"sqlite", options:[
-   {v:"sqlite", l:"SQLite with nightly backups", d:"Light and simple. Backups kept 14 days on the server."},
-   {v:"postgres", l:"Postgres now", d:"More moving parts and memory on a small server."}]},
- {id:"desktop", title:"How we build the Windows, Mac and Linux apps",
-  short:"Recommended: [[Electron]]. It builds all three from your Mac today with no extra installs.",
-  full:"Electron wraps our existing app into an installable program with microphone access and its own window. [[Tauri]] makes smaller downloads but needs extra build tools on each operating system (Windows builds really need a Windows machine). We can switch later; the app inside stays the same.",
-  rec:"electron", options:[
-   {v:"electron", l:"Electron", d:"Proven; about 100 MB download."},
-   {v:"tauri", l:"Tauri", d:"About 10 MB download; needs Rust and a Windows machine for Windows builds."},
-   {v:"pwa", l:"Installable web app only", d:"No download at all, installs from Chrome or Edge. Fewer desktop features."}]},
- {id:"iphone", title:"How we build the iPhone app",
-  short:"Recommended: install [[Xcode]] on your Mac (free). I can then build and test it on the iPhone simulator myself.",
-  full:"Apple only allows iPhone apps to be built with Xcode on a Mac. Installing it needs your Mac password, so I cannot do it alone. Alternative: Expo's cloud build service (free tier) builds it for us, but needs a free Expo account. To send it to real testers you also need an Apple Developer account ($99 a year) for [[TestFlight]].",
-  rec:"xcode", options:[
-   {v:"xcode", l:"I'll install Xcode from the App Store", d:"About 12 GB. Then I build and test it myself."},
-   {v:"eas", l:"Use Expo cloud builds (I'll create a free Expo account)", d:"Nothing to install; builds take about 15 minutes in the cloud."},
-   {v:"later", l:"Later, Android and desktop first", d:""}]},
- {id:"billing", title:"How customers pay their subscription",
-  short:"Recommended: for the first customers you invoice them yourself and mark them paid in your dashboard. Add card payments (Stripe) later.",
-  full:"Your dashboard can change a company's plan, extend a [[trial]], add [[seat]]s or suspend a company. Connecting card payments needs a Stripe account and prices, which only make sense once the first customers say yes.",
-  rec:"manual", options:[
-   {v:"manual", l:"Manual invoices; I mark paid in the dashboard", d:""},
-   {v:"stripe", l:"Card payments with Stripe now", d:"Needs a Stripe account and your prices."}]},
- {id:"audio_days", title:"How long to keep call audio",
-  short:"You chose to keep audio. Recommended: 30 days, then it is deleted automatically.",
-  full:"Audio is large and sensitive. 30 days covers disputes and coaching. With the new design the audio stays on the agent's device, not on your server.",
-  rec:"30", options:[
-   {v:"7", l:"7 days", d:""},{v:"30", l:"30 days", d:""},{v:"90", l:"90 days", d:""},{v:"365", l:"1 year", d:""}]}
 ];
 
 const SERVER = [
@@ -317,34 +271,10 @@ const SERVER = [
         "Your owner password is now your own, and the one-time password file is deleted (I checked).",
         "The server uses about 280 MB of its 1 GB memory."]},
  {eyebrow:"This round", title:"What I did on us3 this round",
-  short:"Nothing. The server code is ready (manager questions carry context, and unusable speech services are refused) but goes live only after your yes.",
-  full:["Ready to install: two new columns for the [[transcript excerpt]] and call. They are added automatically to the existing [[database]] with no data lost (tested on an old-format copy).",
-        "Also ready: the server refuses a speech service the app can't run (Deepgram, ElevenLabs), and tells the app which services those are.",
-        "Your live server, its data and the downloads page were not touched. I tested against a throwaway copy on my Mac with a test account."]},
- {eyebrow:"Installed today", title:"What I installed",
-  short:"The Sotto account server, [[Caddy]] for the [[HTTPS]] padlock, a firewall, a [[database]] file and a nightly backup. No [[Docker]].",
-  full:["[[Caddy]] (from Ubuntu's own software list): gets the HTTPS certificate and renews it automatically.",
-        "Python 3.13 and the Sotto account server, run by [[systemd]] so it restarts on crash and on reboot. It is capped at 400 MB of memory.",
-        "One [[SQLite]] database file, backed up every night at 03:30. The last 14 copies are kept.",
-        "Firewall: only SSH, 80 and 443 are open.",
-        "Your companies' AI keys are stored [[encrypted]]. The unlock key lives in a private settings file, not in the code."]},
- {eyebrow:"Its job", title:"What the server does (and does not do)",
-  short:"Manages accounts and subscriptions and collects usage numbers. It never carries call audio or AI traffic.",
-  full:["Does: sign up and log in, companies ([[tenant]]s), [[trial]]s and plans, [[seat]]s and devices, each company's settings, [[playbook]] and [[encrypted]] keys, the usage numbers the apps send after each call, and your private [[admin dashboard]].",
-        "Does not: listen to calls, turn speech into text, or call the AI. The [[client app]] does all of that on the agent's device, straight to the AI services.",
-        "One small exception: when a call starts, the server asks the [[speech-to-text]] service for a [[short-lived key]]. That way the real key never has to sit in a web browser. It is one tiny request per call."]},
- {eyebrow:"Security", title:"Independent security review",
-  short:"A separate reviewer checked the new server: 0 critical, 1 high, 4 medium and 6 low findings. The high one and all four medium ones are fixed and tested. Most low ones are fixed too.",
-  full:["High (fixed): every signed-in agent used to receive all of the company's AI keys. Now a device gets only the AI keys its calls actually use, and never the speech keys (those get [[short-lived key]]s). Every hand-over is logged.",
-        "Medium (fixed): your console now has its own web address, so a problem in the app cannot reach your owner session. Seat limits can no longer be bypassed. A flood of wrong passwords can no longer lock everyone out, and it can never lock you out. One company's usage can no longer hide another's.",
-        "Low (fixed): a new password must be chosen at first sign-in. Changing a password signs out other devices. Stricter server sandboxing (Ubuntu now rates it 'OK', 1.7).",
-        "Also fixed: the server now notes when each call starts. It caps the minutes an app reports by its own clock, and it refuses new calls the moment a plan ends.",
-        "Advice for companies: use spend-capped keys from the AI vendors."]},
- {eyebrow:"Your dashboard", title:"Your admin dashboard",
-  short:"Live at owner.104-168-48-116.sslip.io, only for you. It shows every company, its plan, seats, minutes, calls and speed, with buttons to manage them.",
-  full:["Numbers: companies by status, users and devices, active users today, calls and minutes this month, card speed ([[p95]]), unanswered questions, trials ending in 3 days, a 30-day chart, and devices by platform.",
-        "Tools: create a company, change plan, extend a trial or mark it paid, change seat and minute limits, suspend or re-activate, reset a user's password, disable a user, sign a device out, delete a company (you type its name to confirm), and the audit log of every change.",
-        "It is empty until the first company signs up in the app, or until you press New company."]}
+  short:"Nothing yet. You said ship, but the connection to the server was blocked by my permission settings.",
+  full:["Ready to install: two new columns for the [[transcript excerpt]] and call, added automatically with no data lost (tested on an old-format copy).",
+        "Also ready: the server refuses a speech service the app can't run (Deepgram, ElevenLabs).",
+        "Plan once allowed: back up the [[database]], install, then check the app, the API and your console."]}
 ];
 
 const PLATFORMS = [
@@ -358,7 +288,7 @@ const PLATFORMS = [
   short:"Installer ready at 104-168-48-116.sslip.io/downloads ('Sotto Setup 0.1.0.exe'). Built with [[Electron]].",
   full:"Built on your Mac and not code-signed yet, so the first time Windows shows 'Windows protected your PC': click More info, then Run anyway. A code-signing certificate removes that later. It installs for the current user, with no admin rights needed."},
  {name:"Mac", prio:true, st:"ok", stl:"Real calls · installed",
-  short:"Hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. This round's fixes (call survives leaving the screen, 'End this call?', setup guide) go into it after your yes.",
+  short:"Hears Zoom, Google Meet, Yeastar and 3CX calls through your Mac's sound. This round's fixes go into it once the Mac build is allowed; the copy in Applications is still last round's.",
   full:"The first time you start listening to the computer's sound, macOS asks to allow 'system audio recording'. Allow it once. It is not notarised by Apple yet, so the first time you open it you may need to right-click it and choose Open. Notarisation needs the Apple Developer account ($99/yr). The microphone option is for in-person or speakerphone calls."},
  {name:"Linux", st:"ok", stl:"Built · download",
   short:"'Sotto-0.1.0.AppImage' at /downloads: one file that runs on most Linux desktops.", full:"Make it executable (right-click → Properties → Allow executing) and open it."},
