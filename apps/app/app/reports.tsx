@@ -19,8 +19,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
 import { buildReport, type Report, type UsageRow } from "../features/reports/data";
+import { topObjections } from "../features/reports/objections";
 import { SOURCE_META } from "../lib/callSource";
 import { cloudActive, cloudApi } from "../lib/cloud";
+import { allDeviceCalls } from "../lib/deviceHistory";
 import { useI18n } from "../lib/locale";
 import { useCloud } from "../lib/useCloud";
 
@@ -140,8 +142,40 @@ function ReportView({ report: r, team }: { report: Report; team: boolean }) {
         </Panel>
       ) : null}
 
+      <Objections />
+
       {team && r.agents.length ? <Agents rows={r.agents} /> : null}
     </View>
+  );
+}
+
+/** Top objections from the calls on this computer (call words never leave the device). */
+function Objections() {
+  const { t } = useI18n();
+  const items = useMemo(() => topObjections(allDeviceCalls()), []);
+  if (!items.length) return null;
+  return (
+    <Panel style={styles.panel} testID="reports-objections">
+      <Heading icon="🧱" text={t("reports.objections")} />
+      <Text variant="label" tone="muted">
+        {t("reports.objections.note")}
+      </Text>
+      <Bars
+        items={items.map((o) => ({
+          key: o.theme,
+          label: t(`reports.theme.${o.theme}`),
+          value: o.count,
+        }))}
+      />
+      {items.map((o) => (
+        <Text key={o.theme} variant="label" tone="muted" numberOfLines={1}>
+          {`${t(`reports.theme.${o.theme}`)} — “${o.example}” · ${t("reports.objection.row", {
+            n: o.count,
+            s: o.success === null ? "—" : `${o.success}%`,
+          })}`}
+        </Text>
+      ))}
+    </Panel>
   );
 }
 

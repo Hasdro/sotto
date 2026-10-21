@@ -1,30 +1,59 @@
 /** Call history (R3: own history on every device). Sample calls only in the local demo (T-024). */
 
-import { Badge, EmptyState, layout, Panel, radius, Screen, space, Text, useTheme } from "@sotto/ui";
-
+import {
+  Badge,
+  EmptyState,
+  layout,
+  Panel,
+  radius,
+  Screen,
+  space,
+  Text,
+  TextField,
+  useTheme,
+} from "@sotto/ui";
+import { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { PageHeader } from "../../components/PageHeader";
 import { PAST_CALLS, type PastCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { useServerCalls } from "../../features/history/server";
+import { searchCalls } from "../../features/reports/objections";
 import { SOURCE_META } from "../../lib/callSource";
 import { sampleDataAllowed } from "../../lib/cloud";
+import { allDeviceCalls } from "../../lib/deviceHistory";
 import { formatDate, formatTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 
 export default function HistoryScreen() {
   const { t } = useI18n();
   const mine = useServerCalls();
+  const [query, setQuery] = useState("");
+  const hits = useMemo(() => searchCalls(allDeviceCalls(), query), [query]);
+  const found = query.trim() ? (mine ?? []).filter((c) => hits.has(c.id)) : mine;
   if (!sampleDataAllowed()) {
     return (
       <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
         <PageHeader icon="🕘" title={t("history.title")} subtitle={t("history.subtitle")} />
         {mine && mine.length > 0 ? (
-          <CallList calls={mine} />
-        ) : (
+          <TextField
+            accessibilityLabel={t("history.search")}
+            placeholder={`🔎 ${t("history.search")}`}
+            value={query}
+            onChangeText={setQuery}
+            testID="history-search"
+          />
+        ) : null}
+        {query.trim() && found && found.length === 0 ? (
+          <Text tone="muted">{t("history.search.none", { q: query.trim() })}</Text>
+        ) : null}
+        {found && found.length > 0 ? (
+          <CallList calls={found} snippets={query.trim() ? hits : undefined} />
+        ) : null}
+        {!mine || mine.length === 0 ? (
           <EmptyState title={t("history.none.title")} body={t("history.none.body")} />
-        )}
+        ) : null}
       </Screen>
     );
   }
@@ -47,7 +76,13 @@ export default function HistoryScreen() {
   );
 }
 
-function CallList({ calls }: { calls: readonly PastCall[] }) {
+function CallList({
+  calls,
+  snippets,
+}: {
+  calls: readonly PastCall[];
+  snippets?: ReadonlyMap<string, string> | undefined;
+}) {
   const { t, locale } = useI18n();
   const { color, card } = useTheme();
   return (

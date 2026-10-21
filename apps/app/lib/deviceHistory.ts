@@ -99,6 +99,11 @@ export function deviceCalls(): Omit<DeviceCall, "transcript">[] {
   return load().map(({ transcript: _t, ...summary }) => summary);
 }
 
+/** Every call on this device, words included (search and objections, owner 22 Oct). */
+export function allDeviceCalls(): readonly DeviceCall[] {
+  return load();
+}
+
 export function deviceCall(id: string): DeviceCall | null {
   return load().find((c) => c.id === id) ?? null;
 }
