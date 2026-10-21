@@ -219,10 +219,7 @@ export async function cloudCompat(path: string, init: Init = {}): Promise<unknow
   if (area === "me") return { auth_required: false, signed_in: true };
 
   if (area === "providers") {
-    if (!id && method === "GET") {
-      await refreshCloud();
-      return providersState();
-    }
+    if (!id && method === "GET") return providersState(); // the bundle is refreshed after each change
     const env = id ? bundle().providers[id]?.key_env : undefined;
     if (!id || !env) throw new CompatError(404, "unknown provider");
     if (action === "key" && method === "PUT") {
@@ -311,7 +308,7 @@ export async function cloudCompat(path: string, init: Init = {}): Promise<unknow
     }
     if (method === "DELETE" && id)
       await cloudApi(`/api/v1/playbook/${enc(id)}`, { method: "DELETE" });
-    await refreshCloud();
+    if (method !== "GET") await refreshCloud();
     return playbookPayload();
   }
 

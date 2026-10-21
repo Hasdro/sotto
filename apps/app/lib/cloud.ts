@@ -167,11 +167,32 @@ export function cloudActive(): boolean {
   return state.status === "signed_in";
 }
 
+// Reads are kept briefly so a tab opens from memory; any change clears them (owner, 21 Oct).
+const FRESH_MS = 30_000;
+const reads = new Map<string, { at: number; value: Promise<unknown> }>();
+
 /** JSON request to the management server with this device's token. */
 export async function cloudApi<T>(
   path: string,
   init: { method?: string; body?: unknown } = {},
   fetcher: typeof fetch = fetch,
+): Promise<T> {
+  if ((init.method ?? "GET") !== "GET") {
+    reads.clear();
+    return request<T>(path, init, fetcher);
+  }
+  const hit = reads.get(path);
+  if (hit && Date.now() - hit.at < FRESH_MS) return hit.value as Promise<T>;
+  const value = request<T>(path, init, fetcher);
+  reads.set(path, { at: Date.now(), value });
+  value.catch(() => reads.delete(path));
+  return value;
+}
+
+async function request<T>(
+  path: string,
+  init: { method?: string; body?: unknown },
+  fetcher: typeof fetch,
 ): Promise<T> {
   const origin = cloudOrigin();
   if (!origin) throw new CloudError(0, "off", "no Sotto server configured");
@@ -204,6 +225,7 @@ export async function cloudApi<T>(
 }
 
 async function signedOut(error?: string) {
+  reads.clear();
   clearDeviceCalls();
   setDeviceOwner(null);
   token = null;
@@ -212,9 +234,13 @@ async function signedOut(error?: string) {
 }
 
 async function loadSession(): Promise<void> {
-  const me = await cloudApi<Me>("/api/v1/me");
-  let bundle: CallBundle | null = null;
-  if (me.company) bundle = await cloudApi<CallBundle>("/api/v1/bundle");
+  reads.delete("/api/v1/me");
+  reads.delete("/api/v1/bundle");
+  // Both at once: a person with no company gets a 4xx for the bundle, which we ignore.
+  const meRead = cloudApi<Me>("/api/v1/me");
+  const bundleRead = cloudApi<CallBundle>("/api/v1/bundle").catch(() => null);
+  const me = await meRead;
+  const bundle = me.company ? await bundleRead : null;
   setDeviceOwner(me.company?.id ?? "none", me.user.id);
   set({ status: "signed_in", me, bundle });
 }
