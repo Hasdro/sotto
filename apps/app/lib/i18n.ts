@@ -141,7 +141,8 @@ const en = {
   "history.yours": "Calls on this server",
   "history.samples": "Sample calls",
   "history.none.title": "No calls yet",
-  "history.none.body": "Calls you take in Sotto on this device appear here with their transcripts and cards.",
+  "history.none.body":
+    "Calls you take in Sotto on this device appear here with their transcripts and cards.",
 
   "playbook.title": "Playbook",
   "playbook.subtitle": "Approved answers. Sotto uses these first.",
@@ -512,7 +513,8 @@ const ar: Record<StringKey, string> = {
   "history.yours": "المكالمات على هذا الخادم",
   "history.samples": "مكالمات نموذجية",
   "history.none.title": "لا توجد مكالمات بعد",
-  "history.none.body": "تظهر هنا المكالمات التي تجريها في Sotto على هذا الجهاز مع نصوصها وبطاقاتها.",
+  "history.none.body":
+    "تظهر هنا المكالمات التي تجريها في Sotto على هذا الجهاز مع نصوصها وبطاقاتها.",
 
   "playbook.add": "أضف إجابة",
   "playbook.edit": "عدّل",
