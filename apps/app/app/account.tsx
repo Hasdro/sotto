@@ -16,6 +16,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
+import { TeamPanel, useTeam } from "../features/team/TeamPanel";
 import { cloudApi, cloudOrigin, signOut } from "../lib/cloud";
 import { formatDateTime } from "../lib/format";
 import type { StringKey } from "../lib/i18n";
@@ -30,26 +31,19 @@ type Device = {
   revoked: boolean;
   this_device: boolean;
 };
-type Member = { id: string; email: string; name: string; role: Role; active: boolean };
-type Role = "admin" | "manager" | "agent";
 
 export default function AccountScreen() {
   const { t, locale } = useI18n();
   const cloud = useCloud();
   const [devices, setDevices] = useState<Device[]>([]);
-  const [team, setTeam] = useState<Member[]>([]);
   const me = cloud.status === "signed_in" ? cloud.me : null;
   const role = me?.user.role;
   const load = useCallback(() => {
     cloudApi<{ devices: Device[] }>("/api/v1/devices")
       .then((r) => setDevices(r.devices))
       .catch(() => {});
-    if (role === "admin" || role === "manager") {
-      cloudApi<{ users: Member[] }>("/api/v1/team")
-        .then((r) => setTeam(r.users))
-        .catch(() => {});
-    }
-  }, [role]);
+  }, []);
+  const { team, reload } = useTeam(role);
   useEffect(load, [load]);
   if (!me) {
     return (
@@ -139,7 +133,7 @@ export default function AccountScreen() {
         </Panel>
       </Stack>
       {role === "admin" || role === "manager" ? (
-        <Team team={team} canInvite={role === "admin"} onChange={load} />
+        <TeamPanel team={team} canInvite={role === "admin"} onChange={reload} />
       ) : null}
       {cloudOrigin() ? (
         <Button
@@ -156,99 +150,6 @@ export default function AccountScreen() {
         testID="sign-out"
       />
     </Screen>
-  );
-}
-
-function Team({
-  team,
-  canInvite,
-  onChange,
-}: {
-  team: Member[];
-  canInvite: boolean;
-  onChange: () => void;
-}) {
-  const { t } = useI18n();
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("agent");
-  const [note, setNote] = useState<string | null>(null);
-  const invite = () => {
-    setNote(null);
-    cloudApi<{ temporary_password: string }>("/api/v1/team", {
-      method: "POST",
-      body: { email: email.trim(), name: name.trim(), role },
-    })
-      .then((r) => {
-        setNote(t("account.inviteDone", { email: email.trim(), password: r.temporary_password }));
-        setEmail("");
-        setName("");
-        onChange();
-      })
-      .catch((err: unknown) => setNote(err instanceof Error ? err.message : "error"));
-  };
-  return (
-    <Stack gap="sm">
-      <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
-        {t("account.team")}
-      </Text>
-      <Panel>
-        <Stack gap="sm">
-          {team.map((m, i) => (
-            <View key={m.id}>
-              {i > 0 ? <Divider /> : null}
-              <View style={styles.row}>
-                <Stack gap="xs" style={styles.grow}>
-                  <Text variant="body" weight="medium">
-                    {m.name}
-                  </Text>
-                  <Text variant="label" tone="muted">
-                    {m.email}
-                  </Text>
-                </Stack>
-                <Badge label={t(`account.role.${m.role}`)} tone={m.active ? "neutral" : "notice"} />
-              </View>
-            </View>
-          ))}
-          {canInvite ? (
-            <>
-              <Divider />
-              <Text variant="body" weight="medium">
-                {t("account.invite")}
-              </Text>
-              <TextField label={t("account.inviteName")} value={name} onChangeText={setName} />
-              <TextField
-                label={t("account.email")}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-              <SegmentedControl<Role>
-                accessibilityLabel={t("account.inviteRole")}
-                options={[
-                  { value: "agent", label: t("account.role.agent") },
-                  { value: "manager", label: t("account.role.manager") },
-                  { value: "admin", label: t("account.role.admin") },
-                ]}
-                value={role}
-                onChange={setRole}
-              />
-              <Button
-                label={t("account.invite")}
-                onPress={invite}
-                disabled={!email.trim() || !name.trim()}
-              />
-              {note ? (
-                <Text variant="body" selectable accessibilityLiveRegion="polite">
-                  {note}
-                </Text>
-              ) : null}
-            </>
-          ) : null}
-        </Stack>
-      </Panel>
-    </Stack>
   );
 }
 

@@ -1,56 +1,29 @@
-/** Admin: team members, roles and devices (R3). Mock data until Phase 5. */
-import { Badge, type BadgeTone, Button, Stack, Table, Text } from "@sotto/ui";
-import { View } from "react-native";
-import { type Role, TEAM } from "../../features/admin/mock";
+/** Admin: the company's team on the management server (R3, T-039); invite people with a role. */
+import { EmptyState, Stack, Text } from "@sotto/ui";
+import { TeamPanel, useTeam } from "../../features/team/TeamPanel";
 import { useI18n } from "../../lib/locale";
-import { useIsWide } from "../../lib/responsive";
-
-const ROLE_TONE: Record<Role, BadgeTone> = {
-  owner: "primary",
-  admin: "question",
-  manager: "answer",
-  agent: "neutral",
-};
+import { useCloud } from "../../lib/useCloud";
 
 export default function TeamScreen() {
   const { t } = useI18n();
-  const wide = useIsWide();
+  const cloud = useCloud();
+  const role = cloud.status === "signed_in" ? cloud.me.user.role : undefined;
+  const { team, reload } = useTeam(role);
+  if (cloud.status !== "signed_in") {
+    return (
+      <EmptyState
+        testID="admin-team-none"
+        title={t("admin.team.noServer.title")}
+        body={t("admin.team.noServer.body")}
+      />
+    );
+  }
   return (
     <Stack gap="lg" testID="admin-team">
-      <Stack direction="row" align="center" justify="space-between" gap="md" wrap>
-        <Text variant="body" tone="muted" style={{ flexShrink: 1 }}>
-          {t("admin.team.subtitle")}
-        </Text>
-        <Button label={t("admin.team.invite")} />
-      </Stack>
-      <Table
-        accessibilityLabel={t("admin.team")}
-        stacked={!wide}
-        columns={[
-          { key: "name", title: t("admin.team.name"), flex: 2.2 },
-          { key: "role", title: t("admin.team.role"), flex: 1.2 },
-          { key: "devices", title: t("admin.team.devices"), flex: 0.8 },
-          { key: "last", title: t("admin.team.lastActive"), flex: 1 },
-        ]}
-        rows={TEAM.map((m) => ({
-          id: m.id,
-          cells: {
-            name: (
-              <View>
-                <Text variant="body" weight="medium">
-                  {m.name}
-                </Text>
-                <Text variant="label" tone="muted">
-                  {m.email}
-                </Text>
-              </View>
-            ),
-            role: <Badge tone={ROLE_TONE[m.role]} label={t(`role.${m.role}`)} />,
-            devices: String(m.devices),
-            last: m.lastActive,
-          },
-        }))}
-      />
+      <Text variant="body" tone="muted">
+        {t("admin.team.subtitle")}
+      </Text>
+      <TeamPanel team={team} canInvite={role === "admin"} onChange={reload} />
     </Stack>
   );
 }

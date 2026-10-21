@@ -126,7 +126,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [x] T-036 B4.1 Phones say plainly that live calls come with phone calling (Phase 4) — on iOS/Android the start panel is replaced by "Live calls in the phone app arrive with phone calling (Phase 4). Use the Mac or Windows app today." and a button to the downloads page; web and desktop unchanged. Evidence: call jest (ios, android)
 - [x] T-037 B4.2 Guided key setup checklist on Admin → Keys & providers — "Three steps before your first call": connect a suggestion model, connect speech-to-text (each names the stage's vendor with its catalogue steps and "Get a key" link), add one playbook answer (link to the playbook; count from the bundle); ticks when done; gone once both keys are set. Evidence: keys jest (T-037 ×2)
 - [ ] T-038 B4.3 60-second practice call in real accounts `[OWNER]` (conflicts with D-024)
-- [ ] T-039 B5.1 Admin → Team uses the real team API
+- [x] T-039 B5.1 Admin → Team uses the real team API — the Account page's team panel moved to `features/team/TeamPanel.tsx` and both screens use it (`GET/POST /api/v1/team`); no sample staff; without a Sotto account Admin → Team says one is needed. Evidence: `__tests__/admin-team.test.tsx` (3), screens test updated
 - [ ] T-040 B5.2 Prompt studio hidden until prompts persist
 - [ ] T-041 B5.3 Models screen hidden (duplicate of Keys & providers speed check)
 - [ ] T-042 B6.1 Engine coverage floor 80%

@@ -94,10 +94,10 @@ describe("mock screens", () => {
     expect(screen.getByText("Are pets allowed in the Marina tower?")).toBeOnTheScreen();
   });
 
-  it("admin team shows members with roles", async () => {
+  it("admin team shows no sample staff; without a Sotto account it says one is needed", async () => {
     await open("/admin");
-    expect(screen.getByText("Hana Saleh")).toBeOnTheScreen();
-    expect(screen.getByText("Company admin")).toBeOnTheScreen();
+    expect(screen.getByText("Team needs a Sotto account")).toBeOnTheScreen();
+    expect(screen.queryByText("Hana Saleh")).toBeNull();
   });
 
   it("admin prompts lists versions", async () => {
