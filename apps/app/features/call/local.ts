@@ -104,7 +104,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     onEscalation: (e) =>
       void cloudApi("/api/v1/escalations", {
         method: "POST",
-        body: { question: e.question },
+        body: { question: e.question, transcript_excerpt: e.transcriptExcerpt, call_id: e.callId },
       }).catch((err) => console.warn("[engine] escalation not sent", err)),
     onEnded: ended,
   });

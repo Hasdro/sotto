@@ -13,6 +13,8 @@ type ServerEscalation = {
   asked_at: number;
   status: InboxStatus;
   answer: string | null;
+  transcript_excerpt?: string | null;
+  agent_name?: string | null;
 };
 type ServerAdded = { id: string; question: string; answer: string; added_at: number };
 
@@ -21,12 +23,13 @@ export function toInboxItem(e: ServerEscalation, labels: { customer: string; age
     id: e.id,
     question: e.question,
     customer: labels.customer,
-    agent: labels.agent,
+    agent: e.agent_name || labels.agent,
     askedAt: new Date(e.asked_at).toISOString(),
     status: e.status,
     source: "server",
   };
   if (e.answer) item.answer = e.answer;
+  if (e.transcript_excerpt) item.excerpt = e.transcript_excerpt;
   return item;
 }
 

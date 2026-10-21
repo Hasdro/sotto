@@ -50,4 +50,23 @@ describe("inbox on this server (D-020, R2 steps 4-5)", () => {
       screen.getByText("Added to the playbook: Do you allow pets in the building?"),
     ).toBeOnTheScreen();
   });
+
+  it("shows the conversation around the question and the agent who asked (T-034)", async () => {
+    const item = {
+      ...ITEM,
+      transcript_excerpt: "Customer: We have a cat.\nCustomer: Do you allow pets in the building?",
+      agent_name: "Sara Ali",
+    };
+    globalThis.fetch = jest.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        url.endsWith("/api/escalations") ? { escalations: [item] } : { entries: [] },
+    })) as unknown as typeof fetch;
+    await renderRouter({ _layout: RootLayout, inbox: InboxScreen }, { initialUrl: "/inbox" });
+    expect(await screen.findByTestId(`excerpt-${ITEM.id}`)).toHaveTextContent(
+      /We have a cat\.[\s\S]*Do you allow pets/,
+    );
+    expect(screen.getByText(/Sara Ali/)).toBeOnTheScreen();
+  });
 });

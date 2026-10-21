@@ -472,7 +472,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def escalation_post(request: Request, who: Principal) -> Response:
         if not escalation_limit.hit(who.user_id):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many questions sent")
-        item = store.add_escalation(who, str((await body(request)).get("question", "")))
+        data = await body(request)
+        item = store.add_escalation(
+            who,
+            str(data.get("question", "")),
+            str(data.get("transcript_excerpt", "")),
+            str(data.get("call_id", "")),
+        )
         return JSONResponse({"id": item}, status_code=HTTPStatus.CREATED)
 
     @app_route

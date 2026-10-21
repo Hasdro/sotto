@@ -202,6 +202,8 @@ type Escalation = {
   asked_at: number;
   status: string;
   answer: string | null;
+  transcript_excerpt?: string | null;
+  agent_name?: string | null;
 };
 
 /** Routes an old-server path to the management server. Unknown paths answer 404. */

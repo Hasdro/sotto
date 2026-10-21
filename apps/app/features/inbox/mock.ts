@@ -10,6 +10,8 @@ export type InboxItem = {
   askedAt: string;
   status: InboxStatus;
   answer?: string;
+  /** The conversation just before the question (R2 step 4, T-034). */
+  excerpt?: string;
   /** "server": escalated on this Sotto server (D-020); answers go to its API. */
   source?: "sample" | "server";
 };

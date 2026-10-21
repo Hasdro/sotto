@@ -170,7 +170,9 @@ CREATE TABLE IF NOT EXISTS escalations (
   asked_at INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
   answer TEXT,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  transcript_excerpt TEXT,
+  call_id TEXT
 );
 CREATE INDEX IF NOT EXISTS escalations_company ON escalations(company_id, status);
 CREATE TABLE IF NOT EXISTS audit (
@@ -277,6 +279,14 @@ def plan_state(row: sqlite3.Row | dict[str, Any], used_minutes: int, t: int) -> 
     }
 
 
+# (table, column, type) added since the first release; see CloudStore._add_missing_columns.
+ADDED_COLUMNS = (
+    ("escalations", "transcript_excerpt", "TEXT"),  # T-034: the conversation around the question
+    ("escalations", "call_id", "TEXT"),
+)
+EXCERPT_MAX_CHARS = 2000
+
+
 class CloudStore:
     def __init__(self, path: Path | str, vault: Vault) -> None:
         self._vault = vault
@@ -284,6 +294,15 @@ class CloudStore:
         self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
+        self._add_missing_columns()
+
+    def _add_missing_columns(self) -> None:
+        """Columns added after a database was created (CREATE TABLE IF NOT EXISTS keeps the old
+        shape): add them, empty, so an existing server keeps its data."""
+        for table, column, kind in ADDED_COLUMNS:
+            have = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
+            if column not in have:
+                self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
@@ -832,8 +851,14 @@ class CloudStore:
             self.audit(db, "playbook.delete", entry_id, company_id=who.company, actor=who, ip=ip)
 
     # --- escalations (R2 inbox) ------------------------------------------------------------------
-    def add_escalation(self, who: Principal, question: str) -> str:
+    def add_escalation(
+        self, who: Principal, question: str, excerpt: str = "", call_id: str = ""
+    ) -> str:
+        """The asking agent is the signed-in user; the excerpt keeps its last 2000 characters
+        (the lines nearest the question)."""
         q = _clean(question, "question", 500)
+        context = str(excerpt or "").strip()[-EXCERPT_MAX_CHARS:] or None
+        call = str(call_id or "").strip()[:64] or None
         with self._tx() as db:
             dup = db.execute(
                 "SELECT id FROM escalations WHERE company_id = ? AND question = ? AND status ="
@@ -845,16 +870,18 @@ class CloudStore:
             item_id = str(uuid.uuid4())
             t = now_ms()
             db.execute(
-                "INSERT INTO escalations(id, company_id, user_id, question, asked_at, updated_at)"
-                " VALUES (?,?,?,?,?,?)",
-                (item_id, who.company, who.user_id, q, t, t),
+                "INSERT INTO escalations(id, company_id, user_id, question, asked_at, updated_at,"
+                " transcript_excerpt, call_id) VALUES (?,?,?,?,?,?,?,?)",
+                (item_id, who.company, who.user_id, q, t, t, context, call),
             )
         return item_id
 
     def escalations(self, who: Principal) -> list[dict[str, Any]]:
         who.require("admin", "manager")
         rows = self._q(
-            "SELECT * FROM escalations WHERE company_id = ? ORDER BY asked_at DESC LIMIT 200",
+            "SELECT e.*, u.name AS agent_name FROM escalations e"
+            " LEFT JOIN users u ON u.id = e.user_id AND u.company_id = e.company_id"
+            " WHERE e.company_id = ? ORDER BY e.asked_at DESC LIMIT 200",
             (who.company,),
         )
         return [
@@ -864,6 +891,10 @@ class CloudStore:
                 "asked_at": r["asked_at"],
                 "status": r["status"],
                 "answer": r["answer"],
+                "transcript_excerpt": r["transcript_excerpt"],
+                "call_id": r["call_id"],
+                "agent_id": r["user_id"],
+                "agent_name": r["agent_name"],
             }
             for r in rows
         ]

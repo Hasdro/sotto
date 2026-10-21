@@ -40,7 +40,8 @@ export function EscalationStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<EscalationState>(
     samples ? { inbox: INBOX, playbook: PLAYBOOK } : { inbox: [], playbook: [] },
   );
-  const customer = t("history.outcome.practice");
+  // The local demo's questions come from practice calls; a real account's from real customers.
+  const customer = t(samples ? "history.outcome.practice" : "call.speaker.customer");
   const agent = t("call.speaker.agent");
   // Reload once someone signs in to the management server (D-022).
   const signedIn = useCloud().status === "signed_in";

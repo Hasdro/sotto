@@ -98,6 +98,21 @@ function InboxScreen() {
               <Text variant="label" tone="muted">
                 {formatDateTime(item.askedAt, locale)}
               </Text>
+              {item.excerpt ? (
+                <View
+                  testID={`excerpt-${item.id}`}
+                  accessibilityLabel={t("inbox.excerpt")}
+                  style={[
+                    styles.answer,
+                    { backgroundColor: color.surfaceSunken, borderStartColor: color.border },
+                  ]}
+                >
+                  <Text variant="label" weight="medium" tone="muted">
+                    {t("inbox.excerpt")}
+                  </Text>
+                  <Text variant="label">{item.excerpt}</Text>
+                </View>
+              ) : null}
               {item.status !== "added" ? (
                 <AnswerEditor item={item} onAdded={() => setAdded(item.question)} />
               ) : item.answer ? (

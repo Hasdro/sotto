@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import sqlite3
 import time
+from pathlib import Path
 
 import pytest
 from starlette.testclient import TestClient
 
 from sotto_worker.cloud.passwords import hash_password, verify_password
 from sotto_worker.cloud.store import DAY_MS, CloudStore, plan_state
-from tests.cloud.conftest import PASSWORD, SignUp, minted
+from sotto_worker.server.vault import Vault
+from tests.cloud.conftest import PASSWORD, SECRET, SignUp, minted
 
 JSON = {"content-type": "application/json"}
 
@@ -266,6 +269,45 @@ def test_seats_are_enforced(client: TestClient, sign_up: SignUp) -> None:
     )
     assert r.status_code == 409
     assert r.json()["code"] == "no_seats"
+
+
+def test_an_escalation_carries_the_excerpt_the_agent_and_the_call(
+    client: TestClient, sign_up: SignUp
+) -> None:
+    """R2 step 4: the manager needs the conversation around the question, and who asked (T-034)."""
+    s = sign_up()
+    excerpt = "Customer: We have a cat.\nAgent: Lovely.\nCustomer: Do you allow pets?"
+    r = client.post(
+        "/api/v1/escalations",
+        json={
+            "question": "Do you allow pets?",
+            "transcript_excerpt": "Agent: hello. " * 300 + excerpt,
+            "call_id": "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c",
+        },
+        headers=s["auth"],
+    )
+    assert r.status_code == 201
+    item = client.get("/api/v1/escalations", headers=s["auth"]).json()["items"][0]
+    assert item["transcript_excerpt"].endswith(excerpt)  # the lines nearest the question
+    assert len(item["transcript_excerpt"]) <= 2000
+    assert item["call_id"] == "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c"
+    me = client.get("/api/v1/me", headers=s["auth"]).json()["user"]
+    assert item["agent_id"] == me["id"]
+    assert item["agent_name"] == me["name"]
+
+
+def test_an_older_database_gains_the_escalation_context_columns(tmp_path: Path) -> None:
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.executescript(
+        "CREATE TABLE escalations (id TEXT PRIMARY KEY, company_id TEXT NOT NULL,"
+        " user_id TEXT NOT NULL, question TEXT NOT NULL, asked_at INTEGER NOT NULL,"
+        " status TEXT NOT NULL DEFAULT 'open', answer TEXT, updated_at INTEGER NOT NULL);"
+    )
+    db.close()
+    CloudStore(path, Vault(SECRET)).close()
+    cols = {r[1] for r in sqlite3.connect(path).execute("PRAGMA table_info(escalations)")}
+    assert {"transcript_excerpt", "call_id"} <= cols
 
 
 def test_escalation_answer_added_to_playbook_reaches_the_bundle(
