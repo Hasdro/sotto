@@ -1,5 +1,6 @@
 /** Mock call history (Phase 3, no real data). Fictional customers of the demo company. */
 import type { CardSource, CardType } from "@sotto/shared";
+import type { CallSource } from "../../lib/callSource";
 
 /** "practice": a call with sample answers (no AI key), not a real customer; "live": a real call
  * whose result Sotto does not know (the agent records it in the CRM). */
@@ -18,6 +19,12 @@ export type PastCall = {
   outcome: Outcome;
   transcript: PastLine[];
   cards: PastCard[];
+  /** Where the call came from (owner, 22 Oct); unknown for older calls. */
+  source?: CallSource;
+  /** Cards shown, when the list has no card details. */
+  cardCount?: number;
+  /** The review's chance to close, 0–100, when there is a review. */
+  success?: number;
 };
 
 export const PAST_CALLS: PastCall[] = [

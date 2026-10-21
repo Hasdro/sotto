@@ -16,8 +16,9 @@ export type TranscriptLineProps = {
 };
 
 /**
- * One line of the live transcript. The customer's words carry the weight (they are what
- * triggers cards, R4); the agent's own words are muted; system lines (escalations) use the notice style.
+ * One line of the live transcript, as a chat bubble: the customer in blue on the start side (their
+ * words trigger cards, R4), the agent in amber on the end side (owner, 22 Oct); system lines
+ * (escalations) use the notice style.
  */
 export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: TranscriptLineProps) {
   const theme = useTheme();
@@ -40,19 +41,30 @@ export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: Tr
     );
   }
   const customer = speaker === "customer";
+  const c = theme.speaker[speaker];
   return (
-    <View testID={testID} style={styles.line}>
+    <View
+      testID={testID}
+      style={[
+        styles.line,
+        { backgroundColor: c.fill, alignSelf: customer ? "flex-start" : "flex-end" },
+        customer ? styles.customer : styles.agent,
+      ]}
+    >
       <View style={styles.head}>
-        <Text variant="label" weight="semibold" tone={customer ? "primary" : "muted"}>
+        <Text variant="label" accessibilityElementsHidden importantForAccessibility="no">
+          {customer ? "🗣️" : "🎧"}
+        </Text>
+        <Text variant="label" weight="semibold" color={c.label}>
           {speakerLabel}
         </Text>
         {time ? (
-          <Text variant="label" tone="muted">
+          <Text variant="label" color={c.label}>
             {time}
           </Text>
         ) : null}
       </View>
-      <Text variant="body" tone={customer ? "default" : "muted"}>
+      <Text variant="body" color={c.text}>
         {text}
       </Text>
     </View>
@@ -60,7 +72,15 @@ export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: Tr
 }
 
 const styles = StyleSheet.create({
-  line: { gap: 2, paddingVertical: space.xs },
+  line: {
+    gap: 2,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    borderRadius: radius.lg,
+    maxWidth: "92%",
+  },
+  customer: { borderTopStartRadius: radius.sm },
+  agent: { borderTopEndRadius: radius.sm },
   head: { flexDirection: "row", alignItems: "baseline", gap: space.sm },
   system: {
     borderWidth: 1,

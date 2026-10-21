@@ -1,6 +1,8 @@
 import { Badge, Button, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { SourceChip } from "../../../components/SourceChip";
+import { useCallSource } from "../../../lib/callSource";
 import { useI18n } from "../../../lib/locale";
 import type { Phase } from "../session";
 import { clock } from "./strings";
@@ -20,6 +22,7 @@ type Props = {
 export function CallHeader({ company, phase, mode, startedAt, endedAt, mock, onEnd, wide }: Props) {
   const { color } = useTheme();
   const { t } = useI18n();
+  const source = useCallSource();
   return (
     <View
       style={[
@@ -42,6 +45,7 @@ export function CallHeader({ company, phase, mode, startedAt, endedAt, mock, onE
             <Badge tone="warning" dot label={t("call.status.live")} testID="status-live" />
           ) : null}
           {phase === "ended" ? <Badge label={t("call.status.ended")} /> : null}
+          {phase !== "idle" && source ? <SourceChip source={source} /> : null}
           {phase !== "idle" && startedAt !== null ? (
             <CallClock startedAt={startedAt} endedAt={endedAt} />
           ) : null}
@@ -70,7 +74,7 @@ function CallClock({ startedAt, endedAt }: { startedAt: number; endedAt: number 
   }, [endedAt]);
   return (
     <Text variant="label" weight="medium" tone="muted" accessibilityLabel={undefined}>
-      {clock((endedAt ?? now) - startedAt)}
+      {`⏱️ ${clock((endedAt ?? now) - startedAt)}`}
     </Text>
   );
 }

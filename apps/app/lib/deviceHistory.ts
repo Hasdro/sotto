@@ -15,6 +15,7 @@ export type DeviceEntry =
 
 import type { CallReview } from "@sotto/engine";
 import { useSyncExternalStore } from "react";
+import type { CallSource } from "./callSource";
 
 export type DeviceCall = {
   id: string;
@@ -26,6 +27,8 @@ export type DeviceCall = {
   p50_ms: number | null;
   p95_ms: number | null;
   transcript: DeviceEntry[];
+  /** Where the call came from: Zoom, Teams, the microphone… (owner, 22 Oct). */
+  source?: CallSource;
   /** The after-call review (owner, 21 Oct); null when it could not be made. */
   review?: CallReview | null;
 };

@@ -287,8 +287,16 @@ ADDED_COLUMNS = (
     ("escalations", "transcript_excerpt", "TEXT"),  # T-034: the conversation around the question
     ("escalations", "call_id", "TEXT"),
     ("usage", "recording_bytes", "INTEGER"),  # owner, 22 Oct 2026: uploaded call recording
+    ("usage", "source", "TEXT"),  # owner, 22 Oct 2026: zoom, teams, meet, 3cx, mic…
 )
 EXCERPT_MAX_CHARS = 2000
+# Where a call came from (owner, 22 Oct 2026); anything else is stored as "computer".
+CALL_SOURCES = frozenset(
+    {
+        *("zoom", "teams", "meet", "webex", "3cx", "yeastar", "whatsapp", "facetime"),
+        *("slack", "telegram", "discord", "softphone", "browser", "computer", "mic", "practice"),
+    }
+)
 
 
 class CloudStore:
@@ -1075,6 +1083,7 @@ class CloudStore:
         if started < t - 30 * DAY_MS:
             raise CloudError("invalid", "started_at is too old")
         call_id = _clean(data.get("call_id") or uuid.uuid4(), "call_id", 64)
+        source = str(data.get("source") or "computer")
         usage_id = f"{who.company}:{call_id}"  # one company's ids can never shadow another's
         duration = num("duration_s", 6 * 3600) or 0
         began = self._q("SELECT started_at FROM call_starts WHERE id = ?", (usage_id,))
@@ -1099,13 +1108,14 @@ class CloudStore:
             _clean(data.get("llm_vendor"), "llm_vendor", 40, required=False),
             platform if platform in PLATFORMS else "unknown",
             t,
+            source if source in CALL_SOURCES else "computer",
         )
         with self._tx() as db:
             db.execute(
                 "INSERT OR IGNORE INTO usage(id, company_id, user_id, device_id, started_at,"
                 " duration_s, cards, playbook_cards, ai_cards, holding_lines, escalations, p50_ms,"
-                " p95_ms, stt_vendor, llm_vendor, platform, reported_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 row,
             )
         return call_id

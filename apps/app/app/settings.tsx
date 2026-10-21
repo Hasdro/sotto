@@ -17,9 +17,11 @@ import { useRouter } from "expo-router";
 import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
+import { Knowledge } from "../features/settings/Knowledge";
 import { APP_VERSION, cloudOrigin } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
 import { type Prefs, setPrefs, usePrefs } from "../lib/prefs";
+import { useCloud } from "../lib/useCloud";
 
 type Mic = { id: string; label: string };
 
@@ -47,6 +49,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const p = usePrefs();
   const mics = useMicrophones();
+  const cloud = useCloud();
+  const admin = cloud.status === "signed_in" && cloud.me.user.role === "admin";
   const toggle = (key: keyof Prefs) => (v: boolean) => setPrefs({ [key]: v });
 
   return (
@@ -165,6 +169,12 @@ export default function SettingsScreen() {
           />
         </Row>
       </Group>
+
+      {admin ? (
+        <Group title={t("settings.knowledge")}>
+          <Knowledge />
+        </Group>
+      ) : null}
 
       <Group title={t("settings.integrations")} testID="settings-integrations">
         <Row label="Gallabox (WhatsApp)" body={t("settings.integrations.gallabox")}>

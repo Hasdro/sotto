@@ -9,8 +9,8 @@ import {
   Text,
   useTheme,
 } from "@sotto/ui";
-import { useEffect, useRef } from "react";
-import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
+import { type ReactNode, useEffect, useRef } from "react";
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-native";
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { CardView } from "../../cards/reducer";
@@ -72,20 +72,45 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
             {t("card.earlier")}
           </Text>
           {earlier.slice(0, EARLIER_LIMIT).map((c) => (
-            <SuggestionCard
-              key={c.id}
-              variant="compact"
-              type={c.type}
-              source={c.source}
-              label={c.label}
-              text={c.text}
-              done={c.done}
-              strings={cardStrings(t, c.type, c.source)}
-            />
+            <Dimmed key={c.id} testID={`earlier-${c.id}`}>
+              <SuggestionCard
+                variant="compact"
+                type={c.type}
+                source={c.source}
+                label={c.label}
+                text={c.text}
+                done={c.done}
+                strings={cardStrings(t, c.type, c.source)}
+              />
+            </Dimmed>
           ))}
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** Older cards step back so the newest stands out; hovering one brings it to full strength
+ * (owner, 22 Oct). Screen readers and keyboard focus are not affected by the dimming. */
+export const DIM_OPACITY = 0.45;
+
+function Dimmed({ children, testID }: { children: ReactNode; testID?: string }) {
+  const level = useRef(new Animated.Value(DIM_OPACITY)).current;
+  const to = (v: number) =>
+    Animated.timing(level, { toValue: v, duration: 140, useNativeDriver: false }).start();
+  return (
+    <Pressable
+      testID={testID}
+      accessible={false}
+      onHoverIn={() => to(1)}
+      onHoverOut={() => to(DIM_OPACITY)}
+      onFocus={() => to(1)}
+      onBlur={() => to(DIM_OPACITY)}
+    >
+      <Animated.View testID={testID ? `${testID}-fade` : undefined} style={{ opacity: level }}>
+        {children}
+      </Animated.View>
+    </Pressable>
   );
 }
 

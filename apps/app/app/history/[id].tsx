@@ -13,13 +13,14 @@ import {
 } from "@sotto/ui";
 import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
+import { SourceChip } from "../../components/SourceChip";
 import { cardStrings, clock } from "../../features/call/components/strings";
 import { findCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
 import { useServerCall } from "../../features/history/server";
 import { CallReviewPanel } from "../../features/review/CallReviewPanel";
-import { formatDateTime } from "../../lib/format";
+import { formatDate, formatTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 import { useIsWide } from "../../lib/responsive";
 
@@ -99,16 +100,20 @@ export default function CallDetailScreen() {
         </Text>
         <View style={styles.metaRow}>
           <Badge tone={OUTCOME_TONE[call.outcome]} label={t(`history.outcome.${call.outcome}`)} />
+          {call.source ? <SourceChip source={call.source} /> : null}
           {call.company ? (
             <Text variant="body" tone="muted">
-              {call.company}
+              {`🏢 ${call.company}`}
             </Text>
           ) : null}
           <Text variant="body" tone="muted">
-            {formatDateTime(call.startedAt, locale)}
+            {`📅 ${formatDate(call.startedAt, locale)}`}
           </Text>
           <Text variant="body" tone="muted">
-            {t("history.minutes", { count: call.minutes })}
+            {`🕒 ${formatTime(call.startedAt, locale)}`}
+          </Text>
+          <Text variant="body" tone="muted">
+            {`⏳ ${t("history.minutes", { count: call.minutes })}`}
           </Text>
         </View>
       </View>

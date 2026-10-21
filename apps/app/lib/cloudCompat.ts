@@ -333,5 +333,6 @@ function settingsFromBundle() {
     backup_allowed: !c.backup_disabled.includes("suggest_backup"),
     agent_context: c.agent_context,
     card_language: c.card_language as "auto" | "en" | "ar",
+    context: c.context ?? "",
   };
 }

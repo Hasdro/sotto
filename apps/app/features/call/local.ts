@@ -17,6 +17,7 @@ import {
   parseDemoServerMessage,
 } from "@sotto/shared";
 import { Platform } from "react-native";
+import { type CallSource, callSource } from "../../lib/callSource";
 import { CloudError, cloudApi } from "../../lib/cloud";
 import {
   type DeviceEntry,
@@ -31,6 +32,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
   const blocked = bundle.plan && !bundle.plan.can_call ? bundle.plan : null;
   let transcript: DeviceEntry[] = [];
   let startedAt = Date.now();
+  let source: CallSource = "computer";
   const cardText = new Map<string, string>();
   // React Native's built-in fetch cannot stream a response; Expo's can (cards word by word).
   const fetchFn =
@@ -63,6 +65,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
   };
   const remember = (msg: DemoServerMessage) => {
     if (msg.type === "call_started") {
+      source = callSource() ?? "computer";
       transcript = [];
       startedAt = Date.now();
     } else if (msg.type === "transcript") {
@@ -96,6 +99,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       cards: s.cards,
       p50_ms: s.p50_ms,
       p95_ms: s.p95_ms,
+      source,
       transcript: transcript.slice(-500),
     });
     // The review runs after the call, on the summary model; the screens show it when it lands.
@@ -110,7 +114,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       lines,
       now: Date.now(),
     }).then((review) => setDeviceReview(s.call_id, review));
-    void cloudApi("/api/v1/usage", { method: "POST", body: s }).catch((err) =>
+    void cloudApi("/api/v1/usage", { method: "POST", body: { ...s, source } }).catch((err) =>
       console.warn("[engine] usage not reported", err),
     );
   };

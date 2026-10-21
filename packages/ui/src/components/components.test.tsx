@@ -66,9 +66,12 @@ describe("TranscriptLine", () => {
     expect(screen.getByText("Is it free?")).toBeOnTheScreen();
   });
 
-  it("mutes the agent's own words", async () => {
+  it("colours the agent and the customer differently (owner, 22 Oct)", async () => {
     await render(<TranscriptLine speaker="agent" speakerLabel="You" text="Sure." />);
-    expect(screen.getByText("Sure.")).toHaveStyle({ color: themes.light.color.textMuted });
+    expect(screen.getByText("Sure.")).toHaveStyle({ color: themes.light.speaker.agent.text });
+    await render(<TranscriptLine speaker="customer" speakerLabel="Customer" text="Is it?" />);
+    expect(screen.getByText("Is it?")).toHaveStyle({ color: themes.light.speaker.customer.text });
+    expect(themes.light.speaker.agent.fill).not.toBe(themes.light.speaker.customer.fill);
   });
 
   it("system lines use the notice style", async () => {

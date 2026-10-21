@@ -4,6 +4,7 @@
  */
 import type { DemoClientMessage } from "@sotto/shared";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { callSource, setCallSource } from "../../lib/callSource";
 import type { Locale } from "../../lib/i18n";
 import { prefs } from "../../lib/prefs";
 import { saveRecording, setCallBusy } from "../../lib/recordings";
@@ -187,15 +188,22 @@ export function useCallSession(opts: {
   useEffect(() => {
     if (!callOver) return;
     stopMic();
+    if (state.phase === "ended") setCallSource(null); // the next call names its own source
     const rec = recorder.current;
     recorder.current = null;
     if (rec && !rec.empty && callId) void saveRecording(callId, rec.wav());
-  }, [callOver, stopMic, callId]);
+  }, [callOver, stopMic, callId, state.phase]);
   useEffect(() => stopMic, [stopMic]);
 
   return {
     state,
-    start: useCallback((scenarioId) => send({ type: "start", scenario_id: scenarioId }), [send]),
+    start: useCallback(
+      (scenarioId) => {
+        setCallSource("practice");
+        return send({ type: "start", scenario_id: scenarioId });
+      },
+      [send],
+    ),
     say: useCallback((speaker, text) => send({ type: "say", speaker, text }), [send]),
     end: useCallback(() => send({ type: "end" }), [send]),
     retry: useCallback(() => setAttempt((n) => n + 1), []),
@@ -205,6 +213,7 @@ export function useCallSession(opts: {
     toggleMic,
     startListening: useCallback(
       (which: AudioSource) => {
+        if (!callSource()) setCallSource(which === "mic" ? "mic" : "computer");
         if (send({ type: "start", scenario_id: null })) toggleMic(which);
       },
       [send, toggleMic],

@@ -6,6 +6,7 @@
  */
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import { setCallSource, sourceOf } from "../../lib/callSource";
 import { usePrefs } from "../../lib/prefs";
 import type { CallSession } from "./useCallSession";
 
@@ -40,13 +41,14 @@ export function pickupStep(
 export function AutoPickup({ session, activate }: { session: CallSession; activate: () => void }) {
   const router = useRouter();
   const { autoPickup } = usePrefs();
-  const [onCall, setOnCall] = useState(false);
+  const [app, setApp] = useState<string | null>(null);
+  const onCall = app !== null;
   const pickup = useRef<Pickup>({ waiting: false, auto: false });
   useEffect(() => {
     const d = desktop();
     if (!d) return;
-    void d.callState().then((s) => setOnCall(Boolean(s.app)));
-    return d.onCallState((s) => setOnCall(Boolean(s.app)));
+    void d.callState().then((s) => setApp(s.app));
+    return d.onCallState((s) => setApp(s.app));
   }, []);
   const { state, startListening, end } = session;
   const ready = state.connection === "open" && Boolean(state.hello);
@@ -57,8 +59,10 @@ export function AutoPickup({ session, activate }: { session: CallSession; activa
     if (action === "open") {
       activate();
       router.push("/call");
-    } else if (action === "listen") startListening("computer");
-    else if (action === "end") end();
-  }, [onCall, autoPickup, ready, live, activate, router, startListening, end]);
+    } else if (action === "listen") {
+      if (app) setCallSource(sourceOf(app));
+      startListening("computer");
+    } else if (action === "end") end();
+  }, [onCall, app, autoPickup, ready, live, activate, router, startListening, end]);
   return null;
 }

@@ -23,3 +23,13 @@ export function formatDate(iso: string, locale: Locale): string {
     timeZone: "Asia/Dubai",
   }).format(new Date(iso));
 }
+
+/** "10:12" — the time of day alone, for rows that show the date separately. */
+export function formatTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(tag(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    numberingSystem: "latn",
+    timeZone: "Asia/Dubai",
+  }).format(new Date(iso));
+}

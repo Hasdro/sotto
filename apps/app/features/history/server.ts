@@ -2,8 +2,9 @@
  * Calls made on this Sotto server (D-020) or this device (D-022): `/api/calls`. In the local demo
  * they are shown above the sample calls; a real account shows only its own (T-024).
  */
-import type { CardSource, CardType } from "@sotto/shared";
+import { CARD_TYPES as CARD_TYPE_LIST, type CardSource, type CardType } from "@sotto/shared";
 import { useEffect, useState } from "react";
+import { isCallSource } from "../../lib/callSource";
 import { api } from "../../lib/server";
 import type { PastCall, PastCard, PastLine } from "./mock";
 
@@ -16,6 +17,8 @@ export type ServerCallSummary = {
   cards: number;
   p50_ms: number | null;
   p95_ms: number | null;
+  source?: string;
+  review?: { success?: number } | null;
 };
 
 type Entry =
@@ -25,7 +28,7 @@ type Entry =
 
 export type ServerCallDetail = ServerCallSummary & { transcript: Entry[] };
 
-const CARD_TYPES = new Set<string>(["answer", "question", "objection", "warning", "holding"]);
+const CARD_TYPES = new Set<string>(CARD_TYPE_LIST);
 const SOURCES = new Set<string>(["playbook", "ai", "backup", "holding"]);
 
 export function toPastCall(call: ServerCallSummary | ServerCallDetail): PastCall {
@@ -48,6 +51,9 @@ export function toPastCall(call: ServerCallSummary | ServerCallDetail): PastCall
     outcome: call.mode === "live" ? "live" : "practice",
     transcript,
     cards,
+    ...(isCallSource(call.source) ? { source: call.source } : {}),
+    cardCount: call.cards,
+    ...(typeof call.review?.success === "number" ? { success: call.review.success } : {}),
   };
 }
 

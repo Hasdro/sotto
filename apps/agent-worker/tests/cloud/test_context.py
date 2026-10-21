@@ -26,3 +26,25 @@ def test_company_knowledge_is_capped_and_must_be_text(client: TestClient, sign_u
     too_long = client.put("/api/v1/company/settings", json={"context": "x" * 8001}, headers=h)
     assert too_long.status_code == 413
     assert client.put("/api/v1/company/settings", json={"context": 5}, headers=h).status_code == 400
+
+
+def test_usage_keeps_the_call_source_and_rejects_unknown_ones(
+    client: TestClient, sign_up: SignUp
+) -> None:
+    h = sign_up("Alpha", "admin@a.test")["auth"]
+    base = {
+        "started_at": 1,
+        "duration_s": 60,
+        "cards": 1,
+        "playbook_cards": 0,
+        "ai_cards": 1,
+        "holding_lines": 0,
+        "escalations": 0,
+    }
+    import time
+
+    base["started_at"] = int(time.time() * 1000) - 60_000
+    client.post("/api/v1/usage", json={**base, "call_id": "z", "source": "zoom"}, headers=h)
+    client.post("/api/v1/usage", json={**base, "call_id": "x", "source": "<b>"}, headers=h)
+    calls = client.get("/api/v1/company/usage", headers=h).json()["calls"]
+    assert {c["id"].split(":")[1]: c["source"] for c in calls} == {"z": "zoom", "x": "computer"}

@@ -6,8 +6,9 @@ import { PageHeader } from "../../components/PageHeader";
 import { PAST_CALLS, type PastCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { useServerCalls } from "../../features/history/server";
+import { SOURCE_META } from "../../lib/callSource";
 import { sampleDataAllowed } from "../../lib/cloud";
-import { formatDateTime } from "../../lib/format";
+import { formatDate, formatTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 
 export default function HistoryScreen() {
@@ -46,48 +47,89 @@ export default function HistoryScreen() {
 
 function CallList({ calls }: { calls: readonly PastCall[] }) {
   const { t, locale } = useI18n();
-  const { color } = useTheme();
+  const { color, card } = useTheme();
   return (
     <Panel padded={false}>
-      {calls.map((call, i) => (
-        <Link key={call.id} href={`/history/${call.id}`} asChild>
-          <Pressable
-            accessibilityRole="link"
-            style={StyleSheet.flatten([
-              styles.row,
-              i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null,
-            ])}
-          >
-            <View style={[styles.initial, { backgroundColor: color.surfaceSunken }]}>
-              <Text variant="body" weight="semibold" tone="primary">
-                {call.customer.slice(0, 1)}
-              </Text>
-            </View>
-            <View style={styles.main}>
-              <Text variant="body" weight="semibold" numberOfLines={1}>
-                {call.customer}
-              </Text>
-              {call.company ? (
-                <Text variant="label" tone="muted" numberOfLines={1}>
-                  {call.company}
+      {calls.map((call, i) => {
+        const meta = SOURCE_META[call.source ?? "computer"];
+        const cards = call.cardCount ?? call.cards.length;
+        const tone =
+          call.success === undefined
+            ? null
+            : call.success >= 70
+              ? card.answer.accent
+              : call.success >= 40
+                ? card.objection.accent
+                : card.warning.accent;
+        return (
+          <Link key={call.id} href={`/history/${call.id}`} asChild>
+            <Pressable
+              accessibilityRole="link"
+              testID={`history-row-${call.id}`}
+              style={(state) =>
+                StyleSheet.flatten([
+                  styles.row,
+                  i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null,
+                  (state as { hovered?: boolean }).hovered
+                    ? { backgroundColor: color.surfaceSunken }
+                    : null,
+                ])
+              }
+            >
+              <View
+                style={[styles.icon, { backgroundColor: color.surfaceSunken }]}
+                accessibilityLabel={meta.name}
+              >
+                <Text variant="heading">{meta.icon}</Text>
+              </View>
+              <View style={styles.main}>
+                <Text variant="body" weight="semibold" numberOfLines={1}>
+                  {call.customer}
                 </Text>
-              ) : null}
-            </View>
-            <View style={styles.meta}>
-              <Badge
-                tone={OUTCOME_TONE[call.outcome]}
-                label={t(`history.outcome.${call.outcome}`)}
-              />
-              <Text variant="label" tone="muted">
-                {formatDateTime(call.startedAt, locale)}
-              </Text>
-              <Text variant="label" tone="muted">
-                {t("history.minutes", { count: call.minutes })}
-              </Text>
-            </View>
-          </Pressable>
-        </Link>
-      ))}
+                <View style={styles.facts}>
+                  {call.company ? (
+                    <Text variant="label" tone="muted">{`🏢 ${call.company}`}</Text>
+                  ) : null}
+                  <Text
+                    variant="label"
+                    tone="muted"
+                  >{`📅 ${formatDate(call.startedAt, locale)}`}</Text>
+                  <Text
+                    variant="label"
+                    tone="muted"
+                  >{`🕒 ${formatTime(call.startedAt, locale)}`}</Text>
+                  <Text variant="label" tone="muted">
+                    {`⏳ ${t("history.minutes", { count: call.minutes })}`}
+                  </Text>
+                  <Text variant="label" tone="muted">{`🃏 ${cards}`}</Text>
+                  <Text variant="label" tone="muted">{`${meta.icon} ${meta.name}`}</Text>
+                </View>
+              </View>
+              <View style={styles.meta}>
+                <Badge
+                  tone={OUTCOME_TONE[call.outcome]}
+                  label={t(`history.outcome.${call.outcome}`)}
+                />
+                {tone && call.success !== undefined ? (
+                  <View
+                    style={styles.chance}
+                    accessibilityLabel={t("history.chance", { n: call.success })}
+                  >
+                    <View style={[styles.track, { backgroundColor: color.surfaceSunken }]}>
+                      <View
+                        style={[styles.fill, { width: `${call.success}%`, backgroundColor: tone }]}
+                      />
+                    </View>
+                    <Text variant="label" weight="semibold" color={tone}>
+                      {`${call.success}%`}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </Pressable>
+          </Link>
+        );
+      })}
     </Panel>
   );
 }
@@ -102,13 +144,17 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     minHeight: 64,
   },
-  initial: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
+  icon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  main: { flex: 1, minWidth: 0, gap: 2 },
-  meta: { alignItems: "flex-end", gap: 2 },
+  main: { flex: 1, minWidth: 0, gap: 4 },
+  facts: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
+  meta: { alignItems: "flex-end", gap: space.xs },
+  chance: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  track: { width: 64, height: 6, borderRadius: 3, overflow: "hidden" },
+  fill: { height: 6, borderRadius: 3 },
 });

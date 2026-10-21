@@ -60,6 +60,8 @@ export type Theme = {
   };
   /** One colour per card type, so the agent recognises a card at a glance (RESEARCH §6). */
   card: Record<CardKind, CardColors>;
+  /** Transcript bubbles: the customer and the agent at a glance (owner, 22 Oct). */
+  speaker: Record<"customer" | "agent", { fill: Hex; text: Hex; label: Hex }>;
 };
 
 const light: Theme = {
@@ -93,6 +95,10 @@ const light: Theme = {
     warning: { fill: "#fadfdb", text: "#5c150f", muted: "#7a3a33", accent: "#b7352a" },
     holding: { fill: "#e6eaee", text: "#24303b", muted: "#46525d", accent: "#56646f" },
   },
+  speaker: {
+    customer: { fill: "#e4effa", text: "#102a43", label: "#1f5f99" },
+    agent: { fill: "#fbefe0", text: "#3d2810", label: "#9a5512" },
+  },
 };
 
 const dark: Theme = {
@@ -125,6 +131,10 @@ const dark: Theme = {
     signal: { fill: "#2a1846", text: "#ecdfff", muted: "#cbb6ec", accent: "#b88cff" },
     warning: { fill: "#3d1915", text: "#ffd9d3", muted: "#e5b3ac", accent: "#ff7c6e" },
     holding: { fill: "#1d2832", text: "#dde5ec", muted: "#b3c0cb", accent: "#93a3b1" },
+  },
+  speaker: {
+    customer: { fill: "#15283b", text: "#dbe9f7", label: "#8cc0f0" },
+    agent: { fill: "#33240f", text: "#f6e3c8", label: "#f0b46a" },
   },
 };
 

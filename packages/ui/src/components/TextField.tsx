@@ -6,9 +6,11 @@ import { fontFor, Text } from "./Text.tsx";
 export type TextFieldProps = Omit<TextInputProps, "style" | "placeholderTextColor"> & {
   /** Visible label above the field; also the accessible name. Omit only with accessibilityLabel. */
   label?: string;
+  /** Height of a multi-line field, in px. */
+  height?: number;
 };
 
-export function TextField({ label, accessibilityLabel, ...rest }: TextFieldProps) {
+export function TextField({ label, accessibilityLabel, height, ...rest }: TextFieldProps) {
   const { color } = useTheme();
   return (
     <View style={styles.wrap}>
@@ -30,6 +32,7 @@ export function TextField({ label, accessibilityLabel, ...rest }: TextFieldProps
             backgroundColor: color.surfaceSunken,
             borderColor: color.borderStrong,
           },
+          height ? { height, textAlignVertical: "top" } : null,
         ]}
       />
     </View>

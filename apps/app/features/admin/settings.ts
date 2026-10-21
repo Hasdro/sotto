@@ -11,6 +11,8 @@ export type CompanySettings = {
   backup_allowed: boolean;
   agent_context: boolean;
   card_language: CardLanguage;
+  /** Company knowledge the AI reads on every card and review (owner, 22 Oct). */
+  context?: string;
 };
 
 /** Without a server (dev mock, tests) the screen keeps working on these local values. */
