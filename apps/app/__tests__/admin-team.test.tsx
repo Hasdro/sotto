@@ -41,7 +41,7 @@ describe("Admin → Team", () => {
     jest.mocked(cloudApi).mockReset();
     jest
       .mocked(cloudApi)
-      .mockImplementation(async (path: string, init?: { method?: string }) =>
+      .mockImplementation(async (_path: string, init?: { method?: string }) =>
         init?.method === "POST" ? { temporary_password: "temp-1" } : { users: TEAM },
       );
   });

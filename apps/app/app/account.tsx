@@ -1,18 +1,6 @@
 /** Account (D-022): who is signed in, the company's plan and usage, this person's devices, the
  * team (admins add people here), and sign out. Only in builds connected to a management server. */
-import {
-  Badge,
-  Button,
-  Divider,
-  layout,
-  Panel,
-  Screen,
-  SegmentedControl,
-  Stack,
-  space,
-  Text,
-  TextField,
-} from "@sotto/ui";
+import { Badge, Button, Divider, layout, Panel, Screen, Stack, space, Text } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
