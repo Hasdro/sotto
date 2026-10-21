@@ -1496,6 +1496,19 @@ class CloudStore:
             db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
             self.audit(db, "owner.company.deleted", str(c["name"]), actor=owner, ip=ip)
 
+    def company_audit(self, who: Principal, limit: int = 200) -> list[dict[str, Any]]:
+        """The company's own activity log for its admins (owner, 22 Oct 2026): who changed
+        roles, keys (names only), settings, routes and the playbook, and when."""
+        who.require("admin")
+        rows = self._q(
+            "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
+            " FROM audit a"
+            " LEFT JOIN users u ON u.id = a.actor_id"
+            " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%' ORDER BY a.id DESC LIMIT ?",
+            (who.company, limit),
+        )
+        return [dict(r) for r in rows]
+
     def owner_audit(self, company_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
         if company_id:
             rows = self._q(

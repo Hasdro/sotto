@@ -14,6 +14,9 @@ const TABS: readonly { href: string; label: StringKey }[] = [
   { href: "/admin", label: "admin.team" },
   { href: "/admin/keys", label: "admin.keys" },
   { href: "/admin/settings", label: "admin.settings" },
+  { href: "/admin/recordings", label: "admin.recordings" },
+  { href: "/admin/devices", label: "admin.devices" },
+  { href: "/admin/activity", label: "admin.activity" },
 ];
 
 export default function AdminRoute() {

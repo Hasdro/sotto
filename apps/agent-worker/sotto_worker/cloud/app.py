@@ -560,6 +560,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return JSONResponse({"devices": store.devices(who, all_users=everyone)})
 
     @app_route
+    async def audit_get(_request: Request, who: Principal) -> Response:
+        return JSONResponse({"items": store.company_audit(who)})
+
+    @app_route
     async def device_delete(request: Request, who: Principal) -> Response:
         store.revoke_device(who, request.path_params["id"], ip=ip_of(request))
         return JSONResponse({"ok": True})
@@ -782,6 +786,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/team", team_post, methods=["POST"]),
         Route(f"{api}/team/{{id}}", team_patch, methods=["PATCH"]),
         Route(f"{api}/devices", devices_get),
+        Route(f"{api}/audit", audit_get),
         Route(f"{api}/devices/{{id}}", device_delete, methods=["DELETE"]),
         Route("/api/owner/login", owner_login, methods=["POST"]),
         Route("/api/owner/logout", owner_logout, methods=["POST"]),

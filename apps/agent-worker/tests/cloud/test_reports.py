@@ -102,3 +102,19 @@ def test_agents_see_their_own_calls_and_companies_stay_apart(
     assert ids(hb) == {"beta-call"}
     # Beta cannot attach a review to Alpha's call, even with the same id.
     assert client.post("/api/v1/calls/omar-call/review", json=REVIEW, headers=hb).status_code == 404
+
+
+def test_admins_read_their_own_company_activity_only(
+    client: TestClient, sign_up: SignUp, store: CloudStore
+) -> None:
+    ha = sign_up("Alpha", "admin@a.test")["auth"]
+    hb = sign_up("Beta", "admin@b.test")["auth"]
+    client.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": "gsk_" + "a" * 24}, headers=ha)
+    items = client.get("/api/v1/audit", headers=ha).json()["items"]
+    assert any(i["action"] == "key.set" and i["detail"] == "GROQ_API_KEY" for i in items)
+    assert all("gsk_" not in i["detail"] for i in items)  # key values never appear
+    assert all(
+        i["action"] != "key.set" for i in client.get("/api/v1/audit", headers=hb).json()["items"]
+    )
+    omar = agent(client, store, ha, "omar@a.test")
+    assert client.get("/api/v1/audit", headers=omar).status_code == 403
