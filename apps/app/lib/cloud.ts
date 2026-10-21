@@ -8,6 +8,7 @@
  */
 import type { CallBundle } from "@sotto/engine";
 import { Platform } from "react-native";
+import { clearDeviceCalls, setDeviceOwner } from "./deviceHistory";
 
 export type CloudUser = {
   id: string;
@@ -143,6 +144,7 @@ export const APP_VERSION = "0.1.0";
 
 // --- the session store ----------------------------------------------------------------------
 let state: CloudState = cloudOrigin() ? { status: "loading" } : { status: "off" };
+if (state.status !== "off") setDeviceOwner(null); // nobody's calls until a session loads
 let token: string | null = null;
 const listeners = new Set<() => void>();
 function set(next: CloudState) {
@@ -197,6 +199,8 @@ export async function cloudApi<T>(
 }
 
 async function signedOut(error?: string) {
+  clearDeviceCalls();
+  setDeviceOwner(null);
   token = null;
   await write(TOKEN_KEY, null);
   set(error ? { status: "signed_out", error } : { status: "signed_out" });
@@ -206,6 +210,7 @@ async function loadSession(): Promise<void> {
   const me = await cloudApi<Me>("/api/v1/me");
   let bundle: CallBundle | null = null;
   if (me.company) bundle = await cloudApi<CallBundle>("/api/v1/bundle");
+  setDeviceOwner(me.company?.id ?? "none", me.user.id);
   set({ status: "signed_in", me, bundle });
 }
 

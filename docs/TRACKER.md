@@ -105,6 +105,34 @@ Details and acceptance criteria are in `docs/phases/phase-N-*.md`.
 - [ ] P3.6 Visual QA loop `owner`
 - [x] T-020 Phone navigation from the left (owner feedback on the APK, D-023) — top bar + menu button opens a start-edge drawer (sidebar items, role switch, user/company footer), mirrored in Arabic; bottom tabs removed; closes on item/scrim/close/Escape/Android back; web focus trap via `Modal`. Polish at 390/360 px: full-width call actions, inbox filter no longer clipped, account spacing, invite form says "Name". Evidence `docs/evidence/d023/` (39 shots: light/dark, LTR/RTL; `node scripts/screenshots.mjs`)
 
+### Review remediation (`docs/AGENT-BRIEF-2026-10-21.md`, 21 Oct 2026)
+
+One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
+
+- [x] T-022 B0.1 Customer transcripts do not survive sign-out — device calls are kept per company + user (`sotto.calls.<company>.<user>`), cleared on sign-out, old shared key discarded. Evidence: `__tests__/device-history.test.ts` (A signs out, B signs in, B sees nothing); app jest 183 passed
+- [ ] T-023 B0.2 Speech vendors the app cannot run are not selectable (Deepgram, ElevenLabs)
+- [ ] T-024 B0.3 No sample rows in a real account's History or Playbook
+- [ ] T-025 B0.4 Leaving the call screen keeps the call; End asks first
+- [ ] T-026 B0.5 Agents and the call screen are told when the plan blocks calls
+- [ ] T-027 B0.6 No `_API_KEY` names in user-facing copy
+- [ ] T-028 B1.1 No 150 ms settle after a sentence-ending final
+- [ ] T-029 B1.2 Primary model first-token budget 700 → 1150 ms
+- [ ] T-030 B1.3 Keep-warm every 120 s, not 25 s (rate-limit fix)
+- [ ] T-031 B1.4 Replay says "synthetic — not the R1 gate"; reports backup starts/wins
+- [ ] T-032 B2.1 Top three playbook entries go to the model when the direct match misses
+- [ ] T-033 B2.2 Replay reports playbook share, holding share, mean top-1 score, share below 0.42
+- [ ] T-034 B3.1 Escalations carry the transcript excerpt, agent and call
+- [ ] T-035 B3.2 Email the manager within a minute `[OWNER]` (Resend account, sender, recipient)
+- [ ] T-036 B4.1 Phones say plainly that live calls come with phone calling (Phase 4)
+- [ ] T-037 B4.2 Guided key setup checklist on Admin → Keys & providers
+- [ ] T-038 B4.3 60-second practice call in real accounts `[OWNER]` (conflicts with D-024)
+- [ ] T-039 B5.1 Admin → Team uses the real team API
+- [ ] T-040 B5.2 Prompt studio hidden until prompts persist
+- [ ] T-041 B5.3 Models screen hidden (duplicate of Keys & providers speed check)
+- [ ] T-042 B6.1 Engine coverage floor 80%
+- [ ] T-043 B6.2 Engine tests on a fake clock (< 2 s)
+- [ ] T-044 B6.3 Web bundle 430/450 KB `[OWNER]` (raise, cut zod, or lazy-load the call screen)
+
 ### Phase 4
 - [ ] P4.1 Telephony: LiveKit + SIP trunk `local-only` `owner`
 - [~] P4.2 Token service (edge function) — call-start policy pure + 12 tests (D-015); Deno entry + LiveKit signing adapter need the LiveKit account
