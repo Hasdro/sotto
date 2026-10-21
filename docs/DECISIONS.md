@@ -331,3 +331,11 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 **Why:** the owner's real calls run in Zoom, Meet and Yeastar on the Mac; the speakers carry only the other side, so capture is exact without telephony integration (Phase 4 stays the path for a dial pad and real numbers inside the app).
 
 **Trade-offs:** macOS asks once for "system audio recording" (must be allowed by the user; launched from a terminal, macOS checks the terminal instead). All system sound is heard, including notifications, during a call. The agent's own track is not captured on the desktop yet.
+
+## D-025 — The main AI gets 1150 ms before the backup is raced (owner, 21 Oct 2026)
+
+**Context.** R2 says "no first token within 700 ms → backup". The seed's `first_token_ms` is measured from the end of the customer's speech (t0), but the request only leaves ~0.6 s after t0 (STT final + turn decision). So the main model had ~0.1 s of its own, and the live replay started the backup on 2–3 of 11 turns without it ever winning — wasted requests on free quotas (review brief B1.2, T-029).
+
+**Decision.** The owner chose "raise" on the hub: `suggest.first_token_ms` = 1150 ms from t0 (≈ 550 ms of the model's own time). R2's "700 ms" is read as the model's own time. The holding line at t0 + 1400 ms and R1's 1500 ms p95 are unchanged.
+
+**Consequences.** Fewer duplicate requests; a slow main model shows the holding line rather than a backup card slightly more often. Replay must stay ≤ 1500 ms p95.

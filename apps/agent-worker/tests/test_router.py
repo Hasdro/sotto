@@ -64,7 +64,7 @@ async def _run(
 
 def test_loads_the_seed_file_with_every_stage() -> None:
     config = RoutingConfig.load(REPO_ROOT / "seed" / "models" / "default.yaml")
-    assert config.stages["suggest"].first_token_ms == 700
+    assert config.stages["suggest"].first_token_ms == 1150  # D-025
     assert set(config.stages) >= {"suggest", "suggest_backup", "summary"}
 
 

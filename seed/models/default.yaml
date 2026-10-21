@@ -42,7 +42,9 @@ stages:
     base_url: https://api.groq.com/openai/v1
     api_key_env: GROQ_API_KEY
     model: openai/gpt-oss-20b
-    first_token_ms: 700
+    # D-025: measured from the end of speech; the request itself starts ~0.6 s in, so 1150 gives
+    # the main model ~0.55 s of its own before the backup is raced. Holding line stays at 1.4 s.
+    first_token_ms: 1150
     settings:
       max_tokens: 300        # gpt-oss counts its (low-effort) reasoning tokens in this limit
       temperature: 0.2
