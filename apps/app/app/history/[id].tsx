@@ -20,6 +20,7 @@ import { OUTCOME_TONE } from "../../features/history/outcome";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
 import { useServerCall } from "../../features/history/server";
 import { CallReviewPanel } from "../../features/review/CallReviewPanel";
+import { FollowUp } from "../../features/review/FollowUp";
 import { formatDate, formatTime } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 import { useIsWide } from "../../lib/responsive";
@@ -120,6 +121,7 @@ export default function CallDetailScreen() {
       {sample ? null : (
         <View style={styles.review}>
           <CallReviewPanel callId={String(id)} />
+          <FollowUp callId={String(id)} />
         </View>
       )}
       {sample ? null : <RecordingPlayer callId={String(id)} />}
@@ -146,7 +148,7 @@ const styles = StyleSheet.create({
   head: { gap: space.sm, marginBottom: space.xl },
   metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
   body: { gap: space.xl },
-  review: { marginBottom: space.xl },
+  review: { marginBottom: space.xl, gap: space.md },
   notes: { gap: space.xs, marginBottom: space.xl },
   bodyWide: { flexDirection: "row", alignItems: "flex-start" },
   col: { flex: 1, gap: space.md },

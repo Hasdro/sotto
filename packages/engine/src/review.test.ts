@@ -1,6 +1,6 @@
 /** After-call review (owner, 21 Oct): checked, clamped, and never throws. */
 import { describe, expect, it } from "vitest";
-import { parseReview, reviewCall } from "./review.ts";
+import { parseFollowUp, parseReview, reviewCall } from "./review.ts";
 import { ModelRouter } from "./router.ts";
 import { type LLMAdapter, realClock } from "./types.ts";
 
@@ -85,5 +85,16 @@ describe("call review", () => {
         now: 0,
       }),
     ).toBeNull();
+  });
+});
+
+describe("follow-up email", () => {
+  it("splits the subject from the body, and keeps a reply without a subject", () => {
+    expect(parseFollowUp("SUBJECT: Your quote\nHi Sara,\nThanks for your time.")).toEqual({
+      subject: "Your quote",
+      body: "Hi Sara,\nThanks for your time.",
+    });
+    expect(parseFollowUp("Hi Sara, thanks.")).toEqual({ subject: "", body: "Hi Sara, thanks." });
+    expect(parseFollowUp("   ")).toBeNull();
   });
 });

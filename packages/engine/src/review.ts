@@ -116,3 +116,50 @@ export async function reviewCall(opts: {
     return null;
   }
 }
+
+export type FollowUp = { subject: string; body: string };
+
+/** Splits "SUBJECT: …\n<body>"; null when the model gave nothing usable. Exported for tests. */
+export function parseFollowUp(raw: string): FollowUp | null {
+  const text = raw.trim();
+  const m = /^SUBJECT:\s*(.+)\n([\s\S]+)$/i.exec(text);
+  const subject = (m?.[1] ?? "").trim().slice(0, 200);
+  const body = (m?.[2] ?? text).trim().slice(0, 4000);
+  return body ? { subject, body } : null;
+}
+
+/** Drafts the customer follow-up email on the summary stage (owner, 22 Oct); never throws. */
+export async function draftFollowUp(opts: {
+  router: ModelRouter;
+  prompt: PromptRecord | undefined;
+  company: CompanyProfile;
+  lines: readonly ReviewLine[];
+  now: number;
+}): Promise<FollowUp | null> {
+  if (!opts.prompt || !opts.lines.some((l) => l.speaker === "customer")) return null;
+  try {
+    const body = renderPrompt(opts.prompt.body, {
+      "company.name": opts.company.name,
+      "company.tone": opts.company.tone,
+      "company.context": opts.company.context?.trim() || "(none)",
+      "call.transcript": transcriptText(opts.lines).slice(-12_000),
+    });
+    let out = "";
+    for await (const chunk of opts.router.stream(
+      "summary",
+      {
+        system: "",
+        messages: [{ role: "user", content: body }],
+        max_tokens: 500,
+        temperature: 0.3,
+        settings: {},
+      },
+      { t0: opts.now },
+    ))
+      out += chunk;
+    return parseFollowUp(out);
+  } catch (err) {
+    console.warn("[engine] follow-up draft failed", err);
+    return null;
+  }
+}

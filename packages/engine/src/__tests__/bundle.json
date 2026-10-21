@@ -224,6 +224,18 @@
     ],
     "body": "Subject: Unanswered question from {{escalation.customer}}\n\n{{escalation.agent}} could not answer this question on a call, and the customer is waiting for a reply today:\n\n\"{{escalation.question}}\"\n\nLast moments of the call:\n{{escalation.transcript}}\n\nCustomer: {{escalation.customer}}\nCRM: {{escalation.crm_link}}\n\nAnswer it in Sotto: {{escalation.inbox_link}}\nOnce you approve the answer, it is added to the {{company.name}} playbook.\n"
    },
+   "followup": {
+    "key": "followup",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "company.tone",
+     "company.context",
+     "call.transcript"
+    ],
+    "body": "You write the follow-up email a sales agent at {{company.name}} sends the customer right after a phone call. Tone: {{company.tone}}.\n\nWhat {{company.name}} wants you to know (trusted facts and rules):\n{{company.context}}\n\nWrite in the language the customer spoke. Keep it under 150 words:\n- a subject line;\n- thank them for their time, by name if the transcript gives it;\n- two or three short points that recap what they asked about and what was agreed;\n- the one next step and when it happens.\n\nOnly state prices, dates, discounts or promises that appear in the transcript or the company facts. Where a detail is missing, leave a placeholder in square brackets, like [date], for the agent to fill in.\n\nReply with exactly this form and nothing else:\nSUBJECT: <subject line>\n<email body>\n\nTranscript (Customer and Agent lines):\n{{call.transcript}}\n"
+   },
    "review": {
     "key": "review",
     "version": 2,

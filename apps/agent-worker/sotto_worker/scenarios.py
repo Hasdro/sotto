@@ -10,7 +10,9 @@ from typing import Literal
 
 from sotto_worker.contracts import Speaker
 
-Expect = Literal["no_card", "playbook", "ai_or_holding"]
+# "any": a plain statement may get a card (real models usually write one) or not (owner, 21 Oct:
+# a card for every customer sentence when the model has something useful to say).
+Expect = Literal["no_card", "playbook", "ai_or_holding", "any"]
 
 
 @dataclass(frozen=True)

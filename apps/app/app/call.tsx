@@ -37,6 +37,7 @@ import { type CallSession, useCallSession } from "../features/call/useCallSessio
 import { selectCards } from "../features/cards/reducer";
 import { useEscalations } from "../features/escalations/store";
 import { CallReviewPanel } from "../features/review/CallReviewPanel";
+import { FollowUp } from "../features/review/FollowUp";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 
@@ -194,6 +195,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       {state.phase === "ended" && !practice ? (
         <CallReviewPanel callId={state.callId ?? null} />
       ) : null}
+      {state.phase === "ended" && !practice ? <FollowUp callId={state.callId ?? null} /> : null}
       {state.phase !== "idle" ? (
         <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
       ) : null}

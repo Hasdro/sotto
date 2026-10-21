@@ -397,6 +397,17 @@ const en = {
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
+  "followup.title": "Follow-up email to the customer",
+  "followup.draft": "Draft it",
+  "followup.drafting": "Writing…",
+  "followup.again": "Write again",
+  "followup.none":
+    "Could not write a draft. It needs an AI model connected in Admin → Keys & providers.",
+  "followup.subject": "Subject",
+  "followup.body": "Email",
+  "followup.check":
+    "Check names, prices and dates before you send it. Sotto never sends it for you.",
+  "followup.copy": "Copy email",
   "settings.mini": "Mini window during calls",
   "settings.mini.body":
     "A small card window that stays on top of Zoom or your softphone. Shortcuts from any app: ⌃⌥S start or end listening · ⌃⌥C copy the card · ⌃⌥M show the mini window.",
@@ -1015,6 +1026,16 @@ const ar: Record<StringKey, string> = {
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
+  "followup.title": "بريد متابعة إلى العميل",
+  "followup.draft": "اكتبه",
+  "followup.drafting": "جارٍ الكتابة…",
+  "followup.again": "اكتب من جديد",
+  "followup.none":
+    "تعذّرت كتابة مسودة. يلزم ربط نموذج ذكاء اصطناعي في الإدارة ← المفاتيح والمزوّدون.",
+  "followup.subject": "الموضوع",
+  "followup.body": "البريد",
+  "followup.check": "تحقق من الأسماء والأسعار والتواريخ قبل الإرسال. لا يرسله Sotto نيابة عنك.",
+  "followup.copy": "نسخ البريد",
   "settings.mini": "نافذة صغيرة أثناء المكالمات",
   "settings.mini.body":
     "نافذة بطاقات صغيرة تبقى فوق Zoom أو هاتفك البرمجي. اختصارات من أي تطبيق: ⌃⌥S بدء الاستماع أو إنهاؤه · ⌃⌥C نسخ البطاقة · ⌃⌥M إظهار النافذة الصغيرة.",
