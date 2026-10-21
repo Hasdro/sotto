@@ -7,18 +7,9 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { setCallSource, sourceOf } from "../../lib/callSource";
+import { desktop } from "../../lib/desktop";
 import { usePrefs } from "../../lib/prefs";
 import type { CallSession } from "./useCallSession";
-
-type CallState = { app: string | null };
-type Desktop = {
-  callState: () => Promise<CallState>;
-  onCallState: (cb: (s: CallState) => void) => () => void;
-};
-
-function desktop(): Desktop | null {
-  return (globalThis as { sottoDesktop?: Desktop }).sottoDesktop ?? null;
-}
 
 export type Pickup = { waiting: boolean; auto: boolean };
 export type PickupAction = "open" | "listen" | "end" | null;

@@ -7,6 +7,7 @@ import { createContext, type ReactNode, useCallback, useContext, useState } from
 import { useI18n } from "../../lib/locale";
 import { AutoPickup } from "./autoPickup";
 import type { SocketFactory } from "./bridge";
+import { DesktopBridge } from "./DesktopBridge";
 import { type CallSession, useCallSession } from "./useCallSession";
 
 type Shared = { session: CallSession; activate: () => void };
@@ -33,6 +34,7 @@ export function CallSessionProvider({
   return (
     <SharedCall.Provider value={{ session, activate }}>
       <AutoPickup session={session} activate={activate} />
+      <DesktopBridge session={session} activate={activate} />
       {children}
     </SharedCall.Provider>
   );

@@ -3,7 +3,7 @@ import { ReadexPro_500Medium } from "@expo-google-fonts/readex-pro/500Medium";
 import { ReadexPro_600SemiBold } from "@expo-google-fonts/readex-pro/600SemiBold";
 import { UIProvider, useTheme } from "@sotto/ui";
 import { useFonts } from "expo-font";
-import { Slot } from "expo-router";
+import { Slot, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, View } from "react-native";
 import { AccessGate } from "../components/AccessGate";
@@ -45,6 +45,8 @@ function Root() {
 
 function Themed({ dir }: { dir: "ltr" | "rtl" }) {
   const { color } = useTheme();
+  // The desktop mini window shows the main window's card: no menu, no sign-in, no call of its own.
+  const mini = usePathname() === "/mini";
   return (
     <View
       // react-native-web reads `dir` to resolve start/end in inline styles; native uses `direction`.
@@ -52,13 +54,17 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
       style={[styles.root, { direction: dir, backgroundColor: color.background }]}
     >
       <StatusBar style="auto" />
-      <AccessGate>
-        <CallSessionProvider>
-          <AppShell>
-            <Slot />
-          </AppShell>
-        </CallSessionProvider>
-      </AccessGate>
+      {mini ? (
+        <Slot />
+      ) : (
+        <AccessGate>
+          <CallSessionProvider>
+            <AppShell>
+              <Slot />
+            </AppShell>
+          </CallSessionProvider>
+        </AccessGate>
+      )}
     </View>
   );
 }

@@ -5,7 +5,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { spawn } = require("node:child_process");
-const { app, BrowserWindow, ipcMain, net, protocol, session, shell } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  net,
+  protocol,
+  session,
+  shell,
+} = require("electron");
 const { callApp } = require("./call-apps.cjs");
 
 const WEB = path.join(__dirname, "web");
@@ -52,6 +61,95 @@ function openExternal(url) {
   if (url.startsWith("https://")) void shell.openExternal(url);
 }
 
+let mainWin = null;
+let miniWin = null;
+
+function guard(win) {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternal(url); // "Get a key" links open in the browser
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith(`${ORIGIN}/`)) {
+      event.preventDefault();
+      openExternal(url);
+    }
+  });
+}
+
+// The mini window (owner, 22 Oct 2026): the newest card, always on top beside Zoom or the
+// softphone, in the top-right corner. The main window owns the call and sends it the card.
+function showMini(show) {
+  if (!show) {
+    miniWin?.hide();
+    return;
+  }
+  if (miniWin && !miniWin.isDestroyed()) {
+    miniWin.showInactive();
+    return;
+  }
+  // `screen` only after the app is ready (Electron docs); read here, never at load time.
+  const area = require("electron").screen.getPrimaryDisplay().workArea;
+  miniWin = new BrowserWindow({
+    width: 420,
+    height: 260,
+    x: area.x + area.width - 440,
+    y: area.y + 20,
+    minWidth: 300,
+    minHeight: 160,
+    title: "Sotto",
+    alwaysOnTop: true,
+    fullscreenable: false,
+    minimizable: false,
+    maximizable: false,
+    backgroundColor: "#F1F4F2",
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "preload.cjs"),
+    },
+  });
+  miniWin.setAlwaysOnTop(true, "floating");
+  miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  guard(miniWin);
+  miniWin.once("ready-to-show", () => miniWin?.showInactive());
+  miniWin.on("closed", () => {
+    miniWin = null;
+  });
+  void miniWin.loadURL(`${ORIGIN}/mini`);
+}
+
+let lastMini = null;
+ipcMain.on("mini-state", (event, state) => {
+  if (event.sender !== mainWin?.webContents) return; // only the main window feeds it
+  lastMini = state;
+  if (miniWin && !miniWin.isDestroyed()) miniWin.webContents.send("mini-state", state);
+});
+ipcMain.handle("mini-last", () => lastMini);
+ipcMain.on("mini-show", (_event, show) => showMini(Boolean(show)));
+ipcMain.on("mini-action", (event, action) => {
+  if (event.sender !== miniWin?.webContents) return;
+  if (action === "open" && mainWin) {
+    if (mainWin.isMinimized()) mainWin.restore();
+    mainWin.show();
+    mainWin.focus();
+  }
+  if (["open", "copy", "listen"].includes(action)) mainWin?.webContents.send("shortcut", action);
+});
+
+// Shortcuts from any app: ⌃⌥S start or end listening, ⌃⌥C copy the card, ⌃⌥M the mini window.
+function registerShortcuts() {
+  const send = (what) => mainWin?.webContents.send("shortcut", what);
+  globalShortcut.register("Control+Alt+S", () => send("listen"));
+  globalShortcut.register("Control+Alt+C", () => send("copy"));
+  globalShortcut.register("Control+Alt+M", () =>
+    showMini(!(miniWin && !miniWin.isDestroyed() && miniWin.isVisible())),
+  );
+}
+app.on("will-quit", () => globalShortcut.unregisterAll());
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -68,15 +166,11 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    openExternal(url); // "Get a key" links open in the browser
-    return { action: "deny" };
-  });
-  win.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(`${ORIGIN}/`)) {
-      event.preventDefault();
-      openExternal(url);
-    }
+  guard(win);
+  mainWin = win;
+  win.on("closed", () => {
+    if (mainWin === win) mainWin = null;
+    miniWin?.close(); // the mini window has nothing to show without the main window
   });
   void win.loadURL(`${ORIGIN}/`);
 }
@@ -109,6 +203,7 @@ app.whenReady().then(() => {
     { useSystemPicker: false },
   );
   createWindow();
+  registerShortcuts();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

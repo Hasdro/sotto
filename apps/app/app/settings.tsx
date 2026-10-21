@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
+import { computerAudioAvailable } from "../features/call/mic";
 import { Knowledge } from "../features/settings/Knowledge";
 import { APP_VERSION, cloudOrigin } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
@@ -98,6 +99,15 @@ export default function SettingsScreen() {
           onValueChange={toggle("autoPickup")}
           testID="settings-autopickup"
         />
+        {computerAudioAvailable() ? (
+          <ToggleRow
+            label={t("settings.mini")}
+            description={t("settings.mini.body")}
+            value={p.miniWindow}
+            onValueChange={toggle("miniWindow")}
+            testID="settings-mini"
+          />
+        ) : null}
         <ToggleRow
           label={t("settings.record")}
           description={t("settings.record.body")}

@@ -9,6 +9,8 @@ export type Prefs = {
   theme: "system" | "light" | "dark";
   sounds: boolean;
   autoPickup: boolean;
+  /** Desktop: open the floating mini window when a call starts (owner, 22 Oct). */
+  miniWindow: boolean;
   record: boolean;
   micId: string | null;
   tutorialDone: boolean;
@@ -19,6 +21,7 @@ export const DEFAULT_PREFS: Prefs = {
   theme: "system",
   sounds: true,
   autoPickup: true,
+  miniWindow: true,
   record: true,
   micId: null,
   tutorialDone: false,
