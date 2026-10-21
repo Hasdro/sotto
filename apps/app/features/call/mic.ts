@@ -51,7 +51,11 @@ export class Downsampler {
 
 export type MicError = "unsupported" | "denied";
 export type AudioSource = "computer" | "mic";
-export type MicHandle = { stop: () => void };
+export type MicHandle = {
+  stop: () => void;
+  /** The live audio, for the call recording (owner, 22 Oct). */
+  stream?: MediaStream;
+};
 
 type AudioContextCtor = new () => AudioContext;
 
@@ -132,6 +136,7 @@ export async function startCapture(
   node.connect(mute);
   mute.connect(ctx.destination);
   return {
+    stream,
     stop() {
       node.onaudioprocess = null;
       input.disconnect();

@@ -27,7 +27,7 @@ import {
   startMic,
 } from "./mic";
 import { connectMockBridge } from "./mock-stream";
-import { Recorder } from "./recorder";
+import { type CallRecorder, newRecorder } from "./recorder";
 import { initialSessionState, type SessionState, type Speaker, sessionReducer } from "./session";
 
 /** Delay between automatic reconnect attempts while the bridge is offline. */
@@ -114,7 +114,7 @@ export function useCallSession(opts: {
   // permission granted after the user pressed stop (or after the call ended) is let go at once.
   const micAttempt = useRef(0);
   // The recording (owner, 21 Oct): one per call, saved when the call ends.
-  const recorder = useRef<Recorder | null>(null);
+  const recorder = useRef<CallRecorder | null>(null);
   const agentMic = useRef<MicHandle | null>(null);
   const stopMic = useCallback(() => {
     if (micAttempt.current % 2 === 1) micAttempt.current += 1; // cancel a pending start
@@ -139,7 +139,7 @@ export function useCallSession(opts: {
       const chosen = which ?? sourceRef.current;
       sourceRef.current = chosen;
       setSource(chosen);
-      if (prefs().record && !recorder.current) recorder.current = new Recorder();
+      if (prefs().record && !recorder.current) recorder.current = newRecorder();
       const onFrame = (pcm: ArrayBuffer) => {
         bridge.current?.sendAudio(pcm);
         recorder.current?.add("customer", pcm);
@@ -153,6 +153,7 @@ export function useCallSession(opts: {
           micAttempt.current += 1; // even: settled
           micHandle.current = handle;
           setMic("on");
+          recorder.current?.attach(chosen === "mic" ? "agent" : "customer", handle.stream);
           // The computer's sound has only the customer. The agent's microphone adds their side: as
           // context for the AI (never a card trigger, R4) and for the recording.
           if (chosen === "computer") {
@@ -166,6 +167,7 @@ export function useCallSession(opts: {
                   return;
                 }
                 agentMic.current = h;
+                recorder.current?.attach("agent", h.stream);
                 bridge.current?.agent?.start();
               })
               .catch(() => {}); // no microphone: the customer's side alone
@@ -191,7 +193,9 @@ export function useCallSession(opts: {
     if (state.phase === "ended") setCallSource(null); // the next call names its own source
     const rec = recorder.current;
     recorder.current = null;
-    if (rec && !rec.empty && callId) void saveRecording(callId, rec.wav());
+    if (rec && callId) {
+      void rec.finish().then((blob) => (blob ? saveRecording(callId, blob) : undefined));
+    }
   }, [callOver, stopMic, callId, state.phase]);
   useEffect(() => stopMic, [stopMic]);
 

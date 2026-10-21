@@ -1,4 +1,4 @@
-import { encodeWav, louder, mix, Recorder } from "./recorder";
+import { encodeWav, louder, mix, newRecorder, Recorder } from "./recorder";
 
 describe("call recording", () => {
   it("mixes both sides, clipping and padding the shorter one", () => {
@@ -37,5 +37,17 @@ describe("call recording", () => {
     expect([v.getInt16(44, true), v.getInt16(46, true), v.getInt16(48, true)]).toEqual([
       29000, 2900, 4350,
     ]);
+  });
+});
+
+describe("recorder choice", () => {
+  it("falls back to WAV where the device cannot record Opus, and finishes into a file", async () => {
+    const r = newRecorder();
+    expect(r).toBeInstanceOf(Recorder);
+    expect(await r.finish()).toBeNull(); // nothing recorded, no file
+    r.add("customer", Int16Array.of(1, 2).buffer);
+    const blob = await r.finish();
+    expect(blob?.type).toBe("audio/wav");
+    expect(blob?.size).toBe(48);
   });
 });

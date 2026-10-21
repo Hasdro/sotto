@@ -53,12 +53,8 @@ async function run<T>(
   });
 }
 
-export async function saveRecording(
-  id: string,
-  wav: Uint8Array<ArrayBuffer>,
-  now = Date.now(),
-): Promise<void> {
-  const row: Row = { id, at: now, wav: new Blob([wav], { type: "audio/wav" }) };
+export async function saveRecording(id: string, audio: Blob, now = Date.now()): Promise<void> {
+  const row: Row = { id, at: now, wav: audio };
   await run("readwrite", (s) => s.put(row));
   // Older than 30 days: deleted.
   const all = (await run("readonly", (s) => s.getAll() as IDBRequest<Row[]>)) ?? [];

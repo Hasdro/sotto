@@ -27,7 +27,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
-from sotto_worker.cloud.recordings import Recordings
+from sotto_worker.cloud.recordings import KINDS, Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
@@ -409,7 +409,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         path = rec.path(who.company, call_id)
         if not path.exists():
             raise CloudError("not_found", "no recording for this call")
-        return FileResponse(path, media_type="audio/wav", headers={"Cache-Control": "private"})
+        return FileResponse(
+            path, media_type=KINDS[path.suffix], headers={"Cache-Control": "private"}
+        )
 
     @app_route
     async def company_usage(request: Request, who: Principal) -> Response:

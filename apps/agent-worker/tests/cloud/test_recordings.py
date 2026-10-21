@@ -160,3 +160,19 @@ def test_full_disk_refuses_uploads(
     h = {"authorization": f"Bearer {r.json()['token']}"}
     call(client, h, "c1")
     assert put(client, h, "c1", wav()) == 507
+
+
+def test_opus_webm_recordings_are_kept_and_served_as_webm(
+    rec_client: TestClient, sign_up: SignUp
+) -> None:
+    h = sign_up("Alpha", "admin@a.test")["auth"]
+    call(rec_client, h, "c1")
+    webm = b"\x1a\x45\xdf\xa3" + b"\x00" * 100
+    assert put(rec_client, h, "c1", webm) == 200
+    got = rec_client.get("/api/v1/recordings/c1", headers=h)
+    assert got.content == webm
+    assert got.headers["content-type"] == "audio/webm"
+    assert put(rec_client, h, "c1", wav()) == 200  # a later upload replaces it
+    assert rec_client.get("/api/v1/recordings/c1", headers=h).headers["content-type"] == (
+        "audio/wav"
+    )
