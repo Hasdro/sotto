@@ -10,7 +10,14 @@
 
 export type Hex = `#${string}`;
 
-export const CARD_KINDS = ["answer", "question", "objection", "warning", "holding"] as const;
+export const CARD_KINDS = [
+  "answer",
+  "question",
+  "objection",
+  "signal",
+  "warning",
+  "holding",
+] as const;
 export type CardKind = (typeof CARD_KINDS)[number];
 
 /** fill: card background · text: main sentence · muted: meta line · accent: voice bar and icon disc. */
@@ -82,6 +89,7 @@ const light: Theme = {
     answer: { fill: "#d9efea", text: "#0a3a35", muted: "#2d5c56", accent: "#0e766b" },
     question: { fill: "#e2e6fa", text: "#1c2766", muted: "#3d4780", accent: "#3a4bbf" },
     objection: { fill: "#fbead0", text: "#4d2e00", muted: "#6a4a17", accent: "#9a5b00" },
+    signal: { fill: "#efe4fb", text: "#3a1766", muted: "#55387d", accent: "#7a3fc4" },
     warning: { fill: "#fadfdb", text: "#5c150f", muted: "#7a3a33", accent: "#b7352a" },
     holding: { fill: "#e6eaee", text: "#24303b", muted: "#46525d", accent: "#56646f" },
   },
@@ -114,6 +122,7 @@ const dark: Theme = {
     answer: { fill: "#0f302c", text: "#d0f1ea", muted: "#a6cfc8", accent: "#56c7b8" },
     question: { fill: "#1a2150", text: "#dce1ff", muted: "#b6beec", accent: "#8f9dff" },
     objection: { fill: "#38280c", text: "#fbe5c0", muted: "#d9c29b", accent: "#e7a53c" },
+    signal: { fill: "#2a1846", text: "#ecdfff", muted: "#cbb6ec", accent: "#b88cff" },
     warning: { fill: "#3d1915", text: "#ffd9d3", muted: "#e5b3ac", accent: "#ff7c6e" },
     holding: { fill: "#1d2832", text: "#dde5ec", muted: "#b3c0cb", accent: "#93a3b1" },
   },

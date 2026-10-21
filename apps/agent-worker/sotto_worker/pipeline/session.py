@@ -19,7 +19,7 @@ from typing import Literal
 from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
 from sotto_worker.contracts import LLMRequest, Message, TranscriptEvent
-from sotto_worker.pipeline.trigger import TurnKind, classify
+from sotto_worker.pipeline.trigger import TurnKind, classify, needs_answer
 from sotto_worker.pipeline.verdict import VerdictParser
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.playbook.index import CONFIDENT, NEAR_ENTRIES, PlaybookHit, match_text
@@ -36,7 +36,16 @@ CONTEXT_WINDOW_MS = 60_000
 TURN_MARKER = "---turn---"  # splits a prompt into cacheable system prefix + per-turn message
 LANGUAGE_NAME = {"en": "English", "ar": "Arabic"}
 
-CardType = Literal["answer", "question", "objection", "warning", "holding"]
+CardType = Literal["answer", "question", "objection", "signal", "warning", "holding"]
+
+# Which card each kind of customer turn gets (owner, 21 Oct); mirrors packages/engine.
+CARD_FOR: dict[TurnKind, CardType] = {
+    "question": "answer",
+    "objection": "objection",
+    "signal": "signal",
+    "statement": "question",
+}
+
 CardSource = Literal["playbook", "ai", "backup", "holding"]
 
 
@@ -238,7 +247,7 @@ class CallSession:
             await asyncio.gather(*pending, return_exceptions=True)
 
     async def _run_turn(self, turn: _Turn) -> None:
-        card_type: CardType = "answer" if turn.kind == "question" else "objection"
+        card_type = CARD_FOR[turn.kind]
         started = self.clock.now_ms()
         # One scan per turn: a confident top entry is the card; otherwise the nearest few go to
         # the model, which may answer from one of them (T-032).
@@ -247,14 +256,14 @@ class CallSession:
         turn.nearest = [h for h in top if h.score > 0]
         hit = top[0] if top and top[0].score >= CONFIDENT else None
         if hit is not None:
-            writer = _CardWriter(
-                self, card_type=card_type, source="playbook", label=None, turn=turn
-            )
+            hit_type: CardType = "answer" if turn.kind == "statement" else card_type
+            writer = _CardWriter(self, card_type=hit_type, source="playbook", label=None, turn=turn)
             await writer.delta(hit.entry.short_answer, done=True)
             return
         if not self.company.ai_answers_allowed:
-            await self._holding(turn)
-            await self._escalate(turn)
+            if needs_answer(turn.kind):
+                await self._holding(turn)
+                await self._escalate(turn)
             return
         await self._ai_turn(turn, card_type)
 
@@ -291,8 +300,11 @@ class CallSession:
         task = asyncio.create_task(suggest())
         holding_sent = False
         try:
-            finished = await self._wait(task, until_ms=turn.t0_ms + self.holding_at_ms)
-            if not finished and writer is None:
+            # Statements and buying signals get no holding line: a late card still helps.
+            asked = needs_answer(turn.kind)
+            first_wait = self.holding_at_ms if asked else LATE_ANSWER_UNTIL_MS
+            finished = await self._wait(task, until_ms=turn.t0_ms + first_wait)
+            if not finished and writer is None and asked:
                 await self._holding(turn)
                 holding_sent = True
                 finished = await self._wait(task, until_ms=turn.t0_ms + LATE_ANSWER_UNTIL_MS)
@@ -311,7 +323,7 @@ class CallSession:
                     await task
         if writer is not None and not writer.closed:
             await writer.delta("", done=True)  # close what the agent is reading; never retract
-        if not answered:
+        if not answered and needs_answer(turn.kind):
             if writer is None and not holding_sent:
                 await self._holding(turn)
             await self._escalate(turn)

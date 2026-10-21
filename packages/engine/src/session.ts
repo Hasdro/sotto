@@ -24,6 +24,19 @@ import {
 } from "./types.ts";
 
 export const HOLDING_AT_MS = 1400;
+
+/** Which card each kind of customer turn gets; colours in packages/ui tokens (owner, 21 Oct). */
+const CARD_FOR: Record<TurnKind, CardType> = {
+  question: "answer",
+  objection: "objection",
+  signal: "signal",
+  statement: "question",
+};
+
+/** Questions and objections must never go unanswered: holding line, then the manager (R2). */
+function needsAnswer(kind: TurnKind): boolean {
+  return kind === "question" || kind === "objection";
+}
 export const LATE_ANSWER_UNTIL_MS = 5000;
 export const ANSWER_HARD_LIMIT_MS = 8000;
 const CONTEXT_WINDOW_MS = 60_000;
@@ -206,7 +219,7 @@ export class CallSession {
       previous !== undefined &&
       previous.speaker === "customer" &&
       event.speaker === "customer" &&
-      classify(previous) === null &&
+      (classify(previous) ?? "statement") === "statement" &&
       previous.text.length <= LEAD_IN_MAX_CHARS &&
       event.start_ms - previous.end_ms <= LEAD_IN_GAP_MS
         ? previous.text.trim()
@@ -237,7 +250,8 @@ export class CallSession {
 
   private async runTurn(turn: Turn): Promise<void> {
     await Promise.resolve(); // let the caller send turn_end first (same order as the worker)
-    const cardType: CardType = turn.kind === "question" ? "answer" : "objection";
+    const cardType = CARD_FOR[turn.kind];
+    const asked = needsAnswer(turn.kind);
     const started = this.clock.now();
     // One scan per turn: a confident top entry is the card; otherwise the nearest few go to the
     // model, which may answer from one of them (T-032).
@@ -246,12 +260,15 @@ export class CallSession {
     turn.nearest = top.filter((h) => h.score > 0);
     const hit = top[0] !== undefined && top[0].score >= CONFIDENT ? top[0] : null;
     if (hit !== null) {
-      new CardWriter(this, cardType, "playbook", null, turn).delta(hit.entry.short_answer, true);
+      const type = turn.kind === "statement" ? "answer" : cardType;
+      new CardWriter(this, type, "playbook", null, turn).delta(hit.entry.short_answer, true);
       return;
     }
     if (!this.deps.company.ai_answers_allowed) {
-      this.holding(turn);
-      this.escalate(turn);
+      if (asked) {
+        this.holding(turn);
+        this.escalate(turn);
+      }
       return;
     }
     await this.aiTurn(turn, cardType);
@@ -274,8 +291,10 @@ export class CallSession {
       request = this.request(turn);
     } catch (err) {
       console.warn("[engine] prompt failed", err);
-      this.holding(turn);
-      this.escalate(turn);
+      if (needsAnswer(turn.kind)) {
+        this.holding(turn);
+        this.escalate(turn);
+      }
       return;
     }
     const suggest = async (): Promise<boolean> => {
@@ -321,8 +340,11 @@ export class CallSession {
     };
     let holdingSent = false;
     try {
-      let done = await until(turn.t0 + this.holdingAt);
-      if (!done && writer === null) {
+      // Statements and buying signals get no holding line: a late card still helps (owner, 21 Oct).
+      let done = await until(
+        turn.t0 + (needsAnswer(turn.kind) ? this.holdingAt : LATE_ANSWER_UNTIL_MS),
+      );
+      if (!done && writer === null && needsAnswer(turn.kind)) {
         this.holding(turn);
         holdingSent = true;
         done = await until(turn.t0 + LATE_ANSWER_UNTIL_MS);
@@ -334,7 +356,7 @@ export class CallSession {
     }
     const w = writer as CardWriter | null;
     if (w !== null && !w.closed) w.delta("", true); // close what the agent reads; never retract
-    if (!answered) {
+    if (!answered && needsAnswer(turn.kind)) {
       if (w === null && !holdingSent) this.holding(turn);
       this.escalate(turn);
     }

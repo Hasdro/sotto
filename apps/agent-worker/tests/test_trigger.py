@@ -36,9 +36,21 @@ def test_objections_win_over_questions(text: str) -> None:
     assert classify(_ev(text)) == "objection"
 
 
-@pytest.mark.parametrize("text", ["Okay.", "Yes, that's right.", "My name is Sara.", "Hmm"])
-def test_statements_do_not_trigger(text: str) -> None:
+@pytest.mark.parametrize("text", ["Okay.", "Yes", "Uh huh", "I see.", "Hmm", "تمام"])
+def test_fillers_do_not_trigger(text: str) -> None:
     assert classify(_ev(text)) is None
+
+
+@pytest.mark.parametrize("text", ["Yes, that's right.", "My name is Sara.", "We saw your ad."])
+def test_statements_get_a_card_owner_21_oct(text: str) -> None:
+    assert classify(_ev(text)) == "statement"
+
+
+@pytest.mark.parametrize(
+    "text", ["Sounds good, how do I sign up?", "When can we start?", "متى نبدأ؟"]
+)
+def test_buying_signals(text: str) -> None:
+    assert classify(_ev(text)) == "signal"
 
 
 def test_agent_speech_never_triggers_r4() -> None:

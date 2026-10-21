@@ -4,7 +4,8 @@
  */
 import type { TranscriptEvent } from "./types.ts";
 
-export type TurnKind = "question" | "objection";
+/** statement: anything else the customer says; signal: buying interest (owner, 21 Oct). */
+export type TurnKind = "question" | "objection" | "signal" | "statement";
 
 const OBJECTION = new RegExp(
   "\\b(too expensive|expensive|cheaper|quoted|quote|less than|discount|think about it|" +
@@ -20,12 +21,32 @@ const QUESTION_START = new RegExp(
   "i",
 );
 
+const SIGNAL = new RegExp(
+  "\\b(sounds (good|great)|let'?s (do it|go ahead|proceed)|how do (i|we) (sign|pay|buy|order|start)|" +
+    "when can (we|i) start|send (me )?the (contract|invoice|agreement|proposal)|where do i sign|" +
+    "i'?m interested|we'?re interested|ready to (buy|sign|start|go)|book it|count me in)\\b" +
+    "|متى نبدأ|كيف أدفع|كيف ادفع|ارسل العقد|أرسل العقد|موافق|نبدأ|مهتم",
+  "i",
+);
+// Acknowledgements that carry nothing to answer: no card for these.
+const FILLER =
+  /^(ok(ay)?|yes|yeah|yep|no|right|sure|uh+ ?huh|mm+-?hmm+|hmm+|i see|got it|thanks?|thank you|تمام|طيب|اي|ايوه|نعم|لا|اوكي|ماشي)$/i;
+const MIN_STATEMENT_WORDS = 3;
+
 export function classify(event: TranscriptEvent): TurnKind | null {
   if (event.speaker !== "customer" || !event.final) return null;
   const text = event.text.trim();
   if (OBJECTION.test(text)) return "objection";
+  if (SIGNAL.test(text)) return "signal";
   if (text.endsWith("?") || text.endsWith("؟") || QUESTION_START.test(text)) return "question";
-  return null;
+  const words = text
+    .replace(/[^\p{L}\p{N}'\s-]/gu, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const bare = words.join(" ").toLowerCase();
+  if (words.length < MIN_STATEMENT_WORDS || FILLER.test(bare)) return null;
+  return "statement";
 }
 
 const ANSWER = "ANSWER:";

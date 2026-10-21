@@ -44,12 +44,13 @@ const GLYPH: Record<CardKind, string> = {
   answer: "“",
   question: "?",
   objection: "≠",
+  signal: "↗",
   warning: "!",
   holding: "…",
 };
 
 /** Glyphs that point a direction are mirrored in RTL (DESIGN.md §8). */
-const GLYPH_RTL: Partial<Record<CardKind, string>> = { answer: "”", question: "؟" };
+const GLYPH_RTL: Partial<Record<CardKind, string>> = { answer: "”", question: "؟", signal: "↖" };
 
 /** Whether the R2 notice shows, and its text. */
 export function noticeFor(

@@ -15,7 +15,15 @@ import { z } from "zod";
 
 export const CARD_PROTOCOL_VERSION = 1 as const;
 
-export const CARD_TYPES = ["answer", "question", "objection", "warning", "holding"] as const;
+// signal: the customer shows buying interest; the card suggests the closing step (owner, 21 Oct).
+export const CARD_TYPES = [
+  "answer",
+  "question",
+  "objection",
+  "signal",
+  "warning",
+  "holding",
+] as const;
 export const CARD_SOURCES = ["playbook", "ai", "backup", "holding"] as const;
 
 const ms = z.int().nonnegative();

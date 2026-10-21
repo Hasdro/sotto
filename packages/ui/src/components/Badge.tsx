@@ -30,6 +30,7 @@ export function Badge({ label, tone = "neutral", dot = false, testID }: BadgePro
     },
     answer: { ...pick(theme.card.answer) },
     question: { ...pick(theme.card.question) },
+    signal: { ...pick(theme.card.signal) },
     objection: { ...pick(theme.card.objection) },
     warning: { ...pick(theme.card.warning) },
     holding: { ...pick(theme.card.holding) },

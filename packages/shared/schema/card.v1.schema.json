@@ -39,6 +39,7 @@
         "answer",
         "question",
         "objection",
+        "signal",
         "warning",
         "holding"
       ]

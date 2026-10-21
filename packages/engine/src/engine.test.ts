@@ -123,12 +123,19 @@ describe("turns", () => {
     start_ms: 0,
     end_ms: 1,
   });
-  it("classifies only customer questions and objections (R4)", () => {
+  it("classifies every customer sentence, never the agent's (R4; owner, 21 Oct)", () => {
     expect(classify(ev("customer", "What's the payment plan?"))).toBe("question");
     expect(classify(ev("customer", "That's too expensive"))).toBe("objection");
-    expect(classify(ev("customer", "Yes, I saw your ad."))).toBeNull();
+    expect(classify(ev("customer", "Yes, I saw your ad."))).toBe("statement");
+    expect(classify(ev("customer", "Sounds good, how do I sign up?"))).toBe("signal");
+    expect(classify(ev("customer", "I'm not interested, thanks"))).toBe("objection");
+    expect(classify(ev("customer", "متى نبدأ؟"))).toBe("signal");
     expect(classify(ev("agent", "What's the payment plan?"))).toBeNull();
     expect(classify(ev("customer", "كم السعر؟"))).toBe("question");
+  });
+  it("skips fillers and two-word acknowledgements", () => {
+    for (const filler of ["Okay.", "Yes", "Uh huh", "Mm-hmm, right", "I see.", "تمام", "طيب"])
+      expect(classify(ev("customer", filler))).toBeNull();
   });
   it("reads the verdict before showing anything", () => {
     const p = new VerdictParser();
@@ -174,6 +181,70 @@ async function collect(router: ModelRouter, result: RouteResult): Promise<string
   for await (const t of router.stream("suggest", REQ, { t0: realClock.now(), result })) out += t;
   return out;
 }
+
+describe("a card for every customer sentence (owner, 21 Oct)", () => {
+  function run(reply: string, ai = true) {
+    const cards: { type: string; source: string; done: boolean }[] = [];
+    const escalations: unknown[] = [];
+    const model: LLMAdapter = {
+      provider: "fake",
+      model: "scripted",
+      warm: async () => {},
+      async *stream() {
+        yield reply;
+      },
+    };
+    const prompt = bundle.prompts.suggest;
+    if (!prompt) throw new Error("fixture has the suggest prompt");
+    const session = new CallSession({
+      callId: "c",
+      company: { ...bundle.company, ai_answers_allowed: ai },
+      router: new ModelRouter(
+        { suggest: { provider: "fake", model: "scripted" } },
+        () => model,
+        realClock,
+      ),
+      prompt,
+      playbook: new PlaybookIndex([]),
+      clock: realClock,
+      onCard: (c) => cards.push(c as (typeof cards)[number]),
+      onEscalation: (e) => escalations.push(e),
+      onTiming: () => {},
+    });
+    const say = async (text: string) => {
+      session.onTranscript(
+        { speaker: "customer", text, final: true, start_ms: 0, end_ms: 1 },
+        realClock.now(),
+      );
+      await session.drain();
+    };
+    return { cards, escalations, say };
+  }
+  it("suggests what to say next after a plain statement, in the 'ask next' colour", async () => {
+    const r = run("ANSWER: Ask what made the ad stand out to them.");
+    await r.say("We saw your ad last week on Instagram.");
+    expect(r.cards.filter((c) => c.done).map((c) => [c.type, c.source])).toEqual([
+      ["question", "ai"],
+    ]);
+  });
+  it("gives a buying signal its own card", async () => {
+    const r = run("ANSWER: Great — shall I send the agreement now?");
+    await r.say("Sounds good, how do I sign up?");
+    expect(r.cards.filter((c) => c.done).map((c) => c.type)).toEqual(["signal"]);
+  });
+  it("never holds or escalates a statement the model passes on", async () => {
+    const r = run("NO_SAFE_ANSWER");
+    await r.say("My brother bought one from you last year.");
+    expect(r.cards).toEqual([]);
+    expect(r.escalations).toEqual([]);
+  });
+  it("still holds and escalates an unanswered question (R2)", async () => {
+    const r = run("NO_SAFE_ANSWER");
+    await r.say("Do you allow pets?");
+    expect(r.cards.filter((c) => c.done).map((c) => c.type)).toEqual(["holding"]);
+    expect(r.escalations).toHaveLength(1);
+  });
+});
 
 describe("router (R2 backup race)", () => {
   const stages = {

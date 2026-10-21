@@ -195,7 +195,7 @@ class Card(BaseModel):
     ]
     turn_id: TurnId | None = None
     seq: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
-    type: Literal["answer", "question", "objection", "warning", "holding"]
+    type: Literal["answer", "question", "objection", "signal", "warning", "holding"]
     source: Literal["playbook", "ai", "backup", "holding"]
     label: Label | None = None
     delta: StrictStr

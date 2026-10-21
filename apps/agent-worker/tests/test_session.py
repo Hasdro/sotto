@@ -222,10 +222,17 @@ async def test_arabic_turn_gets_arabic_holding_line() -> None:
     assert text == "سؤال ممتاز. خلّيني أتأكد وأرسل لك الجواب اليوم."
 
 
-async def test_statements_do_not_trigger() -> None:
+async def test_fillers_do_not_trigger() -> None:
+    h = make()
+    await h.say("customer", "Okay.", at_ms=1000)
+    assert h.cards == []
+
+
+async def test_a_statement_never_gets_a_holding_line_or_an_escalation() -> None:
     h = make()
     await h.say("customer", "My name is Sara.", at_ms=1000)
-    assert h.cards == []
+    assert all(c.type != "holding" for c in h.cards)
+    assert h.escalations == []
 
 
 async def test_every_card_has_one_telemetry_record_and_valid_sequence() -> None:

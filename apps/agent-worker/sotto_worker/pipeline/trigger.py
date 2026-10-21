@@ -11,7 +11,8 @@ from typing import Literal
 
 from sotto_worker.contracts import TranscriptEvent
 
-TurnKind = Literal["question", "objection"]
+# statement: anything else the customer says; signal: buying interest (owner, 21 Oct).
+TurnKind = Literal["question", "objection", "signal", "statement"]
 
 OBJECTION = re.compile(
     r"\b(too expensive|expensive|cheaper|quoted|quote|less than|discount|think about it|"
@@ -28,12 +29,39 @@ QUESTION_START = re.compile(
 )
 
 
+SIGNAL = re.compile(
+    r"\b(sounds (good|great)|let'?s (do it|go ahead|proceed)|"
+    r"how do (i|we) (sign|pay|buy|order|start)|"
+    r"when can (we|i) start|send (me )?the (contract|invoice|agreement|proposal)|where do i sign|"
+    r"i'?m interested|we'?re interested|ready to (buy|sign|start|go)|book it|count me in)\b"
+    r"|متى نبدأ|كيف أدفع|كيف ادفع|ارسل العقد|أرسل العقد|موافق|نبدأ|مهتم",
+    re.IGNORECASE,
+)
+# Acknowledgements that carry nothing to answer: no card for these.
+FILLER = re.compile(
+    r"^(ok(ay)?|yes|yeah|yep|no|right|sure|uh+ ?huh|mm+-?hmm+|hmm+|i see|got it|thanks?|thank you"
+    r"|تمام|طيب|اي|ايوه|نعم|لا|اوكي|ماشي)$",
+    re.IGNORECASE,
+)
+MIN_STATEMENT_WORDS = 3
+
+
 def classify(event: TranscriptEvent) -> TurnKind | None:
     if event.speaker != "customer" or not event.final:
         return None
     text = event.text.strip()
     if OBJECTION.search(text):
         return "objection"
+    if SIGNAL.search(text):
+        return "signal"
     if text.endswith(("?", "؟")) or QUESTION_START.search(text):
         return "question"
-    return None
+    words = re.sub(r"[^\w'\s-]", " ", text).split()
+    if len(words) < MIN_STATEMENT_WORDS or FILLER.match(" ".join(words).lower()):
+        return None
+    return "statement"
+
+
+def needs_answer(kind: TurnKind) -> bool:
+    """Questions and objections must never go unanswered: holding line, then the manager (R2)."""
+    return kind in ("question", "objection")
