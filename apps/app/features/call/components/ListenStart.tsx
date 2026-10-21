@@ -1,8 +1,8 @@
-import { Button, Panel, radius, size, space, Text, useTheme } from "@sotto/ui";
-import { useState } from "react";
+import { Button, Mascot, Panel, radius, space, Text, useTheme } from "@sotto/ui";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import { cloudOrigin } from "../../../lib/cloud";
 import { useI18n } from "../../../lib/locale";
+import { usePrefs } from "../../../lib/prefs";
 import { useIsWide } from "../../../lib/responsive";
 import type { AudioSource } from "../mic";
 
@@ -13,105 +13,79 @@ type Props = {
 };
 
 /**
- * Before a real call (D-024): where is the customer's voice? On the desktop the call app on this
- * computer is recommended (exact, R4); the microphone is for in-person and speakerphone calls.
+ * Before a real call (owner, 21 Oct): no source cards. Sotto waits for the call app to start and
+ * starts by itself (auto pick-up, desktop); Start now begins at once. The computer's sound is the
+ * default on the desktop (exact, R4); the microphone stays one tap away for in-person calls.
  */
 export function ListenStart({ computer, onStart }: Props) {
   const { t } = useI18n();
-  const { color } = useTheme();
+  const { color, card } = useTheme();
   const wide = useIsWide();
-  const options: AudioSource[] = computer ? ["computer", "mic"] : ["mic"];
-  const [picked, setPicked] = useState<AudioSource>(options[0] ?? "mic");
+  const { autoPickup } = usePrefs();
+  const watching = computer && autoPickup;
   return (
     <Panel style={[styles.panel, wide ? null : styles.panelNarrow]} testID="listen-start">
-      <Text variant="title" weight="semibold" accessibilityRole="header">
-        {t("call.listen.title")}
-      </Text>
-      <Text variant="body" tone="muted">
-        {t("call.listen.body")}
-      </Text>
-      <View
-        accessibilityRole="radiogroup"
-        accessibilityLabel={t("call.listen.where")}
-        style={styles.list}
-      >
-        {options.map((s) => {
-          const selected = s === picked;
-          return (
-            <Pressable
-              key={s}
-              accessibilityRole="radio"
-              aria-checked={selected}
-              onPress={() => setPicked(s)}
-              testID={`source-${s}`}
-              style={[
-                styles.option,
-                {
-                  borderColor: selected ? color.primary : color.border,
-                  backgroundColor: selected ? color.surfaceSunken : color.surface,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.radio,
-                  { borderColor: selected ? color.primary : color.borderStrong },
-                ]}
-              >
-                {selected ? (
-                  <View style={[styles.radioDot, { backgroundColor: color.primary }]} />
-                ) : null}
-              </View>
-              <View style={styles.optionText}>
-                <Text variant="body" weight={selected ? "medium" : "regular"}>
-                  {t(s === "computer" ? "call.listen.computer" : "call.listen.mic")}
-                </Text>
-                <Text variant="label" tone="muted">
-                  {t(s === "computer" ? "call.listen.computerHint" : "call.listen.micHint")}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
+      <View style={styles.head}>
+        <Mascot state={watching ? "listening" : "idle"} size={64} />
+        <View style={styles.headText}>
+          <Text variant="title" weight="semibold" accessibilityRole="header">
+            {t(watching ? "call.wait.title" : "call.listen.title")}
+          </Text>
+          <Text variant="body" tone="muted">
+            {t(watching ? "call.wait.body" : "call.listen.body")}
+          </Text>
+        </View>
       </View>
+      {watching ? (
+        <View style={[styles.watch, { backgroundColor: card.answer.fill }]}>
+          <View style={[styles.liveDot, { backgroundColor: card.answer.accent }]} />
+          <Text variant="label" weight="medium" color={card.answer.text}>
+            {t("call.wait.apps")}
+          </Text>
+        </View>
+      ) : null}
       <View style={[styles.actions, wide ? null : styles.actionsNarrow]}>
         <Button
           size="lg"
-          label={t("call.listen.start")}
-          onPress={() => onStart(picked)}
+          label={t("call.wait.start")}
+          onPress={() => onStart(computer ? "computer" : "mic")}
           testID="start-call"
         />
+        {computer ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onStart("mic")}
+            testID="source-mic"
+            style={styles.link}
+          >
+            <Text variant="label" weight="medium" color={color.primary}>
+              {t("call.wait.mic")}
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </Panel>
   );
 }
 
 const styles = StyleSheet.create({
-  panel: { gap: space.md, padding: space.xl },
+  panel: { gap: space.lg, padding: space.xl },
   panelNarrow: { padding: space.lg },
-  list: { gap: space.sm },
-  option: {
+  head: { flexDirection: "row", alignItems: "center", gap: space.lg, flexWrap: "wrap" },
+  headText: { flex: 1, gap: space.xs, minWidth: 220 },
+  watch: {
     flexDirection: "row",
     alignItems: "center",
-    gap: space.md,
-    minHeight: size.controlLg,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.md,
-    borderWidth: 1,
-    borderRadius: radius.md,
-  },
-  optionText: { flex: 1, gap: space.xs, minWidth: 0 },
-  radio: {
-    width: size.radio,
-    height: size.radio,
+    gap: space.sm,
+    alignSelf: "flex-start",
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
     borderRadius: radius.pill,
-    borderWidth: size.stroke,
-    alignItems: "center",
-    justifyContent: "center",
   },
-  radioDot: { width: size.radioDot, height: size.radioDot, borderRadius: radius.pill },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.sm },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.lg },
   actionsNarrow: { flexDirection: "column", flexWrap: "nowrap", alignItems: "stretch" },
+  link: { paddingVertical: space.sm },
 });
 
 /** Phones (T-036): the phone app cannot hear another app's call yet (no native capture until

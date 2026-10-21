@@ -189,7 +189,9 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           />
         </Panel>
       ) : null}
-      {state.phase !== "idle" ? <CardStack cards={cards} wide={wide} listening={live} /> : null}
+      {state.phase !== "idle" ? (
+        <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
+      ) : null}
     </View>
   );
   const toast = notice ? (

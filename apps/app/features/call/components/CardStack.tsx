@@ -1,6 +1,16 @@
-import { layout, noticeFor, radius, SuggestionCard, size, space, Text, useTheme } from "@sotto/ui";
+import {
+  layout,
+  Mascot,
+  noticeFor,
+  radius,
+  SuggestionCard,
+  size,
+  space,
+  Text,
+  useTheme,
+} from "@sotto/ui";
 import { useEffect, useRef } from "react";
-import { AccessibilityInfo, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { CardView } from "../../cards/reducer";
@@ -12,37 +22,49 @@ const LISTEN_BARS = [10, 18, 12, 22, 14] as const;
 /** Older cards shown under the hero; the rest stay in history. */
 export const EARLIER_LIMIT = 4;
 
-type Props = { cards: readonly CardView[]; wide: boolean; listening: boolean };
+type Props = {
+  cards: readonly CardView[];
+  wide: boolean;
+  listening: boolean;
+  /** The customer is mid-sentence (a partial transcript is showing). */
+  speaking?: boolean;
+};
 
 /**
  * The newest card large on top, older ones compact below (DESIGN.md §5). The hero slot keeps a
  * minimum height, so the first card replaces the placeholder without moving anything below it.
  */
-export function CardStack({ cards, wide, listening }: Props) {
+export function CardStack({ cards, wide, listening, speaking = false }: Props) {
   const { t, locale } = useI18n();
   const [hero, ...earlier] = cards;
   useAnnounceWhenDone(hero);
+  const writing = Boolean(hero && !hero.done);
   return (
     <View style={styles.stack}>
+      {listening && hero ? <Activity speaking={speaking} writing={writing} /> : null}
       {hero ? (
-        <SuggestionCard
-          key={hero.id}
-          testID="hero-card"
-          type={hero.type}
-          source={hero.source}
-          label={hero.label}
-          text={hero.text}
-          done={hero.done}
-          wide={wide}
-          strings={cardStrings(t, hero.type, hero.source)}
-          footnote={
-            hero.shownAfterMs === null
-              ? null
-              : t("card.shownAfter", { seconds: formatNumber(hero.shownAfterMs / 1000, locale, 2) })
-          }
-        />
+        <Glow on={writing}>
+          <SuggestionCard
+            key={hero.id}
+            testID="hero-card"
+            type={hero.type}
+            source={hero.source}
+            label={hero.label}
+            text={hero.text}
+            done={hero.done}
+            wide={wide}
+            strings={cardStrings(t, hero.type, hero.source)}
+            footnote={
+              hero.shownAfterMs === null
+                ? null
+                : t("card.shownAfter", {
+                    seconds: formatNumber(hero.shownAfterMs / 1000, locale, 2),
+                  })
+            }
+          />
+        </Glow>
       ) : listening ? (
-        <Listening />
+        <Listening speaking={speaking} />
       ) : null}
       {earlier.length > 0 ? (
         <View style={styles.earlier}>
@@ -93,7 +115,91 @@ function useAnnounceWhenDone(hero: CardView | undefined) {
   }, [ready, id, label]);
 }
 
-function Listening() {
+/** What Sotto is doing right now, above the newest card (owner, 21 Oct: "see things in action"). */
+function Activity({ speaking, writing }: { speaking: boolean; writing: boolean }) {
+  const { t } = useI18n();
+  const state = writing ? "thinking" : speaking ? "listening" : "idle";
+  return (
+    <View style={styles.activity} testID={`activity-${state}`} accessibilityLiveRegion="polite">
+      <Mascot state={state} size={26} />
+      <Text variant="label" weight="medium" tone="muted">
+        {t(
+          writing
+            ? "call.activity.writing"
+            : speaking
+              ? "call.activity.speaking"
+              : "call.listening",
+        )}
+      </Text>
+    </View>
+  );
+}
+
+/** A soft pulsing halo around the card while its words are still arriving. */
+function Glow({ on, children }: { on: boolean; children: React.ReactNode }) {
+  const { color } = useTheme();
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!on) {
+      v.setValue(0);
+      return;
+    }
+    const a = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 700, useNativeDriver: false }),
+        Animated.timing(v, { toValue: 0, duration: 700, useNativeDriver: false }),
+      ]),
+    );
+    a.start();
+    return () => a.stop();
+  }, [on, v]);
+  return (
+    <Animated.View
+      style={{
+        borderRadius: 24,
+        shadowColor: color.primary,
+        shadowOffset: { width: 0, height: 6 },
+        shadowRadius: v.interpolate({ inputRange: [0, 1], outputRange: [8, 22] }),
+        shadowOpacity: on ? v.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.4] }) : 0,
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+function Bar({ h, i, fast }: { h: number; i: number; fast: boolean }) {
+  const { color } = useTheme();
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const ms = fast ? 260 : 700;
+    const a = Animated.loop(
+      Animated.sequence([
+        Animated.delay(i * 90),
+        Animated.timing(v, { toValue: 1, duration: ms, useNativeDriver: false }),
+        Animated.timing(v, { toValue: 0, duration: ms, useNativeDriver: false }),
+      ]),
+    );
+    a.start();
+    return () => a.stop();
+  }, [fast, i, v]);
+  return (
+    <Animated.View
+      style={[
+        styles.barMark,
+        {
+          backgroundColor: color.primary,
+          height: v.interpolate({
+            inputRange: [0, 1],
+            outputRange: [h * 0.4, h * (fast ? 1.4 : 1)],
+          }),
+        },
+      ]}
+    />
+  );
+}
+
+function Listening({ speaking }: { speaking: boolean }) {
   const { color } = useTheme();
   const { t } = useI18n();
   return (
@@ -107,12 +213,13 @@ function Listening() {
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        {LISTEN_BARS.map((h) => (
-          <View key={h} style={[styles.barMark, { height: h, backgroundColor: color.primary }]} />
+        <Mascot state="listening" size={40} />
+        {LISTEN_BARS.map((h, i) => (
+          <Bar key={h} h={h} i={i} fast={speaking} />
         ))}
       </View>
       <Text variant="heading" weight="semibold">
-        {t("call.listening")}
+        {t(speaking ? "call.activity.speaking" : "call.listening")}
       </Text>
       <Text variant="body" tone="muted">
         {t("call.listeningBody")}
@@ -123,6 +230,7 @@ function Listening() {
 
 const styles = StyleSheet.create({
   stack: { gap: space.xl },
+  activity: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: -space.md },
   earlier: { gap: space.sm },
   listening: {
     minHeight: layout.heroMinHeight,
