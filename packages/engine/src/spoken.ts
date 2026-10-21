@@ -14,7 +14,6 @@ export const END_SILENCE_MS = 300;
 const MIN_SPEECH_MS = 160;
 const FLUSH_AFTER_MS = 1500;
 const TAIL_WAIT_MS = 400;
-const SETTLE_MS = 150;
 const HOLD_MS = 500;
 const MIN_THRESHOLD = 350;
 const NOISE_FACTOR = 3;
@@ -258,7 +257,11 @@ export class CustomerAudio {
     const last = this.lastTurnStreamEnd;
     if (last !== null && this.streamBase + e.start_ms < last) return; // late tail of a sent turn
     this.pending.push(e);
-    if (this.closing !== null) this.armFlush(SENTENCE_END.test(e.text) ? SETTLE_MS : TAIL_WAIT_MS);
+    if (this.closing === null) return;
+    // A final that ends the sentence goes now: the 300 ms of silence already ended the turn, so a
+    // further settle wait only delayed every card (T-028). flush() still holds a mid-thought cut.
+    if (SENTENCE_END.test(e.text)) this.flush();
+    else this.armFlush(TAIL_WAIT_MS);
   }
 
   private flush(): void {

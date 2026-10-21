@@ -447,6 +447,44 @@ describe("spoken turns", () => {
     expect(midThought("tell me about parking.")).toBe(false);
   });
 
+  it("releases a sentence-ending final at once, but waits for a final without punctuation", async () => {
+    let sock: FakeSocket | null = null;
+    const turns: string[] = [];
+    const audio = new CustomerAudio({
+      routes: [{ provider: "assemblyai", model: "m" }],
+      tokens: async () => ({ token: "t", param: "token" }),
+      clock: realClock,
+      onTurn: (e) => turns.push(e.text),
+      onPartial: () => {},
+      onNotice: () => {},
+      socketFactory: (url) => {
+        sock = new FakeSocket(url);
+        return sock;
+      },
+    });
+    await audio.start();
+    const s = sock as unknown as FakeSocket;
+    s.open();
+    const turn = (transcript: string, start: number) => {
+      for (let i = 0; i < 40; i++) audio.push(loud());
+      for (let i = 0; i < 20; i++) audio.push(quiet());
+      s.emit({
+        type: "Turn",
+        transcript,
+        end_of_turn: true,
+        turn_is_formatted: true,
+        words: [{ start, end: start + 700 }],
+      });
+    };
+    turn("Is there parking?", 10);
+    expect(turns).toEqual(["Is there parking?"]); // no settle wait (T-028)
+    turn("what about storage", 1300);
+    expect(turns).toHaveLength(1); // no punctuation: the tail wait still applies
+    await realClock.sleep(450);
+    expect(turns).toEqual(["Is there parking?", "what about storage"]);
+    await audio.stop();
+  });
+
   it("sends one turn with t0 at the end of speech", async () => {
     let sock: FakeSocket | null = null;
     const turns: [string, number][] = [];
