@@ -102,7 +102,7 @@ textarea{width:100%;min-height:54px;border:1px solid var(--line);border-radius:1
 
 <script>
 /* ======================= DATA (Claude updates this block each round) ======================= */
-const UPDATED = "22 Oct 2026 · 03:30";
+const UPDATED = "22 Oct 2026 · 12:10";
 const ROUND = "2026-10-22b";
 
 /* Glossary: any [[Term]] or [[shown text|Term]] below gets a hover definition. */
@@ -130,10 +130,29 @@ const TABS = [
  {id:"ideas", label:"Suggestions", badge:()=>IDEAS.filter(d => !saved(d.id)).length}
 ];
 
-const WAITING_LEAD = "Only what I need from you. The new Sotto is in your Applications folder and the server is updated. Please sign in again (my testing signed the Mac app out; fixed so it can't happen again), try each line and mark it, then press Save at the bottom.";
+const WAITING_LEAD = "The 0.2.0 installers are on the downloads page: a Mac DMG for Apple silicon and Intel, and a Windows .exe. Install yours, try the lines below, then press Save at the bottom.";
 
 /* kind: test (pick list per row), radio, select, multi (checkbox per item). */
 const DECISIONS = [
+ {id:"test_v020", kind:"test", eyebrow:"Test 0.2.0 · Mac and Windows", title:"Install 0.2.0 and mark each line",
+  short:"From the downloads page install the Mac DMG or the Windows .exe, then mark each line. The Windows installer is unsigned: SmartScreen shows 'Windows protected your PC' → More info → Run anyway.",
+  full:"Both installers are version 0.2.0 and carry the same app. The Windows build is a first: it reads which app is using the microphone from Windows' own privacy record, shows Sotto in the notification area, and uses Ctrl+Shift+Alt+S/C/M so typing AltGr characters does not start a call. A real Windows PC is needed for these lines; I tested the parts I can on this Mac.",
+  rows:[
+   {v:"win_install", l:"Windows: Sotto Setup 0.2.0.exe installs and opens (SmartScreen → More info → Run anyway)"},
+   {v:"win_pickup", l:"Windows: Zoom, Teams, 3CX or Yeastar (or Meet in Chrome/Edge) starts Sotto by itself; ending that call ends it"},
+   {v:"win_self", l:"Windows: Sotto listening to its own microphone never starts a second call"},
+   {v:"win_tray", l:"Windows: Sotto's icon in the notification area; tooltip says Sotto / Sotto — live; Open, mini, listen, Quit work"},
+   {v:"win_keys", l:"Windows: Ctrl+Shift+Alt+S starts or ends, C copies the card, M shows the mini window; typing AltGr does not trigger them"},
+   {v:"win_sound", l:"Windows: the call hears the computer's sound (the customer), not your microphone"},
+   {v:"win_mini", l:"Windows: the mini window is wider, on top, and shows the newest card"},
+   {v:"win_quit", l:"Windows: closing the window leaves Sotto in the notification area; Quit really quits"},
+   {v:"mac_face", l:"Mac: the face's eyes follow the mouse; it breathes and blinks; the smile is lower"},
+   {v:"mac_icons", l:"Mac: the new icons replace the emoji in the sidebar, page titles, Settings and History"},
+   {v:"mac_hover", l:"Mac: hovering a History row shows the small data pop-up; the list starts at the top"},
+   {v:"mac_health", l:"Mac: Settings → Health check reports the server, keys, speech, speed and microphone"},
+   {v:"mac_mini", l:"Mac: the mini window is wider and shows the newest card"},
+   {v:"mac_version", l:"Mac: Settings → About shows Sotto 0.2.0"}
+  ]},
  {id:"test_r2", kind:"test", eyebrow:"Test on your Mac", title:"This round's changes",
   short:"Open Sotto from Applications and mark each line. 'Problem' plus a note is all I need.",
   full:"Checked here with a simulated Zoom/Teams call and speech through the speakers: auto pick-up, mini window, recording, upload, ending by the shortcut. Not checked: a real Zoom or Yeastar call with a real customer, Arabic and dark mode on the new screens.",
@@ -210,6 +229,19 @@ const DECISIONS = [
 ];
 
 const RESULTS = [
+ {eyebrow:"From your videos", title:"The face, icons, hover and list",
+  short:"The eyes follow your mouse and the face breathes and blinks; the smile is lower. A purpose-built icon set replaces the emoji. Hovering a call shows its data. The list starts at the top and grows down.",
+  full:["The face: eyes follow the pointer on the Mac and in the desktop app, with a gentle head tilt, breathing and blinking. The smile sits lower, as you asked.",
+        "Icons: one family drawn for Sotto (home, call, history, reports, playbook, inbox, admin, settings, account, and the call sources), used instead of every interface emoji.",
+        "History: hovering a row opens a small card with the company, date, length, cards, source, chance to close, the first suggestion and any note. The list now starts under the search box and grows down; it used to hang at the bottom.",
+        "Mini window: wider (520 instead of 420), so a card reads at a glance."]},
+ {eyebrow:"Windows", title:"Windows now matches the Mac",
+  short:"A Windows .exe at the same 0.2.0: auto pick-up from Windows' microphone record, a notification-area icon, AltGr-safe shortcuts, Windows app names and a Windows microphone message.",
+  full:["Auto pick-up: reads Windows' per-app microphone record once a second; Zoom, Teams (old and new), 3CX, Yeastar/Linkus, Webex, WhatsApp and browser Meet are recognised. Sotto never mistakes itself for a call.",
+        "Notification area: the same menu as the Mac menu bar — Open, mini window, start or end listening, Quit — with the state in the tooltip and a '● Live' line.",
+        "Shortcuts: Ctrl+Shift+Alt+S / C / M, chosen because Ctrl+Alt is AltGr on many keyboards. The Mac keeps ⌃⌥S / C / M.",
+        "Computer sound: the Windows 'cannot hear this computer's sound' message points to Windows Settings → Privacy & security → Microphone.",
+        "Unsigned: Windows will warn. More info → Run anyway is expected until a certificate is bought."]},
  {eyebrow:"Your fixes", title:"Everything from your list and recording",
   short:"All twelve done and installed: the agent heard as context, AI knowledge, call sources, colours, faded cards, faster sections, icons, the face, and the rest.",
   full:["Agent as context: your microphone is transcribed beside the customer; the AI sees both sides and builds on what you said. Your words never trigger a card.",
