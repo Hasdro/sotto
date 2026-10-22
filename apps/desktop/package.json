@@ -1,6 +1,6 @@
 {
   "name": "sotto-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Sotto for Windows, Mac and Linux: the web app in its own window, hearing the call through the microphone or the computer's sound",
   "author": "Sotto",
@@ -29,6 +29,8 @@
       "main.cjs",
       "preload.cjs",
       "call-apps.cjs",
+      "win-mic.cjs",
+      "icon.png",
       "web/**/*",
       "package.json"
     ],

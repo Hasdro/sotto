@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { spawn } = require("node:child_process");
+const { execFile, spawn } = require("node:child_process");
 const {
   app,
   BrowserWindow,
@@ -19,6 +19,7 @@ const {
   Tray,
 } = require("electron");
 const { callApp } = require("./call-apps.cjs");
+const { parseMicUsage } = require("./win-mic.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -66,6 +67,17 @@ function openExternal(url) {
 
 let mainWin = null;
 let miniWin = null;
+let lastMini = null;
+
+// Shortcuts from any app: ⌃⌥S start or end listening, ⌃⌥C copy the card, ⌃⌥M the mini window.
+// Windows uses Ctrl+Shift+Alt: AltGr is Ctrl+Alt there, so adding Shift keeps these from firing
+// when someone types an AltGr character.
+function shortcutsFor(platform) {
+  return platform === "win32"
+    ? { listen: "Control+Shift+Alt+S", copy: "Control+Shift+Alt+C", mini: "Control+Shift+Alt+M" }
+    : { listen: "Control+Alt+S", copy: "Control+Alt+C", mini: "Control+Alt+M" };
+}
+const SHORTCUTS = shortcutsFor(process.platform);
 
 function guard(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -94,9 +106,9 @@ function showMini(show) {
   // `screen` only after the app is ready (Electron docs); read here, never at load time.
   const area = require("electron").screen.getPrimaryDisplay().workArea;
   miniWin = new BrowserWindow({
-    width: 420,
+    width: 520,
     height: 260,
-    x: area.x + area.width - 440,
+    x: area.x + area.width - 540,
     y: area.y + 20,
     minWidth: 300,
     minHeight: 160,
@@ -124,40 +136,60 @@ function showMini(show) {
   void miniWin.loadURL(`${ORIGIN}/mini`);
 }
 
-// The menu-bar icon (owner, 22 Oct 2026): Sotto's face, "● Live" during a call, and a menu.
+// The tray icon (owner, 22 Oct 2026): Sotto's face, "● Live" during a call, and the same menu
+// on macOS and Windows. A macOS menu-bar item has a title; a Windows notification-area icon has
+// none, so Windows shows the state in the tooltip and as a disabled "● Live" line in the menu.
 let tray = null;
-function createTray() {
-  if (process.platform !== "darwin" || tray) return;
-  const icon = nativeImage.createFromPath(path.join(__dirname, "icon.png")).resize({ width: 18 });
-  tray = new Tray(icon);
-  tray.setToolTip("Sotto");
-  const focusMain = () => {
-    if (!mainWin) return createWindow();
-    if (mainWin.isMinimized()) mainWin.restore();
-    mainWin.show();
-    mainWin.focus();
-  };
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: "Open Sotto", click: focusMain },
-      { label: "Show the mini window", accelerator: "Control+Alt+M", click: () => showMini(true) },
-      {
-        label: "Start or end listening",
-        accelerator: "Control+Alt+S",
-        click: () => mainWin?.webContents.send("shortcut", "listen"),
-      },
-      { type: "separator" },
-      { label: "Quit Sotto", role: "quit" },
-    ]),
+function focusMain() {
+  if (!mainWin) return createWindow();
+  if (mainWin.isMinimized()) mainWin.restore();
+  mainWin.show();
+  mainWin.focus();
+}
+function trayTemplate() {
+  const items = [];
+  if (process.platform === "win32" && lastMini?.live) {
+    items.push({ label: "● Live", enabled: false }, { type: "separator" });
+  }
+  items.push(
+    { label: "Open Sotto", click: focusMain },
+    { label: "Show the mini window", accelerator: SHORTCUTS.mini, click: () => showMini(true) },
+    {
+      label: "Start or end listening",
+      accelerator: SHORTCUTS.listen,
+      click: () => mainWin?.webContents.send("shortcut", "listen"),
+    },
+    { type: "separator" },
+    { label: "Quit Sotto", role: "quit" },
   );
+  return items;
+}
+function updateTray() {
+  if (!tray) return;
+  const live = Boolean(lastMini?.live);
+  if (process.platform === "darwin") {
+    tray.setTitle(live ? " ● Live" : ""); // macOS has a menu-bar title
+    tray.setToolTip("Sotto");
+  } else {
+    tray.setToolTip(live ? "Sotto — live" : "Sotto"); // Windows has no title, only a tooltip
+  }
+  tray.setContextMenu(Menu.buildFromTemplate(trayTemplate()));
+}
+function createTray() {
+  if (tray || (process.platform !== "darwin" && process.platform !== "win32")) return;
+  // Menu-bar icons are 18 px on macOS; the Windows notification area expects 16 px.
+  const icon = nativeImage
+    .createFromPath(path.join(__dirname, "icon.png"))
+    .resize({ width: process.platform === "darwin" ? 18 : 16 });
+  tray = new Tray(icon);
+  updateTray();
 }
 
-let lastMini = null;
 ipcMain.on("mini-state", (event, state) => {
   if (event.sender !== mainWin?.webContents) return; // only the main window feeds it
-  if (tray && Boolean(state?.live) !== Boolean(lastMini?.live))
-    tray.setTitle(state?.live ? " ● Live" : "");
+  const changed = Boolean(state?.live) !== Boolean(lastMini?.live);
   lastMini = state;
+  if (changed) updateTray();
   if (miniWin && !miniWin.isDestroyed()) miniWin.webContents.send("mini-state", state);
 });
 ipcMain.handle("mini-last", () => lastMini);
@@ -172,12 +204,12 @@ ipcMain.on("mini-action", (event, action) => {
   if (["open", "copy", "listen"].includes(action)) mainWin?.webContents.send("shortcut", action);
 });
 
-// Shortcuts from any app: ⌃⌥S start or end listening, ⌃⌥C copy the card, ⌃⌥M the mini window.
+// Shortcuts from any app (⌃⌥ on macOS, Ctrl+Shift+Alt on Windows; see shortcutsFor above).
 function registerShortcuts() {
   const send = (what) => mainWin?.webContents.send("shortcut", what);
-  globalShortcut.register("Control+Alt+S", () => send("listen"));
-  globalShortcut.register("Control+Alt+C", () => send("copy"));
-  globalShortcut.register("Control+Alt+M", () =>
+  globalShortcut.register(SHORTCUTS.listen, () => send("listen"));
+  globalShortcut.register(SHORTCUTS.copy, () => send("copy"));
+  globalShortcut.register(SHORTCUTS.mini, () =>
     showMini(!(miniWin && !miniWin.isDestroyed() && miniWin.isVisible())),
   );
 }
@@ -243,10 +275,48 @@ app.whenReady().then(() => {
   });
 });
 
-// Auto pick-up (owner, 21 Oct 2026), macOS: a small helper reports which apps use a microphone;
-// when a call app starts or stops, the page hears it and starts or ends listening by itself.
+// Auto pick-up (owner, 21 Oct 2026): a watcher reports which apps use a microphone; when a call
+// app starts or stops, the page hears it and starts or ends listening by itself. macOS uses the
+// small Swift helper over Core Audio; Windows reads the ConsentStore registry once a second.
+// Both produce the same { inputs: [...] } shape and go through the same call-state messages.
 let callState = { app: null };
+function publishCallState(appName) {
+  const next = { app: appName };
+  if (next.app === callState.app) return;
+  callState = next;
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send("call-state", callState);
+  }
+}
+
+const MIC_STORE =
+  "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\microphone";
+// Fixed arguments only: no shell and no user input. `reg` is a Windows system binary on PATH.
+const MIC_ARGS = ["query", MIC_STORE, "/s"];
+let micTimer = null;
+let micBusy = false;
+
+function pollMic() {
+  if (micBusy) return; // a slow reg.exe must not stack up polls
+  micBusy = true;
+  execFile("reg", MIC_ARGS, { windowsHide: true, timeout: 5000 }, (error, stdout) => {
+    micBusy = false;
+    if (error) return; // keep the last state; try again on the next tick
+    publishCallState(callApp(parseMicUsage(stdout).inputs));
+  });
+}
+
+function watchWindowsCalls() {
+  pollMic();
+  micTimer = setInterval(pollMic, 1000);
+  app.on("will-quit", () => {
+    clearInterval(micTimer);
+    micTimer = null;
+  });
+}
+
 function watchCalls() {
+  if (process.platform === "win32") return watchWindowsCalls();
   if (process.platform !== "darwin") return;
   const bin = app.isPackaged
     ? path.join(process.resourcesPath, "call-watch")
@@ -267,10 +337,7 @@ function watchCalls() {
       } catch {
         continue;
       }
-      const next = { app: Array.isArray(inputs) ? callApp(inputs) : null };
-      if (next.app === callState.app) continue;
-      callState = next;
-      for (const w of BrowserWindow.getAllWindows()) w.webContents.send("call-state", callState);
+      publishCallState(Array.isArray(inputs) ? callApp(inputs) : null);
     }
   });
   child.on("error", () => {}); // no helper, no auto pick-up: the Start button still works
@@ -280,5 +347,8 @@ ipcMain.handle("call-state", () => callState);
 app.whenReady().then(watchCalls);
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  // macOS keeps running without windows; Windows does the same while its tray icon is there, so
+  // "Open Sotto" can bring the window back. Closing the tray's Quit really quits.
+  if (process.platform === "darwin" || (process.platform === "win32" && tray)) return;
+  app.quit();
 });
