@@ -1,7 +1,7 @@
 /** Admin area (R3, R6): team, keys and models, settings. The prompt studio and a separate models
  * table return when they are real (T-040, T-041). */
 
-import { layout, minTouchTarget, space, Text, useTheme } from "@sotto/ui";
+import { Icon, type IconName, layout, minTouchTarget, space, Text, useTheme } from "@sotto/ui";
 import { Slot, usePathname } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
@@ -10,13 +10,13 @@ import { RoleGate } from "../../components/RoleGate";
 import type { StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
-const TABS: readonly { href: string; label: StringKey }[] = [
-  { href: "/admin", label: "admin.team" },
-  { href: "/admin/keys", label: "admin.keys" },
-  { href: "/admin/settings", label: "admin.settings" },
-  { href: "/admin/recordings", label: "admin.recordings" },
-  { href: "/admin/devices", label: "admin.devices" },
-  { href: "/admin/activity", label: "admin.activity" },
+const TABS: readonly { href: string; label: StringKey; icon: IconName }[] = [
+  { href: "/admin", label: "admin.team", icon: "users" },
+  { href: "/admin/keys", label: "admin.keys", icon: "key" },
+  { href: "/admin/settings", label: "admin.settings", icon: "settings" },
+  { href: "/admin/recordings", label: "admin.recordings", icon: "headphones" },
+  { href: "/admin/devices", label: "admin.devices", icon: "laptop" },
+  { href: "/admin/activity", label: "admin.activity", icon: "list" },
 ];
 
 export default function AdminRoute() {
@@ -34,7 +34,7 @@ function AdminLayout() {
   return (
     <ScrollView style={{ backgroundColor: color.background }} contentContainerStyle={styles.page}>
       <View style={styles.column}>
-        <PageHeader icon="🛠️" title={t("admin.title")} />
+        <PageHeader icon="admin" title={t("admin.title")} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -57,13 +57,20 @@ function AdminLayout() {
                   { borderBottomColor: active ? color.primary : "transparent" },
                 ])}
               >
-                <Text
-                  variant="body"
-                  weight={active ? "semibold" : "regular"}
-                  tone={active ? "primary" : "muted"}
-                >
-                  {t(tab.label)}
-                </Text>
+                <View style={styles.tabInner}>
+                  <Icon
+                    name={tab.icon}
+                    size={18}
+                    color={active ? color.primary : color.textMuted}
+                  />
+                  <Text
+                    variant="body"
+                    weight={active ? "semibold" : "regular"}
+                    tone={active ? "primary" : "muted"}
+                  >
+                    {t(tab.label)}
+                  </Text>
+                </View>
               </AppLink>
             );
           })}
@@ -79,6 +86,7 @@ const styles = StyleSheet.create({
   column: { width: "100%", maxWidth: layout.contentMaxWidth - 120, alignSelf: "center" },
   tabsWrap: { borderBottomWidth: 1, marginBottom: space.xl, flexGrow: 0 },
   tabs: { gap: space.lg },
+  tabInner: { flexDirection: "row", alignItems: "center", gap: space.xs },
   tab: {
     minHeight: minTouchTarget,
     justifyContent: "center",

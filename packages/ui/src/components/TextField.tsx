@@ -40,7 +40,9 @@ export function TextField({ label, accessibilityLabel, height, ...rest }: TextFi
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: space.xs, flexGrow: 1, flexShrink: 1 },
+  // A field never grows to fill a page (it left a gap above History and Playbook). A row that
+  // needs it to fill wraps it in a flex:1 view instead.
+  wrap: { gap: space.xs, flexShrink: 1 },
   input: {
     minHeight: minTouchTarget,
     borderWidth: 1,

@@ -6,6 +6,8 @@
  */
 
 import {
+  Icon,
+  type IconName,
   layout,
   minTouchTarget,
   motion,
@@ -56,19 +58,19 @@ type NavItem = {
     | "/settings"
     | "/account";
   label: StringKey;
-  /** A picture beside every section name (owner, 22 Oct). */
-  icon: string;
+  /** Sotto's own icon beside every section name (owner, 22 Oct). */
+  icon: IconName;
 };
 
 export const NAV: readonly NavItem[] = [
-  { href: "/home", label: "nav.home", icon: "🏠" },
-  { href: "/call", label: "nav.call", icon: "📞" },
-  { href: "/history", label: "nav.history", icon: "🕘" },
-  { href: "/reports", label: "nav.reports", icon: "📊" },
-  { href: "/playbook", label: "nav.playbook", icon: "📘" },
-  { href: "/inbox", label: "nav.inbox", icon: "📥" },
-  { href: "/admin", label: "nav.admin", icon: "🛠️" },
-  { href: "/settings", label: "nav.settings", icon: "⚙️" },
+  { href: "/home", label: "nav.home", icon: "home" },
+  { href: "/call", label: "nav.call", icon: "call" },
+  { href: "/history", label: "nav.history", icon: "history" },
+  { href: "/reports", label: "nav.reports", icon: "reports" },
+  { href: "/playbook", label: "nav.playbook", icon: "playbook" },
+  { href: "/inbox", label: "nav.inbox", icon: "inbox" },
+  { href: "/admin", label: "nav.admin", icon: "admin" },
+  { href: "/settings", label: "nav.settings", icon: "settings" },
 ];
 
 export function isActive(pathname: string, href: string): boolean {
@@ -76,7 +78,7 @@ export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-const ACCOUNT: NavItem = { href: "/account", label: "nav.account", icon: "👤" };
+const ACCOUNT: NavItem = { href: "/account", label: "nav.account", icon: "account" };
 
 /** The nav items the current role may open (R3); Account when signed in to a server (D-022). */
 function useNav(): readonly NavItem[] {
@@ -163,14 +165,9 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
                   { backgroundColor: active ? color.primary : "transparent" },
                 ]}
               />
-              <Text
-                variant="body"
-                style={styles.navIcon}
-                accessibilityElementsHidden
-                importantForAccessibility="no"
-              >
-                {item.icon}
-              </Text>
+              <View style={styles.navIcon}>
+                <Icon name={item.icon} size={22} color={active ? color.primary : color.textMuted} />
+              </View>
               <Text
                 variant="body"
                 weight={active ? "semibold" : "regular"}
@@ -434,7 +431,7 @@ function Count({ n }: { n: number }) {
 }
 
 const styles = StyleSheet.create({
-  navIcon: { width: 24, textAlign: "center" },
+  navIcon: { width: 24, alignItems: "center" },
   root: { flex: 1 },
   main: { flex: 1, minWidth: 0 },
   grow: { flex: 1 },

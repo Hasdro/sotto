@@ -1,6 +1,7 @@
 import { Badge, Button, radius, size, space, Text, useTheme } from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
 import { useI18n } from "../../../lib/locale";
+import { isWindows } from "../../../lib/platform";
 import type { AudioSource } from "../mic";
 import type { MicState } from "../useCallSession";
 
@@ -20,20 +21,23 @@ type Props = {
 export function ListenBar({ state, source, vendor, partial, onToggle }: Props) {
   const { t } = useI18n();
   const { color } = useTheme();
+  const win = isWindows();
   const on = state === "on" || state === "starting";
   const problem = state === "denied" || state === "unsupported";
   const status = problem
     ? t(
         source === "computer"
           ? state === "denied"
-            ? "call.listen.computerDenied"
+            ? win
+              ? "call.listen.computerDeniedWindows"
+              : "call.listen.computerDenied"
             : "call.listen.computerUnsupported"
           : state === "denied"
             ? "call.mic.denied"
             : "call.mic.unsupported",
       )
     : state === "starting"
-      ? t("call.listen.starting")
+      ? t(win ? "call.listen.startingWindows" : "call.listen.starting")
       : on
         ? t(source === "computer" ? "call.listen.onComputer" : "call.listen.onMic", {
             vendor: vendor ?? "",

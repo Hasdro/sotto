@@ -8,7 +8,7 @@ export function CallNotes() {
   const notes = useCallNotes();
   return (
     <TextField
-      label={`📝 ${t("call.notes")}`}
+      label={t("call.notes")}
       placeholder={t("call.notes.placeholder")}
       multiline
       height={88}

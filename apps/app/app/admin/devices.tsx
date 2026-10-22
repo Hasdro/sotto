@@ -1,6 +1,16 @@
 /** Admin → Devices (owner, 22 Oct): every signed-in computer and phone in the company, with
  * who uses it and when it was last seen; sign any of them out. */
-import { Button, EmptyState, Panel, Stack, space, Text, useTheme } from "@sotto/ui";
+import {
+  Button,
+  EmptyState,
+  Icon,
+  type IconName,
+  Panel,
+  Stack,
+  space,
+  Text,
+  useTheme,
+} from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { cloudApi } from "../../lib/cloud";
@@ -18,14 +28,14 @@ type Device = {
   email?: string;
 };
 
-const PLATFORM_ICON: Record<string, string> = {
-  mac: "🍎",
-  windows: "🪟",
-  linux: "🐧",
-  web: "🌐",
-  ios: "📱",
-  android: "🤖",
-  extension: "🧩",
+const PLATFORM_ICON: Record<string, IconName> = {
+  mac: "laptop",
+  windows: "screen",
+  linux: "laptop",
+  web: "globe",
+  ios: "phone",
+  android: "phone",
+  extension: "spark",
 };
 
 export default function DevicesScreen() {
@@ -51,16 +61,23 @@ export default function DevicesScreen() {
             key={d.id}
             style={[styles.row, i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null]}
           >
-            <Text variant="heading">{PLATFORM_ICON[d.platform] ?? "💻"}</Text>
+            <Icon name={PLATFORM_ICON[d.platform] ?? "screen"} size={22} color={color.textMuted} />
             <View style={styles.grow}>
               <Text weight="semibold" numberOfLines={1}>
                 {`${d.label}${d.this_device ? ` · ${t("account.thisDevice")}` : ""}`}
               </Text>
-              <Text variant="label" tone="muted" numberOfLines={1}>
-                {`👤 ${d.name || d.email || ""}  ·  ${t("account.lastSeen", {
-                  when: formatDateTime(new Date(d.last_seen).toISOString(), locale),
-                })}`}
-              </Text>
+              <View style={styles.facts}>
+                <Icon name="account" size={13} color={color.textMuted} />
+                <Text variant="label" tone="muted" numberOfLines={1} style={styles.shrink}>
+                  {d.name || d.email || ""}
+                </Text>
+                <Icon name="clock" size={13} color={color.textMuted} />
+                <Text variant="label" tone="muted" numberOfLines={1} style={styles.shrink}>
+                  {t("account.lastSeen", {
+                    when: formatDateTime(new Date(d.last_seen).toISOString(), locale),
+                  })}
+                </Text>
+              </View>
             </View>
             {d.this_device ? null : (
               <Button
@@ -83,4 +100,6 @@ export default function DevicesScreen() {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.md },
   grow: { flex: 1, minWidth: 0 },
+  shrink: { flexShrink: 1 },
+  facts: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
 });

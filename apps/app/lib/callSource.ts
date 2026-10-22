@@ -4,6 +4,7 @@
  * Shown as an icon and a name on the call screen and in History, and reported with the call's
  * numbers for Reports.
  */
+import type { IconName } from "@sotto/ui";
 import { useSyncExternalStore } from "react";
 
 export type CallSource =
@@ -24,24 +25,24 @@ export type CallSource =
   | "mic"
   | "practice";
 
-/** Emoji first: the owner asked for pictures over words (22 Oct). Names are product names. */
-export const SOURCE_META: Record<CallSource, { icon: string; name: string }> = {
-  zoom: { icon: "🎥", name: "Zoom" },
-  teams: { icon: "👥", name: "Microsoft Teams" },
-  meet: { icon: "🟢", name: "Google Meet" },
-  webex: { icon: "🌀", name: "Webex" },
-  "3cx": { icon: "☎️", name: "3CX" },
-  yeastar: { icon: "📞", name: "Yeastar" },
-  whatsapp: { icon: "💬", name: "WhatsApp" },
-  facetime: { icon: "📱", name: "FaceTime" },
-  slack: { icon: "💼", name: "Slack" },
-  telegram: { icon: "✈️", name: "Telegram" },
-  discord: { icon: "🎧", name: "Discord" },
-  softphone: { icon: "☎️", name: "Softphone" },
-  browser: { icon: "🌐", name: "Web call" },
-  computer: { icon: "🔊", name: "Computer sound" },
-  mic: { icon: "🎙️", name: "Microphone" },
-  practice: { icon: "🧪", name: "Practice" },
+/** Sotto's own icon plus the product's name (owner, 22 Oct: no emoji, a designed icon set). */
+export const SOURCE_META: Record<CallSource, { icon: IconName; name: string }> = {
+  zoom: { icon: "video", name: "Zoom" },
+  teams: { icon: "users", name: "Microsoft Teams" },
+  meet: { icon: "globe", name: "Google Meet" },
+  webex: { icon: "globe", name: "Webex" },
+  "3cx": { icon: "phone", name: "3CX" },
+  yeastar: { icon: "phone", name: "Yeastar" },
+  whatsapp: { icon: "message", name: "WhatsApp" },
+  facetime: { icon: "phone", name: "FaceTime" },
+  slack: { icon: "message", name: "Slack" },
+  telegram: { icon: "message", name: "Telegram" },
+  discord: { icon: "headphones", name: "Discord" },
+  softphone: { icon: "phone", name: "Softphone" },
+  browser: { icon: "globe", name: "Web call" },
+  computer: { icon: "screen", name: "Computer sound" },
+  mic: { icon: "mic", name: "Microphone" },
+  practice: { icon: "spark", name: "Practice" },
 };
 
 const RULES: [RegExp, CallSource][] = [
@@ -56,8 +57,12 @@ const RULES: [RegExp, CallSource][] = [
   [/telegram/, "telegram"],
   [/discord/, "discord"],
   [/zoiper|bria|counterpath|microsip|groundwire/, "softphone"],
-  // Google Meet and web softphones run in a browser; Meet is by far the most common.
-  [/chrome|safari|webkit|firefox|edgemac|thebrowser|brave|opera|vivaldi/, "browser"],
+  // Google Meet and web softphones run in a browser; Meet is by far the most common. Windows
+  // process names arrive too (msedge.exe, brave.exe, …), so match those as well.
+  [
+    /chrome|safari|webkit|firefox|edgemac|msedge|edge|thebrowser|brave|opera|vivaldi|arc/,
+    "browser",
+  ],
 ];
 
 /** The call source for a macOS bundle id reported by the call watcher. */

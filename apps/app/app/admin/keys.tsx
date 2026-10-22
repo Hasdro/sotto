@@ -7,6 +7,7 @@ import {
   type BadgeTone,
   Button,
   EmptyState,
+  Icon,
   minTouchTarget,
   Panel,
   radius,
@@ -166,13 +167,13 @@ function SetupChecklist({ data }: { data: ProvidersState }) {
               ]}
               accessibilityLabel={t(step.done ? "admin.keys.setup.done" : "admin.keys.setup.todo")}
             >
-              <Text
-                variant="label"
-                weight="semibold"
-                color={step.done ? color.positive : undefined}
-              >
-                {step.done ? "✓" : String(i + 1)}
-              </Text>
+              {step.done ? (
+                <Icon name="check" size={14} color={color.positive} />
+              ) : (
+                <Text variant="label" weight="semibold">
+                  {String(i + 1)}
+                </Text>
+              )}
             </View>
             <Stack gap="xs" style={styles.stepBody}>
               <Text variant="body" weight="semibold">
@@ -430,18 +431,20 @@ function ProviderCard({
               </Pressable>
             )}
             <View style={styles.row}>
-              <TextField
-                accessibilityLabel={t("admin.keys.input", { name: p.name })}
-                placeholder={t("admin.keys.input", { name: p.name })}
-                value={key}
-                onChangeText={setKey}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="off"
-                maxLength={400}
-                testID={`key-input-${p.id}`}
-              />
+              <View style={styles.grow}>
+                <TextField
+                  accessibilityLabel={t("admin.keys.input", { name: p.name })}
+                  placeholder={t("admin.keys.input", { name: p.name })}
+                  value={key}
+                  onChangeText={setKey}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  maxLength={400}
+                  testID={`key-input-${p.id}`}
+                />
+              </View>
               <Button
                 label={t("admin.keys.save")}
                 disabled={key.trim().length === 0 || busy !== null}

@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../theme.tsx";
 import { radius, space } from "../tokens.ts";
+import { Icon } from "./Icon.tsx";
 import { Text } from "./Text.tsx";
 
 export type TranscriptSpeaker = "customer" | "agent" | "system";
@@ -52,9 +53,7 @@ export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: Tr
       ]}
     >
       <View style={styles.head}>
-        <Text variant="label" accessibilityElementsHidden importantForAccessibility="no">
-          {customer ? "🗣️" : "🎧"}
-        </Text>
+        <Icon name={customer ? "mic" : "headphones"} size={13} color={c.label} />
         <Text variant="label" weight="semibold" color={c.label}>
           {speakerLabel}
         </Text>

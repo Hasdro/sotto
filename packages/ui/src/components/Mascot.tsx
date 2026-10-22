@@ -1,12 +1,14 @@
 /**
  * The Sotto character: a small rounded face that shows what the app is doing (owner, 21 Oct;
- * 22 Oct: no tail, a soft smile, no orange). idle blinks · listening sends out sound rings ·
- * thinking looks up with three dots · suggesting hops with a spark and a big smile · reviewing
- * is violet, looks down at its notes and nods · offline is grey with closed eyes.
+ * 22 Oct: no tail, a soft smile, no orange). It looks alive: it blinks, breathes, and on the web
+ * and desktop its eyes follow the pointer (owner, 22 Oct: "when I move my mouse around, its eyes
+ * follow the mouse, making an animated effect and making it look live"). idle · listening sends
+ * out sound rings · thinking looks up with three dots · suggesting hops with a spark and a big
+ * smile · reviewing is violet, looks down at its notes and nods · offline is grey, eyes closed.
  * Built from Views and the Animated API so it runs on web, desktop and phones without SVG.
  */
-import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from "react-native";
+import { type ComponentRef, useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet, View } from "react-native";
 import { useTheme } from "../theme.tsx";
 import type { Hex } from "../tokens.ts";
 
@@ -64,6 +66,11 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
   const pulse = useRef(new Animated.Value(0)).current;
   const pulse2 = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
+  const breath = useRef(new Animated.Value(0)).current;
+  // Where the pointer is, in [-1, 1] from the face's centre: 0 is straight ahead.
+  const gazeX = useRef(new Animated.Value(0)).current;
+  const gazeY = useRef(new Animated.Value(0)).current;
+  const face = useRef<ComponentRef<typeof View>>(null);
 
   const tint: Record<MascotState, Hex> = {
     idle: color.primary,
@@ -112,6 +119,25 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
         ),
       );
     }
+    // Breathing, at about the rate of a calm person (owner, 22 Oct: make it look live).
+    anims.push(
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(breath, {
+            toValue: 1,
+            duration: 2100,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: false,
+          }),
+          Animated.timing(breath, {
+            toValue: 0,
+            duration: 2100,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: false,
+          }),
+        ]),
+      ),
+    );
     for (const a of anims) a.start();
     return () => {
       for (const a of anims) a.stop();
@@ -119,12 +145,79 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
       pulse.setValue(0);
       pulse2.setValue(0);
       bob.setValue(0);
+      breath.setValue(0);
     };
-  }, [state, reduce, blink, pulse, pulse2, bob]);
+  }, [state, reduce, blink, pulse, pulse2, bob, breath]);
+
+  // The eyes follow the pointer on the web and in the desktop app. Only a position is read;
+  // nothing outside this app is inspected. On phones there is no pointer, so the face waits.
+  useEffect(() => {
+    if (reduce || Platform.OS !== "web" || state === "offline") return;
+    const doc = (globalThis as { document?: Document }).document;
+    if (!doc) return;
+    let frameBox = { x: 0, y: 0, w: 1, h: 1 };
+    let measured = 0;
+    let raf = 0;
+    const measure = () => {
+      measured = 0;
+      face.current?.measureInWindow((x, y, w, h) => {
+        if (w > 0 && h > 0) frameBox = { x, y, w, h };
+        measured = Date.now();
+      });
+    };
+    const follow = (e: PointerEvent) => {
+      if (!measured) measure();
+      if (Date.now() - measured > 400) {
+        measure(); // the page scrolled or the window moved under the pointer
+        return;
+      }
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const dx = (e.clientX - (frameBox.x + frameBox.w / 2)) / (frameBox.w * 0.9);
+        const dy = (e.clientY - (frameBox.y + frameBox.h / 2)) / (frameBox.h * 0.9);
+        const x = Math.max(-1, Math.min(1, dx));
+        const y = Math.max(-1, Math.min(1, dy));
+        Animated.spring(gazeX, {
+          toValue: x,
+          stiffness: 160,
+          damping: 18,
+          mass: 0.6,
+          useNativeDriver: false,
+        }).start();
+        Animated.spring(gazeY, {
+          toValue: y,
+          stiffness: 160,
+          damping: 18,
+          mass: 0.6,
+          useNativeDriver: false,
+        }).start();
+      });
+    };
+    const leave = () => {
+      Animated.spring(gazeX, { toValue: 0, useNativeDriver: false }).start();
+      Animated.spring(gazeY, { toValue: 0, useNativeDriver: false }).start();
+    };
+    measure();
+    doc.addEventListener("pointermove", follow, { passive: true });
+    doc.addEventListener("pointerleave", leave, { passive: true });
+    const win = (globalThis as { addEventListener?: Window["addEventListener"] }).addEventListener;
+    win?.("resize", measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      doc.removeEventListener("pointermove", follow);
+      doc.removeEventListener("pointerleave", leave);
+      win?.("resize", measure);
+    };
+  }, [reduce, state, gazeX, gazeY]);
 
   const s = size;
   const hop = state === "suggesting" ? -s * 0.08 : state === "reviewing" ? s * 0.03 : -s * 0.03;
   const lift = bob.interpolate({ inputRange: [0, 1], outputRange: [0, hop] });
+  const lookX = gazeX.interpolate({ inputRange: [-1, 1], outputRange: [-s * 0.055, s * 0.055] });
+  const lookY = gazeY.interpolate({ inputRange: [-1, 1], outputRange: [-s * 0.045, s * 0.045] });
+  const tilt = gazeX.interpolate({ inputRange: [-1, 1], outputRange: ["-2.4deg", "2.4deg"] });
+  const sway = gazeX.interpolate({ inputRange: [-1, 1], outputRange: [-s * 0.02, s * 0.02] });
+  const breathe = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] });
   const eyeW = s * 0.15;
   const eyeH = s * 0.2;
   const closed = state === "offline";
@@ -152,6 +245,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
       accessible
       accessibilityRole="image"
       accessibilityLabel={label ?? `Sotto: ${state}`}
+      ref={face}
       style={[styles.frame, { width: s * 1.7, height: s * 1.5 }]}
       testID={`mascot-${state}`}
     >
@@ -180,7 +274,16 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
           ))}
         </View>
       ) : null}
-      <Animated.View style={{ transform: [{ translateY: lift }] }}>
+      <Animated.View
+        style={{
+          transform: [
+            { translateY: lift },
+            { translateX: sway },
+            { rotate: tilt },
+            { scale: breathe },
+          ],
+        }}
+      >
         <View
           style={[
             styles.body,
@@ -196,7 +299,32 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
             },
           ]}
         >
-          <View style={[styles.eyes, { gap: s * 0.16, marginTop: look }]}>
+          {closed ? null : (
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: s * 0.1,
+                left: s * 0.13,
+                width: s * 0.24,
+                height: s * 0.1,
+                borderRadius: s,
+                backgroundColor: color.onPrimary,
+                opacity: 0.16,
+                transform: [{ rotate: "-24deg" }],
+              }}
+            />
+          )}
+          <Animated.View
+            style={[
+              styles.eyes,
+              {
+                gap: s * 0.16,
+                marginTop: look,
+                transform: [{ translateX: lookX }, { translateY: lookY }],
+              },
+            ]}
+          >
             {[0, 1].map((i) => (
               <Animated.View
                 key={i}
@@ -209,7 +337,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
                 }}
               />
             ))}
-          </View>
+          </Animated.View>
           <Smile size={s} wide={state === "suggesting"} flat={closed} ink={color.onPrimary} />
         </View>
       </Animated.View>
@@ -262,7 +390,8 @@ function Smile({
   return (
     <View
       style={{
-        marginTop: s * 0.04,
+        // A little lower than the first version (owner, 22 Oct).
+        marginTop: s * 0.11,
         width: w,
         height: w / 2,
         borderBottomLeftRadius: w / 2,

@@ -2,6 +2,8 @@
 import {
   Button,
   Divider,
+  Icon,
+  type IconName,
   Panel,
   SegmentedControl,
   Stack,
@@ -9,6 +11,7 @@ import {
   Text,
   TextField,
   ToggleRow,
+  useTheme,
 } from "@sotto/ui";
 import { type ReactNode, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -25,7 +28,7 @@ export default function SettingsScreen() {
       <Text variant="body" tone="muted">
         {t("admin.settings.subtitle")}
       </Text>
-      <Section title={t("admin.settings.calls")}>
+      <Section icon="call" title={t("admin.settings.calls")}>
         <ToggleRow
           label={t("admin.settings.aiAnswers")}
           description={t("admin.settings.aiAnswersHint")}
@@ -65,13 +68,13 @@ export default function SettingsScreen() {
           />
         </View>
       </Section>
-      <Section title={`📧 ${t("admin.settings.email")}`}>
+      <Section icon="mail" title={t("admin.settings.email")}>
         <ManagerEmail
           value={settings.manager_email ?? ""}
           onSave={(v) => change({ manager_email: v })}
         />
       </Section>
-      <Section title={t("admin.settings.display")}>
+      <Section icon="screen" title={t("admin.settings.display")}>
         <View style={styles.field}>
           <Text variant="body" weight="medium">
             {t("admin.settings.appLanguage")}
@@ -121,12 +124,24 @@ function ManagerEmail({ value, onSave }: { value: string; onSave: (v: string) =>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: IconName;
+  children: ReactNode;
+}) {
+  const { color } = useTheme();
   return (
     <View style={styles.section}>
-      <Text variant="heading" weight="semibold" accessibilityRole="header">
-        {title}
-      </Text>
+      <View style={styles.titleRow}>
+        {icon ? <Icon name={icon} size={20} color={color.textMuted} /> : null}
+        <Text variant="heading" weight="semibold" accessibilityRole="header">
+          {title}
+        </Text>
+      </View>
       <Panel style={styles.panel}>{children}</Panel>
     </View>
   );
@@ -134,6 +149,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 const styles = StyleSheet.create({
   section: { gap: space.md, maxWidth: 760 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
   panel: { paddingVertical: space.sm },
   field: { gap: space.sm, paddingVertical: space.md },
 });

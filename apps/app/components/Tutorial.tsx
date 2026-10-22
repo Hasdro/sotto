@@ -5,6 +5,7 @@
  */
 import {
   Button,
+  Icon,
   Mascot,
   type MascotState,
   radius,
@@ -153,11 +154,7 @@ export function TutorialDialog({
                 },
               ]}
             >
-              {never ? (
-                <Text variant="label" weight="semibold" tone="onPrimary">
-                  ✓
-                </Text>
-              ) : null}
+              {never ? <Icon name="check" size={14} color={color.onPrimary} /> : null}
             </View>
             <Text variant="label">{t("tutorial.never")}</Text>
           </Pressable>

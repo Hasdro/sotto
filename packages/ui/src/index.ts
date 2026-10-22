@@ -1,6 +1,7 @@
 export * from "./components/Badge.tsx";
 export * from "./components/Button.tsx";
 export * from "./components/EmptyState.tsx";
+export * from "./components/Icon.tsx";
 export * from "./components/layout.tsx";
 export * from "./components/Mascot.tsx";
 export * from "./components/SegmentedControl.tsx";

@@ -6,6 +6,8 @@
  */
 import {
   EmptyState,
+  Icon,
+  type IconName,
   layout,
   Panel,
   radius,
@@ -56,7 +58,7 @@ export default function ReportsScreen() {
   return (
     <Screen scroll maxWidth={layout.contentMaxWidth} testID="reports" style={styles.page}>
       <PageHeader
-        icon="📊"
+        icon="reports"
         title={t("reports.title")}
         subtitle={t(team ? "reports.subtitle.team" : "reports.subtitle.mine")}
         actions={
@@ -93,38 +95,40 @@ function ReportView({ report: r, team }: { report: Report; team: boolean }) {
   return (
     <View style={styles.body}>
       <View style={styles.tiles}>
-        <Tile icon="📞" label={t("reports.calls")} value={String(r.calls)} />
-        <Tile icon="⏳" label={t("reports.minutes")} value={String(r.minutes)} />
+        <Tile icon="call" label={t("reports.calls")} value={String(r.calls)} />
+        <Tile icon="timer" label={t("reports.minutes")} value={String(r.minutes)} />
         <Tile
-          icon="🎯"
+          icon="target"
           label={t("reports.success")}
           value={r.success === null ? "—" : `${r.success}%`}
         />
-        <Tile icon="⚡" label={t("reports.speed")} value={sec} />
+        <Tile icon="bolt" label={t("reports.speed")} value={sec} />
       </View>
 
       <Panel style={styles.panel} testID="reports-days">
-        <Heading icon="📅" text={t("reports.perDay")} />
+        <Heading icon="calendar" text={t("reports.perDay")} />
         <DayBars days={r.days} />
       </Panel>
 
       <View style={styles.two}>
         <Panel style={[styles.panel, styles.half]} testID="reports-sources">
-          <Heading icon="🔌" text={t("reports.sources")} />
+          <Heading icon="video" text={t("reports.sources")} />
           <Bars
             items={r.sources.map((s) => ({
               key: s.source,
-              label: `${SOURCE_META[s.source].icon} ${SOURCE_META[s.source].name}`,
+              label: SOURCE_META[s.source].name,
+              icon: SOURCE_META[s.source].icon,
               value: s.calls,
             }))}
           />
         </Panel>
         <Panel style={[styles.panel, styles.half]} testID="reports-cards">
-          <Heading icon="🃏" text={t("reports.cardSources")} />
+          <Heading icon="cards" text={t("reports.cardSources")} />
           <Bars
             items={r.cardSources.map((c) => ({
               key: c.key,
               label: t(`reports.cardSource.${c.key}`),
+              icon: c.key === "playbook" ? "playbook" : c.key === "ai" ? "spark" : "timer",
               value: c.n,
             }))}
           />
@@ -133,7 +137,7 @@ function ReportView({ report: r, team }: { report: Report; team: boolean }) {
 
       {r.skills.length ? (
         <Panel style={styles.panel} testID="reports-skills">
-          <Heading icon="🧑‍🏫" text={t("reports.skills")} />
+          <Heading icon="spark" text={t("reports.skills")} />
           <Bars
             max={10}
             items={r.skills.map((s) => ({
@@ -160,7 +164,7 @@ function Objections() {
   if (!items.length) return null;
   return (
     <Panel style={styles.panel} testID="reports-objections">
-      <Heading icon="🧱" text={t("reports.objections")} />
+      <Heading icon="message" text={t("reports.objections")} />
       <Text variant="label" tone="muted">
         {t("reports.objections.note")}
       </Text>
@@ -183,11 +187,16 @@ function Objections() {
   );
 }
 
-function Tile({ icon, label, value }: { icon: string; label: string; value: string }) {
+function Tile({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   const { color } = useTheme();
   return (
     <View style={[styles.tile, { backgroundColor: color.surface, borderColor: color.border }]}>
-      <Text variant="label" tone="muted">{`${icon}  ${label}`}</Text>
+      <View style={styles.tileLabel}>
+        <Icon name={icon} size={17} />
+        <Text variant="label" tone="muted">
+          {label}
+        </Text>
+      </View>
       <Text variant="title" weight="semibold" style={styles.num}>
         {value}
       </Text>
@@ -195,11 +204,15 @@ function Tile({ icon, label, value }: { icon: string; label: string; value: stri
   );
 }
 
-function Heading({ icon, text }: { icon: string; text: string }) {
+function Heading({ icon, text }: { icon: IconName; text: string }) {
+  const { color } = useTheme();
   return (
-    <Text variant="heading" weight="semibold" accessibilityRole="header">
-      {`${icon}  ${text}`}
-    </Text>
+    <View style={styles.heading} accessibilityRole="header" aria-level={3}>
+      <Icon name={icon} size={19} color={color.textMuted} />
+      <Text variant="heading" weight="semibold">
+        {text}
+      </Text>
+    </View>
   );
 }
 
@@ -255,7 +268,7 @@ function Bars({
   items,
   max,
 }: {
-  items: { key: string; label: string; value: number; suffix?: string }[];
+  items: { key: string; label: string; icon?: IconName; value: number; suffix?: string }[];
   max?: number;
 }) {
   const { color } = useTheme();
@@ -264,9 +277,12 @@ function Bars({
     <View style={styles.bars}>
       {items.map((i) => (
         <View key={i.key} style={styles.barRow}>
-          <Text variant="label" numberOfLines={1} style={styles.barLabel}>
-            {i.label}
-          </Text>
+          <View style={styles.barLabel}>
+            {i.icon ? <Icon name={i.icon} size={15} /> : null}
+            <Text variant="label" numberOfLines={1} style={styles.barLabelText}>
+              {i.label}
+            </Text>
+          </View>
           <View style={[styles.barTrack, { backgroundColor: color.surfaceSunken }]}>
             <View
               style={[
@@ -289,7 +305,7 @@ function Agents({ rows }: { rows: Report["agents"] }) {
   const { color } = useTheme();
   return (
     <Panel style={styles.panel} testID="reports-agents">
-      <Heading icon="👥" text={t("reports.agents")} />
+      <Heading icon="users" text={t("reports.agents")} />
       {rows.map((a, i) => (
         <View
           key={a.id}
@@ -298,17 +314,30 @@ function Agents({ rows }: { rows: Report["agents"] }) {
           <Text weight="semibold" style={styles.agentName} numberOfLines={1}>
             {a.name}
           </Text>
-          <Text variant="label" tone="muted">{`📞 ${a.calls}`}</Text>
-          <Text variant="label" tone="muted">{`⏳ ${a.minutes}`}</Text>
-          <Text variant="label" tone="muted">
-            {`🎯 ${a.success === null ? "—" : `${a.success}%`}`}
-          </Text>
+          <View style={styles.agentFact}>
+            <Icon name="call" size={14} />
+            <Text variant="label" tone="muted">
+              {a.calls}
+            </Text>
+          </View>
+          <View style={styles.agentFact}>
+            <Icon name="timer" size={14} />
+            <Text variant="label" tone="muted">
+              {a.minutes}
+            </Text>
+          </View>
+          <View style={styles.agentFact}>
+            <Icon name="target" size={14} />
+            <Text variant="label" tone="muted">
+              {a.success === null ? "—" : `${a.success}%`}
+            </Text>
+          </View>
           <Text
             variant="label"
             weight="medium"
             tone={a.trend === null ? "muted" : a.trend >= 0 ? "positive" : "negative"}
           >
-            {a.trend === null ? "—" : `${a.trend >= 0 ? "▲" : "▼"} ${Math.abs(a.trend)}`}
+            {a.trend === null ? "—" : `${a.trend >= 0 ? "+" : "−"}${Math.abs(a.trend)}`}
           </Text>
           <Text variant="label" tone="muted" numberOfLines={1} style={styles.focus}>
             {a.focus ? `${t("reports.coach")}: ${t(`review.dim.${a.focus}`)}` : ""}
@@ -323,6 +352,8 @@ const styles = StyleSheet.create({
   page: { paddingTop: space.xl },
   body: { gap: space.lg },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
+  tileLabel: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  heading: { flexDirection: "row", alignItems: "center", gap: space.xs },
   tile: {
     flexGrow: 1,
     flexBasis: 180,
@@ -341,7 +372,8 @@ const styles = StyleSheet.create({
   axis: { flexDirection: "row", justifyContent: "space-between", marginTop: space.xs },
   bars: { gap: space.sm },
   barRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  barLabel: { width: 150 },
+  barLabel: { width: 150, flexDirection: "row", alignItems: "center", gap: space.xs },
+  barLabelText: { flexShrink: 1 },
   barTrack: { flex: 1, height: 10, borderRadius: 5, overflow: "hidden" },
   barFill: { height: 10, borderRadius: 5 },
   barValue: { width: 52, textAlign: "right" },
@@ -354,5 +386,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   agentName: { flexBasis: 160, flexGrow: 1 },
+  agentFact: { flexDirection: "row", alignItems: "center", gap: 4 },
   focus: { flexBasis: 200 },
 });

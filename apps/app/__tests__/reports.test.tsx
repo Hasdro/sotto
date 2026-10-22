@@ -54,10 +54,10 @@ describe("Reports", () => {
   it("shows the numbers, the charts and the agents table to an admin", async () => {
     mockRole = "admin";
     await wrap();
-    expect(await screen.findByText("72%")).toBeOnTheScreen();
+    expect((await screen.findAllByText("72%")).length).toBeGreaterThan(0);
     expect(screen.getByText("0.64 s")).toBeOnTheScreen();
     expect(screen.getByTestId("reports-days")).toBeOnTheScreen();
-    expect(screen.getByText("🎥 Zoom")).toBeOnTheScreen();
+    expect(screen.getByText("Zoom")).toBeOnTheScreen();
     expect(screen.getByText("Rania Haddad")).toBeOnTheScreen();
     expect(screen.getByText("Coach: Next step")).toBeOnTheScreen();
     expect(jest.mocked(cloudApi)).toHaveBeenCalledWith("/api/v1/company/usage?days=30");

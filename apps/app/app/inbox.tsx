@@ -50,7 +50,7 @@ function InboxScreen() {
   const items = byStatus(inbox, status);
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="inbox" style={styles.page}>
-      <PageHeader icon="📥" title={t("inbox.title")} subtitle={t("inbox.subtitle")} />
+      <PageHeader icon="inbox" title={t("inbox.title")} subtitle={t("inbox.subtitle")} />
       {added ? (
         <Text
           variant="body"

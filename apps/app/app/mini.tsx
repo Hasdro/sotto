@@ -4,7 +4,7 @@
  * its own.
  */
 import type { CardSource, CardType } from "@sotto/shared";
-import { Button, Mascot, SuggestionCard, space, Text, useTheme } from "@sotto/ui";
+import { Button, Icon, Mascot, SuggestionCard, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { SourceChip } from "../components/SourceChip";
@@ -61,7 +61,12 @@ export default function MiniWindow() {
         <Text tone="muted">{t(s.live ? "mini.waiting" : "mini.idle")}</Text>
       )}
       {s.partial ? (
-        <Text variant="label" tone="muted" numberOfLines={2}>{`🗣️ ${s.partial}`}</Text>
+        <View style={styles.partial}>
+          <Icon name="mic" size={14} color={color.textMuted} />
+          <Text variant="label" tone="muted" numberOfLines={2} style={styles.partialText}>
+            {s.partial}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -71,4 +76,6 @@ const styles = StyleSheet.create({
   page: { flex: 1, padding: space.md, gap: space.sm },
   top: { flexDirection: "row", alignItems: "center", gap: space.sm },
   grow: { flex: 1 },
+  partial: { flexDirection: "row", alignItems: "flex-start", gap: space.xs },
+  partialText: { flex: 1, minWidth: 0 },
 });

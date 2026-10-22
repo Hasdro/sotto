@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   EmptyState,
+  Icon,
   layout,
   Panel,
   Screen,
@@ -10,6 +11,7 @@ import {
   space,
   Text,
   TranscriptLine,
+  useTheme,
 } from "@sotto/ui";
 import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
@@ -29,6 +31,7 @@ export default function CallDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, locale } = useI18n();
   const wide = useIsWide();
+  const { color } = useTheme();
   const sample = findCall(String(id));
   const fromServer = useServerCall(String(id), sample !== undefined);
   const call = sample ?? (typeof fromServer === "string" ? undefined : fromServer);
@@ -102,20 +105,14 @@ export default function CallDetailScreen() {
         <View style={styles.metaRow}>
           <Badge tone={OUTCOME_TONE[call.outcome]} label={t(`history.outcome.${call.outcome}`)} />
           {call.source ? <SourceChip source={call.source} /> : null}
-          {call.company ? (
-            <Text variant="body" tone="muted">
-              {`🏢 ${call.company}`}
-            </Text>
-          ) : null}
-          <Text variant="body" tone="muted">
-            {`📅 ${formatDate(call.startedAt, locale)}`}
-          </Text>
-          <Text variant="body" tone="muted">
-            {`🕒 ${formatTime(call.startedAt, locale)}`}
-          </Text>
-          <Text variant="body" tone="muted">
-            {`⏳ ${t("history.minutes", { count: call.minutes })}`}
-          </Text>
+          {call.company ? <Meta icon="home" text={call.company} color={color.textMuted} /> : null}
+          <Meta icon="calendar" text={formatDate(call.startedAt, locale)} color={color.textMuted} />
+          <Meta icon="clock" text={formatTime(call.startedAt, locale)} color={color.textMuted} />
+          <Meta
+            icon="timer"
+            text={t("history.minutes", { count: call.minutes })}
+            color={color.textMuted}
+          />
         </View>
       </View>
       {sample ? null : (
@@ -127,9 +124,12 @@ export default function CallDetailScreen() {
       {sample ? null : <RecordingPlayer callId={String(id)} />}
       {call.notes ? (
         <Panel style={styles.notes} testID="call-detail-notes">
-          <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
-            {`📝 ${t("history.detail.notes")}`}
-          </Text>
+          <View style={styles.notesTitle}>
+            <Icon name="note" size={15} color={color.textMuted} />
+            <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
+              {t("history.detail.notes")}
+            </Text>
+          </View>
           <Text>{call.notes}</Text>
         </Panel>
       ) : null}
@@ -141,12 +141,33 @@ export default function CallDetailScreen() {
   );
 }
 
+function Meta({
+  icon,
+  text,
+  color,
+}: {
+  icon: "home" | "calendar" | "clock" | "timer";
+  text: string;
+  color: string;
+}) {
+  return (
+    <View style={styles.metaFact}>
+      <Icon name={icon} size={15} color={color} />
+      <Text variant="body" tone="muted">
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { paddingTop: space.lg },
   center: { justifyContent: "center" },
   backRow: { alignItems: "flex-start", marginStart: -space.lg },
   head: { gap: space.sm, marginBottom: space.xl },
   metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
+  metaFact: { flexDirection: "row", alignItems: "center", gap: 4 },
+  notesTitle: { flexDirection: "row", alignItems: "center", gap: 4 },
   body: { gap: space.xl },
   review: { marginBottom: space.xl, gap: space.md },
   notes: { gap: space.xs, marginBottom: space.xl },

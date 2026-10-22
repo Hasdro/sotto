@@ -3,6 +3,8 @@
 import {
   Badge,
   EmptyState,
+  Icon,
+  type IconName,
   layout,
   Panel,
   radius,
@@ -13,8 +15,9 @@ import {
   useTheme,
 } from "@sotto/ui";
 import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
+import { CallPeek } from "../../components/CallPeek";
 import { PageHeader } from "../../components/PageHeader";
 import { PAST_CALLS, type PastCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
@@ -35,11 +38,11 @@ export default function HistoryScreen() {
   if (!sampleDataAllowed()) {
     return (
       <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
-        <PageHeader icon="🕘" title={t("history.title")} subtitle={t("history.subtitle")} />
+        <PageHeader icon="history" title={t("history.title")} subtitle={t("history.subtitle")} />
         {mine && mine.length > 0 ? (
           <TextField
             accessibilityLabel={t("history.search")}
-            placeholder={`🔎 ${t("history.search")}`}
+            placeholder={t("history.search")}
             value={query}
             onChangeText={setQuery}
             testID="history-search"
@@ -59,7 +62,7 @@ export default function HistoryScreen() {
   }
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="history" style={styles.page}>
-      <PageHeader icon="🕘" title={t("history.title")} subtitle={t("history.subtitle")} />
+      <PageHeader icon="history" title={t("history.title")} subtitle={t("history.subtitle")} />
       {mine && mine.length > 0 ? (
         <>
           <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
@@ -85,8 +88,10 @@ function CallList({
 }) {
   const { t, locale } = useI18n();
   const { color, card } = useTheme();
+  const [peek, setPeek] = useState<{ id: string; above: boolean } | null>(null);
+  const canHover = Platform.OS === "web";
   return (
-    <Panel padded={false}>
+    <Panel padded={false} style={styles.list}>
       {calls.map((call, i) => {
         const meta = SOURCE_META[call.source ?? "computer"];
         const cards = call.cardCount ?? call.cards.length;
@@ -104,13 +109,22 @@ function CallList({
             href={`/history/${call.id}`}
             accessibilityRole="link"
             testID={`history-row-${call.id}`}
+            {...(canHover
+              ? {
+                  onHoverIn: () => setPeek({ id: call.id, above: i >= calls.length - 2 }),
+                  onHoverOut: () => setPeek((p) => (p?.id === call.id ? null : p)),
+                  onFocus: () => setPeek({ id: call.id, above: i >= calls.length - 2 }),
+                  onBlur: () => setPeek((p) => (p?.id === call.id ? null : p)),
+                }
+              : {})}
             style={(state) =>
               StyleSheet.flatten([
                 styles.row,
                 i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null,
-                (state as { hovered?: boolean }).hovered
+                (state as { hovered?: boolean }).hovered || peek?.id === call.id
                   ? { backgroundColor: color.surfaceSunken }
                   : null,
+                peek?.id === call.id ? { zIndex: 30 } : null,
               ])
             }
           >
@@ -118,29 +132,19 @@ function CallList({
               style={[styles.icon, { backgroundColor: color.surfaceSunken }]}
               accessibilityLabel={meta.name}
             >
-              <Text variant="heading">{meta.icon}</Text>
+              <Icon name={meta.icon} size={22} color={color.textMuted} />
             </View>
             <View style={styles.main}>
               <Text variant="body" weight="semibold" numberOfLines={1}>
                 {call.customer}
               </Text>
               <View style={styles.facts}>
-                {call.company ? (
-                  <Text variant="label" tone="muted">{`🏢 ${call.company}`}</Text>
-                ) : null}
-                <Text
-                  variant="label"
-                  tone="muted"
-                >{`📅 ${formatDate(call.startedAt, locale)}`}</Text>
-                <Text
-                  variant="label"
-                  tone="muted"
-                >{`🕒 ${formatTime(call.startedAt, locale)}`}</Text>
-                <Text variant="label" tone="muted">
-                  {`⏳ ${t("history.minutes", { count: call.minutes })}`}
-                </Text>
-                <Text variant="label" tone="muted">{`🃏 ${cards}`}</Text>
-                <Text variant="label" tone="muted">{`${meta.icon} ${meta.name}`}</Text>
+                {call.company ? <Fact icon="home" text={call.company} /> : null}
+                <Fact icon="calendar" text={formatDate(call.startedAt, locale)} />
+                <Fact icon="clock" text={formatTime(call.startedAt, locale)} />
+                <Fact icon="timer" text={t("history.minutes", { count: call.minutes })} />
+                <Fact icon="cards" text={String(cards)} />
+                <Fact icon={meta.icon} text={meta.name} />
               </View>
             </View>
             <View style={styles.meta}>
@@ -164,6 +168,14 @@ function CallList({
                 </View>
               ) : null}
             </View>
+            {peek?.id === call.id ? (
+              <View
+                testID={`call-peek-wrap-${call.id}`}
+                style={[styles.peek, peek.above ? styles.peekAbove : styles.peekBelow]}
+              >
+                <CallPeek call={call} />
+              </View>
+            ) : null}
           </AppLink>
         );
       })}
@@ -171,8 +183,24 @@ function CallList({
   );
 }
 
+function Fact({ icon, text }: { icon: IconName; text: string }) {
+  const { color } = useTheme();
+  return (
+    <View style={styles.fact}>
+      <Icon name={icon} size={14} color={color.textMuted} />
+      <Text variant="label" tone="muted" numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { paddingTop: space.xl, gap: space.md },
+  list: { overflow: "visible" },
+  peek: { position: "absolute", end: 12, zIndex: 20, elevation: 10 },
+  peekBelow: { top: "100%", marginTop: 6 },
+  peekAbove: { bottom: "100%", marginBottom: 6 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -190,6 +218,7 @@ const styles = StyleSheet.create({
   },
   main: { flex: 1, minWidth: 0, gap: 4 },
   facts: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
+  fact: { flexDirection: "row", alignItems: "center", gap: 4 },
   meta: { alignItems: "flex-end", gap: space.xs },
   chance: { flexDirection: "row", alignItems: "center", gap: space.xs },
   track: { width: 64, height: 6, borderRadius: 3, overflow: "hidden" },

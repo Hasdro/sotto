@@ -68,7 +68,7 @@ export default function PlaybookScreen() {
   return (
     <Screen scroll maxWidth={layout.readableMaxWidth + 160} testID="playbook" style={styles.page}>
       <PageHeader
-        icon="📘"
+        icon="playbook"
         title={t("playbook.title")}
         subtitle={t("playbook.subtitle")}
         actions={

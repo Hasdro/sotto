@@ -5,6 +5,8 @@
 import {
   Badge,
   Button,
+  Icon,
+  type IconName,
   Mascot,
   radius,
   SegmentedControl,
@@ -18,9 +20,11 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
 import { computerAudioAvailable } from "../features/call/mic";
+import { Health } from "../features/settings/Health";
 import { Knowledge } from "../features/settings/Knowledge";
 import { APP_VERSION, cloudOrigin } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
+import { shortcutKeys } from "../lib/platform";
 import { type Prefs, setPrefs, usePrefs } from "../lib/prefs";
 import { useCloud } from "../lib/useCloud";
 
@@ -60,9 +64,9 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.page}
       testID="settings"
     >
-      <PageHeader icon="⚙️" title={t("settings.title")} subtitle={t("settings.subtitle")} />
+      <PageHeader icon="settings" title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
-      <Group icon="🎨" title={t("settings.appearance")}>
+      <Group icon="palette" title={t("settings.appearance")}>
         <Text variant="label" tone="muted">
           {t("settings.theme")}
         </Text>
@@ -91,7 +95,7 @@ export default function SettingsScreen() {
         />
       </Group>
 
-      <Group icon="📞" title={t("settings.calls")}>
+      <Group icon="call" title={t("settings.calls")}>
         <ToggleRow
           label={t("settings.autoPickup")}
           description={t("settings.autoPickup.body")}
@@ -102,7 +106,7 @@ export default function SettingsScreen() {
         {computerAudioAvailable() ? (
           <ToggleRow
             label={t("settings.mini")}
-            description={t("settings.mini.body")}
+            description={t("settings.mini.body", shortcutKeys())}
             value={p.miniWindow}
             onValueChange={toggle("miniWindow")}
             testID="settings-mini"
@@ -123,7 +127,7 @@ export default function SettingsScreen() {
         />
       </Group>
 
-      <Group icon="🎙️" title={t("settings.microphone")}>
+      <Group icon="mic" title={t("settings.microphone")}>
         <Text variant="label" tone="muted">
           {t("settings.microphone.body")}
         </Text>
@@ -156,7 +160,7 @@ export default function SettingsScreen() {
         })}
       </Group>
 
-      <Group icon="❓" title={t("settings.help")}>
+      <Group icon="playbook" title={t("settings.help")}>
         <Row label={t("settings.tutorial")} body={t("settings.tutorial.body")}>
           <Button
             variant="secondary"
@@ -181,12 +185,12 @@ export default function SettingsScreen() {
       </Group>
 
       {admin ? (
-        <Group icon="🧠" title={t("settings.knowledge")}>
+        <Group icon="spark" title={t("settings.knowledge")}>
           <Knowledge />
         </Group>
       ) : null}
 
-      <Group icon="🔌" title={t("settings.integrations")} testID="settings-integrations">
+      <Group icon="key" title={t("settings.integrations")} testID="settings-integrations">
         <Row label="Gallabox (WhatsApp)" body={t("settings.integrations.gallabox")}>
           <Badge label={t("settings.soon")} tone="question" />
         </Row>
@@ -195,7 +199,13 @@ export default function SettingsScreen() {
         </Row>
       </Group>
 
-      <Group icon="ℹ️" title={t("settings.about")}>
+      {admin ? (
+        <Group icon="shield" title={t("settings.health")} testID="settings-health">
+          <Health />
+        </Group>
+      ) : null}
+
+      <Group icon="info" title={t("settings.about")}>
         <View style={styles.about}>
           <Mascot state="idle" size={44} />
           <View style={styles.flex}>
@@ -223,7 +233,7 @@ function Group({
   testID,
 }: {
   title: string;
-  icon?: string;
+  icon?: IconName;
   children: ReactNode;
   testID?: string;
 }) {
@@ -233,9 +243,12 @@ function Group({
       testID={testID}
       style={[styles.group, { backgroundColor: color.surface, borderColor: color.border }]}
     >
-      <Text variant="heading" weight="semibold">
-        {icon ? `${icon}  ${title}` : title}
-      </Text>
+      <View style={styles.groupTitle}>
+        {icon ? <Icon name={icon} size={20} color={color.textMuted} /> : null}
+        <Text variant="heading" weight="semibold">
+          {title}
+        </Text>
+      </View>
       {children}
     </View>
   );
@@ -257,6 +270,7 @@ function Row({ label, body, children }: { label: string; body: string; children:
 
 const styles = StyleSheet.create({
   page: { padding: space.xl, gap: space.lg, maxWidth: 760, width: "100%", alignSelf: "center" },
+  groupTitle: { flexDirection: "row", alignItems: "center", gap: space.sm },
   group: {
     padding: space.lg,
     gap: space.md,

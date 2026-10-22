@@ -2,7 +2,7 @@
  * ⌘K / Ctrl+K quick search (owner, 22 Oct: in the spirit of the Claude desktop app): type to jump
  * to any section, a common action or a recent call; Enter opens the first match. Web and desktop.
  */
-import { radius, space, Text, TextField, useTheme } from "@sotto/ui";
+import { Icon, type IconName, radius, space, Text, TextField, useTheme } from "@sotto/ui";
 import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
@@ -11,7 +11,7 @@ import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { setPrefs } from "../lib/prefs";
 
-export type Command = { id: string; icon: string; label: string; href: Href; run?: () => void };
+export type Command = { id: string; icon: IconName; label: string; href: Href; run?: () => void };
 
 /** Commands whose label contains every word typed, in any order. Pure; exported for tests. */
 export function filterCommands(all: readonly Command[], query: string): Command[] {
@@ -22,7 +22,7 @@ export function filterCommands(all: readonly Command[], query: string): Command[
 export function CommandPalette({
   sections,
 }: {
-  sections: readonly { href: Href; icon: string; label: StringKey }[];
+  sections: readonly { href: Href; icon: IconName; label: StringKey }[];
 }) {
   const { t } = useI18n();
   const { color } = useTheme();
@@ -47,29 +47,33 @@ export function CommandPalette({
   const all = useMemo<Command[]>(() => {
     if (!open) return [];
     return [
-      ...sections.map((s) => ({
-        id: `go-${String(s.href)}`,
-        icon: s.icon,
-        label: t(s.label),
-        href: s.href,
-      })),
-      { id: "act-call", icon: "🎧", label: t("palette.listen"), href: "/call" },
-      { id: "act-knowledge", icon: "🧠", label: t("palette.knowledge"), href: "/settings" },
+      ...sections.map(
+        (s): Command => ({
+          id: `go-${String(s.href)}`,
+          icon: s.icon,
+          label: t(s.label),
+          href: s.href,
+        }),
+      ),
+      { id: "act-call", icon: "headphones", label: t("palette.listen"), href: "/call" },
+      { id: "act-knowledge", icon: "spark", label: t("palette.knowledge"), href: "/settings" },
       {
         id: "act-tutorial",
-        icon: "🎓",
+        icon: "playbook",
         label: t("palette.tutorial"),
         href: "/home",
         run: () => setPrefs({ tutorialDone: false }),
       },
       ...deviceCalls()
         .slice(0, 8)
-        .map((c) => ({
-          id: `call-${c.id}`,
-          icon: "🕘",
-          label: c.title,
-          href: `/history/${c.id}` as Href,
-        })),
+        .map(
+          (c): Command => ({
+            id: `call-${c.id}`,
+            icon: "history",
+            label: c.title,
+            href: `/history/${c.id}` as Href,
+          }),
+        ),
     ];
   }, [open, sections, t]);
   const shown = filterCommands(all, query).slice(0, 12);
@@ -95,7 +99,7 @@ export function CommandPalette({
         <TextField
           autoFocus
           accessibilityLabel={t("palette.search")}
-          placeholder={`🔎 ${t("palette.search")}`}
+          placeholder={t("palette.search")}
           value={query}
           onChangeText={setQuery}
           onSubmitEditing={() => go(shown[0])}
@@ -115,7 +119,7 @@ export function CommandPalette({
                   : null,
               ]}
             >
-              <Text>{c.icon}</Text>
+              <Icon name={c.icon} size={18} color={color.textMuted} />
               <Text numberOfLines={1} style={styles.grow}>
                 {c.label}
               </Text>

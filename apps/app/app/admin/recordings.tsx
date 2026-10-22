@@ -1,6 +1,16 @@
 /** Admin → Recordings (owner, 22 Oct): the team's uploaded calls of the last 30 days, newest
  * first, each with its agent, source, date, length and chance to close; press one to listen. */
-import { Button, EmptyState, Panel, Stack, space, Text, useTheme } from "@sotto/ui";
+import {
+  Button,
+  EmptyState,
+  Icon,
+  type IconName,
+  Panel,
+  Stack,
+  space,
+  Text,
+  useTheme,
+} from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
@@ -45,14 +55,22 @@ export default function RecordingsScreen() {
               ]}
             >
               <View style={styles.line}>
-                <Text variant="heading">{meta.icon}</Text>
+                <Icon name={meta.icon} size={22} color={color.textMuted} />
                 <View style={styles.grow}>
                   <Text weight="semibold" numberOfLines={1}>
                     {r.name || r.email}
                   </Text>
-                  <Text variant="label" tone="muted">
-                    {`📅 ${formatDate(iso, locale)}  🕒 ${formatTime(iso, locale)}  ⏳ ${Math.max(1, Math.round(r.duration_s / 60))} min${r.review ? `  🎯 ${r.review.success}%` : ""}`}
-                  </Text>
+                  <View style={styles.facts}>
+                    <Fact icon="calendar" text={formatDate(iso, locale)} />
+                    <Fact icon="clock" text={formatTime(iso, locale)} />
+                    <Fact
+                      icon="timer"
+                      text={t("history.minutes", {
+                        count: Math.max(1, Math.round(r.duration_s / 60)),
+                      })}
+                    />
+                    {r.review ? <Fact icon="target" text={`${r.review.success}%`} /> : null}
+                  </View>
                 </View>
                 <Button
                   variant={open === callId ? "secondary" : "primary"}
@@ -70,8 +88,22 @@ export default function RecordingsScreen() {
   );
 }
 
+function Fact({ icon, text }: { icon: IconName; text: string }) {
+  const { color } = useTheme();
+  return (
+    <View style={styles.fact}>
+      <Icon name={icon} size={14} color={color.textMuted} />
+      <Text variant="label" tone="muted">
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   row: { paddingVertical: space.md, gap: space.sm },
   line: { flexDirection: "row", alignItems: "center", gap: space.md },
   grow: { flex: 1, minWidth: 0 },
+  facts: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
+  fact: { flexDirection: "row", alignItems: "center", gap: 4 },
 });

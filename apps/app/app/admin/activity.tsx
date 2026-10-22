@@ -1,5 +1,5 @@
 /** Admin → Activity (owner, 22 Oct; R3 audit): who changed what in the company, newest first. */
-import { EmptyState, Panel, Stack, space, Text, useTheme } from "@sotto/ui";
+import { EmptyState, Icon, type IconName, Panel, Stack, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { cloudApi } from "../../lib/cloud";
@@ -15,15 +15,15 @@ type Item = {
   actor_name: string | null;
 };
 
-const ICON: [RegExp, string][] = [
-  [/^key/, "🔑"],
-  [/^playbook/, "📘"],
-  [/^settings/, "⚙️"],
-  [/^route/, "🧭"],
-  [/^user|^team|^member/, "👥"],
-  [/^device/, "💻"],
-  [/^escalation/, "📥"],
-  [/^company/, "🏢"],
+const ICON: [RegExp, IconName][] = [
+  [/^key/, "key"],
+  [/^playbook/, "playbook"],
+  [/^settings/, "settings"],
+  [/^route/, "globe"],
+  [/^user|^team|^member/, "users"],
+  [/^device/, "screen"],
+  [/^escalation/, "inbox"],
+  [/^company/, "home"],
 ];
 
 export default function ActivityScreen() {
@@ -48,17 +48,25 @@ export default function ActivityScreen() {
             key={it.id}
             style={[styles.row, i > 0 ? { borderTopColor: color.border, borderTopWidth: 1 } : null]}
           >
-            <Text variant="heading">{ICON.find(([re]) => re.test(it.action))?.[1] ?? "📝"}</Text>
+            <Icon
+              name={ICON.find(([re]) => re.test(it.action))?.[1] ?? "list"}
+              size={22}
+              color={color.textMuted}
+            />
             <View style={styles.grow}>
               <Text weight="medium" numberOfLines={2}>
                 {`${it.action} · ${it.detail}`}
               </Text>
-              <Text variant="label" tone="muted">
-                {`👤 ${it.actor_name || it.actor || t("admin.activity.system")}  ·  🕒 ${formatDateTime(
-                  new Date(it.at).toISOString(),
-                  locale,
-                )}`}
-              </Text>
+              <View style={styles.facts}>
+                <Icon name="account" size={13} color={color.textMuted} />
+                <Text variant="label" tone="muted">
+                  {it.actor_name || it.actor || t("admin.activity.system")}
+                </Text>
+                <Icon name="clock" size={13} color={color.textMuted} />
+                <Text variant="label" tone="muted">
+                  {formatDateTime(new Date(it.at).toISOString(), locale)}
+                </Text>
+              </View>
             </View>
           </View>
         ))}
@@ -70,4 +78,5 @@ export default function ActivityScreen() {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: space.sm },
   grow: { flex: 1, minWidth: 0 },
+  facts: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
 });

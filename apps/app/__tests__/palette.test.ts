@@ -1,6 +1,6 @@
 import { type Command, filterCommands } from "../components/CommandPalette";
 
-const c = (id: string, label: string): Command => ({ id, icon: "•", label, href: "/home" });
+const c = (id: string, label: string): Command => ({ id, icon: "history", label, href: "/home" });
 
 describe("quick search", () => {
   it("matches every typed word in any order, ignoring case", () => {

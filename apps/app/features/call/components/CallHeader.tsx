@@ -1,4 +1,4 @@
-import { Badge, Button, space, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, Icon, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { SourceChip } from "../../../components/SourceChip";
@@ -72,14 +72,19 @@ function CallClock({ startedAt, endedAt }: { startedAt: number; endedAt: number 
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [endedAt]);
+  const { color } = useTheme();
   return (
-    <Text variant="label" weight="medium" tone="muted" accessibilityLabel={undefined}>
-      {`⏱️ ${clock((endedAt ?? now) - startedAt)}`}
-    </Text>
+    <View style={styles.clock}>
+      <Icon name="timer" size={14} color={color.textMuted} />
+      <Text variant="label" weight="medium" tone="muted">
+        {clock((endedAt ?? now) - startedAt)}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  clock: { flexDirection: "row", alignItems: "center", gap: 4 },
   bar: {
     flexDirection: "row",
     alignItems: "center",

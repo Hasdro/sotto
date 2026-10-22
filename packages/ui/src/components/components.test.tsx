@@ -5,6 +5,7 @@ import { minTouchTarget, themes } from "../tokens.ts";
 import { Badge } from "./Badge.tsx";
 import { Button } from "./Button.tsx";
 import { EmptyState } from "./EmptyState.tsx";
+import { ICON_NAMES, Icon } from "./Icon.tsx";
 import { Panel, Screen, Stack } from "./layout.tsx";
 import { SegmentedControl } from "./SegmentedControl.tsx";
 import { Table } from "./Table.tsx";
@@ -198,5 +199,33 @@ describe("small primitives", () => {
     );
     expect(screen.getByTestId("s")).toHaveStyle({ backgroundColor: themes.dark.color.background });
     expect(screen.getByTestId("p")).toHaveStyle({ backgroundColor: themes.dark.color.surface });
+  });
+});
+
+describe("Icon", () => {
+  it("has a drawing for every name in the set", async () => {
+    await render(
+      <UIProvider>
+        {ICON_NAMES.map((name) => (
+          <Icon key={name} name={name} label={name} />
+        ))}
+      </UIProvider>,
+    );
+    expect(ICON_NAMES.length).toBeGreaterThanOrEqual(30);
+    for (const name of ICON_NAMES) expect(screen.getByLabelText(name)).toBeOnTheScreen();
+  });
+
+  it("is hidden from assistive tech beside a label and named when alone", async () => {
+    await render(
+      <UIProvider>
+        <Icon name="call" />
+        <Icon name="mail" label="Email" />
+      </UIProvider>,
+    );
+    expect(screen.queryByTestId("icon-call", { includeHiddenElements: true })).toHaveProp(
+      "importantForAccessibility",
+      "no-hide-descendants",
+    );
+    expect(screen.getByLabelText("Email")).toBeOnTheScreen();
   });
 });

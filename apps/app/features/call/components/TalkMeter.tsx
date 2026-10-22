@@ -2,7 +2,7 @@
  * Talk-time meter (owner, 22 Oct): who has done the talking so far, by words spoken. A warning
  * when the agent talks much more than the customer (good calls let the customer talk).
  */
-import { radius, space, Text, useTheme } from "@sotto/ui";
+import { Icon, radius, space, Text, useTheme } from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
 import { useI18n } from "../../../lib/locale";
 import type { TranscriptEntry } from "../session";
@@ -39,12 +39,18 @@ export function TalkMeter({ lines }: { lines: readonly TranscriptEntry[] }) {
         <View style={{ flex: 1, backgroundColor: speaker.agent.label }} />
       </View>
       <View style={styles.legend}>
-        <Text variant="label" color={speaker.customer.label}>
-          {`🗣️ ${t("call.speaker.customer")} ${share.customer}%`}
-        </Text>
-        <Text variant="label" color={speaker.agent.label}>
-          {`🎧 ${t("call.speaker.agent")} ${share.agent}%`}
-        </Text>
+        <View style={styles.legendItem}>
+          <Icon name="mic" size={13} color={speaker.customer.label} />
+          <Text variant="label" color={speaker.customer.label}>
+            {`${t("call.speaker.customer")} ${share.customer}%`}
+          </Text>
+        </View>
+        <View style={styles.legendItem}>
+          <Icon name="headphones" size={13} color={speaker.agent.label} />
+          <Text variant="label" color={speaker.agent.label}>
+            {`${t("call.speaker.agent")} ${share.agent}%`}
+          </Text>
+        </View>
       </View>
       {tooMuch ? (
         <Text variant="label" tone="notice" testID="talk-too-much">
@@ -58,5 +64,6 @@ export function TalkMeter({ lines }: { lines: readonly TranscriptEntry[] }) {
 const styles = StyleSheet.create({
   wrap: { gap: space.xs, marginBottom: space.sm },
   bar: { flexDirection: "row", height: 8, borderRadius: radius.pill, overflow: "hidden" },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legend: { flexDirection: "row", justifyContent: "space-between" },
 });

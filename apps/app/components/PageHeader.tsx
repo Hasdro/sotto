@@ -1,4 +1,4 @@
-import { space, Text } from "@sotto/ui";
+import { Icon, type IconName, space, Text, useTheme } from "@sotto/ui";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
@@ -10,20 +10,17 @@ export function PageHeader({
   icon,
 }: {
   title: string;
-  /** A picture before the title (owner, 22 Oct). */
-  icon?: string;
+  /** Sotto's own icon before the title (owner, 22 Oct). */
+  icon?: IconName;
   subtitle?: string;
   actions?: ReactNode;
 }) {
+  const { color } = useTheme();
   return (
     <View style={styles.wrap}>
       <View style={styles.text}>
         <View style={styles.titleRow}>
-          {icon ? (
-            <Text variant="title" accessibilityElementsHidden importantForAccessibility="no">
-              {icon}
-            </Text>
-          ) : null}
+          {icon ? <Icon name={icon} size={26} color={color.textMuted} /> : null}
           <Text variant="title" weight="semibold" accessibilityRole="header">
             {title}
           </Text>

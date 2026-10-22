@@ -4,7 +4,7 @@
  * Sotto, and the draft is made on this device with the company's own AI.
  */
 import { buildRuntime, draftFollowUp } from "@sotto/engine";
-import { Button, radius, space, Text, TextField, useTheme } from "@sotto/ui";
+import { Button, Icon, radius, space, Text, TextField, useTheme } from "@sotto/ui";
 import { useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { deviceCall } from "../../lib/deviceHistory";
@@ -49,9 +49,11 @@ export function FollowUp({ callId }: { callId: string | null }) {
       testID="followup"
     >
       <View style={styles.row}>
-        <Text weight="semibold" style={styles.grow}>
-          {`✉️ ${t("followup.title")}`}
-        </Text>
+        <View style={styles.titleRow}>
+          <Icon name="mail" size={17} color={color.textMuted} />
+          <Text weight="semibold">{t("followup.title")}</Text>
+        </View>
+        <View style={styles.grow} />
         <Button
           variant={state === "ready" ? "secondary" : "primary"}
           label={t(
@@ -104,6 +106,7 @@ export function FollowUp({ callId }: { callId: string | null }) {
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
   box: {
     padding: space.lg,
     gap: space.md,
