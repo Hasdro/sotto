@@ -129,6 +129,10 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
   const cloud = useCloud();
   const signedIn = cloud.status === "signed_in";
   const persona = signedIn ? { name: cloud.me.user.name } : personaFor(role);
+  const roleLine =
+    signedIn && cloud.me.company
+      ? `${t(`role.${role}`)} · ${cloud.me.company.name}`
+      : t(`role.${role}`);
   const [profile, setProfile] = useState(false);
   return (
     <>
@@ -175,7 +179,7 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
                 style={styles.grow}
                 numberOfLines={1}
               >
-                {t(item.label)}
+                {item.href === "/inbox" && openCount > 0 ? `${t(item.label)} ` : t(item.label)}
               </Text>
               {item.href === "/inbox" && openCount > 0 ? <Count n={openCount} /> : null}
             </AppLink>
@@ -190,7 +194,9 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
       )}
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t("profile.open")}
+        // The button's name is the person's own visible name (WCAG label in name); the hint
+        // says what pressing it does.
+        accessibilityHint={t("profile.open")}
         disabled={!signedIn}
         onPress={() => setProfile(true)}
         testID="profile-open"
@@ -206,9 +212,7 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
             {persona.name}
           </Text>
           <Text variant="label" tone="muted" numberOfLines={1}>
-            {signedIn && cloud.me.company
-              ? `${t(`role.${role}`)} · ${cloud.me.company.name}`
-              : t(`role.${role}`)}
+            {roleLine}
           </Text>
         </View>
       </Pressable>

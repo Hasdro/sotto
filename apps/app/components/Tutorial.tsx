@@ -122,6 +122,7 @@ export function TutorialDialog({
             {step.demo === "colors" ? <Colors /> : null}
           </Animated.View>
           <View
+            role="group"
             style={styles.dots}
             accessibilityLabel={t("tutorial.step", { n: i + 1, total: steps.length })}
           >
@@ -141,6 +142,7 @@ export function TutorialDialog({
           <Pressable
             accessibilityRole="checkbox"
             accessibilityState={{ checked: never }}
+            aria-checked={never}
             onPress={() => setNever(!never)}
             style={styles.check}
             testID="tutorial-never"

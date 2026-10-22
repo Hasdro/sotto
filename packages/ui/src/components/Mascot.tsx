@@ -244,7 +244,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={label ?? `Sotto: ${state}`}
+      accessibilityLabel={label || `Sotto: ${state}`}
       ref={face}
       style={[styles.frame, { width: s * 1.7, height: s * 1.5 }]}
       testID={`mascot-${state}`}
