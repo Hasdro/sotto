@@ -26,6 +26,7 @@ import {
   saveDeviceCall,
   setDeviceReview,
 } from "../../lib/deviceHistory";
+import { attachedBriefText } from "../crm/attached";
 import { stateOf } from "../flags/catalog";
 import type { Bridge, BridgeHandlers } from "./bridge";
 
@@ -156,6 +157,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
         body: { question: e.question, transcript_excerpt: e.transcriptExcerpt, call_id: e.callId },
       }).catch((err) => console.warn("[engine] escalation not sent", err)),
     onEnded: ended,
+    crmBrief: attachedBriefText, // R10: the record the agent attached in the context rail
   });
   if (blocked) {
     emit({

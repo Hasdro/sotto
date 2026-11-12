@@ -28,6 +28,7 @@ import { CallNotes } from "../features/call/components/CallNotes";
 import { CardStack } from "../features/call/components/CardStack";
 import { Composer, type MicControl } from "../features/call/components/Composer";
 import { ConfirmEnd } from "../features/call/components/ConfirmEnd";
+import { CrmRail } from "../features/call/components/CrmRail";
 import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
@@ -36,6 +37,7 @@ import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
+import { mockLookup } from "../features/crm/mock";
 import { useEscalations } from "../features/escalations/store";
 import { CallReviewPanel } from "../features/review/CallReviewPanel";
 import { FollowUp } from "../features/review/FollowUp";
@@ -164,6 +166,8 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
     />
   );
   const showRail = railOpen && state.phase !== "idle";
+  // R10: Zoho lookup in the rail; the dev mock call uses canned records (never in a release).
+  const crm = <CrmRail callId={state.callId} lookup={mock ? mockLookup : undefined} />;
   const controls = practice ? (
     live ? (
       <Composer
@@ -268,6 +272,9 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
               { backgroundColor: color.surface, borderStartColor: color.border },
             ]}
           >
+            <ScrollView style={styles.sideCrm} contentContainerStyle={styles.sideCrmBody}>
+              {crm}
+            </ScrollView>
             <View style={styles.sideScroll}>
               <TranscriptPane lines={state.transcript} scroll />
             </View>
@@ -295,6 +302,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
               role="complementary"
               style={styles.railNarrow}
             >
+              {crm}
               <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
               {!practice ? <CallNotes /> : null}
             </View>
@@ -323,6 +331,8 @@ const styles = StyleSheet.create({
   railNarrow: { gap: space.xl },
   side: { width: layout.transcriptWidth, borderStartWidth: 1 },
   sideScroll: { flex: 1, padding: space.lg },
+  sideCrm: { flexGrow: 0, maxHeight: "55%" },
+  sideCrmBody: { padding: space.lg, paddingBottom: 0 },
   sideNotes: { paddingHorizontal: space.lg, paddingBottom: space.md },
   ended: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
   toast: { position: "absolute", bottom: space.md, start: space.md, end: space.md },
