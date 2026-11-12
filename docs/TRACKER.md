@@ -29,7 +29,7 @@ Tags:
 - **Phase:** 9 — AGN Sales Shield product round (`docs/phases/phase-9-product-round.md`), version ladder 0.3.0 → 0.8.0 (D-030). Entry: desktop 0.2.0 published (owner's Windows test still open).
 - **Version now:** building **0.3.0 Foundation** (T-045…T-052). Three child workstreams, prompts in `docs/prompts/`: `brand-ui` (T-048…T-051), `flags-auth` (T-045…T-047), `landing-infra` (T-066/T-067 plan, starts after 0.3.0 assets). Master (this branch) reviews and merges: flags-auth → brand-ui → landing.
 - **Research done (12 Nov):** Zoho v8 in `docs/REFERENCES.md` § Zoho CRM (Meetings = api_name `Events`, per-user OAuth, upsert for idempotency); Gallabox in § Gallabox.
-- **Next action (master):** wait for the child sessions' evidence; review each with `code-reviewer` (+ `security-auditor` for flags-auth), merge, then T-052 release gate (replay, a11y, screenshots, tag v0.3.0, both installers).
+- **Next action (master):** 0.3.0 code merged and green (see T-052). Blocked on the owner's logo pick (a/b/c, `docs/design/logo/index.html`), then: export icons, build Mac + Windows 0.3.0, tag v0.3.0, and — with the owner's OK — deploy the server first (`deploy/push.sh`, back up the DB with the sqlite3 backup API), then publish installers. Then start 0.4.0 (Zoho; needs the OAuth client).
 - **Branch:** master `claude/friendly-gates-fbhqdv` (draft PR https://github.com/Hasdro/sotto/pull/1); children `phase9/brand-ui`, `phase9/flags-auth`, `phase9/landing-infra` in their own worktrees.
 - **Environment:** local Mac. ssh to us3 works (root@104.168.48.116). Electron dev runs need `env -u ELECTRON_RUN_AS_NODE` and an explicit `--user-data-dir`.
 - **Owner (batched, Phase 9 § Owner actions):** logo choice (after T-048), DNS for salesshield.agncompu.com, Zoho OAuth client, Zoho Forms embed, Hostinger SMTP, Gallabox key/channel/templates.
@@ -173,7 +173,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [x] T-049 Rebrand to AGN Sales Shield: strings (en + ar), installers, tray, window, About, favicon (D-026) — `brand-ui` · grep check `packages/ui/src/brand/userFacingName.test.ts` passes; userData pinned to `sotto-desktop`
 - [x] T-050 Global reskin + live-call polish + information-density rules — `brand-ui` · before/after `docs/evidence/phase9/brand-ui/`; a11y 33 + live-call 8 checks, 0 serious; replay p95 978 ms
 - [x] T-051 Mascot five result moods from the review score — `brand-ui` · `moodFor` boundary tests; `mascot-moods-80-65-50-30-none.png`
-- [ ] T-052 0.3.0 release gate: merge, replay, a11y, screenshots, both installers, tag v0.3.0 — master
+- [~] T-052 0.3.0 release gate: merge, replay, a11y, screenshots, both installers, tag v0.3.0 — master. Merged flags-auth + brand-ui + landing + review fixes (728b97c); gate green (typecheck, lint, boundaries, pnpm test app 284 / worker 442, desktop); replay ALL p50 576 / p95 978 ms, R4 0 agent cards, R2 drill p95 1270 ms; a11y 36 checks 0 serious. Waiting: owner logo pick → installers, tag, server deploy (owner OK).
 0.4.0 Pre-call
 - [ ] T-053 Zoho per-user OAuth via the server, data centres, encrypted tokens, permission matrix (D-031) `owner` (OAuth client)
 - [ ] T-054 Meeting/contact matching: ≤ 3 candidates with evidence, manual search, skip
