@@ -20,6 +20,7 @@ const {
 } = require("electron");
 const { callApp } = require("./call-apps.cjs");
 const { parseMicUsage } = require("./win-mic.cjs");
+const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -242,6 +243,10 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle("app", serve);
+  // Sign-in tokens in OS secure storage (D-029); safeStorage is ready once the app is.
+  const { safeStorage } = require("electron");
+  const secure = createSecureStore({ safeStorage, dir: app.getPath("userData") });
+  registerSecureStore({ ipcMain, store: secure, origin: ORIGIN });
   // Only audio capture, only for the app's own pages: the microphone, or the computer's sound.
   const own = (url) => typeof url === "string" && url.startsWith(`${ORIGIN}/`);
   const allowed = (wc, permission) =>

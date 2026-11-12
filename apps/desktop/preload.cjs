@@ -1,6 +1,6 @@
 // The one bridge from the desktop app to its pages: which call app, if any, is using a
-// microphone (auto pick-up), the global shortcuts, and the mini window's card. Nothing else of
-// Electron or Node reaches the page.
+// microphone (auto pick-up), the global shortcuts, the mini window's card, and the sign-in
+// tokens' secure storage (D-029). Nothing else of Electron or Node reaches the page.
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("sottoDesktop", {
@@ -24,4 +24,10 @@ contextBridge.exposeInMainWorld("sottoDesktop", {
   },
   showMini: (show) => ipcRenderer.send("mini-show", Boolean(show)),
   miniAction: (action) => ipcRenderer.send("mini-action", String(action)),
+  // Keychain / Credential Manager through safeStorage (secure-store.cjs); app keys only.
+  secureStore: {
+    get: (key) => ipcRenderer.invoke("secure-store:get", String(key)),
+    set: (key, value) => ipcRenderer.invoke("secure-store:set", String(key), String(value)),
+    delete: (key) => ipcRenderer.invoke("secure-store:delete", String(key)),
+  },
 });
