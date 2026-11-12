@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGN Sales Shield</title>
+<meta name="description" content="AGN Sales Shield shows a sales agent one suggestion card from the customer's side of a live call.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 4 6v9c0 7 5 12.5 12 15 7-2.5 12-8 12-15V6z' fill='%230b5f63'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M16 2 4 6v9c0 7 5 12.5 12 15 7-2.5 12-8 12-15V6z" fill="currentColor"/></svg><span data-i18n="brand">AGN Sales Shield</span></a>
+  <div class="tools">
+    <button class="ghost" id="theme-btn" type="button" data-i18n="ui.theme">Theme</button>
+    <button class="ghost" id="lang-btn" type="button" lang="ar">العربية</button>
+  </div>
+</div></header>
+<main>
+<div class="wrap">
+  <div class="hero">
+    <h1 data-i18n="hero.h1">The right words, while the customer is still talking.</h1>
+    <p class="lead" data-i18n="hero.lead">AGN Sales Shield listens only to your customer's side of a live call and shows you one short suggestion card, fast enough to use in the next sentence.</p>
+    <div class="cta"><div id="hero-dl" aria-live="polite"></div></div>
+  </div>
+
+  <section aria-labelledby="what">
+    <h2 id="what" data-i18n="what.h2">What it does</h2>
+    <p data-i18n="what.p">During a sales call, one card at a time appears on your screen.</p>
+  </section>
+
+  <section aria-labelledby="features">
+    <h2 id="features" data-i18n="f.h2">Built for the call</h2>
+    <div class="grid">
+      <div class="card"><h3 data-i18n="f1.h">Customer audio only</h3><p data-i18n="f1.p"></p></div>
+      <div class="card"><h3 data-i18n="f2.h">One card, no clutter</h3><p data-i18n="f2.p"></p></div>
+      <div class="card"><h3 data-i18n="f3.h">Your playbook first</h3><p data-i18n="f3.p"></p></div>
+      <div class="card"><h3 data-i18n="f4.h">Your company, your settings</h3><p data-i18n="f4.p"></p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="shots">
+    <h2 id="shots" data-i18n="shots.h2">See it</h2>
+    <!-- PLACEHOLDER slots: replace with the 0.3.0 screenshots (docs/evidence/phase9/) -->
+    <div class="grid">
+      <figure><div class="shot" role="img" aria-label="Screenshot placeholder"><figcaption data-i18n="shots.cap1">Screenshot slot</figcaption></div></figure>
+      <figure><div class="shot" role="img" aria-label="Screenshot placeholder"><figcaption data-i18n="shots.cap2">Screenshot slot</figcaption></div></figure>
+      <figure><div class="shot" role="img" aria-label="Screenshot placeholder"><figcaption data-i18n="shots.cap3">Screenshot slot</figcaption></div></figure>
+    </div>
+  </section>
+
+  <section id="download" aria-labelledby="dl">
+    <h2 id="dl" data-i18n="dl.h2">Download</h2>
+    <div class="dl-grid" id="all-dl"></div>
+  </section>
+
+  <section aria-labelledby="req">
+    <h2 id="req" data-i18n="req.h2">System requirements</h2>
+    <ul><li data-i18n="req.mac"></li><li data-i18n="req.win"></li><li data-i18n="req.net"></li></ul>
+  </section>
+
+  <section aria-labelledby="inst">
+    <h2 id="inst" data-i18n="inst.h2">First open</h2>
+    <div class="grid">
+      <div class="card"><h3 data-i18n="inst.mac.h">macOS</h3><ol class="steps"><li data-i18n="inst.mac.1"></li><li data-i18n="inst.mac.2"></li><li data-i18n="inst.mac.3"></li></ol></div>
+      <div class="card"><h3 data-i18n="inst.win.h">Windows</h3><ol class="steps"><li data-i18n="inst.win.1"></li><li data-i18n="inst.win.2"></li><li data-i18n="inst.win.3"></li></ol></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="form">
+    <h2 id="form" data-i18n="form.h2">Talk to us</h2>
+    <!-- PLACEHOLDER: paste the owner's Zoho Forms embed code inside #zoho-form. Never invent a form. -->
+    <div class="slot" id="zoho-form">
+      <p><strong data-i18n="form.slot">PLACEHOLDER</strong></p>
+    </div>
+    <p class="meta"><span data-i18n="form.privacy"></span> <a href="privacy.html" data-i18n="nav.privacy">Privacy</a></p>
+  </section>
+</div>
+</main>
+<footer><div class="wrap">
+  <span>© AGN IT Services</span>
+  <nav><a href="privacy.html" data-i18n="nav.privacy">Privacy</a><a href="terms.html" data-i18n="nav.terms">Terms</a></nav>
+</div></footer>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

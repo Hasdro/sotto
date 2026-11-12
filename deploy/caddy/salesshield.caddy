@@ -1,0 +1,25 @@
+# Site block for the public landing page (T-067). Installed by deploy/publish-landing.sh as
+# /etc/caddy/sites/salesshield.caddy and pulled in by `import /etc/caddy/sites/*.caddy` in the main Caddyfile.
+# Needs DNS: A record salesshield.agncompu.com -> 104.168.48.116 (see deploy/README.md).
+salesshield.agncompu.com {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	# Installers: no directory listing (no `browse`); the file names come from downloads.json.
+	handle /downloads/* {
+		root * /var/www
+		header Content-Disposition attachment
+		file_server
+	}
+	# The landing page. The manifest must never be cached stale, or buttons point at old files.
+	handle {
+		root * /var/www/salesshield
+		@manifest path /downloads.json
+		header @manifest Cache-Control "no-cache"
+		file_server
+	}
+}

@@ -192,8 +192,8 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [ ] T-064 Gallabox adapter: template list + allow-list, `window_status()`, last 100 messages (D-033) `owner` (key)
 - [ ] T-065 Approved WhatsApp sends from the post-call panel
 0.8.0 Release
-- [ ] T-066 Landing page, Privacy, Terms, Zoho Forms slot `owner` (form, legal review)
-- [ ] T-067 DNS + Caddy for salesshield.agncompu.com; clean `/downloads/` `owner` (DNS)
+- [~] T-066 Landing page, Privacy, Terms, Zoho Forms slot `owner` (form, legal review) — `apps/landing/` built with placeholders (logo, screenshots, Zoho form, DRAFT legal); axe 0 serious, evidence `docs/evidence/phase9/landing/`; waits for logo/tokens, 0.3.0 screenshots, owner form + legal text
+- [~] T-067 DNS + Caddy for salesshield.agncompu.com; clean `/downloads/` `owner` (DNS) — `deploy/caddy/salesshield.caddy`, `deploy/publish-landing.sh` (dry run), `scripts/release.sh` (dry run) written; nothing run on us3; `caddy validate` not run (Caddy not installed locally)
 - [ ] T-068 GitHub Releases v0.3.0…v0.8.0 with installers
 - [ ] T-069 Local Mac cleanup + clean install keeping data `local-only`
 
@@ -697,3 +697,9 @@ followed by the lines **Done**, **Evidence**, **Tried and rejected**, **Next** a
 - **Evidence:** `scripts/doctor.sh` output is in the planning artifact report.
 - **Next:** P0.1 interview (run the master prompt in `docs/MASTER-PROMPT.md`).
 - **Notes:** Docker Desktop needs the owner's password to install, and Xcode needs the App Store (see *Waiting on owner*).
+
+### 2026-11-12 · local · Claude Sonnet 5.5 · phase9/landing-infra
+- **Done:** T-066/T-067 groundwork: `apps/landing/` (EN/AR, light/dark, placeholders), `scripts/downloads-manifest.mjs` (+ node test), `scripts/landing-check.mjs`, Caddy block, `deploy/publish-landing.sh`, `deploy/downloads-cleanup.txt`, `scripts/release.sh`, README section.
+- **Evidence:** `docs/evidence/phase9/landing/` (6 screenshots, `axe.txt` 0 serious on 18 page runs, publish and release dry runs); manifest from the 0.2.0 release folder.
+- **Next:** master swaps in logo/tokens and 0.3.0 screenshots, owner supplies Zoho form and legal text and DNS, then `publish-landing.sh --apply`.
+- **Notes:** `install.sh` overwrites the Caddyfile and needs the `import /etc/caddy/sites/*.caddy` line (outside my files). Legal drafts are English only.

@@ -1,0 +1,30 @@
+==> Landing files:
+app.js
+downloads.json
+i18n.js
+index.html
+privacy.html
+styles.css
+terms.html
+==> Installers:
+   Sotto-0.2.0-arm64.dmg
+   Sotto-0.2.0.dmg
+   Sotto Setup 0.2.0.exe
+==> Cleanup patterns (current installers are kept):
+   *.apk
+   *.AppImage
+   *.zip
+   *.blockmap
+   Sotto-*.dmg
+   Sotto*Setup*.exe
+[dry-run] ssh root@104.168.48.116 mkdir -p /var/www/salesshield /var/www/downloads /etc/caddy/sites
+[dry-run] rsync apps/landing/ -> root@104.168.48.116:/var/www/salesshield/ (and the installers, and the Caddy site block)
+[dry-run] ssh root@104.168.48.116 find /var/www/downloads -maxdepth 1 -type f -name '*.apk'  ! -name Sotto-0.2.0-arm64.dmg ! -name Sotto-0.2.0.dmg ! -name Sotto\ Setup\ 0.2.0.exe -print
+[dry-run] ssh root@104.168.48.116 find /var/www/downloads -maxdepth 1 -type f -name '*.AppImage'  ! -name Sotto-0.2.0-arm64.dmg ! -name Sotto-0.2.0.dmg ! -name Sotto\ Setup\ 0.2.0.exe -print
+[dry-run] ssh root@104.168.48.116 find /var/www/downloads -maxdepth 1 -type f -name '*.zip'  ! -name Sotto-0.2.0-arm64.dmg ! -name Sotto-0.2.0.dmg ! -name Sotto\ Setup\ 0.2.0.exe -print
+[dry-run] ssh root@104.168.48.116 find /var/www/downloads -maxdepth 1 -type f -name '*.blockmap'  ! -name Sotto-0.2.0-arm64.dmg ! -name Sotto-0.2.0.dmg ! -name Sotto\ Setup\ 0.2.0.exe -print
+[dry-run] ssh root@104.168.48.116 find /var/www/downloads -maxdepth 1 -type f -name 'Sotto-*.dmg'  ! -name Sotto-0.2.0-arm64.dmg ! -name Sotto-0.2.0.dmg ! -name Sotto\ Setup\ 0.2.0.exe -print
+[dry-run] ssh root@104.168.48.116 find /var/www/downloads -maxdepth 1 -type f -name 'Sotto*Setup*.exe'  ! -name Sotto-0.2.0-arm64.dmg ! -name Sotto-0.2.0.dmg ! -name Sotto\ Setup\ 0.2.0.exe -print
+[dry-run] ssh root@104.168.48.116 grep -q 'import /etc/caddy/sites' /etc/caddy/Caddyfile || echo 'import /etc/caddy/sites/*.caddy' >> /etc/caddy/Caddyfile
+[dry-run] ssh root@104.168.48.116 caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+==> Dry run only. Add --apply to publish.
