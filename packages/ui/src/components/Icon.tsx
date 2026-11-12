@@ -22,6 +22,7 @@ export type IconName =
   | "admin"
   | "settings"
   | "account"
+  | "search"
   | "calendar"
   | "cards"
   | "screen"
@@ -34,13 +35,18 @@ export type IconName =
   | "spark"
   | "note"
   | "check"
+  | "plus"
   | "close"
   | "copy"
+  | "chevron"
+  | "arrowLeft"
   | "headphones"
   | "laptop"
   | "list"
+  | "cpu"
   | "video"
   | "message"
+  | "lock"
   | "info"
   | "palette"
   | "target"
@@ -157,6 +163,10 @@ const ICONS: Record<IconName, Prim[]> = {
     { k: "ring", cx: 12, cy: 8.2, r: 3.4 },
     { k: "arc", cx: 12, cy: 20, r: 8, side: "top" },
   ],
+  search: [
+    { k: "ring", cx: 10.5, cy: 10.5, r: 6.2 },
+    { k: "line", x1: 15, y1: 15, x2: 20, y2: 20 },
+  ],
   calendar: [
     { k: "rect", x: 3, y: 5, w: 18, h: 16, r: 2.5 },
     { k: "line", x1: 3, y1: 9.5, x2: 21, y2: 9.5 },
@@ -226,6 +236,10 @@ const ICONS: Record<IconName, Prim[]> = {
     { k: "line", x1: 4.5, y1: 12.5, x2: 9.5, y2: 17.5 },
     { k: "line", x1: 9.5, y1: 17.5, x2: 19.5, y2: 6.5 },
   ],
+  plus: [
+    { k: "line", x1: 12, y1: 5, x2: 12, y2: 19 },
+    { k: "line", x1: 5, y1: 12, x2: 19, y2: 12 },
+  ],
   close: [
     { k: "line", x1: 6, y1: 6, x2: 18, y2: 18 },
     { k: "line", x1: 18, y1: 6, x2: 6, y2: 18 },
@@ -233,6 +247,15 @@ const ICONS: Record<IconName, Prim[]> = {
   copy: [
     { k: "rect", x: 8.5, y: 8.5, w: 12, h: 12, r: 2 },
     { k: "rect", x: 3.5, y: 3.5, w: 12, h: 12, r: 2 },
+  ],
+  chevron: [
+    { k: "line", x1: 7, y1: 10, x2: 12, y2: 15 },
+    { k: "line", x1: 12, y1: 15, x2: 17, y2: 10 },
+  ],
+  arrowLeft: [
+    { k: "line", x1: 19, y1: 12, x2: 5, y2: 12 },
+    { k: "line", x1: 5, y1: 12, x2: 11, y2: 6 },
+    { k: "line", x1: 5, y1: 12, x2: 11, y2: 18 },
   ],
   headphones: [
     { k: "arc", cx: 12, cy: 12, r: 7.5, side: "top" },
@@ -253,6 +276,18 @@ const ICONS: Record<IconName, Prim[]> = {
     { k: "dot", cx: 6, cy: 17, r: 1.4 },
     { k: "line", x1: 10, y1: 17, x2: 20, y2: 17 },
   ],
+  cpu: [
+    { k: "rect", x: 6.5, y: 6.5, w: 11, h: 11, r: 2 },
+    { k: "rect", x: 9.5, y: 9.5, w: 5, h: 5, r: 1 },
+    ...([9, 12, 15] as const).flatMap((x): Prim[] => [
+      { k: "line", x1: x, y1: 3, x2: x, y2: 6.5 },
+      { k: "line", x1: x, y1: 17.5, x2: x, y2: 21 },
+    ]),
+    ...([9, 12, 15] as const).flatMap((y): Prim[] => [
+      { k: "line", x1: 3, y1: y, x2: 6.5, y2: y },
+      { k: "line", x1: 17.5, y1: y, x2: 21, y2: y },
+    ]),
+  ],
   video: [
     { k: "rect", x: 3, y: 7, w: 12, h: 10, r: 2 },
     { k: "line", x1: 15, y1: 12, x2: 21, y2: 8.5 },
@@ -266,6 +301,11 @@ const ICONS: Record<IconName, Prim[]> = {
     { k: "dot", cx: 8.5, cy: 11.5, r: 1.3 },
     { k: "dot", cx: 12, cy: 11.5, r: 1.3 },
     { k: "dot", cx: 15.5, cy: 11.5, r: 1.3 },
+  ],
+  lock: [
+    { k: "rect", x: 4.5, y: 10.5, w: 15, h: 10, r: 2 },
+    { k: "arc", cx: 12, cy: 10.5, r: 4.5, side: "top" },
+    { k: "dot", cx: 12, cy: 15, r: 1.4 },
   ],
   info: [
     { k: "ring", cx: 12, cy: 12, r: 8.5 },

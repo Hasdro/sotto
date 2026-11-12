@@ -37,7 +37,7 @@ function files(path: string): string[] {
 }
 
 /** Drops comments so only code and strings remain (a `//` inside a URL is kept). */
-export function stripComments(source: string): string {
+function stripComments(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")
@@ -45,7 +45,7 @@ export function stripComments(source: string): string {
     .join("\n");
 }
 
-export function userFacingHits(path: string, source: string): string[] {
+function userFacingHits(path: string, source: string): string[] {
   const ext = extname(path);
   const text = CODE.has(ext) ? stripComments(source) : source;
   return text

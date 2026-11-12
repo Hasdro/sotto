@@ -204,6 +204,7 @@ const en = {
   "admin.later.models.body":
     "Pick each job's vendor and model, and measure its speed, in Admin → Keys & providers.",
   "admin.settings": "Settings",
+  "admin.features": "Features",
   "admin.team.subtitle": "People in your company and their roles. Admins invite people here.",
   "admin.team.noServer.title": "Team needs a Sales Shield account",
   "admin.team.noServer.body":
@@ -883,6 +884,7 @@ const ar: Record<StringKey, string> = {
   "admin.later.models.body":
     "اختر مزوّد كل مهمة ونموذجها، وقِس سرعته، من الإدارة ← المفاتيح والمزوّدون.",
   "admin.settings": "الإعدادات",
+  "admin.features": "الميزات",
   "admin.team.subtitle": "الأشخاص في شركتك وأدوارهم. يدعو المسؤولون الأشخاص من هنا.",
   "admin.team.noServer.title": "الفريق يحتاج إلى حساب Sales Shield",
   "admin.team.noServer.body": "سجّل الدخول إلى حساب شركتك في Sales Shield لرؤية فريقك ودعوة أعضائه.",
@@ -950,7 +952,8 @@ const ar: Record<StringKey, string> = {
     "تصل المكالمات المباشرة في تطبيق الهاتف مع ميزة الاتصال الهاتفي (المرحلة 4). استخدم تطبيق Mac أو Windows اليوم.",
   "call.phone.download": "احصل على تطبيق Mac أو Windows",
   "call.listen.title": "ابدأ الاستماع إلى مكالمة",
-  "call.listen.body": "ابدأ مكالمتك كالمعتاد ثم اضغط ابدأ. يستمع Sales Shield إلى العميل ويقترح ما تقوله.",
+  "call.listen.body":
+    "ابدأ مكالمتك كالمعتاد ثم اضغط ابدأ. يستمع Sales Shield إلى العميل ويقترح ما تقوله.",
   "call.listen.where": "أين المكالمة؟",
   "call.listen.computer": "Zoom أو Google Meet أو Yeastar أو 3CX على هذا الكمبيوتر",
   "call.listen.computerHint":
@@ -1026,7 +1029,8 @@ const ar: Record<StringKey, string> = {
   "admin.keys.custom.remove": "احذف الخادم",
   "admin.keys.custom.badge": "خادمك",
   "admin.keys.offline.title": "لوحة المفاتيح تحتاج خادم Sales Shield",
-  "admin.keys.offline.body": "شغّله على هذا الجهاز بالأمر pnpm demo، أو افتح نسخة Sales Shield المستضافة.",
+  "admin.keys.offline.body":
+    "شغّله على هذا الجهاز بالأمر pnpm demo، أو افتح نسخة Sales Shield المستضافة.",
   "gate.title": "سجّل الدخول إلى AGN Sales Shield",
   "gate.body": "أدخل رمز الدخول لهذا الخادم.",
   "gate.code": "رمز الدخول",

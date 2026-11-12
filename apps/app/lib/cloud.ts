@@ -307,7 +307,11 @@ async function request<T>(
       body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
     });
   } catch {
-    throw new CloudError(0, "offline", "Cannot reach the Sales Shield server. Check your connection.");
+    throw new CloudError(
+      0,
+      "offline",
+      "Cannot reach the Sales Shield server. Check your connection.",
+    );
   }
   const data = (await response.json().catch(() => ({}))) as {
     error?: string;
@@ -321,7 +325,11 @@ async function request<T>(
       if (renewed === "ok") return request<T>(path, init, fetcher, true);
       if (renewed === "signed_out") void signedOut();
       else
-        throw new CloudError(0, "offline", "Cannot reach the Sales Shield server. Check your connection.");
+        throw new CloudError(
+          0,
+          "offline",
+          "Cannot reach the Sales Shield server. Check your connection.",
+        );
     }
     throw new CloudError(
       response.status,
