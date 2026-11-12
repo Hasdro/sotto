@@ -153,6 +153,10 @@ describe("in-call screen", () => {
   it("a dropped connection mid-call ends it with a 'Connection lost' line", async () => {
     const st = stateFrom([hello, { type: "call_started", call_id: CALL }, hello]);
     await render(<CallView session={session(st)} mock={false} />);
+    // The transcript lives in the context rail, collapsed by default (T-050 density rule).
+    expect(screen.queryByText("Connection lost")).toBeNull();
+    await fireEvent.press(screen.getByTestId("rail-toggle"));
+    expect(screen.getByTestId("rail-toggle")).toBeExpanded();
     expect(screen.getByText("Connection lost")).toBeOnTheScreen();
     expect(screen.getByText("Call ended")).toBeOnTheScreen();
   });
@@ -243,9 +247,16 @@ describe("in-call screen", () => {
     ]);
     await render(<CallView session={session(st)} mock={false} />);
     expect(screen.getByTestId("hero-card")).toHaveStyle({
-      backgroundColor: themes.light.card.objection.fill,
+      backgroundColor: themes.light.card.objection.heroFill,
     });
     expect(screen.getByText("Earlier in this call")).toBeOnTheScreen();
+    expect(screen.getByText("First")).toHaveProp("numberOfLines", 2);
+    // One older card opens at a time; pressing it again closes it.
+    const older = screen.getByRole("button", { name: /Answer\. First|First/ });
+    await fireEvent.press(older);
+    expect(screen.getByText("First")).not.toHaveProp("numberOfLines");
+    expect(older).toBeExpanded();
+    await fireEvent.press(older);
     expect(screen.getByText("First")).toHaveProp("numberOfLines", 2);
   });
 
@@ -334,7 +345,7 @@ describe("in-call screen", () => {
     const st = stateFrom([hello, { type: "call_started", call_id: CALL }, card({ done: true })]);
     await render(<CallView session={session(st)} mock={false} />);
     expect(screen.getByTestId("hero-card")).toHaveStyle({
-      backgroundColor: themes[scheme].card.answer.fill,
+      backgroundColor: themes[scheme].card.answer.heroFill,
     });
   });
 });

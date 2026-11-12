@@ -4,6 +4,7 @@
  * agent with their trend and the skill to coach. Agents see only their own calls.
  * One hue (the brand) for every bar, with labels, so nothing depends on telling colours apart.
  */
+
 import {
   EmptyState,
   Icon,
@@ -19,6 +20,7 @@ import {
 } from "@sotto/ui";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import { FeatureGate } from "../components/FeatureGate";
 import { PageHeader } from "../components/PageHeader";
 import { buildReport, type Report, type UsageRow } from "../features/reports/data";
 import { topObjections } from "../features/reports/objections";
@@ -30,7 +32,12 @@ import { useCloud } from "../lib/useCloud";
 
 type Span = "7" | "30" | "90";
 
-export default function ReportsScreen() {
+export default () => (
+  <FeatureGate feature="reports">
+    <ReportsScreen />
+  </FeatureGate>
+);
+function ReportsScreen() {
   const { t } = useI18n();
   const cloud = useCloud();
   const role = cloud.status === "signed_in" ? cloud.me.user.role : "agent";

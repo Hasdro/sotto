@@ -1,5 +1,6 @@
 /** Admin → Recordings (owner, 22 Oct): the team's uploaded calls of the last 30 days, newest
  * first, each with its agent, source, date, length and chance to close; press one to listen. */
+
 import {
   Button,
   EmptyState,
@@ -13,6 +14,7 @@ import {
 } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { FeatureGate } from "../../components/FeatureGate";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
 import type { UsageRow } from "../../features/reports/data";
 import { isCallSource, SOURCE_META } from "../../lib/callSource";
@@ -22,13 +24,18 @@ import { useI18n } from "../../lib/locale";
 
 type Row = UsageRow & { recording_bytes?: number | null };
 
-export default function RecordingsScreen() {
+export default () => (
+  <FeatureGate feature="recordings">
+    <RecordingsScreen />
+  </FeatureGate>
+);
+function RecordingsScreen() {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   useEffect(() => {
-    cloudApi<{ calls: Row[] }>("/api/v1/company/usage?days=30")
+    cloudApi<{ calls: Row[] }>("/api/v1/company/usage?days=30&for=recordings")
       .then((r) => setRows(r.calls.filter((c) => (c.recording_bytes ?? 0) > 0)))
       .catch(() => setRows([]));
   }, []);

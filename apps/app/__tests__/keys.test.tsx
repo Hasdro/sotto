@@ -266,7 +266,9 @@ describe("Keys & providers (P6.7)", () => {
       throw new Error("offline");
     }) as unknown as typeof fetch;
     await wrap(<KeysScreen />);
-    expect(await screen.findByText("The keys panel needs the Sotto server")).toBeOnTheScreen();
+    expect(
+      await screen.findByText("The keys panel needs the Sales Shield server"),
+    ).toBeOnTheScreen();
   });
 });
 

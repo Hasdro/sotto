@@ -160,22 +160,23 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
               // Link asChild needs a plain style object (a style function is dropped on web).
               style={StyleSheet.flatten([
                 styles.sideItem,
-                active ? { backgroundColor: color.surfaceSunken } : null,
+                active ? { backgroundColor: color.surface } : null,
               ])}
             >
               <View
                 style={[
                   styles.sideBar,
-                  { backgroundColor: active ? color.primary : "transparent" },
+                  // The active page carries the one warm signal accent (T-050).
+                  { backgroundColor: active ? color.signal : "transparent" },
                 ]}
               />
               <View style={styles.navIcon}>
-                <Icon name={item.icon} size={22} color={active ? color.primary : color.textMuted} />
+                <Icon name={item.icon} size={20} color={active ? color.primary : color.textMuted} />
               </View>
               <Text
                 variant="body"
                 weight={active ? "semibold" : "regular"}
-                tone={active ? "primary" : "default"}
+                tone={active ? "primary" : "muted"}
                 style={styles.grow}
                 numberOfLines={1}
               >
@@ -229,7 +230,8 @@ function Sidebar() {
       style={[
         styles.sidebar,
         {
-          backgroundColor: color.surface,
+          // The sidebar recedes into the page (T-050): same grey-blue, one hairline.
+          backgroundColor: color.background,
           borderEndColor: color.border,
           paddingTop: insets.top + space.xl,
         },
@@ -459,9 +461,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    minHeight: 48,
+    minHeight: minTouchTarget,
     paddingEnd: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     overflow: "hidden",
   },
   sideBar: { width: 3, alignSelf: "stretch", borderRadius: radius.pill },

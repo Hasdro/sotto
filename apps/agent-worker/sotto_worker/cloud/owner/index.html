@@ -26,6 +26,7 @@
     <nav class="tabs" aria-label="Sections">
       <button type="button" data-view="overview" aria-current="page">Overview</button>
       <button type="button" data-view="companies">Companies</button>
+      <button type="button" data-view="features">Features</button>
       <button type="button" data-view="audit">Audit log</button>
       <button type="button" data-view="account">Account</button>
     </nav>
@@ -56,6 +57,17 @@
       <div class="panel flush"><div class="table-wrap"><table id="companies">
         <thead><tr><th>Company</th><th>Status</th><th>Seats</th><th>Minutes this month</th><th class="num">Calls 30d</th><th class="num">Speed p95</th><th>Last active</th></tr></thead>
         <tbody></tbody></table></div></div>
+    </section>
+
+    <section id="v-features" class="view" hidden>
+      <div class="panel">
+        <h2>Kill switch <small>turns a feature off for every company at once; apps follow within 10 minutes</small></h2>
+        <div id="kills" class="kills"></div>
+      </div>
+      <div class="panel flush">
+        <h2 class="pad">Entitlements <small>which companies may use each feature; new companies get every feature</small></h2>
+        <div class="table-wrap"><table id="matrix"><thead></thead><tbody></tbody></table></div>
+      </div>
     </section>
 
     <section id="v-audit" class="view" hidden>

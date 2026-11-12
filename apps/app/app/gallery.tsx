@@ -9,6 +9,7 @@ import {
   Button,
   EmptyState,
   Mascot,
+  moodFor,
   Panel,
   radius,
   SegmentedControl,
@@ -29,7 +30,7 @@ import {
 import { useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { cardStrings } from "../features/call/components/strings";
-import { directionOf, type Locale, t as translate } from "../lib/i18n";
+import { directionOf, formatNumber, type Locale, t as translate } from "../lib/i18n";
 import { personaFor } from "../lib/role";
 
 const TYPES: readonly CardType[] = ["answer", "question", "objection", "warning", "holding"];
@@ -75,6 +76,20 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
                 <Mascot key={m} state={m} size={48} />
               ),
             )}
+          </View>
+          {/* T-051: result moods at review scores 80, 65, 50, 30 and no result. */}
+          <View style={styles.mascots} testID="gallery-moods">
+            {([80, 65, 50, 30, null] as const).map((score) => {
+              const mood = moodFor(score);
+              return (
+                <View key={String(score)} style={styles.mood}>
+                  <Mascot mood={mood} size={48} label={t(`review.mood.${mood}`)} />
+                  <Text variant="label" tone="muted">
+                    {score === null ? "—" : formatNumber(score, locale)}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
           {TYPES.map((type) => (
             <SuggestionCard
@@ -176,6 +191,7 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
 
 const styles = StyleSheet.create({
   mascots: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  mood: { alignItems: "center", gap: 4 },
   page: { padding: space.lg },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: space.lg },
   variant: {

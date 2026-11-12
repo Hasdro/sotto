@@ -18,6 +18,7 @@ import {
 import { useRouter } from "expo-router";
 import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { FeatureGate } from "../components/FeatureGate";
 import { PageHeader } from "../components/PageHeader";
 import { computerAudioAvailable } from "../features/call/mic";
 import { Health } from "../features/settings/Health";
@@ -186,17 +187,21 @@ export default function SettingsScreen() {
 
       {admin ? (
         <Group icon="spark" title={t("settings.knowledge")}>
-          <Knowledge />
+          <FeatureGate feature="ai_knowledge">
+            <Knowledge />
+          </FeatureGate>
         </Group>
       ) : null}
 
       <Group icon="key" title={t("settings.integrations")} testID="settings-integrations">
-        <Row label="Gallabox (WhatsApp)" body={t("settings.integrations.gallabox")}>
-          <Badge label={t("settings.soon")} tone="question" />
-        </Row>
-        <Row label="Zoho CRM" body={t("settings.integrations.zoho")}>
-          <Badge label={t("settings.soon")} tone="question" />
-        </Row>
+        <FeatureGate feature="integrations">
+          <Row label="Gallabox (WhatsApp)" body={t("settings.integrations.gallabox")}>
+            <Badge label={t("settings.soon")} tone="question" />
+          </Row>
+          <Row label="Zoho CRM" body={t("settings.integrations.zoho")}>
+            <Badge label={t("settings.soon")} tone="question" />
+          </Row>
+        </FeatureGate>
       </Group>
 
       {admin ? (
@@ -209,7 +214,9 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Mascot state="idle" size={44} />
           <View style={styles.flex}>
-            <Text weight="semibold">Sotto {APP_VERSION}</Text>
+            <Text weight="semibold">
+              {t("app.name")} {APP_VERSION}
+            </Text>
             <Text variant="label" tone="muted">
               {t("settings.about.body")}
             </Text>

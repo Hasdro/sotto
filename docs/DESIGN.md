@@ -1,4 +1,6 @@
-# Sotto — Design
+# AGN Sales Shield — Design
+
+> Phase 9 (T-048…T-051, D-026): the product is now **AGN Sales Shield**; technical identifiers keep `sotto`. The "Prompter's box" direction below still holds; §2.1 records how it evolved for 0.3.0.
 
 The design rules for every screen. Tokens live in `packages/ui/src/tokens.ts`; this file
 defines every key used there. Components live in `packages/ui/src/components/`.
@@ -46,6 +48,17 @@ lands on the line first.
 - **Type:** Readex Pro, one family for Latin and Arabic (see §4).
 - **In-call at 390 px and 1280 px:** `docs/evidence/p3/call-*.png`.
 
+### 2.1 Phase 9 evolution (T-050, 12 Nov 2026)
+
+The owner found the 0.2.0 screens "too much like an AI-designed UI". The fix kept the world and removed the template tells:
+- **One loud thing, louder.** The hero card is now a solid, saturated fill per type (`heroFill` / `heroText` / `heroMuted`) with near-white text. Everything around it got quieter.
+- **One warm signal accent** (`signal`, `signalFill`, `onSignalFill`): the hero's voice bar, the live dot, the active-page tick in the navigation. Nowhere else.
+- **Quieter surfaces.** Background and sidebar share one grey-blue; panels are a slightly lighter `surface`; the active nav item is a lighter row with the warm tick, not a grey pill.
+- **Status is text, not pills.** "● Live 00:11 Fake AI" in the call header; badges stay for real labels only.
+- **Density rule on the live call:** the card, the call status, and one collapsed context-rail toggle (the panel glyph beside End call). The rail holds the transcript and notes today; prep, CRM and the objective go there in 0.4.0.
+- **No glow, no opacity dimming.** The card's pulsing shadow is gone (it broke the no-shadow rule and sat on the render path). Older cards step back by colour (the muted text token, AA) instead of 0.45 opacity, which failed contrast.
+- **Logo.** Three directions in `docs/design/logo/index.html`; direction (a), a handset bent into a shield, is wired as a placeholder (`Wordmark`, icons, tray, favicon) until the owner picks.
+
 ### Direction B — "Night console" (not built)
 
 A dark-first, high-density console: near-black panels, amber cards, condensed type (IBM Plex
@@ -92,7 +105,8 @@ light and dark define the same keys and that every pair below meets its contrast
 | `danger` / `onDanger` | End call, destructive actions | onDanger ≥ 4.5 on danger; danger ≥ 4.5 on background and surface |
 | `positive` / `negative` | good/bad values (benchmark p95 vs budget) | ≥ 4.5 on surface and background |
 | `inverseSurface` / `onInverseSurface` | toasts | ≥ 4.5 |
-| `noticeFill` / `noticeText` / `noticeBorder` | the R2 "Not in playbook" label, escalation lines, the mock-stream badge | text ≥ 4.5 on fill; border ≥ 3 on its fill and on every card fill |
+| `noticeFill` / `noticeText` / `noticeBorder` | the R2 "Not in playbook" label, escalation lines, the mock-stream badge | text ≥ 4.5 on fill; border ≥ 3 on its fill and on every card fill; fill or border ≥ 3 on every hero fill |
+| `signal` / `signalFill` / `onSignalFill` | the one warm accent (T-050): voice bar, live dot, active nav tick | `signal` ≥ 4.5 on background and surface; `onSignalFill` ≥ 4.5 on `signalFill` |
 
 ### 3.2 Card palettes (`themes.*.card.<type>`)
 
@@ -104,7 +118,8 @@ One palette per card type in the protocol (`answer`, `question`, `objection`, `w
 | `fill` | hero card background; badge fill of that tone | — |
 | `text` | the main sentence and the type name | ≥ 4.5 on fill |
 | `muted` | the source line and the delay footnote | ≥ 4.5 on fill |
-| `accent` | voice bar, icon disc, badge dot | ≥ 3 on background and surface; `fill` on `accent` ≥ 4.5 (icon glyph) |
+| `accent` | compact-card bar, icon disc, badge dot, holding outline | ≥ 3 on background and surface; `fill` on `accent` ≥ 4.5 (icon glyph) |
+| `heroFill` / `heroText` / `heroMuted` | the live hero card: solid fill, sentence, meta line and caret; the icon disc is `heroText` with the glyph in `heroFill` | text and muted ≥ 4.5 on heroFill; heroFill ≥ 3 on background (holding: accent ≥ 3 on its pale heroFill) |
 
 | Type | Meaning to the agent | Hue | Icon (glyph in a disc) | Label (en / ar) |
 |---|---|---|---|---|
@@ -199,7 +214,10 @@ The gallery at `/gallery` shows every component in light and dark, LTR and RTL.
   (the "Listening to the customer" placeholder holds it), so the first card does not push
   anything down.
 - **Previous cards collapse.** When a new card arrives, the old hero becomes a compact card:
-  surface fill, 4 px accent bar, type name, two lines. At most 4 earlier cards show.
+  surface fill, 4 px accent bar, type name, two lines. At most 4 earlier cards show. They step
+  back with the muted text colour until hovered or focused. Pressing one opens its whole
+  sentence; only one older card is open at a time (T-050).
+- **Voice bar.** 8 px in the warm `signal` colour on the start side of the hero (T-050).
 - **Holding line.** It has a dashed 2 px outline in its accent instead of the voice bar, so it
   reads as provisional. A real card in the same turn replaces it in place.
 - **R2 label.** The worker's `label` (already localised) always wins. If there is none and

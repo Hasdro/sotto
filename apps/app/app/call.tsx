@@ -21,6 +21,7 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { FeatureGate } from "../components/FeatureGate";
 import { useSharedCall } from "../features/call/CallSessionProvider";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CallNotes } from "../features/call/components/CallNotes";
@@ -95,6 +96,8 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   const notice = state.notice;
   const { dismissNotice } = session;
   const [confirming, setConfirming] = useState(false);
+  // Density rule (T-050): the live call shows the card, the status and one collapsed rail toggle.
+  const [railOpen, setRailOpen] = useState(false);
   const live = state.phase === "live";
   useEffect(() => {
     if (!live) setConfirming(false);
@@ -155,8 +158,25 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       mock={mock}
       onEnd={() => setConfirming(true)}
       wide={wide}
+      rail={
+        state.phase === "idle" ? null : { open: railOpen, onToggle: () => setRailOpen((o) => !o) }
+      }
     />
   );
+  const showRail = railOpen && state.phase !== "idle";
+  const controls = practice ? (
+    live ? (
+      <Composer
+        onSay={session.say}
+        disabled={false}
+        compact={!wide}
+        mic={mic}
+        partial={state.partial}
+      />
+    ) : null
+  ) : live ? (
+    listenBar
+  ) : null;
   const confirm = (
     <ConfirmEnd
       open={confirming}
@@ -198,9 +218,15 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
         </Panel>
       ) : null}
       {state.phase === "ended" && !practice ? (
-        <CallReviewPanel callId={state.callId ?? null} />
+        <FeatureGate feature="call_review">
+          <CallReviewPanel callId={state.callId ?? null} />
+        </FeatureGate>
       ) : null}
-      {state.phase === "ended" && !practice ? <FollowUp callId={state.callId ?? null} /> : null}
+      {state.phase === "ended" && !practice ? (
+        <FeatureGate feature="follow_up">
+          <FollowUp callId={state.callId ?? null} />
+        </FeatureGate>
+      ) : null}
       {state.phase !== "idle" ? (
         <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
       ) : null}
@@ -230,24 +256,28 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
           <ScrollView contentContainerStyle={styles.mainWide}>{main}</ScrollView>
           {toast}
           {confirm}
+          {controls}
         </View>
-        <View
-          style={[styles.side, { backgroundColor: color.surface, borderStartColor: color.border }]}
-        >
-          <View style={styles.sideScroll}>
-            <TranscriptPane lines={state.transcript} scroll />
-          </View>
-          {!practice && state.phase !== "idle" ? (
-            <View style={styles.sideNotes}>
-              <CallNotes />
+        {showRail ? (
+          <View
+            testID="call-rail"
+            accessibilityLabel={t("call.rail.title")}
+            role="complementary"
+            style={[
+              styles.side,
+              { backgroundColor: color.surface, borderStartColor: color.border },
+            ]}
+          >
+            <View style={styles.sideScroll}>
+              <TranscriptPane lines={state.transcript} scroll />
             </View>
-          ) : null}
-          {practice ? (
-            <Composer onSay={session.say} disabled={!live} mic={mic} partial={state.partial} />
-          ) : live ? (
-            listenBar
-          ) : null}
-        </View>
+            {!practice ? (
+              <View style={styles.sideNotes}>
+                <CallNotes />
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -258,18 +288,22 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       <View style={styles.grow}>
         <ScrollView contentContainerStyle={styles.mainNarrow}>
           {main}
-          {state.phase !== "idle" ? (
-            <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
+          {showRail ? (
+            <View
+              testID="call-rail"
+              accessibilityLabel={t("call.rail.title")}
+              role="complementary"
+              style={styles.railNarrow}
+            >
+              <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
+              {!practice ? <CallNotes /> : null}
+            </View>
           ) : null}
-          {!practice && state.phase !== "idle" ? <CallNotes /> : null}
         </ScrollView>
         {toast}
         {confirm}
       </View>
-      {live && practice ? (
-        <Composer onSay={session.say} disabled={false} compact mic={mic} partial={state.partial} />
-      ) : null}
-      {live && !practice ? listenBar : null}
+      {controls}
     </View>
   );
 }
@@ -286,6 +320,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   mainNarrow: { padding: space.lg, gap: space.xl },
+  railNarrow: { gap: space.xl },
   side: { width: layout.transcriptWidth, borderStartWidth: 1 },
   sideScroll: { flex: 1, padding: space.lg },
   sideNotes: { paddingHorizontal: space.lg, paddingBottom: space.md },

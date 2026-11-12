@@ -105,9 +105,13 @@ function show(view) {
     else b.removeAttribute("aria-current");
   }
   for (const s of document.querySelectorAll(".view")) s.hidden = s.id !== `v-${view}`;
-  ({ overview: loadOverview, companies: loadCompanies, audit: loadAudit, account: () => {} })[
-    view
-  ]();
+  ({
+    overview: loadOverview,
+    companies: loadCompanies,
+    features: loadFeatures,
+    audit: loadAudit,
+    account: () => {},
+  })[view]();
 }
 
 // --- overview ------------------------------------------------------------------------------
@@ -606,6 +610,117 @@ $("#newForm").addEventListener("submit", async (e) => {
     $("#nMsg").textContent = err.message;
   }
 });
+
+// --- features: entitlement matrix and kill switch (D-028) --------------------------------------
+const FEATURE_NAMES = {
+  call_review: "Call review",
+  follow_up: "Follow-up email",
+  recordings: "Recordings",
+  reports: "Reports",
+  ai_knowledge: "AI knowledge",
+  integrations: "Integrations",
+  zoho: "Zoho CRM",
+  gallabox: "Gallabox",
+  email_send: "Send email",
+  whatsapp: "WhatsApp",
+  prep: "Call prep",
+  card_ratings: "Card ratings",
+  learned_instructions: "Learned instructions",
+};
+const featureName = (id) => FEATURE_NAMES[id] || id;
+
+async function loadFeatures() {
+  renderFeatures(await api("/api/owner/features"));
+}
+function renderFeatures(data) {
+  $("#kills").replaceChildren(
+    ...data.features.map((f) => {
+      const id = `kill-${f.id}`;
+      return h(
+        "label",
+        { class: f.killed_at ? "kill on" : "kill", for: id },
+        h("input", {
+          id,
+          type: "checkbox",
+          checked: Boolean(f.killed_at),
+          onchange: (e) => setKill(f, e.target),
+        }),
+        h("span", {}, featureName(f.id)),
+        f.built ? null : h("small", { class: "kill-note" }, "later version"),
+        f.killed_at
+          ? h("small", { class: "kill-note bad" }, `off since ${fmtDate(f.killed_at)}`)
+          : null,
+      );
+    }),
+  );
+  $("#matrix thead").replaceChildren(
+    h(
+      "tr",
+      {},
+      h("th", { scope: "col" }, "Company"),
+      data.features.map((f) => h("th", { scope: "col", class: "center" }, featureName(f.id))),
+    ),
+  );
+  $("#matrix tbody").replaceChildren(
+    ...(data.companies.length
+      ? data.companies.map((c) =>
+          h(
+            "tr",
+            {},
+            h("th", { scope: "row" }, c.name),
+            data.features.map((f) =>
+              h(
+                "td",
+                { class: "center" },
+                h("input", {
+                  type: "checkbox",
+                  checked: c.entitled[f.id],
+                  "aria-label": `${featureName(f.id)} for ${c.name}`,
+                  onchange: (e) => setEntitled(c, f.id, e.target),
+                }),
+              ),
+            ),
+          ),
+        )
+      : [
+          h(
+            "tr",
+            {},
+            h("td", { colspan: data.features.length + 1, class: "empty" }, "No companies yet."),
+          ),
+        ]),
+  );
+}
+async function setKill(f, box) {
+  const killed = box.checked;
+  if (killed && !confirm(`Turn ${featureName(f.id)} off for every company?`)) {
+    box.checked = false;
+    return;
+  }
+  try {
+    renderFeatures(
+      await api(`/api/owner/features/${f.id}/kill`, { method: "PUT", body: { killed } }),
+    );
+    toast(killed ? `${featureName(f.id)} is off everywhere` : `${featureName(f.id)} is back on`);
+  } catch (err) {
+    box.checked = !killed;
+    toast(err.message);
+  }
+}
+async function setEntitled(c, feature, box) {
+  try {
+    renderFeatures(
+      await api(`/api/owner/companies/${c.id}/features`, {
+        method: "PATCH",
+        body: { [feature]: box.checked },
+      }),
+    );
+    toast(`${featureName(feature)} ${box.checked ? "included for" : "removed from"} ${c.name}`);
+  } catch (err) {
+    box.checked = !box.checked;
+    toast(err.message);
+  }
+}
 
 // --- audit and account ---------------------------------------------------------------------
 async function loadAudit() {

@@ -2,8 +2,8 @@
   "name": "sotto-desktop",
   "version": "0.2.0",
   "private": true,
-  "description": "Sotto for Windows, Mac and Linux: the web app in its own window, hearing the call through the microphone or the computer's sound",
-  "author": "Sotto",
+  "description": "AGN Sales Shield for Windows and Mac: the web app in its own window, hearing the call through the microphone or the computer's sound",
+  "author": "AGN IT Services",
   "main": "main.cjs",
   "scripts": {
     "web": "cd ../app && CI=1 EXPO_PUBLIC_SOTTO_SERVER=${SOTTO_SERVER:-https://104-168-48-116.sslip.io} npx expo export --platform web --output-dir ../desktop/web",
@@ -21,7 +21,7 @@
   },
   "build": {
     "appId": "app.sotto.desktop",
-    "productName": "Sotto",
+    "productName": "AGN Sales Shield",
     "directories": {
       "output": "release"
     },
@@ -30,11 +30,13 @@
       "preload.cjs",
       "call-apps.cjs",
       "win-mic.cjs",
-      "icon.png",
       "web/**/*",
-      "package.json"
+      "package.json",
+      "build-assets/trayTemplate.png",
+      "build-assets/trayTemplate@2x.png",
+      "build-assets/tray.ico"
     ],
-    "icon": "icon.png",
+    "icon": "build-assets/icon.png",
     "mac": {
       "category": "public.app-category.business",
       "target": [
@@ -48,8 +50,8 @@
       ],
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Sotto listens to the customer's side of a call to suggest what to say.",
-        "NSAudioCaptureUsageDescription": "Sotto listens to the other side of your Zoom, Google Meet or softphone call to suggest what to say."
+        "NSMicrophoneUsageDescription": "AGN Sales Shield listens to the customer's side of a call to suggest what to say.",
+        "NSAudioCaptureUsageDescription": "AGN Sales Shield listens to the other side of your Zoom, Google Meet or softphone call to suggest what to say."
       },
       "identity": null,
       "extraResources": [
@@ -57,7 +59,8 @@
           "from": "build/call-watch",
           "to": "call-watch"
         }
-      ]
+      ],
+      "icon": "build-assets/icon.icns"
     },
     "win": {
       "target": [
@@ -68,7 +71,8 @@
           ]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "build-assets/icon.ico"
     },
     "nsis": {
       "oneClick": true,

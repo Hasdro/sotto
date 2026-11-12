@@ -20,8 +20,28 @@ export type MascotState =
   | "reviewing"
   | "offline";
 
+/** How a finished call went (T-051), from the review's success score (0-100). */
+export type MascotMood = "excellent" | "good" | "mixed" | "needsWork" | "noResult";
+export type MascotSentiment = "positive" | "neutral" | "negative";
+
+/** Score bands: >= 75 excellent, 60-74 good, 40-59 mixed, < 40 needsWork, no score noResult. */
+export function moodFor(
+  score: number | null | undefined,
+  _sentiment?: MascotSentiment,
+): MascotMood {
+  if (score === null || score === undefined || Number.isNaN(score)) return "noResult";
+  if (score >= 75) return "excellent";
+  if (score >= 60) return "good";
+  if (score >= 40) return "mixed";
+  return "needsWork";
+}
+
 export type MascotProps = {
   state?: MascotState;
+  /** A call-result face; overrides the face of `state`. */
+  mood?: MascotMood;
+  /** Shades the mood face slightly (smaller smile when negative, softer brow when positive). */
+  sentiment?: MascotSentiment;
   /** Body width in px; everything scales from it. */
   size?: number;
   /** Read by screen readers, e.g. "Sotto is listening". */
@@ -59,7 +79,13 @@ function loop(value: Animated.Value, ms: number, delay = 0): Animated.CompositeA
   );
 }
 
-export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
+export function Mascot({
+  state = "idle",
+  mood,
+  sentiment = "neutral",
+  size = 64,
+  label,
+}: MascotProps) {
   const { color, card } = useTheme();
   const reduce = useReduceMotion();
   const blink = useRef(new Animated.Value(1)).current;
@@ -80,12 +106,19 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
     reviewing: card.signal.accent,
     offline: color.borderStrong,
   };
-  const body = tint[state];
+  const moodTint: Record<MascotMood, Hex> = {
+    excellent: color.positive,
+    good: color.primary,
+    mixed: card.objection.accent,
+    needsWork: card.warning.accent,
+    noResult: color.borderStrong,
+  };
+  const body = mood ? moodTint[mood] : tint[state];
 
   useEffect(() => {
     if (reduce) return;
     const anims: Animated.CompositeAnimation[] = [];
-    if (state !== "offline" && state !== "reviewing") {
+    if (mood !== "noResult" && state !== "offline" && state !== "reviewing") {
       anims.push(
         Animated.loop(
           Animated.sequence([
@@ -98,7 +131,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
     }
     if (state === "listening") anims.push(loop(pulse, 1400), loop(pulse2, 1400, 700));
     if (state === "thinking") anims.push(loop(pulse, 900));
-    if (state === "suggesting" || state === "reviewing" || state === "idle") {
+    if (!mood && (state === "suggesting" || state === "reviewing" || state === "idle")) {
       const ms = state === "suggesting" ? 520 : state === "reviewing" ? 900 : 1800;
       anims.push(
         Animated.loop(
@@ -147,7 +180,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
       bob.setValue(0);
       breath.setValue(0);
     };
-  }, [state, reduce, blink, pulse, pulse2, bob, breath]);
+  }, [state, mood, reduce, blink, pulse, pulse2, bob, breath]);
 
   // The eyes follow the pointer on the web and in the desktop app. Only a position is read;
   // nothing outside this app is inspected. On phones there is no pointer, so the face waits.
@@ -220,7 +253,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
   const breathe = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] });
   const eyeW = s * 0.15;
   const eyeH = s * 0.2;
-  const closed = state === "offline";
+  const closed = state === "offline" && !mood;
   const look = state === "thinking" ? -s * 0.04 : state === "reviewing" ? s * 0.03 : 0;
 
   const ring = (v: Animated.Value) => (
@@ -244,18 +277,18 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
     <View
       accessible
       accessibilityRole="image"
-      accessibilityLabel={label || `Sotto: ${state}`}
+      accessibilityLabel={label || (mood ? `Call result: ${mood}` : `Sales Shield: ${state}`)}
       ref={face}
       style={[styles.frame, { width: s * 1.7, height: s * 1.5 }]}
-      testID={`mascot-${state}`}
+      testID={mood ? `mascot-mood-${mood}` : `mascot-${state}`}
     >
-      {state === "listening" ? (
+      {!mood && state === "listening" ? (
         <>
           {ring(pulse)}
           {ring(pulse2)}
         </>
       ) : null}
-      {state === "thinking" ? (
+      {!mood && state === "thinking" ? (
         <View style={[styles.dots, { top: 0, gap: s * 0.06 }]}>
           {[0, 1, 2].map((i) => (
             <Animated.View
@@ -330,7 +363,7 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
                 key={i}
                 style={{
                   width: eyeW,
-                  height: closed ? s * 0.035 : eyeH,
+                  height: closed ? s * 0.035 : mood === "noResult" ? eyeH * 0.4 : eyeH,
                   borderRadius: eyeW,
                   backgroundColor: color.onPrimary,
                   transform: [{ scaleY: closed ? 1 : blink }],
@@ -338,10 +371,14 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
               />
             ))}
           </Animated.View>
-          <Smile size={s} wide={state === "suggesting"} flat={closed} ink={color.onPrimary} />
+          {mood ? (
+            <MoodMouth mood={mood} sentiment={sentiment} size={s} ink={color.onPrimary} />
+          ) : (
+            <Smile size={s} wide={state === "suggesting"} flat={closed} ink={color.onPrimary} />
+          )}
         </View>
       </Animated.View>
-      {state === "suggesting" ? (
+      {mood === "excellent" || (!mood && state === "suggesting") ? (
         <View
           style={[
             styles.spark,
@@ -356,6 +393,111 @@ export function Mascot({ state = "idle", size = 64, label }: MascotProps) {
         />
       ) : null}
     </View>
+  );
+}
+
+/** The mouth (and a soft brow for "mixed") of a call-result face. Sentiment only shades it. */
+function MoodMouth({
+  mood,
+  sentiment,
+  size: s,
+  ink,
+}: {
+  mood: MascotMood;
+  sentiment: MascotSentiment;
+  size: number;
+  ink: Hex;
+}) {
+  const thick = Math.max(2, s * 0.045);
+  if (mood === "excellent") {
+    const w = s * (sentiment === "negative" ? 0.26 : 0.32);
+    return (
+      <View
+        style={{
+          marginTop: s * 0.11,
+          width: w,
+          height: w / 2,
+          borderBottomLeftRadius: w / 2,
+          borderBottomRightRadius: w / 2,
+          backgroundColor: ink,
+        }}
+      />
+    );
+  }
+  if (mood === "good") {
+    const w = s * (sentiment === "negative" ? 0.16 : sentiment === "positive" ? 0.26 : 0.22);
+    return (
+      <View
+        style={{
+          marginTop: s * 0.11,
+          width: w,
+          height: w / 2,
+          borderBottomLeftRadius: w / 2,
+          borderBottomRightRadius: w / 2,
+          borderWidth: thick,
+          borderTopWidth: 0,
+          borderColor: ink,
+        }}
+      />
+    );
+  }
+  if (mood === "mixed") {
+    return (
+      <View style={{ alignItems: "center" }}>
+        <View
+          testID="mascot-brow"
+          style={{
+            width: s * 0.3,
+            height: thick,
+            borderRadius: s,
+            backgroundColor: ink,
+            opacity: sentiment === "positive" ? 0.35 : 0.7,
+            transform: [{ rotate: sentiment === "negative" ? "-4deg" : "0deg" }],
+            marginTop: s * 0.02,
+          }}
+        />
+        <View
+          style={{
+            marginTop: s * 0.08,
+            width: s * 0.2,
+            height: thick,
+            borderRadius: s,
+            backgroundColor: ink,
+            opacity: 0.9,
+          }}
+        />
+      </View>
+    );
+  }
+  if (mood === "needsWork") {
+    const w = s * (sentiment === "positive" ? 0.12 : 0.16);
+    return (
+      <View
+        style={{
+          marginTop: s * 0.12,
+          width: w,
+          height: w / 2,
+          borderTopLeftRadius: w / 2,
+          borderTopRightRadius: w / 2,
+          borderWidth: thick,
+          borderBottomWidth: 0,
+          borderColor: ink,
+          opacity: 0.9,
+        }}
+      />
+    );
+  }
+  return (
+    <View
+      style={{
+        marginTop: s * 0.1,
+        width: s * 0.14,
+        height: s * 0.035,
+        borderRadius: s,
+        backgroundColor: ink,
+        opacity: 0.6,
+      }}
+    />
   );
 }
 

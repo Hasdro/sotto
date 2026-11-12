@@ -1,7 +1,7 @@
 /** Older cards are dimmed and light up on hover (owner, 22 Oct). */
-import { UIProvider } from "@sotto/ui";
+import { themes, UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { CardStack, DIM_OPACITY } from "../features/call/components/CardStack";
+import { CardStack } from "../features/call/components/CardStack";
 import type { CardView } from "../features/cards/reducer";
 import { LocaleProvider } from "../lib/locale";
 
@@ -31,12 +31,13 @@ describe("earlier cards", () => {
         </UIProvider>
       </LocaleProvider>,
     );
-    expect(screen.getByTestId("earlier-a-fade")).toHaveStyle({ opacity: DIM_OPACITY });
+    // Dimmed by colour (muted text token, AA contrast), not by opacity (T-050).
+    expect(screen.getByText("Older.")).toHaveStyle({ color: themes.light.color.textMuted });
     await fireEvent(screen.getByTestId("earlier-a"), "hoverIn");
     await act(async () => {
       jest.advanceTimersByTime(300);
     });
-    expect(screen.getByTestId("earlier-a-fade")).toHaveStyle({ opacity: 1 });
+    expect(screen.getByText("Older.")).toHaveStyle({ color: themes.light.color.text });
     jest.useRealTimers();
   });
 });

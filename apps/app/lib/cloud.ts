@@ -7,7 +7,8 @@
  * D-020 local server. This module is the single session store; React reads it via useCloud().
  */
 import type { CallBundle } from "@sotto/engine";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
+import type { FeatureMap } from "../features/flags/catalog";
 import { clearDeviceCalls, setDeviceOwner } from "./deviceHistory";
 import { clearRecordings } from "./recordings";
 
@@ -31,16 +32,25 @@ export type CloudCompany = {
   can_call: boolean;
   blocked_reason: string | null;
 };
-export type Me = { user: CloudUser; company: CloudCompany | null };
+export type Me = { user: CloudUser; company: CloudCompany | null; features?: FeatureMap };
 
 export type CloudState =
   | { status: "off" }
   | { status: "loading" }
   | { status: "signed_out"; error?: string }
-  | { status: "signed_in"; me: Me; bundle: CallBundle | null };
+  /** `offline`: started without the server; the last profile is shown and retried (D-029). */
+  | { status: "signed_in"; me: Me; bundle: CallBundle | null; offline?: boolean };
 
-const TOKEN_KEY = "sotto.token";
+/** The 0.2.0 single 30-day token (localStorage on desktop and web); migrated once (D-029). */
+const LEGACY_TOKEN_KEY = "sotto.token";
+/** The refresh-token session (D-029): OS secure storage on desktop and phones. */
+const SESSION_KEY = "sotto.session";
 const DEVICE_KEY = "sotto.device";
+/** Renew this long before the access token ends, so a request never meets an expired one. */
+const RENEW_EARLY_MS = 60_000;
+/** The feature map is re-read this often and when the app comes to the front (D-036). */
+export const FEATURES_EVERY_MS = 10 * 60_000;
+const FOCUS_MIN_GAP_MS = 60_000;
 
 /** The management server, or null when this build has none (local demo, dev). */
 export function cloudOrigin(): string | null {
@@ -97,6 +107,75 @@ async function write(key: string, value: string | null): Promise<void> {
   }
 }
 
+// --- the session's own storage: Electron safeStorage on desktop (Keychain / Credential Manager),
+// expo-secure-store on phones, localStorage only in a plain browser (D-029) ------------------
+type DesktopSecureStore = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<boolean>;
+  delete(key: string): Promise<void>;
+};
+function desktopSecure(): DesktopSecureStore | null {
+  const bridge = (globalThis as { sottoDesktop?: { secureStore?: DesktopSecureStore } })
+    .sottoDesktop;
+  return bridge?.secureStore ?? null;
+}
+async function readSecret(key: string): Promise<string | null> {
+  const desk = desktopSecure();
+  if (!desk) return read(key);
+  try {
+    return (await desk.get(key)) ?? memory.get(key) ?? null;
+  } catch {
+    return memory.get(key) ?? null;
+  }
+}
+async function writeSecret(key: string, value: string | null): Promise<void> {
+  const desk = desktopSecure();
+  if (!desk) return write(key, value);
+  if (value === null) memory.delete(key);
+  else memory.set(key, value);
+  try {
+    // Never falls back to localStorage: without OS encryption the session lasts this run only.
+    if (value === null) await desk.delete(key);
+    else await desk.set(key, value);
+  } catch {
+    /* secure storage unavailable: memory only */
+  }
+}
+
+type Tokens = {
+  access: string;
+  refresh: string | null; // null: a 0.2.0 token not migrated yet
+  access_expires_at: number | null;
+  me?: Me; // the last profile, so an offline start still opens the app
+};
+type PairResponse = {
+  token: string;
+  refresh_token?: string;
+  access_expires_at?: number;
+};
+async function loadTokens(): Promise<Tokens | null> {
+  const raw = await readSecret(SESSION_KEY);
+  if (!raw) return null;
+  try {
+    const t = JSON.parse(raw) as Tokens;
+    return typeof t.access === "string" ? t : null;
+  } catch {
+    return null;
+  }
+}
+async function saveTokens(next: Tokens | null): Promise<void> {
+  tokens = next;
+  await writeSecret(SESSION_KEY, next ? JSON.stringify(next) : null);
+}
+function tokensFrom(r: PairResponse, me?: Me): Tokens {
+  return {
+    access: r.token,
+    refresh: r.refresh_token ?? null,
+    access_expires_at: r.access_expires_at ?? null,
+    ...(me ? { me } : {}),
+  };
+}
+
 // --- which device this is -------------------------------------------------------------------
 type Nav = { userAgent?: string; platform?: string };
 export function devicePlatform(): string {
@@ -146,7 +225,7 @@ export const APP_VERSION = "0.2.0";
 // --- the session store ----------------------------------------------------------------------
 let state: CloudState = cloudOrigin() ? { status: "loading" } : { status: "off" };
 if (state.status !== "off") setDeviceOwner(null); // nobody's calls until a session loads
-let token: string | null = null;
+let tokens: Tokens | null = null;
 const listeners = new Set<() => void>();
 function set(next: CloudState) {
   state = next;
@@ -193,10 +272,11 @@ export async function cloudApi<T>(
 /** A file from the management server (a call recording), or null if there is none. */
 export async function cloudBlob(path: string, fetcher: typeof fetch = fetch): Promise<Blob | null> {
   const origin = cloudOrigin();
-  if (!origin || !token) return null;
+  await renewIfDue(fetcher);
+  if (!origin || !tokens) return null;
   try {
     const r = await fetcher(`${origin}${path}`, {
-      headers: { authorization: `Bearer ${token}`, "x-sotto-platform": devicePlatform() },
+      headers: { authorization: `Bearer ${tokens.access}`, "x-sotto-platform": devicePlatform() },
     });
     return r.ok ? await r.blob() : null;
   } catch {
@@ -204,17 +284,21 @@ export async function cloudBlob(path: string, fetcher: typeof fetch = fetch): Pr
   }
 }
 
+const AUTH_PATHS = new Set(["/api/v1/auth/login", "/api/v1/auth/signup", "/api/v1/auth/refresh"]);
+
 async function request<T>(
   path: string,
   init: { method?: string; body?: unknown; raw?: Blob },
   fetcher: typeof fetch,
+  retried = false,
 ): Promise<T> {
   const origin = cloudOrigin();
-  if (!origin) throw new CloudError(0, "off", "no Sotto server configured");
+  if (!origin) throw new CloudError(0, "off", "no Sales Shield server configured");
+  if (!AUTH_PATHS.has(path)) await renewIfDue(fetcher);
   const headers: Record<string, string> = { "x-sotto-platform": devicePlatform() };
   if (init.body !== undefined) headers["content-type"] = "application/json";
   if (init.raw) headers["content-type"] = init.raw.type || "application/octet-stream";
-  if (token) headers.authorization = `Bearer ${token}`;
+  if (tokens && !AUTH_PATHS.has(path)) headers.authorization = `Bearer ${tokens.access}`;
   let response: Response;
   try {
     response = await fetcher(`${origin}${path}`, {
@@ -223,14 +307,30 @@ async function request<T>(
       body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
     });
   } catch {
-    throw new CloudError(0, "offline", "Cannot reach the Sotto server. Check your connection.");
+    throw new CloudError(
+      0,
+      "offline",
+      "Cannot reach the Sales Shield server. Check your connection.",
+    );
   }
   const data = (await response.json().catch(() => ({}))) as {
     error?: string;
     code?: string;
   };
   if (!response.ok) {
-    if (response.status === 401 && path !== "/api/v1/auth/login") void signedOut();
+    // D-029: only the server saying "this session is over" signs out; a network error or a
+    // 5xx never does. An expired access token is renewed once and the request repeated.
+    if (response.status === 401 && !AUTH_PATHS.has(path)) {
+      const renewed = !retried && tokens?.refresh ? await renew(fetcher) : "signed_out";
+      if (renewed === "ok") return request<T>(path, init, fetcher, true);
+      if (renewed === "signed_out") void signedOut();
+      else
+        throw new CloudError(
+          0,
+          "offline",
+          "Cannot reach the Sales Shield server. Check your connection.",
+        );
+    }
     throw new CloudError(
       response.status,
       data.code ?? "error",
@@ -240,13 +340,69 @@ async function request<T>(
   return data as T;
 }
 
+type Renewal = "ok" | "signed_out" | "offline";
+let renewing: Promise<Renewal> | null = null;
+
+/** Spends the refresh token for a new pair; one at a time, so a token is never sent twice. */
+function renew(fetcher: typeof fetch): Promise<Renewal> {
+  if (!renewing) {
+    renewing = withRenewLock(() => renewNow(fetcher)).finally(() => {
+      renewing = null;
+    });
+  }
+  return renewing;
+}
+
+type Locks = { request<T>(name: string, fn: () => Promise<T>): Promise<T> };
+/** Web tabs share one session: only one renews at a time, and the next sees its result. */
+function withRenewLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = (globalThis as { navigator?: { locks?: Locks } }).navigator?.locks;
+  return locks ? locks.request("sotto.renew", fn) : fn();
+}
+
+async function renewNow(fetcher: typeof fetch): Promise<Renewal> {
+  const origin = cloudOrigin();
+  const held = tokens;
+  if (!origin || !held?.refresh) return "signed_out";
+  // Another window of this app may have renewed already (web tabs share storage).
+  const stored = await loadTokens();
+  if (stored?.refresh && stored.refresh !== held.refresh) {
+    tokens = { ...stored, me: stored.me ?? held.me };
+    return "ok";
+  }
+  let response: Response;
+  try {
+    response = await fetcher(`${origin}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-sotto-platform": devicePlatform() },
+      body: JSON.stringify({ refresh_token: held.refresh }),
+    });
+  } catch {
+    return "offline";
+  }
+  if (response.status === 401) return "signed_out";
+  if (!response.ok) return "offline";
+  const pair = (await response.json().catch(() => null)) as PairResponse | null;
+  if (!pair?.token) return "offline";
+  await saveTokens(tokensFrom(pair, held.me));
+  return "ok";
+}
+
+async function renewIfDue(fetcher: typeof fetch): Promise<void> {
+  const t = tokens;
+  if (!t?.refresh || t.access_expires_at === null) return;
+  if (Date.now() < t.access_expires_at - RENEW_EARLY_MS) return;
+  const result = await renew(fetcher);
+  if (result === "signed_out") await signedOut();
+}
+
 async function signedOut(error?: string) {
   reads.clear();
   clearDeviceCalls();
   void clearRecordings();
   setDeviceOwner(null);
-  token = null;
-  await write(TOKEN_KEY, null);
+  await saveTokens(null);
+  await write(LEGACY_TOKEN_KEY, null);
   set(error ? { status: "signed_out", error } : { status: "signed_out" });
 }
 
@@ -259,21 +415,76 @@ async function loadSession(): Promise<void> {
   const me = await meRead;
   const bundle = me.company ? await bundleRead : null;
   setDeviceOwner(me.company?.id ?? "none", me.user.id);
+  if (tokens) await saveTokens({ ...tokens, me });
   set({ status: "signed_in", me, bundle });
+  watchFeatures();
+}
+
+/** 0.2.0 kept one 30-day token; exchange it once for a pair, with no new sign-in (D-029). */
+async function migrateLegacy(): Promise<void> {
+  const legacy = await read(LEGACY_TOKEN_KEY);
+  if (!legacy) return;
+  tokens = { access: legacy, refresh: null, access_expires_at: null };
+  try {
+    const pair = await cloudApi<PairResponse>("/api/v1/auth/migrate", { method: "POST" });
+    await saveTokens(tokensFrom(pair));
+    await write(LEGACY_TOKEN_KEY, null);
+  } catch {
+    // Offline or the server is busy: the old token still works; try again next start.
+  }
 }
 
 /** Restores a saved session at start-up. */
 export async function startCloud(): Promise<void> {
   if (!cloudOrigin()) return;
-  token = await read(TOKEN_KEY);
-  if (!token) return set({ status: "signed_out" });
+  tokens = await loadTokens();
+  if (!tokens) await migrateLegacy();
+  if (!tokens) return set({ status: "signed_out" });
   try {
     await loadSession();
   } catch (err) {
-    if (err instanceof CloudError && err.status === 401) return;
-    // Offline at start: keep the token and let the person retry.
+    if (state.status === "signed_out") return; // the server ended the session
+    if (!tokens) return;
+    // Offline or a server error at start: stay signed in with the last profile (D-029).
+    const cached = tokens.me;
+    if (cached) {
+      setDeviceOwner(cached.company?.id ?? "none", cached.user.id);
+      set({ status: "signed_in", me: cached, bundle: null, offline: true });
+      watchFeatures();
+      return;
+    }
     set({ status: "signed_out", error: err instanceof Error ? err.message : "offline" });
   }
+}
+
+// --- the feature map: on sign-in, on focus and every 10 minutes (D-036) ---------------------
+let watching = false;
+let lastCheck = 0;
+
+/** Re-reads the feature map (and, after an offline start, the whole session). */
+export async function refreshFeatures(): Promise<void> {
+  if (state.status !== "signed_in") return;
+  lastCheck = Date.now();
+  try {
+    if (state.offline) return await loadSession();
+    const r = await cloudApi<{ features: FeatureMap }>("/api/v1/features");
+    reads.delete("/api/v1/features");
+    if (state.status === "signed_in") set({ ...state, me: { ...state.me, features: r.features } });
+  } catch {
+    /* offline: keep the map we have and try again later */
+  }
+}
+
+function watchFeatures(): void {
+  if (watching) return;
+  watching = true;
+  setInterval(() => void refreshFeatures(), FEATURES_EVERY_MS);
+  const onFront = () => {
+    if (Date.now() - lastCheck >= FOCUS_MIN_GAP_MS) void refreshFeatures();
+  };
+  const win = globalThis as { addEventListener?: (e: string, f: () => void) => void };
+  if (Platform.OS === "web") win.addEventListener?.("focus", onFront);
+  else AppState.addEventListener("change", (s) => s === "active" && onFront());
 }
 
 async function device() {
@@ -281,16 +492,16 @@ async function device() {
   return { id: await deviceId(), platform, label: deviceLabel(platform), app_version: APP_VERSION };
 }
 
-async function adopt(response: { token: string }) {
-  token = response.token;
-  await write(TOKEN_KEY, token);
+async function adopt(response: PairResponse) {
+  await saveTokens(tokensFrom(response));
+  await write(LEGACY_TOKEN_KEY, null);
   await loadSession();
 }
 
 export async function signIn(email: string, password: string): Promise<void> {
-  const r = await cloudApi<{ token: string }>("/api/v1/auth/login", {
+  const r = await cloudApi<PairResponse>("/api/v1/auth/login", {
     method: "POST",
-    body: { email, password, device: await device() },
+    body: { email, password, device: await device(), session: "pair" },
   });
   await adopt(r);
 }
@@ -301,9 +512,9 @@ export async function signUp(input: {
   email: string;
   password: string;
 }): Promise<void> {
-  const r = await cloudApi<{ token: string }>("/api/v1/auth/signup", {
+  const r = await cloudApi<PairResponse>("/api/v1/auth/signup", {
     method: "POST",
-    body: { ...input, device: await device() },
+    body: { ...input, device: await device(), session: "pair" },
   });
   await adopt(r);
 }

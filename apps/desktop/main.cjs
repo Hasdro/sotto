@@ -20,9 +20,19 @@ const {
 } = require("electron");
 const { callApp } = require("./call-apps.cjs");
 const { parseMicUsage } = require("./win-mic.cjs");
+const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
+// The user-facing name (D-026). Technical identifiers keep "sotto": the app:// origin, appId and
+// the user-data folder, so sign-ins and settings survive the rename.
+const NAME = "AGN Sales Shield";
+app.setName(NAME);
+// The productName change must not move the profile: pin ~/Library/Application Support/sotto-desktop
+// (%APPDATA%\sotto-desktop on Windows), unless a dev run passes its own --user-data-dir.
+if (!app.commandLine.hasSwitch("user-data-dir")) {
+  app.setPath("userData", path.join(app.getPath("appData"), "sotto-desktop"));
+}
 // Pages may reach https/wss vendors (calls run on this device); scripts only from the app itself.
 // SOTTO_LOCAL_SERVER (development only) also allows a plain-http server on this machine.
 const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(process.env.SOTTO_LOCAL_SERVER ?? "")
@@ -112,7 +122,7 @@ function showMini(show) {
     y: area.y + 20,
     minWidth: 300,
     minHeight: 160,
-    title: "Sotto",
+    title: NAME,
     alwaysOnTop: true,
     fullscreenable: false,
     minimizable: false,
@@ -136,7 +146,7 @@ function showMini(show) {
   void miniWin.loadURL(`${ORIGIN}/mini`);
 }
 
-// The tray icon (owner, 22 Oct 2026): Sotto's face, "● Live" during a call, and the same menu
+// The tray icon (owner, 22 Oct 2026; the shield symbol since T-048), "● Live" during a call, and the same menu
 // on macOS and Windows. A macOS menu-bar item has a title; a Windows notification-area icon has
 // none, so Windows shows the state in the tooltip and as a disabled "● Live" line in the menu.
 let tray = null;
@@ -152,7 +162,7 @@ function trayTemplate() {
     items.push({ label: "● Live", enabled: false }, { type: "separator" });
   }
   items.push(
-    { label: "Open Sotto", click: focusMain },
+    { label: `Open ${NAME}`, click: focusMain },
     { label: "Show the mini window", accelerator: SHORTCUTS.mini, click: () => showMini(true) },
     {
       label: "Start or end listening",
@@ -160,7 +170,7 @@ function trayTemplate() {
       click: () => mainWin?.webContents.send("shortcut", "listen"),
     },
     { type: "separator" },
-    { label: "Quit Sotto", role: "quit" },
+    { label: `Quit ${NAME}`, role: "quit" },
   );
   return items;
 }
@@ -169,18 +179,22 @@ function updateTray() {
   const live = Boolean(lastMini?.live);
   if (process.platform === "darwin") {
     tray.setTitle(live ? " ● Live" : ""); // macOS has a menu-bar title
-    tray.setToolTip("Sotto");
+    tray.setToolTip(NAME);
   } else {
-    tray.setToolTip(live ? "Sotto — live" : "Sotto"); // Windows has no title, only a tooltip
+    tray.setToolTip(live ? `${NAME}: live` : NAME); // Windows has no title, only a tooltip
   }
   tray.setContextMenu(Menu.buildFromTemplate(trayTemplate()));
 }
 function createTray() {
   if (tray || (process.platform !== "darwin" && process.platform !== "win32")) return;
-  // Menu-bar icons are 18 px on macOS; the Windows notification area expects 16 px.
-  const icon = nativeImage
-    .createFromPath(path.join(__dirname, "icon.png"))
-    .resize({ width: process.platform === "darwin" ? 18 : 16 });
+  // macOS: a template image (black + alpha, 16 pt with @2x), so the menu bar tints it for light
+  // and dark. Windows: a colour .ico with 16 and 32 px entries for the notification area.
+  const assets = path.join(__dirname, "build-assets");
+  const icon =
+    process.platform === "darwin"
+      ? nativeImage.createFromPath(path.join(assets, "trayTemplate.png"))
+      : nativeImage.createFromPath(path.join(assets, "tray.ico"));
+  if (process.platform === "darwin") icon.setTemplateImage(true);
   tray = new Tray(icon);
   updateTray();
 }
@@ -221,7 +235,7 @@ function createWindow() {
     height: 860,
     minWidth: 380,
     minHeight: 560,
-    title: "Sotto",
+    title: NAME,
     backgroundColor: "#F1F4F2",
     autoHideMenuBar: true,
     webPreferences: {
@@ -242,6 +256,10 @@ function createWindow() {
 
 app.whenReady().then(() => {
   protocol.handle("app", serve);
+  // Sign-in tokens in OS secure storage (D-029); safeStorage is ready once the app is.
+  const { safeStorage } = require("electron");
+  const secure = createSecureStore({ safeStorage, dir: app.getPath("userData") });
+  registerSecureStore({ ipcMain, store: secure, origin: ORIGIN });
   // Only audio capture, only for the app's own pages: the microphone, or the computer's sound.
   const own = (url) => typeof url === "string" && url.startsWith(`${ORIGIN}/`);
   const allowed = (wc, permission) =>

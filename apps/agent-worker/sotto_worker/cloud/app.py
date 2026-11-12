@@ -26,6 +26,7 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.cloud.bundle import Seed, build_bundle
+from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.recordings import KINDS, Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
@@ -53,6 +54,8 @@ COMMON_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
 }
+RECORDING_FIELDS = ("id", "started_at", "duration_s", "recording_bytes", "source", "email", "name")
+AFTER_CALL = ("call_review", "follow_up")  # features that use the after-call (summary) model
 MODEL_KEY = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 FIRST_PASSWORD_PATHS = {"/api/v1/me", "/api/v1/auth/password", "/api/v1/auth/logout"}
 OWNER_FIRST_PASSWORD_PATHS = {"/api/owner/me", "/api/owner/password", "/api/owner/logout"}
@@ -168,6 +171,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     escalation_limit = RateLimit(per_key=60, total=5000, window_s=3600)
     signup_limit = RateLimit(per_key=5, total=60, window_s=3600)
     token_limit = RateLimit(per_key=60, total=2000, window_s=3600)
+    refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
     minter = config.stt_minter or mint_stt_token
     tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
@@ -221,6 +225,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
                 return await fn(request)
             except CloudError as e:
                 return fail(STATUS.get(e.code, HTTPStatus.BAD_REQUEST), e.code, str(e))
+            except FeatureUnavailable as e:
+                return JSONResponse(
+                    {
+                        "error": "feature_unavailable",
+                        "code": "feature_unavailable",
+                        "feature": e.feature,
+                        **e.effective.out(),
+                    },
+                    status_code=HTTPStatus.FORBIDDEN,
+                )
 
         return wrapped
 
@@ -250,11 +264,52 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     def platform_of(request: Request) -> str:
         return request.headers.get("x-sotto-platform", "unknown")[:20]
 
-    def session_out(token: str, who_row: Any) -> dict[str, Any]:
-        principal = store.principal(token, kind="app")
+    def session_out(tokens: dict[str, Any]) -> dict[str, Any]:
+        principal = store.principal(str(tokens["token"]), kind="app")
         if principal is None:
             raise CloudError("signed_out", "sign in again")
-        return {"token": token, **store.me(principal)}
+        return {**tokens, **store.me(principal)}
+
+    def open_app_session(user: Any, data: dict[str, Any]) -> dict[str, Any]:
+        """0.3.0+ apps ask for a refresh-token pair (D-029); 0.2.0 apps, which send nothing,
+        still get their one 30-day token so they keep working until they update."""
+        device = data.get("device") if isinstance(data.get("device"), dict) else {}
+        if data.get("session") == "pair":
+            return session_out(store.open_pair(user, device=device or {}))
+        return session_out({"token": store.open_session(user, kind="app", device=device or {})})
+
+    @handle
+    async def refresh(request: Request) -> Response:
+        if refresh_limit.blocked(ip_key(request)):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        data = await body(request)
+        pair = store.refresh(str(data.get("refresh_token", "")), ip=ip_of(request))
+        if pair is None:
+            refresh_limit.record(ip_key(request))
+            return fail(HTTPStatus.UNAUTHORIZED, "signed_out", "sign in again")
+        return JSONResponse(pair, headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def migrate(_request: Request, who: Principal) -> Response:
+        return JSONResponse(store.migrate(who), headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def features_get(_request: Request, who: Principal) -> Response:
+        return JSONResponse(
+            {"features": store.features_for(who)}, headers={"Cache-Control": "no-store"}
+        )
+
+    @app_route
+    async def company_features_get(_request: Request, who: Principal) -> Response:
+        return JSONResponse({"features": store.company_features(who)})
+
+    @app_route
+    async def company_feature_put(request: Request, who: Principal) -> Response:
+        data = await body(request)
+        store.set_company_feature(
+            who, request.path_params["id"], data.get("enabled"), ip=ip_of(request)
+        )
+        return JSONResponse({"features": store.company_features(who)})
 
     @handle
     async def signup(request: Request) -> Response:
@@ -272,9 +327,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         user = store.check_login(str(data.get("email", "")), str(data.get("password", "")))
         if user is None:
             raise CloudError("bad_login", "account created; sign in")
-        device = data.get("device") if isinstance(data.get("device"), dict) else {}
-        token = store.open_session(user, kind="app", device=device or {})
-        return JSONResponse(session_out(token, user), status_code=HTTPStatus.CREATED)
+        return JSONResponse(open_app_session(user, data), status_code=HTTPStatus.CREATED)
 
     @handle
     async def login(request: Request) -> Response:
@@ -288,9 +341,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             for k in keys:
                 login_limit.record(k)
             return fail(HTTPStatus.UNAUTHORIZED, "bad_login", "wrong email or password")
-        device = data.get("device") if isinstance(data.get("device"), dict) else {}
-        token = store.open_session(user, kind="app", device=device or {})
-        return JSONResponse(session_out(token, user))
+        return JSONResponse(open_app_session(user, data))
 
     @app_route
     async def logout(request: Request, who: Principal) -> Response:
@@ -310,12 +361,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         store.change_password(who, str(data.get("current", "")), str(data.get("new", "")))
         return JSONResponse({"ok": True})
 
-    def needed_keys(company_id: str) -> set[str]:
+    def needed_keys(who: Principal) -> set[str]:
         """The model keys the company's current routes use. Speech keys never leave the server:
-        devices get short-lived tokens for them instead (security review H1)."""
-        routing = apply_overrides(seed.routing, seed.catalog, store.routes(company_id))
+        devices get short-lived tokens for them instead (security review H1). The after-call
+        model's key goes only to people who may review or draft follow-ups (D-036)."""
+        routing = apply_overrides(seed.routing, seed.catalog, store.routes(who.company))
+        stages = ["suggest", "suggest_backup"]
+        if any(store.feature_state(who, f).state == "available" for f in AFTER_CALL):
+            stages.append("summary")
         names: set[str] = set()
-        for stage in ("suggest", "suggest_backup", "summary"):
+        for stage in stages:
             route = routing.stages.get(stage)
             if route is None:
                 continue
@@ -329,20 +384,24 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def bundle(_request: Request, who: Principal) -> Response:
         company = store.company_row(who.company)
         state = plan_state(company, store.minutes_used(who.company), int(time.time() * 1000))
+        settings = store.settings(who.company)
+        if not store.org_feature_on(who.company, "ai_knowledge"):
+            settings.pop("context", None)  # D-036: the knowledge is withheld, not just hidden
         out = build_bundle(
             seed,
             company_name=str(company["name"]),
-            settings=store.settings(who.company),
+            settings=settings,
             routes=store.routes(who.company),
             own_playbook=store.playbook(who.company),
             keys=(
-                store.keys_for_call(who, needed_keys(who.company), ip=ip_of(_request))
+                store.keys_for_call(who, needed_keys(who), ip=ip_of(_request))
                 if state["can_call"]
                 else None
             ),
         )
         out["plan"] = state
         out["key_status"] = store.key_status(who)
+        out["features"] = store.features_for(who)
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
     @app_route
@@ -390,11 +449,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def review_post(request: Request, who: Principal) -> Response:
+        store.require_feature(who, "call_review")
         review = store.set_review(who, request.path_params["call_id"], await body(request))
         return JSONResponse({"ok": True, "review": review})
 
     @app_route
     async def recording_put(request: Request, who: Principal) -> Response:
+        store.require_feature(who, "recordings")
         rec = recordings_on()
         call_id = store.recording_call(who, request.path_params["call_id"], upload=True)
         size = await rec.save(who.company, call_id, request.stream())
@@ -404,6 +465,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def recording_get(request: Request, who: Principal) -> Response:
+        store.require_feature(who, "recordings")
         rec = recordings_on()
         call_id = store.recording_call(who, request.path_params["call_id"], upload=False)
         path = rec.path(who.company, call_id)
@@ -415,18 +477,37 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def company_usage(request: Request, who: Principal) -> Response:
+        # The same call list serves Reports and Admin → Recordings; each needs its own feature.
+        purpose = "recordings" if request.query_params.get("for") == "recordings" else "reports"
+        store.require_feature(who, purpose)
         days = request.query_params.get("days", "30")
         span = int(days) if days in ("7", "30", "90") else 30
-        return JSONResponse({"calls": store.company_usage(who, span)})
+        calls = store.company_usage(who, span)
+        if purpose == "recordings":  # only what the recordings list needs (security review M1)
+            keep: tuple[str, ...] = RECORDING_FIELDS
+            if store.feature_state(who, "reports").state == "available":
+                keep = (*RECORDING_FIELDS, "review")
+            calls = [
+                {k: c[k] for k in keep if k in c}
+                for c in calls
+                if (c.get("recording_bytes") or 0) > 0
+            ]
+        return JSONResponse({"calls": calls})
 
     @app_route
     async def settings_get(_request: Request, who: Principal) -> Response:
         who.require("admin")
-        return JSONResponse({"settings": store.settings(who.company)})
+        settings = store.settings(who.company)
+        if not store.org_feature_on(who.company, "ai_knowledge"):
+            settings.pop("context", None)  # withheld, not just hidden (D-036)
+        return JSONResponse({"settings": settings})
 
     @app_route
     async def settings_put(request: Request, who: Principal) -> Response:
-        store.set_settings(who, await body(request), ip=ip_of(request))
+        data = await body(request)
+        if "context" in data:
+            store.require_feature(who, "ai_knowledge")
+        store.set_settings(who, data, ip=ip_of(request))
         return JSONResponse({"settings": store.settings(who.company)})
 
     @app_route
@@ -743,6 +824,18 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         store.owner_revoke_device(who, r.path_params["id"], ip=ip_of(r))
         return JSONResponse({"ok": True})
 
+    async def o_features(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(store.owner_features())
+
+    async def o_entitlements(r: Request, who: Principal) -> Response:
+        store.owner_set_entitlements(who, r.path_params["id"], await body(r), ip=ip_of(r))
+        return JSONResponse(store.owner_features())
+
+    async def o_kill(r: Request, who: Principal) -> Response:
+        killed = (await body(r)).get("killed")
+        store.owner_set_kill(who, r.path_params["id"], killed, ip=ip_of(r))
+        return JSONResponse(store.owner_features())
+
     async def o_audit(_r: Request, _who: Principal) -> Response:
         return JSONResponse({"items": store.owner_audit()})
 
@@ -800,6 +893,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/auth/signup", signup, methods=["POST"]),
         Route(f"{api}/auth/login", login, methods=["POST"]),
         Route(f"{api}/auth/logout", logout, methods=["POST"]),
+        Route(f"{api}/auth/refresh", refresh, methods=["POST"]),
+        Route(f"{api}/auth/migrate", migrate, methods=["POST"]),
+        Route(f"{api}/features", features_get),
+        Route(f"{api}/company/features", company_features_get),
+        Route(f"{api}/company/features/{{id}}", company_feature_put, methods=["PUT"]),
         Route(f"{api}/auth/password", change_password, methods=["POST"]),
         Route(f"{api}/me", me),
         Route(f"{api}/bundle", bundle),
@@ -835,6 +933,17 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route("/api/owner/me", owner_route(o_me)),
         Route("/api/owner/stats", owner_route(o_stats)),
         Route("/api/owner/audit", owner_route(o_audit)),
+        Route("/api/owner/features", owner_route(o_features)),
+        Route(
+            "/api/owner/features/{id}/kill",
+            owner_route(o_kill, mutating=True),
+            methods=["PUT"],
+        ),
+        Route(
+            "/api/owner/companies/{id}/features",
+            owner_route(o_entitlements, mutating=True),
+            methods=["PATCH"],
+        ),
         Route("/api/owner/password", owner_route(o_password, mutating=True), methods=["POST"]),
         Route("/api/owner/companies", owner_route(o_companies)),
         Route(

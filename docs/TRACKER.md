@@ -166,13 +166,13 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 
 ### Phase 9 (`docs/phases/phase-9-product-round.md`; acceptance = its "Definition of done")
 0.3.0 Foundation
-- [ ] T-045 Feature-flag catalog, five states, server enforcement (D-028, D-036), retrofit existing features — `flags-auth`
-- [ ] T-046 Owner entitlement matrix + global kill switch; Admin → Features; greyed-state UI component — `flags-auth`
-- [ ] T-047 Persistent login: rotating refresh tokens, 90-day sliding, `safeStorage`, 0.2.0 token migration (D-029) — `flags-auth`
-- [ ] T-048 Logo: three vector directions `owner` (choice) — `brand-ui`
-- [ ] T-049 Rebrand to AGN Sales Shield: strings (en + ar), installers, tray, window, About, favicon (D-026) — `brand-ui`
-- [ ] T-050 Global reskin + live-call polish + information-density rules — `brand-ui`
-- [ ] T-051 Mascot five result moods from the review score — `brand-ui`
+- [x] T-045 Feature-flag catalog, five states, server enforcement (D-028, D-036), retrofit existing features — `flags-auth` · evidence: `tests/cloud/test_features.py` (each state → 403 `feature_unavailable`, isolation A/B, audit), branch `phase9/flags-auth`
+- [x] T-046 Owner entitlement matrix + global kill switch; Admin → Features; greyed-state UI component — `flags-auth` · evidence: `__tests__/feature-gate.test.tsx`, screenshots `docs/evidence/phase9/flags-auth/` (Admin → Features light/dark/RTL, owner matrix light/dark, greyed Reports/Recordings 390 px + RTL); Admin tab link pending (see session log)
+- [x] T-047 Persistent login: rotating refresh tokens, 90-day sliding, `safeStorage`, 0.2.0 token migration (D-029) — `flags-auth` · evidence: `tests/cloud/test_persistent_login.py`, `__tests__/persistent-login.test.ts`, `apps/desktop/test/secure-store.test.cjs`, dev Electron run `docs/evidence/phase9/flags-auth/electron-secure-store.json`; security-auditor: no critical/high, mediums fixed
+- [ ] T-048 Logo: three vector directions `owner` (choice) — `brand-ui` · directions ready in `docs/design/logo/index.html`; (a) wired as placeholder; **waiting for the owner's pick**, then `node docs/design/logo/export.mjs <id>`
+- [x] T-049 Rebrand to AGN Sales Shield: strings (en + ar), installers, tray, window, About, favicon (D-026) — `brand-ui` · grep check `packages/ui/src/brand/userFacingName.test.ts` passes; userData pinned to `sotto-desktop`
+- [x] T-050 Global reskin + live-call polish + information-density rules — `brand-ui` · before/after `docs/evidence/phase9/brand-ui/`; a11y 33 + live-call 8 checks, 0 serious; replay p95 978 ms
+- [x] T-051 Mascot five result moods from the review score — `brand-ui` · `moodFor` boundary tests; `mascot-moods-80-65-50-30-none.png`
 - [ ] T-052 0.3.0 release gate: merge, replay, a11y, screenshots, both installers, tag v0.3.0 — master
 0.4.0 Pre-call
 - [ ] T-053 Zoho per-user OAuth via the server, data centres, encrypted tokens, permission matrix (D-031) `owner` (OAuth client)
@@ -310,6 +310,26 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-12 · local · Opus 5.5 · phase9/brand-ui
+
+- **T-048:** three no-letter directions (handset shield, handset + check, shield monogram) at 16/32/512, light/dark, app tile and mono tray, on `docs/design/logo/index.html` (`build.mjs`). `export.mjs` makes `.icns`, `.ico`, `trayTemplate(@2x).png`, `tray.ico`, favicon and landing assets; (a) exported as placeholder. Waiting for the owner's pick.
+- **T-049:** user-facing "Sotto" → "AGN Sales Shield" / "Sales Shield" (en, ar incl. "سوتو"), productName, window titles, tray tooltip and menu, About, web title, mic permission strings. `app.setPath("userData", …/sotto-desktop)` unless `--user-data-dir`. Grep check is a vitest in `packages/ui`.
+- **T-050:** tokens add `signal*` and `hero*` (contrast-tested); solid hero card with a warm voice bar; quieter shell; status as text; live call keeps card + status + one collapsed context rail (transcript, notes); older cards open one at a time and step back by colour (the old 0.45 opacity failed axe on the live call). Card glow removed (no render-path work added).
+- **T-051 (subagent):** `Mascot mood` + `moodFor(success, sentiment)`; shown in the review result (call end, History detail via `CallReviewPanel`).
+- **Evidence:** `docs/evidence/phase9/brand-ui/{before,after,before-live,after-live}`; `pnpm test`, typecheck, boundaries, desktop tests green; a11y 33 checks + 8 live-call checks 0 serious; replay ALL p50 576 / p95 978 ms. Bundle 476 → 477 KB on the base (+1 KB: mood faces, tokens, strings); 483 KB after rebasing on flags-auth. Biome from a worktree path needs explicit paths (`!**/.claude` in biome.json).
+- **Outside owned files (master to review):** `apps/app/lib/cloud.ts` (2 error strings), `apps/app/app.json` (name, iOS mic string), `apps/desktop/package.json` description/author/mic strings/`files`, `apps/app/__tests__/*` string and density updates. Not done: `call-apps.cjs` still excludes `Sotto.exe` by name (harmless, no call pattern matches "AGN Sales Shield.exe"); flags-auth's `secure-store.cjs` in `build.files` is still for the master.
+
+### 2026-11-12 · local · Opus 5.5 · phase9/flags-auth
+- **Done:** T-045/T-046/T-047 on branch `phase9/flags-auth` (local worktree branch `claude/phase9-flags-auth-58bf91`, pushed as `phase9/flags-auth`).
+  - Server: `cloud/features.json` + `features.py` (catalog, five states in D-028 order, dependencies), `store.py` tables `company_features`, `company_entitlements`, `feature_kill` (platform-wide) and `spent_refresh`; routes `/api/v1/features`, `/api/v1/company/features[/{id}]`, `/api/owner/features`, `/api/owner/features/{id}/kill`, `/api/owner/companies/{id}/features`; 403 `feature_unavailable` on review, recordings, usage (reports / `?for=recordings`), settings `context`; bundle withholds company knowledge and the after-call key when off (D-036).
+  - Auth (`cloud/auth.py`): login/signup with `"session":"pair"` → 1 h access + rotating refresh (90-day sliding); reuse after a 30 s grace revokes the device session; `/auth/migrate` turns a 0.2.0 token into a pair in place (no extra time); 0.2.0 clients still get their 30-day token. Owner cookie unchanged.
+  - App: `lib/cloud.ts` silent renewal (single-flight + web lock), never signs out on network/5xx, offline start opens with the last profile, feature map refresh on sign-in/focus/10 min; `components/FeatureGate.tsx`, `app/admin/features.tsx`, `features/flags/{catalog,strings}.ts` (en + ar); one-line gates in call, history detail, reports, admin/recordings, settings.
+  - Desktop: `secure-store.cjs` (safeStorage, ciphertext only, key allowlist, origin-checked IPC), preload `secureStore`, 4 lines in `main.cjs`. Owner console: Features tab (kill switch + matrix).
+- **Evidence:** worker 438 passed, coverage floors ok; app jest 47 suites / 276 tests passed (`--maxWorkers=3`; the default run timed out on a loaded machine); desktop 17 passed; typecheck, ruff, mypy, boundaries ok; biome clean on `apps packages scripts` (only pre-existing warnings); `pnpm a11y` 33 checks 0 serious; axe on Admin → Features, greyed Reports/Recordings (light, dark, ar) and the owner Features tab: 0 serious. Replay (synthetic) p50 576 ms / p95 978 ms. Dev Electron: 0.2.0 localStorage token migrated, `secure-store.json` keys = `["sotto.session"]`, localStorage keys = `sotto.prefs`, `sotto.viewRole` (no token), still signed in after reload. security-auditor: 0 critical/high; M1 (reports via `?for=recordings`), M2 (reuse grace), L3 (settings context), L4 (migration extension) fixed with tests; L5 accepted (D-036 limit).
+- **Needs the master (files outside my list):** (1) `apps/app/app/admin/_layout.tsx` add the tab `{ href: "/admin/features", label: "admin.features", icon: "settings" }` + i18n key `admin.features` (en "Features", ar "الميزات") — brand-ui owns i18n; (2) `apps/desktop/package.json` `build.files` add `"secure-store.cjs"`, or packaged apps fail to start; (3) `scripts/a11y.mjs` add `/admin/features`; (4) optional: `features/call/local.ts` skip the local review when `call_review` is off.
+- **Notes:** `pnpm lint` fails inside `.claude/worktrees/*` because `biome.json` ignores `**/.claude`; run biome on `apps packages scripts` there. Access-token TTL 1 h, grace 30 s are in `cloud/auth.py`.
+- **Next:** master reviews (code-reviewer + security-auditor), merges flags-auth before brand-ui.
 
 ### 2026-11-12 · local · Opus 5.5 · phase 9 recorded (master)
 - **Done:** recorded the owner's product-round brief as `docs/phases/phase-9-product-round.md`; REQUIREMENTS R5 superseded by R5a, new R7–R12; DECISIONS D-026…D-036; tracker Phase 9 board T-045…T-069; CLAUDE.md § Session orchestration; MASTER-PROMPT points at phase 9; Zoho and Gallabox research (subagents) in REFERENCES; child prompts in `docs/prompts/`.

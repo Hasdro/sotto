@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Sotto",
+    "name": "AGN Sales Shield",
     "slug": "sotto",
     "scheme": "sotto",
     "version": "0.2.0",
@@ -11,7 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sotto.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Sotto listens to the customer's side of the call to suggest answers."
+        "NSMicrophoneUsageDescription": "AGN Sales Shield listens to the customer's side of the call to suggest answers."
       }
     },
     "android": {

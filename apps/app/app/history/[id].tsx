@@ -15,6 +15,7 @@ import {
 } from "@sotto/ui";
 import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
+import { FeatureGate } from "../../components/FeatureGate";
 import { SourceChip } from "../../components/SourceChip";
 import { cardStrings, clock } from "../../features/call/components/strings";
 import { findCall } from "../../features/history/mock";
@@ -117,11 +118,19 @@ export default function CallDetailScreen() {
       </View>
       {sample ? null : (
         <View style={styles.review}>
-          <CallReviewPanel callId={String(id)} />
-          <FollowUp callId={String(id)} />
+          <FeatureGate feature="call_review">
+            <CallReviewPanel callId={String(id)} />
+          </FeatureGate>
+          <FeatureGate feature="follow_up">
+            <FollowUp callId={String(id)} />
+          </FeatureGate>
         </View>
       )}
-      {sample ? null : <RecordingPlayer callId={String(id)} />}
+      {sample ? null : (
+        <FeatureGate feature="recordings">
+          <RecordingPlayer callId={String(id)} />
+        </FeatureGate>
+      )}
       {call.notes ? (
         <Panel style={styles.notes} testID="call-detail-notes">
           <View style={styles.notesTitle}>
