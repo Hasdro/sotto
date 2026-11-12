@@ -186,7 +186,11 @@ ${SOTTO_OWNER_ORIGIN#https://} {
 	respond @app 404
 	reverse_proxy 127.0.0.1:$PORT
 }
+
+# Extra sites (phase 9 landing page: deploy/caddy/salesshield.caddy via deploy/publish-landing.sh).
+import /etc/caddy/sites/*.caddy
 CADDY
+install -d -m 755 /etc/caddy/sites
 install -d -m 755 /var/www/downloads
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 || die "Caddyfile invalid"
 ufw allow OpenSSH >/dev/null

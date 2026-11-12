@@ -30,6 +30,7 @@
       "preload.cjs",
       "call-apps.cjs",
       "win-mic.cjs",
+      "secure-store.cjs",
       "web/**/*",
       "package.json",
       "build-assets/trayTemplate.png",

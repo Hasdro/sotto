@@ -28,6 +28,7 @@ const PAGES = [
   "/admin/models",
   "/admin/keys",
   "/admin/settings",
+  "/admin/features",
   "/gallery",
 ];
 const MODES = [

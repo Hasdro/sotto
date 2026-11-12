@@ -14,6 +14,7 @@ const TABS: readonly { href: string; label: StringKey; icon: IconName }[] = [
   { href: "/admin", label: "admin.team", icon: "users" },
   { href: "/admin/keys", label: "admin.keys", icon: "key" },
   { href: "/admin/settings", label: "admin.settings", icon: "settings" },
+  { href: "/admin/features", label: "admin.features", icon: "shield" },
   { href: "/admin/recordings", label: "admin.recordings", icon: "headphones" },
   { href: "/admin/devices", label: "admin.devices", icon: "laptop" },
   { href: "/admin/activity", label: "admin.activity", icon: "list" },

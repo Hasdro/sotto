@@ -4,7 +4,7 @@
 // Defaults: apps/desktop/release → apps/landing/downloads.json. The version comes from
 // apps/desktop/package.json unless SALESSHIELD_VERSION is set. Only Mac and Windows installers are listed.
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,7 +21,9 @@ export function buildManifest(dir, version) {
   for (const [key, match] of Object.entries(patterns)) {
     const hits = names.filter(match).filter((n) => n.includes(version));
     if (hits.length !== 1) {
-      throw new Error(`expected one ${key} installer for ${version} in ${dir}, found ${hits.length}`);
+      throw new Error(
+        `expected one ${key} installer for ${version} in ${dir}, found ${hits.length}`,
+      );
     }
     const path = join(dir, hits[0]);
     files[key] = {
