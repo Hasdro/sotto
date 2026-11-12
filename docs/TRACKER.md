@@ -242,6 +242,8 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Known issues and tech debt
 
+- **Flaky under load (2026-11-12):** `apps/app/__tests__/call.test.tsx` "an escalation shows 'Sent to your manager'…" (fake timers) timed out 1 of 3 runs alone at load average 19 (three child sessions building); 2 of 3 passed. Earlier, 6 suites timed out at load 9 and passed alone. Re-check on a quiet machine; if it still flakes, fix the test's timer handling (no timeout increase without a CONSTRAINTS entry). Master owns this after the phase 9 merges.
+
 - **T-015** (2026-10-20, D-022) Gaps in the cloud server. Not yet available in hosted mode:
   - custom endpoints (Ollama/vLLM): the Mac demo only;
   - Deepgram/ElevenLabs STT from the client: no short-lived token path yet;
