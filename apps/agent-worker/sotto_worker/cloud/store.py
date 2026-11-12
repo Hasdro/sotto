@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sotto_worker.cloud import auth, features
 from sotto_worker.cloud.passwords import (
     DUMMY_HASH,
     hash_password,
@@ -190,6 +191,31 @@ CREATE TABLE IF NOT EXISTS audit (
   ip TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS audit_company ON audit(company_id, at);
+CREATE TABLE IF NOT EXISTS spent_refresh (
+  token_hash TEXT PRIMARY KEY,
+  company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+  sid TEXT NOT NULL,
+  spent_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS company_features (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  feature TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, feature)
+);
+CREATE TABLE IF NOT EXISTS company_entitlements (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  feature TEXT NOT NULL,
+  entitled INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, feature)
+);
+-- Platform-wide, no company data: the owner's global kill switch (D-028).
+CREATE TABLE IF NOT EXISTS feature_kill (
+  feature TEXT PRIMARY KEY,
+  killed_at INTEGER NOT NULL
+);
 """
 
 
@@ -235,6 +261,15 @@ def now_ms() -> int:
 
 def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _pair_out(access: str, refresh: str, t: int) -> dict[str, Any]:
+    return {
+        "token": access,
+        "refresh_token": refresh,
+        "access_expires_at": t + auth.ACCESS_TTL_MS,
+        "refresh_expires_at": t + auth.REFRESH_TTL_MS,
+    }
 
 
 def _month_start(t: int) -> int:
@@ -291,6 +326,9 @@ ADDED_COLUMNS = (
     ("usage", "recording_bytes", "INTEGER"),  # owner, 22 Oct 2026: uploaded call recording
     ("usage", "source", "TEXT"),  # owner, 22 Oct 2026: zoom, teams, meet, 3cx, mic…
     ("usage", "review_json", "TEXT"),  # owner, 22 Oct 2026: the after-call review's numbers
+    ("sessions", "sid", "TEXT"),  # D-029: stable id of a refresh-token session (NULL = 0.2.0)
+    ("sessions", "refresh_hash", "TEXT"),  # D-029: hash of the current refresh token
+    ("sessions", "access_until", "INTEGER"),  # D-029: when the current access token ends
 )
 EXCERPT_MAX_CHARS = 2000
 REVIEW_DIMENSIONS = ("opening", "discovery", "listening", "objections", "clarity", "next_step")
@@ -320,6 +358,9 @@ class CloudStore:
             have = {r["name"] for r in self._db.execute(f"PRAGMA table_info({table})")}
             if column not in have:
                 self._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+        self._db.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS sessions_refresh ON sessions(refresh_hash)"
+        )
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
@@ -510,6 +551,7 @@ class CloudStore:
     def open_session(
         self, user: sqlite3.Row, *, kind: str, device: dict[str, Any] | None = None
     ) -> str:
+        """A 0.2.0-style session: one token (30 days for apps, 12 hours for the owner)."""
         t = now_ms()
         token = secrets.token_urlsafe(32)
         device_id: str | None = None
@@ -525,6 +567,132 @@ class CloudStore:
             )
             db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (t, user["id"]))
         return token
+
+    def open_pair(self, user: sqlite3.Row, *, device: dict[str, Any]) -> dict[str, Any]:
+        """A refresh-token session for an app (D-029): a short access token + a refresh token."""
+        t = now_ms()
+        access, refresh = auth.new_access(), auth.new_refresh()
+        with self._tx() as db:
+            device_id = self._device(db, user, device, t)
+            db.execute(
+                "INSERT INTO sessions(token_hash, company_id, user_id, device_id, kind, created_at,"
+                " expires_at, last_seen_at, sid, refresh_hash, access_until)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    _token_hash(access),
+                    user["company_id"],
+                    user["id"],
+                    device_id,
+                    "app",
+                    t,
+                    t + auth.REFRESH_TTL_MS,
+                    t,
+                    auth.new_sid(),
+                    _token_hash(refresh),
+                    t + auth.ACCESS_TTL_MS,
+                ),
+            )
+            db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (t, user["id"]))
+        return _pair_out(access, refresh, t)
+
+    def refresh(self, refresh_token: str, *, ip: str = "") -> dict[str, Any] | None:
+        """Spends a refresh token for a new pair, or None (sign in again). A spent token
+        presented again revokes its whole device session (D-029)."""
+        if not refresh_token.startswith(auth.REFRESH_PREFIX) or len(refresh_token) > 200:
+            return None
+        h = _token_hash(refresh_token)
+        t = now_ms()
+        with self._tx() as db:
+            s = db.execute(
+                "SELECT s.*, u.active, d.revoked_at AS device_revoked FROM sessions s"
+                " JOIN users u ON u.id = s.user_id LEFT JOIN devices d ON d.id = s.device_id"
+                " WHERE s.refresh_hash = ?",
+                (h,),
+            ).fetchone()
+            if s is None:
+                self._spent_refresh(db, h, t, ip)
+                return None
+            if (
+                s["kind"] != "app"
+                or s["revoked_at"]
+                or s["device_revoked"]
+                or s["expires_at"] < t
+                or not s["active"]
+            ):
+                return None
+            access, new_refresh = auth.new_access(), auth.new_refresh()
+            db.execute(
+                "INSERT OR REPLACE INTO spent_refresh(token_hash, company_id, sid, spent_at)"
+                " VALUES (?,?,?,?)",
+                (h, s["company_id"], s["sid"], t),
+            )
+            db.execute(
+                "UPDATE sessions SET token_hash = ?, refresh_hash = ?, access_until = ?,"
+                " expires_at = ?, last_seen_at = ? WHERE token_hash = ?",
+                (
+                    _token_hash(access),
+                    _token_hash(new_refresh),
+                    t + auth.ACCESS_TTL_MS,
+                    t + auth.REFRESH_TTL_MS,
+                    t,
+                    s["token_hash"],
+                ),
+            )
+            db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (t, s["user_id"]))
+            if s["device_id"]:
+                db.execute("UPDATE devices SET last_seen = ? WHERE id = ?", (t, s["device_id"]))
+            db.execute("DELETE FROM spent_refresh WHERE spent_at < ?", (t - auth.SPENT_KEEP_MS,))
+        return _pair_out(access, new_refresh, t)
+
+    def _spent_refresh(self, db: sqlite3.Connection, h: str, t: int, ip: str) -> None:
+        """A refresh token that is not current: if it was spent before, someone copied it."""
+        spent = db.execute(
+            "SELECT sid, company_id FROM spent_refresh WHERE token_hash = ?", (h,)
+        ).fetchone()
+        if spent is None:
+            return
+        db.execute(
+            "UPDATE sessions SET revoked_at = ? WHERE sid = ? AND revoked_at IS NULL",
+            (t, spent["sid"]),
+        )
+        self.audit(
+            db,
+            "session.refresh_reused",
+            "a used refresh token came back; the device session was revoked",
+            company_id=spent["company_id"],
+            ip=ip,
+        )
+
+    def migrate(self, who: Principal) -> dict[str, Any]:
+        """Turns a 0.2.0 session (one 30-day token) into a pair in place: same device, no new
+        sign-in (D-029). The old token stops working."""
+        if who.session is None:
+            raise CloudError("signed_out", "sign in again")
+        t = now_ms()
+        access, refresh = auth.new_access(), auth.new_refresh()
+        with self._tx() as db:
+            s = db.execute(
+                "SELECT sid, kind FROM sessions WHERE token_hash = ?", (who.session,)
+            ).fetchone()
+            if s is None or s["kind"] != "app":
+                raise CloudError("signed_out", "sign in again")
+            if s["sid"]:
+                raise CloudError("invalid", "this session already uses refresh tokens")
+            db.execute(
+                "UPDATE sessions SET token_hash = ?, sid = ?, refresh_hash = ?, access_until = ?,"
+                " expires_at = ?, last_seen_at = ? WHERE token_hash = ?",
+                (
+                    _token_hash(access),
+                    auth.new_sid(),
+                    _token_hash(refresh),
+                    t + auth.ACCESS_TTL_MS,
+                    t + auth.REFRESH_TTL_MS,
+                    t,
+                    who.session,
+                ),
+            )
+            self.audit(db, "session.migrated", who.email, company_id=who.company_id, actor=who)
+        return _pair_out(access, refresh, t)
 
     def _device(
         self, db: sqlite3.Connection, user: sqlite3.Row, device: dict[str, Any], t: int
@@ -573,6 +741,7 @@ class CloudStore:
             or s["revoked_at"]
             or s["device_revoked"]
             or s["expires_at"] < t
+            or (s["access_until"] is not None and s["access_until"] < t)
             or not s["active"]
         ):
             return None
@@ -691,6 +860,7 @@ class CloudStore:
             )[0]["n"]
             state = plan_state(c, self.minutes_used(who.company_id), now_ms())
             out["company"] = {"id": c["id"], "name": c["name"], "seats_used": seats_used, **state}
+        out["features"] = self.features_for(who)
         return out
 
     def settings(self, company_id: str) -> dict[str, Any]:
@@ -1213,6 +1383,180 @@ class CloudStore:
             row["review"] = json.loads(raw) if raw else None
             out.append(row)
         return out
+
+    # --- feature flags (D-028, D-036) ----------------------------------------------------------
+    def connections(self, company_id: str) -> frozenset[str]:
+        """Connections this organisation has. None exist before 0.4.0 (Zoho) and 0.6.0 (Gallabox,
+        approved email senders); their modules add themselves here."""
+        return frozenset()
+
+    def feature_layers(self, company_id: str) -> features.Layers:
+        killed = {r["feature"] for r in self._q("SELECT feature FROM feature_kill")}
+        not_entitled = {
+            r["feature"]
+            for r in self._q(
+                "SELECT feature FROM company_entitlements WHERE company_id = ? AND entitled = 0",
+                (company_id,),
+            )
+        }
+        org_off = {
+            r["feature"]
+            for r in self._q(
+                "SELECT feature FROM company_features WHERE company_id = ? AND enabled = 0",
+                (company_id,),
+            )
+        }
+        return features.Layers(
+            killed=frozenset(killed),
+            not_entitled=frozenset(not_entitled),
+            org_off=frozenset(org_off),
+            connections=self.connections(company_id),
+        )
+
+    def feature_state(self, who: Principal, feature: str) -> features.Effective:
+        return features.evaluate(feature, who.role, self.feature_layers(who.company))
+
+    def org_feature_on(self, company_id: str, feature: str) -> bool:
+        """On for the organisation as a whole, whoever manages it: e.g. the company knowledge
+        every agent's calls read, which only admins edit."""
+        layers = self.feature_layers(company_id)
+        return features.evaluate(feature, None, layers).state == "available"
+
+    def require_feature(self, who: Principal, feature: str) -> None:
+        """Every route that serves a capability calls this first (D-036)."""
+        state = self.feature_state(who, feature)
+        if state.state != "available":
+            raise features.FeatureUnavailable(feature, state)
+
+    def features_for(self, who: Principal) -> dict[str, dict[str, Any]]:
+        """The person's effective map: what the session config carries."""
+        if who.company_id is None:
+            return {}
+        return features.effective_map(who.role, self.feature_layers(who.company_id))
+
+    def company_features(self, who: Principal) -> list[dict[str, Any]]:
+        """Admin → Features: only the features AGN entitled this organisation to, each with the
+        org toggle and the state an admin gets (D-028)."""
+        who.require("admin")
+        layers = self.feature_layers(who.company)
+        out = []
+        for fid, f in features.CATALOG.items():
+            if fid in layers.not_entitled:
+                continue
+            out.append(
+                {
+                    "id": fid,
+                    "enabled": fid not in layers.org_off,
+                    "roles": list(f.roles),
+                    "depends": list(f.depends),
+                    "requires": list(f.requires),
+                    **features.evaluate(fid, "admin", layers).out(),
+                }
+            )
+        return out
+
+    def set_company_feature(
+        self, who: Principal, feature: str, enabled: object, *, ip: str = ""
+    ) -> None:
+        who.require("admin")
+        if not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be true or false")
+        if (
+            feature not in features.CATALOG
+            or feature in self.feature_layers(who.company).not_entitled
+        ):
+            raise CloudError("not_found", "unknown feature")
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO company_features(company_id, feature, enabled, updated_at)"
+                " VALUES (?,?,?,?) ON CONFLICT(company_id, feature) DO UPDATE SET"
+                " enabled = excluded.enabled, updated_at = excluded.updated_at",
+                (who.company, feature, int(enabled), now_ms()),
+            )
+            self.audit(
+                db,
+                "features.toggle",
+                f"{feature} {'on' if enabled else 'off'}",
+                company_id=who.company,
+                actor=who,
+                ip=ip,
+            )
+
+    def owner_features(self) -> dict[str, Any]:
+        """The owner's matrix: every organisation by every feature, plus the kill switch."""
+        killed = {r["feature"]: r["killed_at"] for r in self._q("SELECT * FROM feature_kill")}
+        off: dict[str, list[str]] = {}
+        for r in self._q("SELECT company_id, feature FROM company_entitlements WHERE entitled = 0"):
+            off.setdefault(str(r["company_id"]), []).append(str(r["feature"]))
+        companies = self._q("SELECT id, name FROM companies ORDER BY name COLLATE NOCASE")
+        return {
+            "features": [
+                {"id": fid, "built": f.built, "killed_at": killed.get(fid)}
+                for fid, f in features.CATALOG.items()
+            ],
+            "companies": [
+                {
+                    "id": c["id"],
+                    "name": c["name"],
+                    "entitled": {
+                        fid: fid not in off.get(str(c["id"]), []) for fid in features.CATALOG
+                    },
+                }
+                for c in companies
+            ],
+        }
+
+    def owner_set_entitlements(
+        self, owner: Principal, company_id: str, changes: dict[str, Any], *, ip: str = ""
+    ) -> None:
+        self.company_row(company_id)
+        if not changes:
+            raise CloudError("invalid", "nothing to change")
+        for fid, value in changes.items():
+            if fid not in features.CATALOG:
+                raise CloudError("invalid", f"unknown feature {fid!r}")
+            if not isinstance(value, bool):
+                raise CloudError("invalid", f"{fid} must be true or false")
+        t = now_ms()
+        with self._tx() as db:
+            for fid, value in changes.items():
+                db.execute(
+                    "INSERT INTO company_entitlements(company_id, feature, entitled, updated_at)"
+                    " VALUES (?,?,?,?) ON CONFLICT(company_id, feature) DO UPDATE SET"
+                    " entitled = excluded.entitled, updated_at = excluded.updated_at",
+                    (company_id, fid, int(value), t),
+                )
+            self.audit(
+                db,
+                "owner.features.entitlement",
+                json.dumps(changes, sort_keys=True),
+                company_id=company_id,
+                actor=owner,
+                ip=ip,
+            )
+
+    def owner_set_kill(
+        self, owner: Principal, feature: str, killed: object, *, ip: str = ""
+    ) -> None:
+        if feature not in features.CATALOG:
+            raise CloudError("not_found", "unknown feature")
+        if not isinstance(killed, bool):
+            raise CloudError("invalid", "killed must be true or false")
+        with self._tx() as db:
+            if killed:
+                db.execute(
+                    "INSERT OR IGNORE INTO feature_kill(feature, killed_at) VALUES (?,?)",
+                    (feature, now_ms()),
+                )
+            else:
+                db.execute("DELETE FROM feature_kill WHERE feature = ?", (feature,))
+            self.audit(
+                db,
+                "owner.features.kill",
+                f"{feature} {'killed for every organisation' if killed else 'restored'}",
+                actor=owner,
+                ip=ip,
+            )
 
     # --- owner (platform) ------------------------------------------------------------------------
     def owner_stats(self) -> dict[str, Any]:
