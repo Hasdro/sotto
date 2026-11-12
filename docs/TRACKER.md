@@ -242,7 +242,7 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Known issues and tech debt
 
-- **Flaky under load (2026-11-12):** `apps/app/__tests__/call.test.tsx` "an escalation shows 'Sent to your manager'…" (fake timers) timed out 1 of 3 runs alone at load average 19 (three child sessions building); 2 of 3 passed. Earlier, 6 suites timed out at load 9 and passed alone. Re-check on a quiet machine; if it still flakes, fix the test's timer handling (no timeout increase without a CONSTRAINTS entry). Master owns this after the phase 9 merges.
+- [x] **Flaky under load (2026-11-12), fixed:** `call.test.tsx` escalation toast test froze the clock with `jest.useFakeTimers()`, so the async render/act flush could deadlock under load and the timer state leaked when it timed out. Now `useFakeTimers({ advanceTimers: true })` in try/finally; the 8 s dismissal is still advanced by hand. 6/6 runs pass; full `pnpm test` green (app 284, worker 442).
 
 - **T-015** (2026-10-20, D-022) Gaps in the cloud server. Not yet available in hosted mode:
   - custom endpoints (Ollama/vLLM): the Mac demo only;

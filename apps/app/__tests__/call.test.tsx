@@ -300,21 +300,27 @@ describe("in-call screen", () => {
   });
 
   it("an escalation shows 'Sent to your manager' and is dismissed after a while", async () => {
-    jest.useFakeTimers();
-    const st = stateFrom([
-      hello,
-      { type: "call_started", call_id: CALL },
-      { type: "escalation", question: "Bitcoin deposit?" },
-    ]);
-    const s = session(st);
-    await render(<CallView session={s} mock={false} />);
-    expect(screen.getByTestId("toast")).toBeOnTheScreen();
-    expect(screen.getAllByText("Sent to your manager").length).toBeGreaterThan(0);
-    await act(async () => {
-      jest.advanceTimersByTime(8000);
-    });
-    expect(s.dismissNotice).toHaveBeenCalledWith(st.notice?.id);
-    jest.useRealTimers();
+    // advanceTimers: the async render/act flush schedules timers of its own; a frozen clock let
+    // them deadlock under machine load (flake, 2026-11-12). The 8 s dismissal is still driven by hand.
+    jest.useFakeTimers({ advanceTimers: true });
+    try {
+      const st = stateFrom([
+        hello,
+        { type: "call_started", call_id: CALL },
+        { type: "escalation", question: "Bitcoin deposit?" },
+      ]);
+      const s = session(st);
+      await render(<CallView session={s} mock={false} />);
+      expect(screen.getByTestId("toast")).toBeOnTheScreen();
+      expect(screen.getAllByText("Sent to your manager").length).toBeGreaterThan(0);
+      expect(s.dismissNotice).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(8000);
+      });
+      expect(s.dismissNotice).toHaveBeenCalledWith(st.notice?.id);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("ended: offers another call and hides the composer", async () => {
