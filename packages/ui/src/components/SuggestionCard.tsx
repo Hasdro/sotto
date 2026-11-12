@@ -37,6 +37,8 @@ export type SuggestionCardProps = {
   strings: SuggestionCardStrings;
   /** Compact only: show the whole sentence instead of two lines (one card open at a time). */
   expanded?: boolean;
+  /** Compact only: an older card stepping back; the sentence uses the muted text token. */
+  quiet?: boolean;
   /** Hero only: a quiet line under the text, e.g. the measured delay. */
   footnote?: string | null;
   testID?: string;
@@ -75,6 +77,7 @@ export function SuggestionCard({
   strings,
   footnote,
   expanded = false,
+  quiet = false,
   testID,
 }: SuggestionCardProps) {
   const theme = useTheme();
@@ -110,7 +113,11 @@ export function SuggestionCard({
             </Text>
           ) : null}
         </View>
-        <Text variant="cardCompact" numberOfLines={expanded ? undefined : 2}>
+        <Text
+          variant="cardCompact"
+          tone={quiet ? "muted" : "default"}
+          numberOfLines={expanded ? undefined : 2}
+        >
           {text}
         </Text>
       </View>

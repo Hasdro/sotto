@@ -51,7 +51,7 @@ export function userFacingHits(path: string, source: string): string[] {
   return text
     .split("\n")
     .map((line, i) => [line, i + 1] as const)
-    .filter(([line]) => /\bSotto\b/.test(line))
+    .filter(([line]) => /\bSotto\b|سوتو/.test(line))
     .map(([line, n]) => `${relative(root, path)}:${n}: ${line.trim()}`);
 }
 
@@ -61,6 +61,7 @@ describe("brand name (T-049, D-026)", () => {
     expect(userFacingHits("a.ts", 'const s = "Open Sotto";')).toHaveLength(1);
     expect(userFacingHits("a.ts", 'const u = "https://x.io"; // Sotto')).toEqual([]);
     expect(userFacingHits("a.ts", 'const k = "sotto.locale";')).toEqual([]);
+    expect(userFacingHits("a.ts", 'const ar = "يستخدمها سوتو";')).toHaveLength(1);
   });
 
   it("no user-facing Sotto remains in app, UI, desktop, manifests or the logo page", () => {

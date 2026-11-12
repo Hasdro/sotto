@@ -45,26 +45,24 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
     <View style={styles.stack}>
       {listening && hero ? <Activity speaking={speaking} writing={writing} /> : null}
       {hero ? (
-        <Glow on={writing}>
-          <SuggestionCard
-            key={hero.id}
-            testID="hero-card"
-            type={hero.type}
-            source={hero.source}
-            label={hero.label}
-            text={hero.text}
-            done={hero.done}
-            wide={wide}
-            strings={cardStrings(t, hero.type, hero.source)}
-            footnote={
-              hero.shownAfterMs === null
-                ? null
-                : t("card.shownAfter", {
-                    seconds: formatNumber(hero.shownAfterMs / 1000, locale, 2),
-                  })
-            }
-          />
-        </Glow>
+        <SuggestionCard
+          key={hero.id}
+          testID="hero-card"
+          type={hero.type}
+          source={hero.source}
+          label={hero.label}
+          text={hero.text}
+          done={hero.done}
+          wide={wide}
+          strings={cardStrings(t, hero.type, hero.source)}
+          footnote={
+            hero.shownAfterMs === null
+              ? null
+              : t("card.shownAfter", {
+                  seconds: formatNumber(hero.shownAfterMs / 1000, locale, 2),
+                })
+          }
+        />
       ) : listening ? (
         <Listening speaking={speaking} />
       ) : null}
@@ -81,16 +79,20 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
               label={t(openId === c.id ? "card.collapse" : "card.expand")}
               onToggle={() => setOpenId((id) => (id === c.id ? null : c.id))}
             >
-              <SuggestionCard
-                variant="compact"
-                type={c.type}
-                source={c.source}
-                label={c.label}
-                text={c.text}
-                done={c.done}
-                expanded={openId === c.id}
-                strings={cardStrings(t, c.type, c.source)}
-              />
+              {(quiet) => (
+                <SuggestionCard
+                  variant="compact"
+                  quiet={quiet}
+                  type={c.type}
+                  source={c.source}
+                  label={c.label}
+                  text={c.text}
+                  done={c.done}
+                  expanded={openId === c.id}
+                  strings={cardStrings(t, c.type, c.source)}
+                  testID={`earlier-${c.id}-card`}
+                />
+              )}
             </Dimmed>
           ))}
         </View>
@@ -99,11 +101,12 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
   );
 }
 
-/** Older cards step back so the newest stands out; hovering one brings it to full strength
- * (owner, 22 Oct). Screen readers and keyboard focus are not affected by the dimming. Pressing
- * one opens its whole sentence (T-050); an open card stays at full strength. */
-export const DIM_OPACITY = 0.45;
-
+/**
+ * Older cards step back so the newest stands out; hovering or focusing one brings it to full
+ * strength (owner, 22 Oct). The step back is a colour change to the muted text token, not
+ * opacity, so the sentence keeps WCAG AA contrast (T-050). Pressing one opens its whole
+ * sentence; an open card stays at full strength.
+ */
 function Dimmed({
   children,
   testID,
@@ -111,19 +114,13 @@ function Dimmed({
   label,
   onToggle,
 }: {
-  children: ReactNode;
+  children: (quiet: boolean) => ReactNode;
   testID?: string;
   open: boolean;
   label: string;
   onToggle: () => void;
 }) {
-  const level = useRef(new Animated.Value(DIM_OPACITY)).current;
-  const to = (v: number) =>
-    Animated.timing(level, { toValue: v, duration: 140, useNativeDriver: false }).start();
-  useEffect(() => {
-    level.setValue(open ? 1 : DIM_OPACITY);
-  }, [open, level]);
-  const rest = open ? 1 : DIM_OPACITY;
+  const [lit, setLit] = useState(false);
   return (
     <Pressable
       testID={testID}
@@ -132,14 +129,12 @@ function Dimmed({
       accessibilityState={{ expanded: open }}
       aria-expanded={open}
       onPress={onToggle}
-      onHoverIn={() => to(1)}
-      onHoverOut={() => to(rest)}
-      onFocus={() => to(1)}
-      onBlur={() => to(rest)}
+      onHoverIn={() => setLit(true)}
+      onHoverOut={() => setLit(false)}
+      onFocus={() => setLit(true)}
+      onBlur={() => setLit(false)}
     >
-      <Animated.View testID={testID ? `${testID}-fade` : undefined} style={{ opacity: level }}>
-        {children}
-      </Animated.View>
+      {children(!(lit || open))}
     </Pressable>
   );
 }
@@ -187,39 +182,6 @@ function Activity({ speaking, writing }: { speaking: boolean; writing: boolean }
         )}
       </Text>
     </View>
-  );
-}
-
-/** A soft pulsing halo around the card while its words are still arriving. */
-function Glow({ on, children }: { on: boolean; children: React.ReactNode }) {
-  const { color } = useTheme();
-  const v = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!on) {
-      v.setValue(0);
-      return;
-    }
-    const a = Animated.loop(
-      Animated.sequence([
-        Animated.timing(v, { toValue: 1, duration: 700, useNativeDriver: false }),
-        Animated.timing(v, { toValue: 0, duration: 700, useNativeDriver: false }),
-      ]),
-    );
-    a.start();
-    return () => a.stop();
-  }, [on, v]);
-  return (
-    <Animated.View
-      style={{
-        borderRadius: 24,
-        shadowColor: color.primary,
-        shadowOffset: { width: 0, height: 6 },
-        shadowRadius: v.interpolate({ inputRange: [0, 1], outputRange: [8, 22] }),
-        shadowOpacity: on ? v.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.4] }) : 0,
-      }}
-    >
-      {children}
-    </Animated.View>
   );
 }
 
