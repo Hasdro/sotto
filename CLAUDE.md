@@ -1,6 +1,6 @@
 # Sotto — instructions for Claude
 
-Sotto is a real-time sales-call copilot. During a live call it listens **only to the
+AGN Sales Shield (formerly Sotto; technical identifiers keep `sotto`, D-026) is a real-time sales-call copilot. During a live call it listens **only to the
 customer's audio track** and shows the sales agent one suggestion card within **1.5 s
 (p95)** of the customer finishing a sentence. It is multi-tenant SaaS with one codebase
 for iOS, Android and web/desktop. Prompts and models are data, configurable per company,
@@ -66,6 +66,18 @@ If two documents disagree, stop, say which ones, and propose the fix as a decisi
   - changing a requirement;
   - deleting data;
   - adding a major dependency that the phase brief does not name.
+
+## Session orchestration (D-035, phase 9)
+
+- **Master session:** plans, decomposes, reviews, merges and keeps `docs/TRACKER.md` true. It does not run long builds, full test suites or large refactors itself; it gives them to subagents.
+- **Subagents** do research, focused implementation, test runs and reviews. Use the cheapest adequate model; keep the strongest model for the master and for design or security judgement.
+- **Child sessions** run independent workstreams, at most 3 in parallel. Each gets:
+  - its own branch (`phase9/<stream>`) and git worktree;
+  - a ready-to-paste prompt in `docs/prompts/` with scope, owned files, acceptance criteria, required evidence and handoff steps.
+- **No two sessions touch the same files.** A file outside a child's owned list needs the master's OK. The master owns the merge order.
+- **Children** update only their own section of the tracker (their task lines and a session-log entry). The master writes Now.
+- Hand off at 60–70 % context. Never duplicate work. Commit and push WIP before risky steps and about every 45 minutes. Never end with uncommitted work or a stale tracker.
+- **Decide vs ask:** technical, architectural and sequencing decisions are the session's own (record them). Ask the owner before spending money, creating paid accounts, touching production, changing a product requirement, deleting data, or adding a major dependency. Batch owner questions; keep going on everything that does not need them.
 
 ## Workflow
 

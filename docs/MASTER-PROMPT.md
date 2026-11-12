@@ -1,5 +1,15 @@
 # Master prompt
 
+> **Current round (12 Nov 2026): Phase 9, AGN Sales Shield 0.3.0 → 0.8.0.** Brief: `docs/phases/phase-9-product-round.md`. Orchestration rules: CLAUDE.md § Session orchestration (D-035). Child-session prompts: `docs/prompts/`. Continue with:
+>
+> ```
+> Continue AGN Sales Shield phase 9 as the master session. Read CLAUDE.md (incl. Session
+> orchestration), docs/TRACKER.md Now and the newest log entry, and
+> docs/phases/phase-9-product-round.md. Run /next-task, then review/merge child work,
+> start the next version's workstreams, and keep the tracker true until a version gate,
+> a real blocker or an owner-only decision.
+> ```
+
 Paste the block below into a new Claude Code session opened on this repo. It works in the cloud (claude.ai/code) and locally, as the first prompt or as a follow-up prompt. It never restarts work that is already done, because it begins from `docs/TRACKER.md`.
 
 ```

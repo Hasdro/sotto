@@ -26,15 +26,14 @@ Tags:
 ## Now
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
-- **Phase:** D-022 build. Client apps run calls (`packages/engine`); the us3 management server (`sotto_worker.cloud`) handles accounts, plans, devices, usage and the owner console at https://104-168-48-116.sslip.io (`/owner`, `/downloads/`).
-- **Desktop 0.2.0 — built, published, waiting for the owner's Windows and Mac test.** Mac DMGs (arm64 + x64) and the Windows NSIS `.exe` are on `/downloads/`, all 0.2.0 (links 200; page lists them). Windows now matches the Mac: registry microphone watcher (HKCU `ConsentStore\microphone`, 1 s, fixed `reg query` args), notification-area icon (Open, mini window, start/end listening, Quit, Live in the tooltip), `Ctrl+Shift+Alt+S/C/M` (AltGr-safe), Windows app names, Windows microphone message, closing the window leaves Sotto in the tray. The Windows installer is unsigned: SmartScreen → More info → Run anyway. Installed the Mac 0.2.0 in `/Applications` and opened it (existing profile kept); the owner still tests Windows.
-- **Owner's four video fixes:** the face's eyes follow the pointer, it breathes and blinks, the smile is lower; a purpose-built icon set replaces the interface emoji; hovering a History row shows a data card; the History list starts at the top and grows down (a growing TextField was pushing it to the bottom). Mini window 520 wide (owner note in the hub). Settings → Health check (admin) was the ticked idea that needs no server change; names, worked, outcome and digest need server/engine work and were not built this round. `pnpm a11y` 33 checks / 0 serious. **The web bundle is 476 KB gzipped, over the 450 KB budget** (T-044, owner decision: raise, cut zod or lazy-load; not hidden).
-- **Owner answers read** from the artifact db (`decisions/owner`, round `2026-10-22b`): all 12 fixes marked works except knowledge/source/palette (not tried); mailbox Hostinger; Google + Gallabox `will_do`; Zoho `later`; price $29; backup remind; playbook folder; ticked names, worked, outcome, digest, health.
-- **Next task (Claude):** the owner's Windows/Mac test (hub tab 1). Then names/worked/outcome/digest with the server and engine (replay after any pipeline change), Google sign-in and Gallabox once keys exist, Zoho when the owner says later is over. Windows code signing only if the owner buys a certificate.
-- **Branch:** `claude/friendly-gates-fbhqdv` (D-013). Draft PR: https://github.com/Hasdro/sotto/pull/1
-- **Environment last used:** local Mac, 2026-10-22 12:00. `apps/desktop/release/` holds the 0.2.0 installers; ssh to us3 works (root@104.168.48.116). Electron runs from `apps/desktop` with `env -u ELECTRON_RUN_AS_NODE` (the harness exports it) and an explicit `--user-data-dir`.
-- **Blockers (owner):** real playbook docs (owner says sent; not found); LiveKit + Yeastar; Google and Gallabox keys.
-- **Owner hub:** https://claude.ai/artifact/JV2NzAysf1dCB9kEdHCc2s — source `docs/owner-hub.html` updated to v19 (0.2.0 test checklist for Mac and Windows, Windows results). **Needs republishing from a Claude session**: this harness has no ArtifactData. The owner's saved answers stay in the artifact db at `decisions/owner` (round b); do not overwrite them.
+- **Phase:** 9 — AGN Sales Shield product round (`docs/phases/phase-9-product-round.md`), version ladder 0.3.0 → 0.8.0 (D-030). Entry: desktop 0.2.0 published (owner's Windows test still open).
+- **Version now:** building **0.3.0 Foundation** (T-045…T-052). Three child workstreams, prompts in `docs/prompts/`: `brand-ui` (T-048…T-051), `flags-auth` (T-045…T-047), `landing-infra` (T-066/T-067 plan, starts after 0.3.0 assets). Master (this branch) reviews and merges: flags-auth → brand-ui → landing.
+- **Research done (12 Nov):** Zoho v8 in `docs/REFERENCES.md` § Zoho CRM (Meetings = api_name `Events`, per-user OAuth, upsert for idempotency); Gallabox in § Gallabox.
+- **Next action (master):** wait for the child sessions' evidence; review each with `code-reviewer` (+ `security-auditor` for flags-auth), merge, then T-052 release gate (replay, a11y, screenshots, tag v0.3.0, both installers).
+- **Branch:** master `claude/friendly-gates-fbhqdv` (draft PR https://github.com/Hasdro/sotto/pull/1); children `phase9/brand-ui`, `phase9/flags-auth`, `phase9/landing-infra` in their own worktrees.
+- **Environment:** local Mac. ssh to us3 works (root@104.168.48.116). Electron dev runs need `env -u ELECTRON_RUN_AS_NODE` and an explicit `--user-data-dir`.
+- **Owner (batched, Phase 9 § Owner actions):** logo choice (after T-048), DNS for salesshield.agncompu.com, Zoho OAuth client, Zoho Forms embed, Hostinger SMTP, Gallabox key/channel/templates.
+- **Note:** the owner mentioned a Zoho Partner demo "by Saturday" (14 Nov). The ladder puts Zoho in 0.4.0; see the session log 2026-11-12.
 
 ## Phase board
 
@@ -49,6 +48,7 @@ Tags:
 | 6 Prompt studio, model settings | in progress: P6.7 keys panel done, P6.5 partial (demo server) | same | `tests/server/` 62 passed |
 | 7 Escalations, Zoho CRM | todo | – | – |
 | 8 Hardening, release, pilot | todo | – | – |
+| 9 AGN Sales Shield round (0.3.0–0.8.0) | in progress: docs recorded, 0.3.0 workstreams started | `claude/friendly-gates-fbhqdv` + `phase9/*` | – |
 
 ## Task board
 
@@ -164,9 +164,44 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [ ] P8.6 Full security + quality review
 - [ ] P8.7 One-week pilot `owner`
 
+### Phase 9 (`docs/phases/phase-9-product-round.md`; acceptance = its "Definition of done")
+0.3.0 Foundation
+- [ ] T-045 Feature-flag catalog, five states, server enforcement (D-028, D-036), retrofit existing features — `flags-auth`
+- [ ] T-046 Owner entitlement matrix + global kill switch; Admin → Features; greyed-state UI component — `flags-auth`
+- [ ] T-047 Persistent login: rotating refresh tokens, 90-day sliding, `safeStorage`, 0.2.0 token migration (D-029) — `flags-auth`
+- [ ] T-048 Logo: three vector directions `owner` (choice) — `brand-ui`
+- [ ] T-049 Rebrand to AGN Sales Shield: strings (en + ar), installers, tray, window, About, favicon (D-026) — `brand-ui`
+- [ ] T-050 Global reskin + live-call polish + information-density rules — `brand-ui`
+- [ ] T-051 Mascot five result moods from the review score — `brand-ui`
+- [ ] T-052 0.3.0 release gate: merge, replay, a11y, screenshots, both installers, tag v0.3.0 — master
+0.4.0 Pre-call
+- [ ] T-053 Zoho per-user OAuth via the server, data centres, encrypted tokens, permission matrix (D-031) `owner` (OAuth client)
+- [ ] T-054 Meeting/contact matching: ≤ 3 candidates with evidence, manual search, skip
+- [ ] T-055 Context pull (deal, contact, account, meeting, last 5 notes / 90 days) with a token budget
+- [ ] T-056 Prep chat + structured brief, saved with the call, injected into the live prompt (replay)
+- [ ] T-057 Live context rail (collapsed; no latency regression)
+0.5.0 Learning loop
+- [ ] T-058 Ratings on AI advice cards with reason chips; admin aggregates
+- [ ] T-059 Learned instructions: minimised packet, 8 × 25 words, registry variable, next-call only (D-034; replay)
+- [ ] T-060 Settings instruction editor: edit, reorder, disable, delete, versions, revert, review switch, badge
+0.6.0 Post-call actions
+- [ ] T-061 Post-call panel + during-call side panel (lead, contact only)
+- [ ] T-062 Zoho writes: Meeting, Lead, Contact, Deal note — approval, audit, idempotency
+- [ ] T-063 Email: senders, formats, static blocks, To/CC, preview, send, audit (D-032) `owner` (SMTP)
+0.7.0 WhatsApp
+- [ ] T-064 Gallabox adapter: template list + allow-list, `window_status()`, last 100 messages (D-033) `owner` (key)
+- [ ] T-065 Approved WhatsApp sends from the post-call panel
+0.8.0 Release
+- [ ] T-066 Landing page, Privacy, Terms, Zoho Forms slot `owner` (form, legal review)
+- [ ] T-067 DNS + Caddy for salesshield.agncompu.com; clean `/downloads/` `owner` (DNS)
+- [ ] T-068 GitHub Releases v0.3.0…v0.8.0 with installers
+- [ ] T-069 Local Mac cleanup + clean install keeping data `local-only`
+
 ## Waiting on owner
 
 Things only the owner can do, so the agent never waits silently.
+
+- [ ] **Phase 9 batch (12 Nov 2026):** (1) pick a logo direction once T-048 is ready; (2) DNS A record `salesshield.agncompu.com → 104.168.48.116` (say if Cloudflare proxies it); (3) Zoho OAuth Web Application client at api-console.zoho.com — client ID/secret into the app's key panel or the Mac `.env`, plus the redirect URI, data centre and a test org; (4) Zoho Forms embed code; (5) Hostinger sender address + SMTP login (key panel), optional Resend key; (6) Gallabox API key, secret, channel and the template list; (7) review Privacy/Terms drafts; (8) test Mac + Windows builds when asked.
 
 - [x] **Hub decisions** — saved 2026-10-20 11:38 (all six = the recommendations: keys on server, SQLite, Electron, Xcode, manual billing, audio 30 days).
 - [x] **Owner console first sign-in** — password changed, file deleted (checked 2026-10-20).
@@ -186,7 +221,7 @@ Things only the owner can do, so the agent never waits silently.
   - Phase 7: Resend/Postmark
   - Phase 8: Sentry
 - [-] Cloud sessions: set the API keys as environment secrets (owner: keys only in the Mac's `.env`), and allow network access to the vendors' domains
-- [ ] Trademark and domain check for "Sotto" (D-001)
+- [-] Trademark and domain check for "Sotto" (D-001) — superseded by D-026 (AGN Sales Shield)
 - [x] Let Claude write `.env.example` (owner approved 2026-10-19; apply next session). The deny rule `Read(./.env.*)` in `.claude/settings.json` also blocks `.env.example`. Suggested: add an allow rule for `./.env.example`. Until then `docs/ENV.md` lists the variables.
 - [x] Try the demo on the Mac (owner, 2026-10-19: "looks nice")
 - [x] Answer the decisions page (submitted 2026-10-19; see `docs/OWNER-ANSWERS.md`): https://claude.ai/artifact/7KfhEygJMdxMi5gPRdmWV6. It replaces the Phase 0 interview and covers BRIEF, D-009 to D-015, accounts, hooks and `.env.example`.
@@ -273,6 +308,13 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-12 · local · Opus 5.5 · phase 9 recorded (master)
+- **Done:** recorded the owner's product-round brief as `docs/phases/phase-9-product-round.md`; REQUIREMENTS R5 superseded by R5a, new R7–R12; DECISIONS D-026…D-036; tracker Phase 9 board T-045…T-069; CLAUDE.md § Session orchestration; MASTER-PROMPT points at phase 9; Zoho and Gallabox research (subagents) in REFERENCES; child prompts in `docs/prompts/`.
+- **Evidence:** docs only; no code changed. App jest on a loaded machine timed out on 6 suites (load avg 9); `screens` + `no-samples` re-run alone: 30/30 passed in 4 s.
+- **Conflicts found:** (1) the brief says "never silently create an Event", but Zoho's Meetings module *is* api_name `Events` (label "Meetings") — mapped per the brief's own rule, still to verify on the owner's org; (2) "server rejects every non-available action" vs D-022 client-run calls — resolved by D-036; (3) R3's RLS rule vs the SQLite server — already resolved by D-022 (data-access isolation tests); (4) the owner's Zoho Partner demo on Saturday 14 Nov vs Zoho in 0.4.0 — raised with the owner.
+- **Next:** child sessions build 0.3.0; master reviews and merges; T-052.
+
 
 ### 2026-10-22 (c) · local · DeepSeek Harness · desktop 0.2.0: Windows parity, installers, video fixes
 - Done: Windows desktop parity (`apps/desktop/win-mic.cjs` + tests, `main.cjs` tray/1 s registry watcher/`Ctrl+Shift+Alt` shortcuts, Windows app names in `call-apps.cjs`, Windows microphone message, mini window 520×260); owner's four video fixes (pointer-following eyes + breathing + lower smile in `packages/ui/src/components/Mascot.tsx`, custom icon set `Icon.tsx` used across nav/pages/settings/history/sources, History hover card `CallPeek.tsx`, list starts at the top); Settings → Health check (`features/settings/Health.tsx`); version 0.2.0 (`apps/app/lib/cloud.ts`, `app.json`, `apps/desktop/package.json` + lock); built and published the Mac DMGs and Windows `.exe` with `deploy/publish-apps.sh` (also rebuilt the Linux AppImage; old 0.1.0 APK/extension were left in the folder).

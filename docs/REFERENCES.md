@@ -91,3 +91,34 @@ If a link is dead, find the new official page, fix the link here, and say so in 
 | Subagents | https://code.claude.com/docs/en/sub-agents |
 | agent-skills (upstream of `.claude/skills`) | https://github.com/addyosmani/agent-skills |
 | Context7 MCP | https://github.com/upstash/context7 |
+
+## Zoho CRM v8 (research 2026-11-12, official docs; verify on the owner's org before coding)
+| Topic | Finding | Link |
+|---|---|---|
+| OAuth (server-based) | `{accounts}/oauth/v2/auth?scope=…&client_id=…&response_type=code&access_type=offline&redirect_uri=…`; code valid 2 min; redirect returns `code`, `location`, `accounts-server` | https://www.zoho.com/crm/developer/docs/api/v8/auth-request.html |
+| Refresh / revoke | `POST {accounts}/oauth/v2/token` (grant_type=refresh_token) → `access_token`, `api_domain`, `expires_in` 3600; revoke `POST {accounts}/oauth/v2/token/revoke?token=…` | https://www.zoho.com/crm/developer/docs/api/v8/refresh.html · …/revoke-tokens.html |
+| Token limits | access 1 h; refresh never expires until revoked; max 20 refresh tokens per user (21st drops the oldest); 10 access tokens per refresh token per 10 min → cache ~55 min | https://www.zoho.com/crm/developer/docs/api/v8/token-validity.html |
+| Data centres | accounts.zoho.com / .eu / .in / .com.au / .jp / zohocloud.ca / .com.cn (+ .sa, .uk); always use the token response's `api_domain`; authoritative list `https://accounts.zoho.com/oauth/serverinfo` | https://www.zoho.com/crm/developer/docs/api/v8/multi-dc.html |
+| Scopes | `ZohoCRM.modules.{leads,contacts}.ALL`, `.accounts.READ`, `.deals.READ`, `.events.ALL`, `.notes.CREATE` (+READ unverified), `ZohoCRM.coql.READ`, `ZohoCRM.settings.modules.READ`, `ZohoCRM.users.READ` (unverified; `users.ALL` confirmed), `ZohoSearch.securesearch.READ` | https://www.zoho.com/crm/developer/docs/api/v8/scopes.html |
+| Meetings | API module `Events`, module/plural label "Meetings"; create `POST /crm/v8/Events` — `Event_Title`, `Start_DateTime`, `End_DateTime`, `Remind_At`; `Participants` [{type, participant, Email}] ≤ 50; `What_Id` + `$se_module` (Deals/Accounts); `Who_Id`. Send datetimes with an explicit offset. Owner and timezone fields unverified | https://www.zoho.com/crm/developer/docs/api/v8/modules-api.html · …/insert-records.html |
+| Search | `GET /crm/v8/{module}/search` with one of criteria/email/phone/word; per_page ≤ 200; ≤ 2000 total. COQL `POST /crm/v8/coql` `{"select_query": …}` for time windows (Events in COQL unverified) | https://www.zoho.com/crm/developer/docs/api/v8/search-records.html · …/COQL-Overview.html |
+| Notes | `POST /crm/v8/Deals/{id}/Notes` or `/Notes` with `Parent_Id: {module: {api_name: "Deals"}, id}`, `Note_Content` | https://www.zoho.com/crm/developer/docs/api/v8/create-notes.html |
+| Idempotency | `POST /crm/v8/{module}/upsert` with `duplicate_check_fields` (default Email for Leads/Contacts); response `action` insert/update | https://www.zoho.com/crm/developer/docs/api/v8/upsert-records.html |
+| Limits | daily credits by edition (Enterprise 50k + 1000/user); concurrency 20 (Enterprise); search 1 credit; upsert 1 credit / 10 records | https://www.zoho.com/crm/developer/docs/api/v8/api-limits.html |
+
+**Must verify on the owner's org (T-053 first step):** `GET /crm/v8/settings/modules` (Events `api_supported`, any Zoho Meeting module), DC and `api_domain`, `users.READ`, `prompt=consent` for refresh tokens, edition, unique fields, a test Event with Participants/Owner/offsets, Note_Title.
+
+## Gallabox WhatsApp (research 2026-11-12; Postman collection ~55 % read; verify on the owner's account)
+| Topic | Finding | Link |
+|---|---|---|
+| Auth | base `https://server.gallabox.com/devapi`; headers `apiKey`, `apiSecret`; key from Settings › Developer › API Keys (2FA, secret shown once; scope All/Read/Restricted); accountId and channelId copied from settings | https://api-docs.gallabox.com/view/metadata/Tzz7QJTJ · https://docs.gallabox.com/settings/api-keys.md |
+| Template send | `POST /devapi/messages/whatsapp` `{channelId, channelType:"whatsapp", recipient:{name, phone}, whatsapp:{type:"template", template:{templateName, headerValues, bodyValues:{Var: …}, buttonValues:[…]}}}` → 202 `{id, status:"ACCEPTED"}`; `language` field unverified | https://api-docs.gallabox.com/api/collections/17087523/Tzz7QJTJ |
+| Free-form | same endpoint, `whatsapp:{type:"text", text:{body}}` — disabled in v1 (D-033) | same |
+| Templates | `GET /devapi/accounts/:accountId/whatsappTemplates` → name, language, category (UTILITY/MARKETING), status, components, variables. **Response embeds a `channel` object with credential-like fields: redact, never log** | same |
+| History | **No message-history endpoint found** (unverified `GET /conversations` on a third-party catalog). Contacts: `GET /accounts/:accountId/contacts?phone=` | same |
+| 24 h window | Meta: opens/reset on each user message; outside it templates only. Gallabox error `131047` = window closed. No window-status field documented | https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages · https://docs.gallabox.com/whatsapp/message-error-codes.md |
+| Ban risk | spam, misclassified templates, negative feedback → 1–30 day restrictions or removal; stop on `131056`, `131048`, `131049`, `132015`/`132016`; opt-in required; new portfolios 250 unique users/24 h | https://developers.facebook.com/documentation/business-messaging/whatsapp/policy-enforcement.md · …/messaging-limits.md |
+| Webhooks | `POST /devapi/webhooks` {requestUrl, events}; `Message.Received`, `Message.WA.Status.Received/Failed`; `x-gallabox-signature` = base64 HMAC-SHA256; needs Essential/Advanced plan | https://docs.gallabox.com/settings/webhooks.md |
+| Rate limits | per method, unpublished; `X-RateLimit-*` headers; 429 `TOO_MANY_REQUEST` | overview |
+
+**Design consequence (T-064):** `window_status()` can only be built from our own record of the last inbound `Message.Received` webhook per phone (or `131047`), so v1 returns `unknown` → template. "Last 100 messages" needs either a history endpoint (verify) or storing webhook messages, which D-033 forbids — owner decision before 0.7.0 if no endpoint exists.

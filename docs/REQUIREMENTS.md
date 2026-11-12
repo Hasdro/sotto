@@ -81,6 +81,8 @@ The agent track may be transcribed as context only (setting); it never triggers 
 
 ## R5 — One app on iPhone, Android, Windows, Mac and Linux
 
+> **Superseded 2026-11-12 by R5a (D-027).** Kept for history; mobile, extension and Linux are on hold.
+
 One codebase. Modern, consistent design, light and dark, Arabic right-to-left support.
 
 **Acceptance tests**
@@ -125,3 +127,68 @@ change them without a code release.
 - Create prompt v2, test it on recordings, publish, then roll back to v1.
 - Grep check in CI: no provider SDK is imported outside `adapters/`; no model name string outside config/seed data.
 - Add a key in the Keys & providers panel, test it, select it for a stage; the next call uses it; the key never appears in any API response.
+
+## R5a — Desktop first: macOS and Windows (supersedes R5, D-027)
+
+One codebase; releases are the macOS and Windows desktop apps. Light and dark, Arabic RTL. Mobile, extension and Linux code stay and keep passing tests, with no release work.
+
+**Acceptance tests**
+- Each version ships a macOS DMG (arm64 + x64) and a Windows installer with the same version number.
+- A full test call works on a Mac and on a Windows PC before a release is published.
+
+---
+
+The requirements below come from the phase 9 brief (`docs/phases/phase-9-product-round.md`), which holds the full detail.
+
+## R7 — Feature flags (D-028, D-036)
+
+Every capability has one state: available, off_by_platform, off_by_org, needs_connection, no_permission. Platform entitlement and a global kill switch (owner), an org toggle (admin, default on), role rules. No per-user toggle.
+
+**Acceptance tests**
+- For each non-available state, the server rejects the action with `feature_unavailable` and the state; a test covers every state.
+- Unavailable workflow features are greyed with a one-line reason and an action; role-irrelevant ones are hidden.
+- The global kill switch turns a feature off for every org within 10 minutes without a deploy.
+- Every existing capability (call review, follow-up, recordings, reports, AI knowledge, integrations) is in the catalog.
+
+## R8 — AGN Sales Shield brand and density (D-026)
+
+**Acceptance tests**
+- No user-facing "Sotto" remains (grep check on strings, installers, tray, About, favicon).
+- The live call shows only the suggestion card, the call status and one collapsed context-rail toggle; one card expanded at a time.
+- The mascot shows the right mood for review scores 80, 65, 50, 30 and no review.
+- Light, dark, RTL, 390 px and 1280 px screenshots; axe 0 serious; replay p95 ≤ 1500 ms.
+
+## R9 — Stay signed in (D-029)
+
+**Acceptance tests**
+- Sign-in survives an app restart, an update, an offline start and a server 5xx.
+- A token unused for 90 days no longer works; an active user is never asked to sign in again.
+- A reused refresh token revokes the device session.
+- Tokens are in OS secure storage on desktop, not in localStorage.
+- A 0.2.0 sign-in carries over to 0.3.0 without a new login.
+
+## R10 — Pre-call context from Zoho (D-031)
+
+**Acceptance tests**
+- Each agent connects their own Zoho account in a chosen data centre and can disconnect it; tokens are encrypted and never returned by the API.
+- For a booked call, up to three meeting/contact candidates with evidence appear; nothing attaches without the agent's confirmation; "Skip" and manual search work.
+- The structured brief (TLDR, objective, attendees, pains, competitors, next step) is saved with the call and injected into the live prompt; replay p95 ≤ 1500 ms.
+- Without Zoho, a manual brief works and Zoho features show "needs connection".
+- Company A's Zoho tokens and briefs are never visible to company B (isolation test).
+
+## R11 — Learn from card ratings (D-034)
+
+**Acceptance tests**
+- Only AI advice cards show rating controls.
+- After a call with ≥ 3 ratings, at most 8 instructions of ≤ 25 words are produced; the packet contains no full transcript (test).
+- Instructions can be edited, reordered, disabled, deleted and reverted; "review before apply" holds them until approved.
+- A test call shows the instructions applied on the next call only; the playbook answer wins on conflict.
+
+## R12 — Post-call actions: Zoho, email, WhatsApp (D-031, D-032, D-033)
+
+**Acceptance tests**
+- Each suggested action (Meeting, Lead, Contact update, Deal note, email, WhatsApp) waits for its own approval; nothing is written or sent before.
+- A retried write never creates a duplicate; every write and send is in the audit log.
+- No Deal stage or amount write is possible through the API.
+- Email static blocks appear verbatim; the agent sees a preview and confirms before send.
+- WhatsApp: only allow-listed templates are sent unless the window is verifiably open, re-checked right before sending; message history is not stored.

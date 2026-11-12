@@ -339,3 +339,64 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 **Decision.** The owner chose "raise" on the hub: `suggest.first_token_ms` = 1150 ms from t0 (≈ 550 ms of the model's own time). R2's "700 ms" is read as the model's own time. The holding line at t0 + 1400 ms and R1's 1500 ms p95 are unchanged.
 
 **Consequences.** Fewer duplicate requests; a slow main model shows the holding line rather than a backup card slightly more often. Replay must stay ≤ 1500 ms p95.
+
+## D-026 — Product name: AGN Sales Shield (supersedes D-001)
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** The user-facing product is **AGN Sales Shield**, short form **Sales Shield**. No tagline until the owner approves one. The logo is a standalone symbol (no letters), chosen by the owner from three vector directions (T-048).
+- **Technical identifiers stay:** `com.sotto.app`, `app.sotto.desktop`, repo Hasdro/sotto, the `app://sotto` origin and its localStorage keys, the `sotto-desktop` user-data folder, package names `@sotto/*`, the `sotto_worker` module, env vars `SOTTO_*`.
+- **Why:** the owner's brand; renaming identifiers would break installs, sessions and stored data.
+- **Supersedes:** D-001 (name Sotto).
+
+## D-027 — Desktop-only for now (R5 superseded)
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** Releases are macOS and Windows desktop only. iPhone, Android, the Chrome extension and Linux are on hold: their code stays in the repo and keeps passing its tests, but gets no release work. R5 is superseded by R5a (see REQUIREMENTS).
+- **Why:** focus; the owner's real calls are on desktops.
+- **Consequence:** UI checks still cover 390 px (small windows, the mini window) and 1280 px.
+
+## D-028 — Feature flags: one catalog, five states, three layers
+2026-11-12 · owner (phase 9 brief), design by Claude
+- **Decision:** A central catalog (one module shared by server and app) lists every capability with its role audience, dependencies and the connection it needs. The server computes each user's effective state: `available`, `off_by_platform`, `off_by_org`, `needs_connection`, `no_permission`, evaluated in that order. Layers: platform entitlement + global kill switch (owner console), org toggle (Admin → Features, default on), role. No per-user toggle.
+- **UI:** unavailable workflow features are greyed with a one-line reason and an action; role-irrelevant features are hidden. Admins see the whole catalog.
+- **Enforcement:** see D-036.
+- **Rejected:** per-user toggles (clutter, support load); hiding instead of greying (agents can't tell why a feature is missing).
+
+## D-029 — Persistent login: 90-day sliding refresh, OS secure storage
+2026-11-12 · owner (phase 9 brief), design by Claude
+- **Decision:** Agent-app sessions become an access token (short-lived) plus a rotating refresh token with a 90-day sliding inactivity window. Refresh-token reuse revokes the whole device session (theft signal). Tokens live in OS secure storage through Electron `safeStorage` (Keychain / Credential Manager); web builds keep `localStorage` as a fallback. The client never signs out on network errors or 5xx; it signs out only on logout, password change, admin revoke, device removal, or 90 days unused. The existing 30-day token is exchanged once for the new pair on first start of 0.3.0 (no forced re-login). The owner console keeps its own shorter cookie session.
+- **Supersedes:** the auth token lifetime and "any 401 deletes the token" behaviour under D-022.
+- **Rejected:** long-lived single tokens (no rotation, no theft signal).
+
+## D-030 — Version ladder and release channels
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** 0.3.0 Foundation → 0.4.0 Pre-call → 0.5.0 Learning loop → 0.6.0 Post-call actions → 0.7.0 WhatsApp → 0.8.0 Release. Each version is tagged `vX.Y.0` on GitHub Releases (private archive) with the macOS DMGs and the Windows installer; the public landing page at `salesshield.agncompu.com` (us3, Caddy) hosts the downloads. Unsigned builds, no auto-update, no paid signing this round. Desktop and web share one version number (`apps/desktop/package.json` = `APP_VERSION`).
+- **Rejected:** a public repo for downloads; auto-update before signing exists.
+
+## D-031 — Zoho: per-user OAuth through the server; Meetings module; v1 permission matrix
+2026-11-12 · owner (phase 9 brief), design by Claude
+- **Decision:** Each agent connects their own Zoho account (server-based OAuth; the client secret and each user's refresh token stay on the server, AES-GCM encrypted like provider keys). All Zoho reads and writes go through the management server, which checks the flag state, the org permission matrix and the approval, writes the audit row, and makes writes idempotent. Data centre chosen at connect, remembered per org (US, EU, IN, AU, JP, CA, CN). v1 matrix: read Leads, Contacts, Accounts, Deals, Meetings, Notes; write Leads, Contacts, Meetings, and Notes on Deals. No Deal stage/amount or Account writes. The meeting record is the CRM Meetings module; its API name is verified against the owner's org with `GET /crm/v8/settings/modules` before coding, mapped if it differs; never silently create an Event.
+- **Why server-side:** the OAuth client secret cannot ship in a client (D-022 "no key in a build"); approval, audit and idempotency must not depend on the client.
+- **Amends D-022:** the server now proxies CRM calls. It still never carries call audio or live suggestions.
+
+## D-032 — Email: org-approved senders, formats with static blocks
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** Senders are approved per org (Hostinger SMTP now; Resend optional; Gmail/Microsoft OAuth later); the agent picks a sender per email. Admin → Email holds formats (name, action type, example body, tone, length, static blocks with placeholders); defaults: follow-up and meeting confirmation. The model writes only the variable body; static blocks (name, title, company, signature) are merged verbatim afterwards; optional per-user signature override. Sending goes through the server after explicit confirmation, with an audit row.
+- **Builds on:** the existing `mail.py` SMTP adapter (manager escalation email).
+
+## D-033 — WhatsApp through Gallabox: template-first
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** v1 sends approved templates only, from an org allow-list, after agent approval, through the server. The adapter exposes `window_status() -> open|closed|unknown`; free-form stays disabled until a reliable window signal is documented and verified on the owner's account; anything but an authoritative `open`, re-checked right before send, falls back to a template. The last 100 messages are read as transient call context and not stored; only the sent message, template and approval are logged. No bulk sends.
+- **Why:** a ban on the owner's WhatsApp number would be far worse than a less flexible message.
+
+## D-034 — Learned instructions: per org, minimised packet, playbook wins
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** Only AI advice cards are rateable. After a call with ≥ 3 ratings, a minimised packet (summary, prep brief, rated cards with the customer turn before and after, rating and reason; never the full transcript) goes to the learning prompt (prompt registry, model router). At most 8 instructions of ≤ 25 words, stored per org as a prompt-registry variable, versioned and revertible; auto-apply by default with a per-org "review before apply" switch. They never override the playbook or hard rules and never edit the playbook. New instructions apply from the next call. Replay after the prompt change.
+
+## D-035 — Session orchestration: a cheap master and delegated workstreams
+2026-11-12 · owner (phase 9 brief)
+- **Decision:** The master session plans, decomposes, reviews, merges and keeps the tracker true; it does not run long builds, full suites or large refactors. Subagents do research, focused implementation, test runs and reviews; child sessions (each with its own branch and worktree, at most 3 in parallel) do independent workstreams from prompts in `docs/prompts/`. No two sessions touch the same files; the master owns the merge order. Rules in CLAUDE.md § Session orchestration.
+
+## D-036 — How flags are enforced when the client runs the call (D-022)
+2026-11-12 · Claude (technical)
+- **Context:** D-028 requires the server to reject every non-available action, but under D-022 live suggestions and call review run in the client.
+- **Decision:** The server is the only place that computes flag state. (1) Every server route that serves a capability checks it and answers `403 {"error":"feature_unavailable","state":…,"feature":…}`: key and token delivery, recording upload, review sync, reports, settings writes, Zoho, email and Gallabox. (2) The session config the client fetches carries the effective feature map; the app greys from it and refreshes it on sign-in, on focus and every 10 minutes. (3) A client-only capability is effectively stopped because the server withholds what it needs (the model keys for its route, the upload, the integration call).
+- **Accepted limit:** a modified client using its own keys can run client-only logic; it can never reach company data, integrations or the server's keys.
