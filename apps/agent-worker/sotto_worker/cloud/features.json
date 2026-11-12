@@ -2,18 +2,90 @@
   "version": 1,
   "about": "The feature catalog (D-028). One list for the server and the app: the server computes each person's state from it; the app only reads ids and shows strings for them. 'roles' = who the feature is for (others get no_permission and never see it); 'requires' = connections it needs; 'depends' = other features it needs; 'built' = false until the version that ships it (needs_connection until then).",
   "features": [
-    { "id": "call_review", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": true },
-    { "id": "follow_up", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": true },
-    { "id": "recordings", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": true },
-    { "id": "reports", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": true },
+    {
+      "id": "call_review",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "follow_up",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "recordings",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "reports",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
     { "id": "ai_knowledge", "roles": ["admin"], "requires": [], "depends": [], "built": true },
-    { "id": "integrations", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": true },
-    { "id": "zoho", "roles": ["admin", "manager", "agent"], "requires": ["zoho"], "depends": ["integrations"], "built": false },
-    { "id": "gallabox", "roles": ["admin"], "requires": ["gallabox"], "depends": ["integrations"], "built": false },
-    { "id": "email_send", "roles": ["admin", "manager", "agent"], "requires": ["email_sender"], "depends": ["follow_up"], "built": false },
-    { "id": "whatsapp", "roles": ["admin", "manager", "agent"], "requires": ["gallabox"], "depends": ["integrations", "gallabox"], "built": false },
-    { "id": "prep", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": false },
-    { "id": "card_ratings", "roles": ["admin", "manager", "agent"], "requires": [], "depends": [], "built": false },
-    { "id": "learned_instructions", "roles": ["admin", "manager", "agent"], "requires": [], "depends": ["card_ratings"], "built": false }
+    {
+      "id": "integrations",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "zoho",
+      "roles": ["admin", "manager", "agent"],
+      "requires": ["zoho"],
+      "depends": ["integrations"],
+      "built": false
+    },
+    {
+      "id": "gallabox",
+      "roles": ["admin"],
+      "requires": ["gallabox"],
+      "depends": ["integrations"],
+      "built": false
+    },
+    {
+      "id": "email_send",
+      "roles": ["admin", "manager", "agent"],
+      "requires": ["email_sender"],
+      "depends": ["follow_up"],
+      "built": false
+    },
+    {
+      "id": "whatsapp",
+      "roles": ["admin", "manager", "agent"],
+      "requires": ["gallabox"],
+      "depends": ["integrations", "gallabox"],
+      "built": false
+    },
+    {
+      "id": "prep",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": false
+    },
+    {
+      "id": "card_ratings",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": false
+    },
+    {
+      "id": "learned_instructions",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": ["card_ratings"],
+      "built": false
+    }
   ]
 }

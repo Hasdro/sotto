@@ -510,3 +510,39 @@ dialog h2 {
     transition: none !important;
   }
 }
+
+/* Features: kill switch and entitlement matrix (D-028) */
+.kills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.kill.on {
+  border-color: var(--bad);
+  background: var(--bad-soft);
+}
+.kill-note {
+  color: var(--muted);
+}
+.kill-note.bad {
+  color: var(--bad);
+}
+#matrix th,
+#matrix td {
+  white-space: nowrap;
+}
+#matrix .center {
+  text-align: center;
+}
+h2.pad {
+  padding: 16px 16px 0;
+}

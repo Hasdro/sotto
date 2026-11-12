@@ -21,6 +21,7 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { FeatureGate } from "../components/FeatureGate";
 import { useSharedCall } from "../features/call/CallSessionProvider";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CallNotes } from "../features/call/components/CallNotes";
@@ -198,9 +199,15 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
         </Panel>
       ) : null}
       {state.phase === "ended" && !practice ? (
-        <CallReviewPanel callId={state.callId ?? null} />
+        <FeatureGate feature="call_review">
+          <CallReviewPanel callId={state.callId ?? null} />
+        </FeatureGate>
       ) : null}
-      {state.phase === "ended" && !practice ? <FollowUp callId={state.callId ?? null} /> : null}
+      {state.phase === "ended" && !practice ? (
+        <FeatureGate feature="follow_up">
+          <FollowUp callId={state.callId ?? null} />
+        </FeatureGate>
+      ) : null}
       {state.phase !== "idle" ? (
         <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
       ) : null}

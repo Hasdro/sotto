@@ -180,7 +180,7 @@ describe("persistent login", () => {
     await cloud.signIn("a@a.test", "pw");
     await expect(cloud.refreshCloud()).rejects.toMatchObject({ status: 401 });
     await Promise.resolve();
-    await new Promise((r) => setImmediate(r));
+    await new Promise<void>((r) => setImmediate(r));
     expect(cloud.cloudState().status).toBe("signed_out");
     expect(mockStore.has("sotto.session")).toBe(false);
   });
@@ -242,8 +242,8 @@ describe("persistent login", () => {
     const cloud = load();
     await cloud.signIn("a@a.test", "pw");
     jest.advanceTimersByTime(cloud.FEATURES_EVERY_MS);
-    await new Promise((r) => setImmediate(r));
-    await new Promise((r) => setImmediate(r));
+    await new Promise<void>((r) => setImmediate(r));
+    await new Promise<void>((r) => setImmediate(r));
     expect(calls.some((c) => c.path === "/api/v1/features")).toBe(true);
     const s = cloud.cloudState();
     expect(s.status === "signed_in" && s.me.features?.reports?.state).toBe("off_by_platform");
