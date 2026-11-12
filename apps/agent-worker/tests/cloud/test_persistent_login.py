@@ -36,10 +36,12 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> Callable[[int], None]:
     return forward
 
 
-def login_pair(client: TestClient, email: str = "admin@acme.test") -> dict[str, Any]:
+def login_pair(
+    client: TestClient, email: str = "admin@acme.test", device: dict[str, str] = DEVICE
+) -> dict[str, Any]:
     r = client.post(
         "/api/v1/auth/login",
-        json={"email": email, "password": PASSWORD, "device": DEVICE, "session": "pair"},
+        json={"email": email, "password": PASSWORD, "device": device, "session": "pair"},
     )
     assert r.status_code == 200, r.text
     body: dict[str, Any] = r.json()
@@ -89,14 +91,70 @@ def test_a_reused_refresh_token_revokes_the_device_session(
     s = login_pair(client)
     other = login_pair(client)  # a second device session of the same person stays signed in
     n = refresh(client, s["refresh_token"]).json()
-    clock(auth.REUSE_GRACE_MS + 1000)
+    assert client.get("/api/v1/me", headers=bearer(n["token"])).status_code == 200  # used
+    clock(60_000)
     stolen = refresh(client, s["refresh_token"])
     assert stolen.status_code == 401
+    assert stolen.json()["code"] == "signed_out"
     assert client.get("/api/v1/me", headers=bearer(n["token"])).status_code == 401
     assert refresh(client, n["refresh_token"]).status_code == 401
     assert client.get("/api/v1/me", headers=bearer(other["token"])).status_code == 200
     company = s["company"]["id"]
     assert any(i["action"] == "session.refresh_reused" for i in store.owner_audit(company))
+
+
+def test_a_lost_refresh_response_then_a_retry_60_s_later_stays_signed_in(
+    client: TestClient, sign_up: SignUp, store: CloudStore, clock: Callable[[int], None]
+) -> None:
+    """Master review HIGH 1: the laptop slept through the answer. The successor pair was never
+    used, so the old refresh token still renews (again and again) instead of revoking."""
+    sign_up()
+    s = login_pair(client)
+    refresh(client, s["refresh_token"])  # answer lost
+    clock(60_000)
+    second = refresh(client, s["refresh_token"])  # answer lost again
+    assert second.status_code == 200, second.text
+    clock(10 * 60_000)
+    third = refresh(client, s["refresh_token"])
+    assert third.status_code == 200, third.text
+    fresh = third.json()
+    assert client.get("/api/v1/me", headers=bearer(second.json()["token"])).status_code == 401
+    assert client.get("/api/v1/me", headers=bearer(fresh["token"])).status_code == 200
+    company = s["company"]["id"]
+    assert not any(i["action"] == "session.refresh_reused" for i in store.owner_audit(company))
+    # Once the successor is in use, the old token is stale: presenting it is theft.
+    assert refresh(client, s["refresh_token"]).status_code == 401
+    assert client.get("/api/v1/me", headers=bearer(fresh["token"])).status_code == 401
+
+
+def test_a_refresh_with_the_successor_makes_the_old_one_stale(
+    client: TestClient, sign_up: SignUp
+) -> None:
+    sign_up()
+    s = login_pair(client)
+    n = refresh(client, s["refresh_token"]).json()
+    nn = refresh(client, n["refresh_token"]).json()  # the successor itself was renewed
+    assert refresh(client, s["refresh_token"]).status_code == 401
+    assert client.get("/api/v1/me", headers=bearer(nn["token"])).status_code == 401
+
+
+def test_a_removed_device_is_told_so(owner: TestClient, sign_up: SignUp) -> None:
+    """The app wipes this device's calls only when the device itself was removed (D-029)."""
+    sign_up()
+    s = login_pair(owner)
+    h = bearer(s["token"])
+    device = next(
+        d for d in owner.get("/api/v1/devices", headers=h).json()["devices"] if d["this_device"]
+    )
+    keep = login_pair(owner, device={**DEVICE, "id": "win-2", "platform": "windows"})
+    owner.delete(f"/api/v1/devices/{device['id']}", headers=bearer(keep["token"]))
+    me = owner.get("/api/v1/me", headers=h)
+    assert (me.status_code, me.json()["code"]) == (401, "device_removed")
+    r = refresh(owner, s["refresh_token"])
+    assert (r.status_code, r.json()["code"]) == (401, "device_removed")
+    # Logout is an ordinary end: signed_out.
+    owner.post("/api/v1/auth/logout", headers=bearer(keep["token"]))
+    assert owner.get("/api/v1/me", headers=bearer(keep["token"])).json()["code"] == "signed_out"
 
 
 def test_a_lost_response_or_two_windows_within_seconds_do_not_sign_out(
@@ -227,6 +285,22 @@ def test_migration_from_a_0_2_0_token_needs_no_new_sign_in(
     again = login_pair(client)
     assert client.post("/api/v1/auth/migrate", headers=bearer(again["token"])).status_code == 400
     assert any(i["action"] == "session.migrated" for i in store.owner_audit(old["company"]["id"]))
+
+
+def test_a_lost_migration_response_is_answered_again(client: TestClient, sign_up: SignUp) -> None:
+    """Master review MED 2: the 0.2.0 token stays good for migration until the new pair is used."""
+    old = sign_up()
+    lost = client.post("/api/v1/auth/migrate", headers=old["auth"])
+    assert lost.status_code == 200
+    again = client.post("/api/v1/auth/migrate", headers=old["auth"])
+    assert again.status_code == 200, again.text
+    pair = again.json()
+    assert client.get("/api/v1/me", headers=bearer(lost.json()["token"])).status_code == 401
+    assert client.get("/api/v1/me", headers=bearer(pair["token"])).status_code == 200
+    # The pair is in use now: the 0.2.0 token is finished for good.
+    assert client.post("/api/v1/auth/migrate", headers=old["auth"]).status_code == 401
+    assert client.get("/api/v1/me", headers=old["auth"]).status_code == 401
+    assert refresh(client, pair["refresh_token"]).status_code == 200
 
 
 def test_refresh_rejects_junk_and_is_rate_limited(client: TestClient, sign_up: SignUp) -> None:

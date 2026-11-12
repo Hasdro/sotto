@@ -92,7 +92,8 @@ async function read(key: string): Promise<string | null> {
     return memory.get(key) ?? null;
   }
 }
-async function write(key: string, value: string | null): Promise<void> {
+/** True when the value reached lasting storage (not just this run's memory). */
+async function write(key: string, value: string | null): Promise<boolean> {
   if (value === null) memory.delete(key);
   else memory.set(key, value);
   const store = secureStore();
@@ -100,10 +101,13 @@ async function write(key: string, value: string | null): Promise<void> {
     if (store) {
       if (value === null) await store.deleteItemAsync(key);
       else await store.setItemAsync(key, value);
-    } else if (value === null) globalThis.localStorage?.removeItem(key);
-    else globalThis.localStorage?.setItem(key, value);
+    } else if (globalThis.localStorage) {
+      if (value === null) globalThis.localStorage.removeItem(key);
+      else globalThis.localStorage.setItem(key, value);
+    } else return false;
+    return true;
   } catch {
-    /* storage blocked: the session lasts for this run only */
+    return false; // storage blocked: the session lasts for this run only
   }
 }
 
@@ -128,17 +132,34 @@ async function readSecret(key: string): Promise<string | null> {
     return memory.get(key) ?? null;
   }
 }
-async function writeSecret(key: string, value: string | null): Promise<void> {
+/** True when the value reached lasting secure storage. */
+async function writeSecret(key: string, value: string | null): Promise<boolean> {
   const desk = desktopSecure();
   if (!desk) return write(key, value);
   if (value === null) memory.delete(key);
   else memory.set(key, value);
   try {
     // Never falls back to localStorage: without OS encryption the session lasts this run only.
-    if (value === null) await desk.delete(key);
-    else await desk.set(key, value);
+    if (value === null) {
+      await desk.delete(key);
+      return true;
+    }
+    return (await desk.set(key, value)) === true;
   } catch {
-    /* secure storage unavailable: memory only */
+    return false; // secure storage unavailable: memory only
+  }
+}
+
+/** Whether a session can outlive this run here (desktop without OS encryption cannot). */
+async function canKeepSecrets(): Promise<boolean> {
+  const desk = desktopSecure();
+  if (!desk) return true;
+  try {
+    const ok = (await desk.set("sotto.probe", "1")) === true;
+    if (ok) await desk.delete("sotto.probe");
+    return ok;
+  } catch {
+    return false;
   }
 }
 
@@ -163,9 +184,9 @@ async function loadTokens(): Promise<Tokens | null> {
     return null;
   }
 }
-async function saveTokens(next: Tokens | null): Promise<void> {
+async function saveTokens(next: Tokens | null): Promise<boolean> {
   tokens = next;
-  await writeSecret(SESSION_KEY, next ? JSON.stringify(next) : null);
+  return writeSecret(SESSION_KEY, next ? JSON.stringify(next) : null);
 }
 function tokensFrom(r: PairResponse, me?: Me): Tokens {
   return {
@@ -321,9 +342,10 @@ async function request<T>(
     // D-029: only the server saying "this session is over" signs out; a network error or a
     // 5xx never does. An expired access token is renewed once and the request repeated.
     if (response.status === 401 && !AUTH_PATHS.has(path)) {
-      const renewed = !retried && tokens?.refresh ? await renew(fetcher) : "signed_out";
+      const ended: Ended = data.code === "device_removed" ? "device_removed" : "signed_out";
+      const renewed = !retried && tokens?.refresh ? await renew(fetcher) : ended;
       if (renewed === "ok") return request<T>(path, init, fetcher, true);
-      if (renewed === "signed_out") void signedOut();
+      if (renewed !== "offline") void signedOut({ wipe: renewed === "device_removed" });
       else
         throw new CloudError(
           0,
@@ -340,7 +362,9 @@ async function request<T>(
   return data as T;
 }
 
-type Renewal = "ok" | "signed_out" | "offline";
+/** How the server ended a session: only a removed device wipes its calls (D-029 amendment). */
+type Ended = "signed_out" | "device_removed";
+type Renewal = "ok" | "offline" | Ended;
 let renewing: Promise<Renewal> | null = null;
 
 /** Spends the refresh token for a new pair; one at a time, so a token is never sent twice. */
@@ -380,7 +404,10 @@ async function renewNow(fetcher: typeof fetch): Promise<Renewal> {
   } catch {
     return "offline";
   }
-  if (response.status === 401) return "signed_out";
+  if (response.status === 401) {
+    const body = (await response.json().catch(() => ({}))) as { code?: string };
+    return body.code === "device_removed" ? "device_removed" : "signed_out";
+  }
   if (!response.ok) return "offline";
   const pair = (await response.json().catch(() => null)) as PairResponse | null;
   if (!pair?.token) return "offline";
@@ -393,13 +420,20 @@ async function renewIfDue(fetcher: typeof fetch): Promise<void> {
   if (!t?.refresh || t.access_expires_at === null) return;
   if (Date.now() < t.access_expires_at - RENEW_EARLY_MS) return;
   const result = await renew(fetcher);
-  if (result === "signed_out") await signedOut();
+  if (result === "signed_out" || result === "device_removed") {
+    await signedOut({ wipe: result === "device_removed" });
+  }
 }
 
-async function signedOut(error?: string) {
+/** Ends the session here. This device's calls and recordings (kept per account) are deleted only
+ * on a manual sign-out or when the device was removed; a revoke, a reused token or 90 days
+ * unused keep them for the next sign-in of the same account (D-029 amendment). */
+async function signedOut({ wipe = false, error }: { wipe?: boolean; error?: string } = {}) {
   reads.clear();
-  clearDeviceCalls();
-  void clearRecordings();
+  if (wipe) {
+    clearDeviceCalls();
+    void clearRecordings();
+  }
   setDeviceOwner(null);
   await saveTokens(null);
   await write(LEGACY_TOKEN_KEY, null);
@@ -415,7 +449,9 @@ async function loadSession(): Promise<void> {
   const me = await meRead;
   const bundle = me.company ? await bundleRead : null;
   setDeviceOwner(me.company?.id ?? "none", me.user.id);
-  if (tokens) await saveTokens({ ...tokens, me });
+  // A 0.2.0 token stays under its own key until migration saves a pair (D-029).
+  if (tokens?.refresh) await saveTokens({ ...tokens, me });
+  else if (tokens) tokens = { ...tokens, me };
   set({ status: "signed_in", me, bundle });
   watchFeatures();
 }
@@ -425,12 +461,15 @@ async function migrateLegacy(): Promise<void> {
   const legacy = await read(LEGACY_TOKEN_KEY);
   if (!legacy) return;
   tokens = { access: legacy, refresh: null, access_expires_at: null };
+  // A pair that cannot be kept would be lost at quit, and by then the server has retired the
+  // 0.2.0 token: keep using that token instead until it ends (D-029).
+  if (!(await canKeepSecrets())) return;
   try {
     const pair = await cloudApi<PairResponse>("/api/v1/auth/migrate", { method: "POST" });
-    await saveTokens(tokensFrom(pair));
-    await write(LEGACY_TOKEN_KEY, null);
+    if (await saveTokens(tokensFrom(pair))) await write(LEGACY_TOKEN_KEY, null);
   } catch {
-    // Offline or the server is busy: the old token still works; try again next start.
+    // Offline, busy, or the answer was lost: the 0.2.0 token still works and the server answers
+    // a repeat migration while the new pair is unused; try again next start.
   }
 }
 
@@ -469,16 +508,45 @@ export async function refreshFeatures(): Promise<void> {
     if (state.offline) return await loadSession();
     const r = await cloudApi<{ features: FeatureMap }>("/api/v1/features");
     reads.delete("/api/v1/features");
-    if (state.status === "signed_in") set({ ...state, me: { ...state.me, features: r.features } });
+    if (state.status !== "signed_in") return;
+    const changed = JSON.stringify(state.me.features ?? {}) !== JSON.stringify(r.features);
+    set({ ...state, me: { ...state.me, features: r.features } });
+    // D-036: what a switched-off feature needs (company knowledge, keys) leaves the device too.
+    if (changed) {
+      bundleStale = true;
+      if (!callLive) await reloadBundle();
+    }
   } catch {
     /* offline: keep the map we have and try again later */
+  }
+}
+
+let callLive = false;
+let bundleStale = false;
+
+/** The call engine says when a call is on: the bundle is never swapped during one. */
+export function setCallLive(on: boolean): void {
+  callLive = on;
+  if (!on && bundleStale) void reloadBundle();
+}
+
+async function reloadBundle(): Promise<void> {
+  if (state.status !== "signed_in" || !state.me.company) return;
+  reads.delete("/api/v1/bundle");
+  try {
+    const bundle = await cloudApi<CallBundle>("/api/v1/bundle");
+    bundleStale = false;
+    if (state.status === "signed_in") set({ ...state, bundle });
+  } catch {
+    /* offline: the next check tries again */
   }
 }
 
 function watchFeatures(): void {
   if (watching) return;
   watching = true;
-  setInterval(() => void refreshFeatures(), FEATURES_EVERY_MS);
+  const timer = setInterval(() => void refreshFeatures(), FEATURES_EVERY_MS);
+  (timer as { unref?: () => void }).unref?.(); // never keeps a test run or app exit waiting
   const onFront = () => {
     if (Date.now() - lastCheck >= FOCUS_MIN_GAP_MS) void refreshFeatures();
   };
@@ -493,8 +561,7 @@ async function device() {
 }
 
 async function adopt(response: PairResponse) {
-  await saveTokens(tokensFrom(response));
-  await write(LEGACY_TOKEN_KEY, null);
+  if (await saveTokens(tokensFrom(response))) await write(LEGACY_TOKEN_KEY, null);
   await loadSession();
 }
 
@@ -525,7 +592,7 @@ export async function signOut(): Promise<void> {
   } catch {
     /* signed out locally either way */
   }
-  await signedOut();
+  await signedOut({ wipe: true });
 }
 
 /** Re-reads profile, plan and the call bundle (after a settings, key or playbook change). */

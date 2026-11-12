@@ -19,9 +19,6 @@ ACCESS_TTL_MS = 60 * 60 * 1000  # one hour: a stolen access token is short-lived
 REFRESH_TTL_MS = 90 * 86_400_000  # 90 days, sliding
 ACCESS_PREFIX = "sa_"
 REFRESH_PREFIX = "sr_"
-# A spent refresh token seen again this soon is a lost response or two windows renewing at once,
-# not theft: the session is rotated again instead of revoked (security review M2).
-REUSE_GRACE_MS = 30_000
 # Spent refresh hashes older than the window can never match a live session again.
 SPENT_KEEP_MS = REFRESH_TTL_MS
 

@@ -14,6 +14,19 @@ jest.mock("expo-secure-store", () => ({
   },
 }));
 
+const mockWipe = { calls: 0, recordings: 0 };
+jest.mock("../lib/deviceHistory", () => ({
+  clearDeviceCalls: () => {
+    mockWipe.calls += 1;
+  },
+  setDeviceOwner: () => {},
+}));
+jest.mock("../lib/recordings", () => ({
+  clearRecordings: async () => {
+    mockWipe.recordings += 1;
+  },
+}));
+
 type Cloud = typeof import("../lib/cloud");
 type Call = { method: string; path: string; auth: string | null; body: unknown };
 type Reply = { status: number; body?: unknown } | "network";
@@ -62,6 +75,8 @@ const saved = process.env.EXPO_PUBLIC_SOTTO_SERVER;
 beforeEach(() => {
   process.env.EXPO_PUBLIC_SOTTO_SERVER = "https://cloud.example.test";
   mockStore.clear();
+  mockWipe.calls = 0;
+  mockWipe.recordings = 0;
   jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate", "queueMicrotask"] });
 });
 afterEach(() => {
@@ -167,7 +182,7 @@ describe("persistent login", () => {
     expect(session()).toMatchObject({ access: "sa_1" });
   });
 
-  it("signs out when the server refuses the refresh token", async () => {
+  it("signs out when the server refuses the refresh token, keeping this device's calls", async () => {
     serve({
       "POST /api/v1/auth/login": { status: 200, body: PAIR },
       "GET /api/v1/me": [
@@ -183,6 +198,30 @@ describe("persistent login", () => {
     await new Promise<void>((r) => setImmediate(r));
     expect(cloud.cloudState().status).toBe("signed_out");
     expect(mockStore.has("sotto.session")).toBe(false);
+    // D-029 amendment: a server-side end (revoke, reuse, expiry) keeps the account's calls.
+    expect(mockWipe).toEqual({ calls: 0, recordings: 0 });
+  });
+
+  it("wipes this device's calls when the device was removed, or on manual sign-out", async () => {
+    serve({
+      "POST /api/v1/auth/login": { status: 200, body: PAIR },
+      "GET /api/v1/me": [
+        { status: 200, body: ME },
+        { status: 401, body: { code: "device_removed" } },
+        { status: 200, body: ME },
+      ],
+      "POST /api/v1/auth/refresh": { status: 401, body: { code: "device_removed" } },
+      "POST /api/v1/auth/logout": { status: 200 },
+    });
+    const cloud = load();
+    await cloud.signIn("a@a.test", "pw");
+    await expect(cloud.refreshCloud()).rejects.toMatchObject({ status: 401 });
+    await new Promise<void>((r) => setImmediate(r));
+    expect(cloud.cloudState().status).toBe("signed_out");
+    expect(mockWipe).toEqual({ calls: 1, recordings: 1 });
+    await cloud.signIn("a@a.test", "pw");
+    await cloud.signOut();
+    expect(mockWipe).toEqual({ calls: 2, recordings: 2 });
   });
 
   it("opens with the last profile when it starts offline or the server is down", async () => {
@@ -228,6 +267,75 @@ describe("persistent login", () => {
     await cloud.startCloud();
     expect(cloud.cloudState().status).toBe("signed_in");
     expect(mockStore.get("sotto.token")).toBe("old-30-day-token");
+  });
+
+  it("retries a migration whose answer was lost, and keeps the 0.2.0 token until a pair is saved", async () => {
+    mockStore.set("sotto.token", "old-30-day-token");
+    serve({
+      "POST /api/v1/auth/migrate": "network",
+      "GET /api/v1/me": { status: 200, body: ME },
+    });
+    let cloud = load();
+    await cloud.startCloud();
+    expect(mockStore.get("sotto.token")).toBe("old-30-day-token");
+    const calls = serve({
+      "POST /api/v1/auth/migrate": { status: 200, body: PAIR },
+      "GET /api/v1/me": { status: 200, body: ME },
+    });
+    cloud = load();
+    await cloud.startCloud();
+    expect(calls[0]).toMatchObject({
+      path: "/api/v1/auth/migrate",
+      auth: "Bearer old-30-day-token",
+    });
+    expect(session()).toMatchObject({ access: "sa_1" });
+    expect(mockStore.has("sotto.token")).toBe(false);
+  });
+
+  it("on a desktop that cannot encrypt, never migrates: the 0.2.0 token keeps working", async () => {
+    mockStore.set("sotto.token", "old-30-day-token");
+    (globalThis as { sottoDesktop?: unknown }).sottoDesktop = {
+      secureStore: {
+        get: async () => null,
+        set: async () => false, // safeStorage unavailable
+        delete: async () => {},
+      },
+    };
+    const calls = serve({
+      "POST /api/v1/auth/migrate": { status: 200, body: PAIR },
+      "GET /api/v1/me": { status: 200, body: ME },
+    });
+    const cloud = load();
+    await cloud.startCloud();
+    expect(calls.some((c) => c.path === "/api/v1/auth/migrate")).toBe(false);
+    expect(calls[0]).toMatchObject({ path: "/api/v1/me", auth: "Bearer old-30-day-token" });
+    expect(mockStore.get("sotto.token")).toBe("old-30-day-token");
+    expect(cloud.cloudState().status).toBe("signed_in");
+  });
+
+  it("re-reads the bundle when the feature map changes, but not during a live call", async () => {
+    const calls = serve({
+      "POST /api/v1/auth/login": { status: 200, body: PAIR },
+      "GET /api/v1/me": { status: 200, body: { ...ME, company: { id: "co" } } },
+      "GET /api/v1/bundle": { status: 200, body: { company: { context: "x" } } },
+      "GET /api/v1/features": [
+        { status: 200, body: { features: { reports: { state: "available" } } } },
+        { status: 200, body: { features: { ai_knowledge: { state: "off_by_platform" } } } },
+      ],
+    });
+    const cloud = load();
+    await cloud.signIn("a@a.test", "pw");
+    const bundles = () => calls.filter((c) => c.path === "/api/v1/bundle").length;
+    const before = bundles();
+    await cloud.refreshFeatures(); // unchanged map: no new bundle
+    expect(bundles()).toBe(before);
+    cloud.setCallLive(true);
+    await cloud.refreshFeatures(); // changed, but a call is on
+    expect(bundles()).toBe(before);
+    cloud.setCallLive(false); // the call ended: now the bundle is re-read
+    await new Promise<void>((r) => setImmediate(r));
+    await new Promise<void>((r) => setImmediate(r));
+    expect(bundles()).toBe(before + 1);
   });
 
   it("re-reads the feature map every 10 minutes", async () => {

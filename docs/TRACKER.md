@@ -166,9 +166,9 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 
 ### Phase 9 (`docs/phases/phase-9-product-round.md`; acceptance = its "Definition of done")
 0.3.0 Foundation
-- [x] T-045 Feature-flag catalog, five states, server enforcement (D-028, D-036), retrofit existing features — `flags-auth` · evidence: `tests/cloud/test_features.py` (each state → 403 `feature_unavailable`, isolation A/B, audit), branch `phase9/flags-auth`
-- [x] T-046 Owner entitlement matrix + global kill switch; Admin → Features; greyed-state UI component — `flags-auth` · evidence: `__tests__/feature-gate.test.tsx`, screenshots `docs/evidence/phase9/flags-auth/` (Admin → Features light/dark/RTL, owner matrix light/dark, greyed Reports/Recordings 390 px + RTL); Admin tab link pending (see session log)
-- [x] T-047 Persistent login: rotating refresh tokens, 90-day sliding, `safeStorage`, 0.2.0 token migration (D-029) — `flags-auth` · evidence: `tests/cloud/test_persistent_login.py`, `__tests__/persistent-login.test.ts`, `apps/desktop/test/secure-store.test.cjs`, dev Electron run `docs/evidence/phase9/flags-auth/electron-secure-store.json`; security-auditor: no critical/high, mediums fixed
+- [x] T-045 Feature-flag catalog, five states, server enforcement (D-028, D-036), retrofit existing features — `flags-auth` · evidence: `tests/cloud/test_features.py` (each state → 403 `feature_unavailable`, isolation A/B, audit), branch `phase9/flags-auth`; fixes `phase9/flags-auth-fixes`: a changed map re-reads the bundle after the live call (`persistent-login.test.ts`), the review is skipped when `call_review` is off (`features/call/review-flag.test.ts`)
+- [x] T-046 Owner entitlement matrix + global kill switch; Admin → Features; greyed-state UI component — `flags-auth` · evidence: `__tests__/feature-gate.test.tsx`, screenshots `docs/evidence/phase9/flags-auth/` (Admin → Features light/dark/RTL, owner matrix light/dark, greyed Reports/Recordings 390 px + RTL); Admin tab added by the master at merge
+- [x] T-047 Persistent login: rotating refresh tokens, 90-day sliding, `safeStorage`, 0.2.0 token migration (D-029) — `flags-auth` · evidence: `tests/cloud/test_persistent_login.py`, `__tests__/persistent-login.test.ts`, `apps/desktop/test/secure-store.test.cjs`, dev Electron run `docs/evidence/phase9/flags-auth/electron-secure-store.json`; security-auditor: no critical/high, mediums fixed; master review fixes (`phase9/flags-auth-fixes`, D-029 amendment): a lost refresh or migration answer renews again until the successor is used, local calls wiped only on manual sign-out or `device_removed`, the 0.2.0 token kept unless the pair was saved
 - [ ] T-048 Logo: three vector directions `owner` (choice) — `brand-ui` · directions ready in `docs/design/logo/index.html`; (a) wired as placeholder; **waiting for the owner's pick**, then `node docs/design/logo/export.mjs <id>`
 - [x] T-049 Rebrand to AGN Sales Shield: strings (en + ar), installers, tray, window, About, favicon (D-026) — `brand-ui` · grep check `packages/ui/src/brand/userFacingName.test.ts` passes; userData pinned to `sotto-desktop`
 - [x] T-050 Global reskin + live-call polish + information-density rules — `brand-ui` · before/after `docs/evidence/phase9/brand-ui/`; a11y 33 + live-call 8 checks, 0 serious; replay p95 978 ms
@@ -310,6 +310,10 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-12 (b) · local · Opus 5.5 · phase9/flags-auth-fixes
+- **Done:** the master's 5 review findings, tests first, on `phase9/flags-auth-fixes` (from `claude/friendly-gates-fbhqdv` @ c17c579). (1) HIGH: `sessions.prev_refresh_hash` + `pair_used`: the predecessor refresh token renews again while the successor pair is unused (no time window); reuse after use revokes; 401s now carry `device_removed` vs `signed_out`, and the app wipes local calls/recordings only on manual sign-out or `device_removed` (D-029 amendment). (2) MED: `legacy_hash`: a repeat `/auth/migrate` with the 0.2.0 token gets a fresh pair until the pair is used. (3) MED: a changed feature map re-reads the bundle, deferred while a call is live (`setCallLive`). (4) MED: `features/call/local.ts` skips the review unless `call_review` is available. (5) LOW: `writeSecret`/`saveTokens` report whether the pair was saved; the 0.2.0 token is deleted only then, and a desktop without safeStorage never migrates.
+- **Also:** the 10-minute feature timer is `unref`'d so test runs and quit never wait on it; a 0.2.0-only session is no longer written to `sotto.session` (it stopped later migrations).
 
 ### 2026-11-12 · local · Opus 5.5 · phase9/brand-ui
 

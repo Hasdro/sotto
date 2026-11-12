@@ -252,7 +252,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         async def wrapped(request: Request) -> Response:
             who = bearer(request)
             if who is None:
-                return fail(HTTPStatus.UNAUTHORIZED, "signed_out", "sign in again")
+                header = request.headers.get("authorization", "")
+                reason = store.ended_reason(
+                    header[7:].strip() if header.startswith("Bearer ") else None
+                )
+                return fail(HTTPStatus.UNAUTHORIZED, reason, "sign in again")
             if who.must_change and request.url.path not in FIRST_PASSWORD_PATHS:
                 return fail(
                     HTTPStatus.FORBIDDEN, "change_password", "choose your own password first"
@@ -284,14 +288,23 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
         data = await body(request)
         pair = store.refresh(str(data.get("refresh_token", "")), ip=ip_of(request))
-        if pair is None:
+        if isinstance(pair, str):
             refresh_limit.record(ip_key(request))
-            return fail(HTTPStatus.UNAUTHORIZED, "signed_out", "sign in again")
+            return fail(HTTPStatus.UNAUTHORIZED, pair, "sign in again")
         return JSONResponse(pair, headers={"Cache-Control": "no-store"})
 
-    @app_route
-    async def migrate(_request: Request, who: Principal) -> Response:
-        return JSONResponse(store.migrate(who), headers={"Cache-Control": "no-store"})
+    @handle
+    async def migrate(request: Request) -> Response:
+        # Not app_route: a repeat call comes with a 0.2.0 token whose session is a pair already.
+        header = request.headers.get("authorization", "")
+        token = header[7:].strip() if header.startswith("Bearer ") else ""
+        if refresh_limit.blocked(ip_key(request)):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        pair = store.migrate_token(token)
+        if isinstance(pair, str):
+            refresh_limit.record(ip_key(request))
+            return fail(HTTPStatus.UNAUTHORIZED, pair, "sign in again")
+        return JSONResponse(pair, headers={"Cache-Control": "no-store"})
 
     @app_route
     async def features_get(_request: Request, who: Principal) -> Response:
