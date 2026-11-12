@@ -4,7 +4,7 @@
  */
 import type { CallReview, ReviewDimension } from "@sotto/engine";
 import { REVIEW_DIMENSIONS } from "@sotto/engine";
-import { type Hex, Mascot, radius, space, Text, useTheme } from "@sotto/ui";
+import { type Hex, Mascot, moodFor, radius, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { useReview } from "../../lib/deviceHistory";
@@ -37,9 +37,12 @@ export function CallReviewPanel({ callId }: { callId: string | null }) {
   }
   if (state.status === "none") {
     return shell(
-      <Text variant="label" tone="muted">
-        {t("review.none")}
-      </Text>,
+      <View style={styles.row}>
+        <Mascot mood="noResult" size={44} label={t("review.mood.noResult")} />
+        <Text variant="label" tone="muted" style={styles.flex}>
+          {t("review.none")}
+        </Text>
+      </View>,
     );
   }
   return shell(<Review review={state.review} />);
@@ -50,6 +53,7 @@ function Review({ review }: { review: CallReview }) {
   const { card, color } = useTheme();
   const tone = (v: number): Hex =>
     v >= 7 ? card.answer.accent : v >= 4 ? card.objection.accent : card.warning.accent;
+  const resultMood = moodFor(review.success, review.sentiment);
   const mood = {
     positive: card.answer,
     neutral: card.holding,
@@ -58,7 +62,12 @@ function Review({ review }: { review: CallReview }) {
   return (
     <View style={styles.body}>
       <View style={styles.row}>
-        <Mascot state="suggesting" size={44} />
+        <Mascot
+          mood={resultMood}
+          sentiment={review.sentiment}
+          size={44}
+          label={t(`review.mood.${resultMood}`)}
+        />
         <View style={styles.flex}>
           <Text variant="heading" weight="semibold" accessibilityRole="header">
             {t("review.title")}

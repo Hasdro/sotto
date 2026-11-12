@@ -77,7 +77,7 @@ describe("SuggestionCard", () => {
       </UIProvider>,
     );
     expect(screen.getByTestId("c")).toHaveStyle({
-      backgroundColor: themes.dark.card.objection.fill,
+      backgroundColor: themes.dark.card.objection.heroFill,
     });
   });
 

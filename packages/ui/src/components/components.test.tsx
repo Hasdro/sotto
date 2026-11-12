@@ -7,6 +7,7 @@ import { Button } from "./Button.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { ICON_NAMES, Icon } from "./Icon.tsx";
 import { Panel, Screen, Stack } from "./layout.tsx";
+import { Mascot, type MascotMood, moodFor } from "./Mascot.tsx";
 import { SegmentedControl } from "./SegmentedControl.tsx";
 import { Table } from "./Table.tsx";
 import { Text } from "./Text.tsx";
@@ -228,4 +229,35 @@ describe("Icon", () => {
     );
     expect(screen.getByLabelText("Email")).toBeOnTheScreen();
   });
+});
+
+describe("Mascot moods (T-051)", () => {
+  it.each([
+    [80, "excellent"],
+    [75, "excellent"],
+    [74, "good"],
+    [65, "good"],
+    [60, "good"],
+    [59, "mixed"],
+    [50, "mixed"],
+    [40, "mixed"],
+    [39, "needsWork"],
+    [30, "needsWork"],
+    [null, "noResult"],
+    [undefined, "noResult"],
+  ])("moodFor(%s) is %s", (score, mood) => {
+    expect(moodFor(score)).toBe(mood);
+  });
+  it.each(["excellent", "good", "mixed", "needsWork", "noResult"] as MascotMood[])(
+    "renders %s",
+    async (mood) => {
+      await render(
+        <UIProvider>
+          <Mascot mood={mood} sentiment="negative" label={`r-${mood}`} />
+        </UIProvider>,
+      );
+      expect(screen.getByTestId(`mascot-mood-${mood}`)).toBeTruthy();
+      expect(screen.getByLabelText(`r-${mood}`)).toBeTruthy();
+    },
+  );
 });

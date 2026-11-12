@@ -35,6 +35,8 @@ export type SuggestionCardProps = {
   /** Hero only: the larger type size used from the wide breakpoint up. */
   wide?: boolean;
   strings: SuggestionCardStrings;
+  /** Compact only: show the whole sentence instead of two lines (one card open at a time). */
+  expanded?: boolean;
   /** Hero only: a quiet line under the text, e.g. the measured delay. */
   footnote?: string | null;
   testID?: string;
@@ -72,6 +74,7 @@ export function SuggestionCard({
   wide = false,
   strings,
   footnote,
+  expanded = false,
   testID,
 }: SuggestionCardProps) {
   const theme = useTheme();
@@ -107,7 +110,7 @@ export function SuggestionCard({
             </Text>
           ) : null}
         </View>
-        <Text variant="cardCompact" numberOfLines={2}>
+        <Text variant="cardCompact" numberOfLines={expanded ? undefined : 2}>
           {text}
         </Text>
       </View>
@@ -122,18 +125,18 @@ export function SuggestionCard({
       aria-busy={!done}
       style={[
         styles.hero,
-        { backgroundColor: c.fill },
+        { backgroundColor: c.heroFill },
         holding
           ? { borderColor: c.accent, borderStyle: "dashed", borderWidth: sizes.stroke }
-          : { borderStartColor: c.accent, borderStartWidth: sizes.voiceBar },
+          : { borderStartColor: theme.color.signal, borderStartWidth: sizes.voiceBar },
       ]}
     >
       <View style={styles.meta}>
-        <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={sizes.iconMd} />
-        <Text variant="heading" weight="semibold" color={c.text} style={styles.grow}>
+        <Disc glyph={glyph} fill={c.heroText} ink={c.heroFill} size={sizes.iconMd} />
+        <Text variant="heading" weight="semibold" color={c.heroText} style={styles.grow}>
           {strings.type}
         </Text>
-        <Text variant="label" weight="medium" color={c.muted}>
+        <Text variant="label" weight="medium" color={c.heroMuted}>
           {strings.source}
         </Text>
       </View>
@@ -150,16 +153,16 @@ export function SuggestionCard({
           </Text>
         </View>
       ) : null}
-      <Text variant={wide ? "cardWide" : "card"} weight="medium" color={c.text}>
+      <Text variant={wide ? "cardWide" : "card"} weight="medium" color={c.heroText}>
         {text}
         {done ? null : (
-          <Text variant={wide ? "cardWide" : "card"} color={c.accent} testID="card-caret">
+          <Text variant={wide ? "cardWide" : "card"} color={c.heroMuted} testID="card-caret">
             {" ▍"}
           </Text>
         )}
       </Text>
       {footnote ? (
-        <Text variant="label" color={c.muted}>
+        <Text variant="label" color={c.heroMuted}>
           {footnote}
         </Text>
       ) : null}

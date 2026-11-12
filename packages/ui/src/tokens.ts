@@ -20,8 +20,21 @@ export const CARD_KINDS = [
 ] as const;
 export type CardKind = (typeof CARD_KINDS)[number];
 
-/** fill: card background · text: main sentence · muted: meta line · accent: voice bar and icon disc. */
-export type CardColors = { fill: Hex; text: Hex; muted: Hex; accent: Hex };
+/**
+ * fill: compact-card and badge tint · text: sentence on fill · muted: meta line on fill ·
+ * accent: compact bar and icon disc. heroFill / heroText / heroMuted: the live hero card, the one
+ * loud thing on screen (T-050): a solid, saturated fill with near-white text (holding stays pale,
+ * because it is provisional).
+ */
+export type CardColors = {
+  fill: Hex;
+  text: Hex;
+  muted: Hex;
+  accent: Hex;
+  heroFill: Hex;
+  heroText: Hex;
+  heroMuted: Hex;
+};
 
 export type Theme = {
   color: {
@@ -57,6 +70,13 @@ export type Theme = {
     noticeBorder: Hex;
     /** Behind a drawer or dialog, drawn at `scrimOpacity` (D-023). */
     scrim: Hex;
+    /**
+     * The one warm signal accent (T-050): the live dot, "now" marks, the active-state tick.
+     * `signal` is text-safe on background and surface; `signalFill` is its tint for small fills.
+     */
+    signal: Hex;
+    signalFill: Hex;
+    onSignalFill: Hex;
   };
   /** One colour per card type, so the agent recognises a card at a glance (RESEARCH §6). */
   card: Record<CardKind, CardColors>;
@@ -66,34 +86,85 @@ export type Theme = {
 
 const light: Theme = {
   color: {
-    background: "#f2f4f6",
-    surface: "#ffffff",
-    surfaceSunken: "#e7ebef",
-    text: "#15212c",
-    textMuted: "#4d5b69",
-    border: "#d5dce3",
-    borderStrong: "#7e8c99",
+    background: "#eaeef2",
+    surface: "#f7f9fb",
+    surfaceSunken: "#dfe5eb",
+    text: "#132029",
+    textMuted: "#46535f",
+    border: "#d3dae2",
+    borderStrong: "#74828f",
     primary: "#0b5f63",
     onPrimary: "#ffffff",
     focus: "#0b5f63",
-    danger: "#b3261e",
+    danger: "#ae2a1f",
     onDanger: "#ffffff",
-    positive: "#1c6b3a",
-    negative: "#a3261c",
-    inverseSurface: "#1d2833",
+    positive: "#1a6537",
+    negative: "#9e2519",
+    inverseSurface: "#1b2630",
     onInverseSurface: "#f2f5f8",
     noticeFill: "#fff1d6",
     noticeText: "#5a3a00",
     noticeBorder: "#a87418",
     scrim: "#0b1218",
+    signal: "#8f4c00",
+    signalFill: "#fde3b8",
+    onSignalFill: "#4a2700",
   },
   card: {
-    answer: { fill: "#d9efea", text: "#0a3a35", muted: "#2d5c56", accent: "#0e766b" },
-    question: { fill: "#e2e6fa", text: "#1c2766", muted: "#3d4780", accent: "#3a4bbf" },
-    objection: { fill: "#fbead0", text: "#4d2e00", muted: "#6a4a17", accent: "#9a5b00" },
-    signal: { fill: "#efe4fb", text: "#3a1766", muted: "#55387d", accent: "#7a3fc4" },
-    warning: { fill: "#fadfdb", text: "#5c150f", muted: "#7a3a33", accent: "#b7352a" },
-    holding: { fill: "#e6eaee", text: "#24303b", muted: "#46525d", accent: "#56646f" },
+    answer: {
+      fill: "#d9efea",
+      text: "#0a3a35",
+      muted: "#2d5c56",
+      accent: "#0e766b",
+      heroFill: "#0b5f63",
+      heroText: "#ffffff",
+      heroMuted: "#c9ebe6",
+    },
+    question: {
+      fill: "#e2e6fa",
+      text: "#1c2766",
+      muted: "#3d4780",
+      accent: "#3a4bbf",
+      heroFill: "#2c3a94",
+      heroText: "#ffffff",
+      heroMuted: "#d6dbff",
+    },
+    objection: {
+      fill: "#fbead0",
+      text: "#4d2e00",
+      muted: "#6a4a17",
+      accent: "#9a5b00",
+      heroFill: "#7a4500",
+      heroText: "#fff6e8",
+      heroMuted: "#f7dcb4",
+    },
+    signal: {
+      fill: "#efe4fb",
+      text: "#3a1766",
+      muted: "#55387d",
+      accent: "#7a3fc4",
+      heroFill: "#5a2d91",
+      heroText: "#ffffff",
+      heroMuted: "#e4d5fa",
+    },
+    warning: {
+      fill: "#fadfdb",
+      text: "#5c150f",
+      muted: "#7a3a33",
+      accent: "#b7352a",
+      heroFill: "#9e2219",
+      heroText: "#ffffff",
+      heroMuted: "#ffd6d0",
+    },
+    holding: {
+      fill: "#e6eaee",
+      text: "#24303b",
+      muted: "#46525d",
+      accent: "#56646f",
+      heroFill: "#dfe5eb",
+      heroText: "#24303b",
+      heroMuted: "#46525d",
+    },
   },
   speaker: {
     customer: { fill: "#e4effa", text: "#102a43", label: "#1f5f99" },
@@ -103,13 +174,13 @@ const light: Theme = {
 
 const dark: Theme = {
   color: {
-    background: "#0e151c",
-    surface: "#151f28",
-    surfaceSunken: "#1c2833",
-    text: "#e7edf2",
-    textMuted: "#9ba9b6",
-    border: "#26333f",
-    borderStrong: "#6b7b8a",
+    background: "#0c1218",
+    surface: "#121b23",
+    surfaceSunken: "#19242e",
+    text: "#e6ecf1",
+    textMuted: "#9aa8b5",
+    border: "#233039",
+    borderStrong: "#6a7a89",
     primary: "#5fc4bb",
     onPrimary: "#06221f",
     focus: "#5fc4bb",
@@ -117,20 +188,71 @@ const dark: Theme = {
     onDanger: "#2a0603",
     positive: "#6fd39a",
     negative: "#ff8c80",
-    inverseSurface: "#e7edf2",
-    onInverseSurface: "#15212c",
+    inverseSurface: "#e6ecf1",
+    onInverseSurface: "#132029",
     noticeFill: "#3a2a08",
     noticeText: "#fbe3b0",
-    noticeBorder: "#c9962f",
+    noticeBorder: "#f3c76a",
     scrim: "#000000",
+    signal: "#f2aa48",
+    signalFill: "#3d2a0c",
+    onSignalFill: "#fde3b8",
   },
   card: {
-    answer: { fill: "#0f302c", text: "#d0f1ea", muted: "#a6cfc8", accent: "#56c7b8" },
-    question: { fill: "#1a2150", text: "#dce1ff", muted: "#b6beec", accent: "#8f9dff" },
-    objection: { fill: "#38280c", text: "#fbe5c0", muted: "#d9c29b", accent: "#e7a53c" },
-    signal: { fill: "#2a1846", text: "#ecdfff", muted: "#cbb6ec", accent: "#b88cff" },
-    warning: { fill: "#3d1915", text: "#ffd9d3", muted: "#e5b3ac", accent: "#ff7c6e" },
-    holding: { fill: "#1d2832", text: "#dde5ec", muted: "#b3c0cb", accent: "#93a3b1" },
+    answer: {
+      fill: "#0f302c",
+      text: "#d0f1ea",
+      muted: "#a6cfc8",
+      accent: "#56c7b8",
+      heroFill: "#11706a",
+      heroText: "#f4fffd",
+      heroMuted: "#cfeeea",
+    },
+    question: {
+      fill: "#1a2150",
+      text: "#dce1ff",
+      muted: "#b6beec",
+      accent: "#8f9dff",
+      heroFill: "#4a59cc",
+      heroText: "#ffffff",
+      heroMuted: "#dde1ff",
+    },
+    objection: {
+      fill: "#38280c",
+      text: "#fbe5c0",
+      muted: "#d9c29b",
+      accent: "#e7a53c",
+      heroFill: "#8f5800",
+      heroText: "#ffffff",
+      heroMuted: "#fff1dc",
+    },
+    signal: {
+      fill: "#2a1846",
+      text: "#ecdfff",
+      muted: "#cbb6ec",
+      accent: "#b88cff",
+      heroFill: "#7a4ac6",
+      heroText: "#ffffff",
+      heroMuted: "#f4eeff",
+    },
+    warning: {
+      fill: "#3d1915",
+      text: "#ffd9d3",
+      muted: "#e5b3ac",
+      accent: "#ff7c6e",
+      heroFill: "#c0362b",
+      heroText: "#ffffff",
+      heroMuted: "#ffece9",
+    },
+    holding: {
+      fill: "#1d2832",
+      text: "#dde5ec",
+      muted: "#b3c0cb",
+      accent: "#93a3b1",
+      heroFill: "#1d2832",
+      heroText: "#dde5ec",
+      heroMuted: "#b3c0cb",
+    },
   },
   speaker: {
     customer: { fill: "#15283b", text: "#dbe9f7", label: "#8cc0f0" },

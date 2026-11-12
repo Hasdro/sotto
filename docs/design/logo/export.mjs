@@ -69,7 +69,7 @@ try {
   writeFileSync(join(desk, "icon.png"), icon1024);
   copyFileSync(join(desk, "icon.png"), join(root, "apps", "app", "assets", "icon.png"));
 
-  const set = mkdtempSync(join(tmpdir(), "icon-")) + "/icon.iconset";
+  const set = join(mkdtempSync(join(tmpdir(), "icon-")), "icon.iconset");
   mkdirSync(set);
   for (const px of [16, 32, 128, 256, 512]) {
     writeFileSync(join(set, `icon_${px}x${px}.png`), await png(svgs.tile, px));

@@ -7,7 +7,7 @@ describe("tutorial", () => {
     const onClose = jest.fn();
     await render(<TutorialDialog onClose={onClose} />);
     for (let i = 0; i < 4; i++) await fireEvent.press(screen.getByTestId("tutorial-next"));
-    expect(screen.getByText("Start using Sotto")).toBeTruthy();
+    expect(screen.getByText("Start using Sales Shield")).toBeTruthy();
     await fireEvent.press(screen.getByTestId("tutorial-next"));
     expect(onClose).toHaveBeenCalledWith(false);
   });

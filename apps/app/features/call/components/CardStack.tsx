@@ -9,7 +9,7 @@ import {
   Text,
   useTheme,
 } from "@sotto/ui";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-native";
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
@@ -37,6 +37,8 @@ type Props = {
 export function CardStack({ cards, wide, listening, speaking = false }: Props) {
   const { t, locale } = useI18n();
   const [hero, ...earlier] = cards;
+  // One older card open at a time (T-050 density rule); the rest stay at two lines.
+  const [openId, setOpenId] = useState<string | null>(null);
   useAnnounceWhenDone(hero);
   const writing = Boolean(hero && !hero.done);
   return (
@@ -72,7 +74,13 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
             {t("card.earlier")}
           </Text>
           {earlier.slice(0, EARLIER_LIMIT).map((c) => (
-            <Dimmed key={c.id} testID={`earlier-${c.id}`}>
+            <Dimmed
+              key={c.id}
+              testID={`earlier-${c.id}`}
+              open={openId === c.id}
+              label={t(openId === c.id ? "card.collapse" : "card.expand")}
+              onToggle={() => setOpenId((id) => (id === c.id ? null : c.id))}
+            >
               <SuggestionCard
                 variant="compact"
                 type={c.type}
@@ -80,6 +88,7 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
                 label={c.label}
                 text={c.text}
                 done={c.done}
+                expanded={openId === c.id}
                 strings={cardStrings(t, c.type, c.source)}
               />
             </Dimmed>
@@ -91,21 +100,42 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
 }
 
 /** Older cards step back so the newest stands out; hovering one brings it to full strength
- * (owner, 22 Oct). Screen readers and keyboard focus are not affected by the dimming. */
+ * (owner, 22 Oct). Screen readers and keyboard focus are not affected by the dimming. Pressing
+ * one opens its whole sentence (T-050); an open card stays at full strength. */
 export const DIM_OPACITY = 0.45;
 
-function Dimmed({ children, testID }: { children: ReactNode; testID?: string }) {
+function Dimmed({
+  children,
+  testID,
+  open,
+  label,
+  onToggle,
+}: {
+  children: ReactNode;
+  testID?: string;
+  open: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
   const level = useRef(new Animated.Value(DIM_OPACITY)).current;
   const to = (v: number) =>
     Animated.timing(level, { toValue: v, duration: 140, useNativeDriver: false }).start();
+  useEffect(() => {
+    level.setValue(open ? 1 : DIM_OPACITY);
+  }, [open, level]);
+  const rest = open ? 1 : DIM_OPACITY;
   return (
     <Pressable
       testID={testID}
-      accessible={false}
+      accessibilityRole="button"
+      accessibilityHint={label}
+      accessibilityState={{ expanded: open }}
+      aria-expanded={open}
+      onPress={onToggle}
       onHoverIn={() => to(1)}
-      onHoverOut={() => to(DIM_OPACITY)}
+      onHoverOut={() => to(rest)}
       onFocus={() => to(1)}
-      onBlur={() => to(DIM_OPACITY)}
+      onBlur={() => to(rest)}
     >
       <Animated.View testID={testID ? `${testID}-fade` : undefined} style={{ opacity: level }}>
         {children}

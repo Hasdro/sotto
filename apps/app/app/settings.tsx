@@ -214,7 +214,9 @@ export default function SettingsScreen() {
         <View style={styles.about}>
           <Mascot state="idle" size={44} />
           <View style={styles.flex}>
-            <Text weight="semibold">Sotto {APP_VERSION}</Text>
+            <Text weight="semibold">
+              {t("app.name")} {APP_VERSION}
+            </Text>
             <Text variant="label" tone="muted">
               {t("settings.about.body")}
             </Text>

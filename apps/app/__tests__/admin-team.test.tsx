@@ -71,7 +71,7 @@ describe("Admin → Team", () => {
   it("says a Sotto account is needed when there is no server", async () => {
     mockSignedIn = false;
     await wrap();
-    expect(screen.getByText("Team needs a Sotto account")).toBeOnTheScreen();
+    expect(screen.getByText("Team needs a Sales Shield account")).toBeOnTheScreen();
     expect(jest.mocked(cloudApi)).not.toHaveBeenCalled();
   });
 });

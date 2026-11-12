@@ -96,7 +96,7 @@ describe("mock screens", () => {
 
   it("admin team shows no sample staff; without a Sotto account it says one is needed", async () => {
     await open("/admin");
-    expect(screen.getByText("Team needs a Sotto account")).toBeOnTheScreen();
+    expect(screen.getByText("Team needs a Sales Shield account")).toBeOnTheScreen();
     expect(screen.queryByText("Hana Saleh")).toBeNull();
   });
 

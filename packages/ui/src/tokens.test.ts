@@ -24,6 +24,9 @@ const TEXT_PAIRS: [fg: ColorKey, bg: ColorKey][] = [
   ["negative", "background"],
   ["onInverseSurface", "inverseSurface"],
   ["noticeText", "noticeFill"],
+  ["signal", "background"],
+  ["signal", "surface"],
+  ["onSignalFill", "signalFill"],
 ];
 
 /** Control outlines and the focus ring need 3:1 against what they sit on (WCAG 1.4.11). */
@@ -101,6 +104,34 @@ describe("design tokens", () => {
       // The notice keeps its own fill; its border must still separate it from the card fill.
       expect(contrastRatio(t.color.noticeText, t.color.noticeFill)).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(t.color.noticeBorder, t.card[type].fill)).toBeGreaterThanOrEqual(3);
+    });
+
+    it.each(CARD_KINDS)("%s hero card: sentence and meta line on the hero fill ≥ 4.5:1", (type) => {
+      const card = t.card[type];
+      expect(contrastRatio(card.heroText, card.heroFill)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(card.heroMuted, card.heroFill)).toBeGreaterThanOrEqual(4.5);
+      // The icon disc is heroText with the glyph in heroFill: the same pair.
+    });
+
+    it.each(CARD_KINDS)(
+      "%s hero card stands apart from the page (≥ 3:1, or a pale holding card with its dashed accent outline)",
+      (type) => {
+        const card = t.card[type];
+        if (type === "holding") {
+          expect(contrastRatio(card.accent, card.heroFill)).toBeGreaterThanOrEqual(3);
+          return;
+        }
+        expect(contrastRatio(card.heroFill, t.color.background)).toBeGreaterThanOrEqual(3);
+      },
+    );
+
+    it.each(CARD_KINDS)("the R2 notice box is distinct inside a %s hero card", (type) => {
+      const fill = t.card[type].heroFill;
+      const edge = Math.max(
+        contrastRatio(t.color.noticeFill, fill),
+        contrastRatio(t.color.noticeBorder, fill),
+      );
+      expect(edge).toBeGreaterThanOrEqual(3);
     });
   });
 

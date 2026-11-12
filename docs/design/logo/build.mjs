@@ -66,7 +66,7 @@ const DIRECTIONS = [
 
 let uid = 0;
 const svg = (body, view = 64) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${view} ${view}" role="img">${body}\n</svg>\n`;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${view} ${view}" role="img" aria-label="AGN Sales Shield"><title>AGN Sales Shield</title>${body}\n</svg>\n`;
 
 function variants(d) {
   const mk = (o) => d.draw({ uid: ++uid, ...o });
