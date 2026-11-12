@@ -4,10 +4,10 @@
  */
 import {
   Badge,
+  BrandSymbol,
   Button,
   Icon,
   type IconName,
-  Mascot,
   radius,
   SegmentedControl,
   space,
@@ -212,7 +212,7 @@ export default function SettingsScreen() {
 
       <Group icon="info" title={t("settings.about")}>
         <View style={styles.about}>
-          <Mascot state="idle" size={44} />
+          <BrandSymbol size={44} />
           <View style={styles.flex}>
             <Text weight="semibold">
               {t("app.name")} {APP_VERSION}
