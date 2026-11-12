@@ -19,14 +19,22 @@ import {
 import { Platform } from "react-native";
 import { callNotes } from "../../lib/callNotes";
 import { type CallSource, callSource } from "../../lib/callSource";
-import { CloudError, cloudApi } from "../../lib/cloud";
+import { CloudError, cloudApi, cloudState, setCallLive } from "../../lib/cloud";
 import {
   type DeviceEntry,
   markReviewing,
   saveDeviceCall,
   setDeviceReview,
 } from "../../lib/deviceHistory";
+import { stateOf } from "../flags/catalog";
 import type { Bridge, BridgeHandlers } from "./bridge";
+
+/** Call review is a flagged feature (D-028): when it is not available the transcript never goes
+ * to the after-call model at all (D-036). */
+export function reviewAllowed(): boolean {
+  const s = cloudState();
+  return s.status !== "signed_in" || stateOf(s.me.features, "call_review").state === "available";
+}
 
 export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Bridge {
   handlers.onStatus("connecting");
@@ -50,7 +58,10 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     }
     remember(msg);
     handlers.onMessage(msg);
-    if (msg.type === "call_started") registerStart(msg.call_id);
+    if (msg.type === "call_started") {
+      setCallLive(true);
+      registerStart(msg.call_id);
+    }
   };
   // The server notes when the call began (minutes are capped by its own clock) and can still
   // refuse it if the plan ended since the bundle was loaded.
@@ -91,6 +102,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     }
   };
   const ended = (s: CallSummary) => {
+    setCallLive(false);
     saveDeviceCall({
       id: s.call_id,
       started_at: s.started_at,
@@ -108,27 +120,30 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     const lines = transcript.flatMap((e) =>
       e.kind === "line" ? [{ speaker: e.speaker, text: e.text }] : [],
     );
-    markReviewing(s.call_id);
+    if (reviewAllowed()) review(s.call_id, lines);
+    void cloudApi("/api/v1/usage", { method: "POST", body: { ...s, source } }).catch((err) =>
+      console.warn("[engine] usage not reported", err),
+    );
+  };
+  const review = (callId: string, lines: { speaker: "customer" | "agent"; text: string }[]) => {
+    markReviewing(callId);
     void reviewCall({
       router: runtime.router,
       prompt: bundle.prompts.review,
       company: runtime.company,
       lines,
       now: Date.now(),
-    }).then((review) => {
-      setDeviceReview(s.call_id, review);
+    }).then((result) => {
+      setDeviceReview(callId, result);
       // Reports (owner, 22 Oct): only the numbers go to the server, never the summary or tips.
-      if (review) {
-        const { scores, success, sentiment } = review;
-        void cloudApi(`/api/v1/calls/${encodeURIComponent(s.call_id)}/review`, {
+      if (result) {
+        const { scores, success, sentiment } = result;
+        void cloudApi(`/api/v1/calls/${encodeURIComponent(callId)}/review`, {
           method: "POST",
           body: { scores, success, sentiment },
         }).catch(() => {}); // the usage report may not have landed yet: Reports just lack it
       }
     });
-    void cloudApi("/api/v1/usage", { method: "POST", body: { ...s, source } }).catch((err) =>
-      console.warn("[engine] usage not reported", err),
-    );
   };
   const bridge = new LocalCallBridge({
     runtime,
@@ -172,6 +187,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       stop: () => bridge.agentStop(),
     },
     close() {
+      setCallLive(false);
       bridge.close();
     },
   };

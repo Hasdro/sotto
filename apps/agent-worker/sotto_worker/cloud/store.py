@@ -329,6 +329,11 @@ ADDED_COLUMNS = (
     ("sessions", "sid", "TEXT"),  # D-029: stable id of a refresh-token session (NULL = 0.2.0)
     ("sessions", "refresh_hash", "TEXT"),  # D-029: hash of the current refresh token
     ("sessions", "access_until", "INTEGER"),  # D-029: when the current access token ends
+    # D-029 amendment: the refresh token the current pair replaced, and whether that pair has
+    # been used yet; until it is, the old one may renew again (a lost response is not theft).
+    ("sessions", "prev_refresh_hash", "TEXT"),
+    ("sessions", "pair_used", "INTEGER"),
+    ("sessions", "legacy_hash", "TEXT"),  # the 0.2.0 token a migrated pair replaced
 )
 EXCERPT_MAX_CHARS = 2000
 REVIEW_DIMENSIONS = ("opening", "discovery", "listening", "objections", "clarity", "next_step")
@@ -595,13 +600,13 @@ class CloudStore:
             db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (t, user["id"]))
         return _pair_out(access, refresh, t)
 
-    def refresh(self, refresh_token: str, *, ip: str = "") -> dict[str, Any] | None:
-        """Spends a refresh token for a new pair, or None (sign in again). A spent token
-        presented again revokes its whole device session (D-029), except within a short grace
-        window after it was spent: a lost response or two windows renewing at once is not theft,
-        so the session is rotated once more instead."""
+    def refresh(self, refresh_token: str, *, ip: str = "") -> dict[str, Any] | str:
+        """Spends a refresh token for a new pair, or says why not (`signed_out` or
+        `device_removed`). The token the current pair replaced may renew again as long as that
+        pair was never used: its answer was lost (sleep, Wi-Fi). Any other spent token coming
+        back is a copy, so the whole device session is revoked (D-029)."""
         if not refresh_token.startswith(auth.REFRESH_PREFIX) or len(refresh_token) > 200:
-            return None
+            return "signed_out"
         h = _token_hash(refresh_token)
         t = now_ms()
         query = (
@@ -610,33 +615,35 @@ class CloudStore:
         )
         with self._tx() as db:
             s = db.execute(f"{query} WHERE s.refresh_hash = ?", (h,)).fetchone()
+            again = False
             if s is None:
-                sid = self._spent_refresh(db, h, t, ip)
-                if sid is None:
-                    return None
-                s = db.execute(f"{query} WHERE s.sid = ?", (sid,)).fetchone()
-                if s is None:
-                    return None
-            if (
-                s["kind"] != "app"
-                or s["revoked_at"]
-                or s["device_revoked"]
-                or s["expires_at"] < t
-                or not s["active"]
-            ):
-                return None
+                s = db.execute(
+                    f"{query} WHERE s.prev_refresh_hash = ? AND s.pair_used = 0", (h,)
+                ).fetchone()
+                again = s is not None
+            if s is None:
+                return self._spent_refresh(db, h, t, ip)
+            if s["device_revoked"]:
+                return "device_removed"
+            if s["kind"] != "app" or s["revoked_at"] or s["expires_at"] < t or not s["active"]:
+                return "signed_out"
             access, new_refresh = auth.new_access(), auth.new_refresh()
+            # A repeat answer replaces the unused pair; the token the app holds stays the
+            # predecessor until the new pair is used.
+            prev = h if again else s["refresh_hash"]
             db.execute(
                 "INSERT OR REPLACE INTO spent_refresh(token_hash, company_id, sid, spent_at)"
                 " VALUES (?,?,?,?)",
                 (s["refresh_hash"], s["company_id"], s["sid"], t),
             )
             db.execute(
-                "UPDATE sessions SET token_hash = ?, refresh_hash = ?, access_until = ?,"
-                " expires_at = ?, last_seen_at = ? WHERE token_hash = ?",
+                "UPDATE sessions SET token_hash = ?, refresh_hash = ?, prev_refresh_hash = ?,"
+                " pair_used = 0, access_until = ?, expires_at = ?, last_seen_at = ?"
+                " WHERE token_hash = ?",
                 (
                     _token_hash(access),
                     _token_hash(new_refresh),
+                    prev,
                     t + auth.ACCESS_TTL_MS,
                     t + auth.REFRESH_TTL_MS,
                     t,
@@ -649,16 +656,14 @@ class CloudStore:
             db.execute("DELETE FROM spent_refresh WHERE spent_at < ?", (t - auth.SPENT_KEEP_MS,))
         return _pair_out(access, new_refresh, t)
 
-    def _spent_refresh(self, db: sqlite3.Connection, h: str, t: int, ip: str) -> str | None:
-        """A refresh token that is not current. Spent moments ago: the session's id (rotate
-        again). Spent earlier: someone copied it, so the device session is revoked."""
+    def _spent_refresh(self, db: sqlite3.Connection, h: str, t: int, ip: str) -> str:
+        """A refresh token that is neither current nor a renewable predecessor. If it was spent
+        before, someone copied it: the device session is revoked."""
         spent = db.execute(
-            "SELECT sid, company_id, spent_at FROM spent_refresh WHERE token_hash = ?", (h,)
+            "SELECT sid, company_id FROM spent_refresh WHERE token_hash = ?", (h,)
         ).fetchone()
         if spent is None:
-            return None
-        if int(spent["spent_at"]) >= t - auth.REUSE_GRACE_MS:
-            return str(spent["sid"])
+            return "signed_out"
         db.execute(
             "UPDATE sessions SET revoked_at = ? WHERE sid = ? AND revoked_at IS NULL",
             (t, spent["sid"]),
@@ -670,7 +675,56 @@ class CloudStore:
             company_id=spent["company_id"],
             ip=ip,
         )
-        return None
+        return "signed_out"
+
+    def migrate_token(self, token: str) -> dict[str, Any] | str:
+        """`/auth/migrate` with a 0.2.0 token: the first call turns its session into a pair; a
+        repeat (the answer was lost) gets a fresh pair while the pair is unused (D-029)."""
+        who = self.principal(token, kind="app")
+        if who is not None:
+            return self.migrate(who)
+        if not token or len(token) > 200:
+            return "signed_out"
+        t = now_ms()
+        with self._tx() as db:
+            s = db.execute(
+                "SELECT s.*, u.active, d.revoked_at AS device_revoked FROM sessions s"
+                " JOIN users u ON u.id = s.user_id LEFT JOIN devices d ON d.id = s.device_id"
+                " WHERE s.legacy_hash = ? AND s.pair_used = 0",
+                (_token_hash(token),),
+            ).fetchone()
+            if s is None:
+                return "signed_out"
+            if s["device_revoked"]:
+                return "device_removed"
+            if s["kind"] != "app" or s["revoked_at"] or s["expires_at"] < t or not s["active"]:
+                return "signed_out"
+            access, refresh = auth.new_access(), auth.new_refresh()
+            db.execute(
+                "UPDATE sessions SET token_hash = ?, refresh_hash = ?, access_until = ?,"
+                " last_seen_at = ? WHERE token_hash = ?",
+                (
+                    _token_hash(access),
+                    _token_hash(refresh),
+                    t + auth.ACCESS_TTL_MS,
+                    t,
+                    s["token_hash"],
+                ),
+            )
+            expires = int(s["expires_at"])
+        return {**_pair_out(access, refresh, t), "refresh_expires_at": expires}
+
+    def ended_reason(self, token: str | None) -> str:
+        """Why an app token no longer works: `device_removed` when its device was signed out by
+        the person or an admin (the app then wipes that device's calls), else `signed_out`."""
+        if not token or len(token) > 200:
+            return "signed_out"
+        rows = self._q(
+            "SELECT d.revoked_at FROM sessions s JOIN devices d ON d.id = s.device_id"
+            " WHERE s.token_hash = ?",
+            (_token_hash(token),),
+        )
+        return "device_removed" if rows and rows[0]["revoked_at"] else "signed_out"
 
     def migrate(self, who: Principal) -> dict[str, Any]:
         """Turns a 0.2.0 session (one 30-day token) into a pair in place: same device, no new
@@ -692,13 +746,14 @@ class CloudStore:
             # 0.2.0 token more time than it had (security review L4).
             db.execute(
                 "UPDATE sessions SET token_hash = ?, sid = ?, refresh_hash = ?, access_until = ?,"
-                " last_seen_at = ? WHERE token_hash = ?",
+                " last_seen_at = ?, legacy_hash = ?, pair_used = 0 WHERE token_hash = ?",
                 (
                     _token_hash(access),
                     auth.new_sid(),
                     _token_hash(refresh),
                     t + auth.ACCESS_TTL_MS,
                     t,
+                    who.session,
                     who.session,
                 ),
             )
@@ -756,6 +811,14 @@ class CloudStore:
             or not s["active"]
         ):
             return None
+        if s["sid"] and not s["pair_used"]:
+            # The pair is in use: its predecessor (or 0.2.0 token) can no longer renew (D-029).
+            with self._tx() as db:
+                db.execute(
+                    "UPDATE sessions SET pair_used = 1, prev_refresh_hash = NULL,"
+                    " legacy_hash = NULL WHERE token_hash = ?",
+                    (s["token_hash"],),
+                )
         if t - int(s["last_seen_at"]) > 60_000:  # at most one write a minute per session
             with self._tx() as db:
                 db.execute(
