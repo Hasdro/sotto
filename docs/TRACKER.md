@@ -176,11 +176,11 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [x] T-051 Mascot five result moods from the review score — `brand-ui` · `moodFor` boundary tests; `mascot-moods-80-65-50-30-none.png`
 - [x] T-052 0.3.0 release gate: merge, replay, a11y, screenshots, both installers, tag v0.3.0 — master. Merged flags-auth + brand-ui + landing + review fixes (728b97c); gate green (typecheck, lint, boundaries, pnpm test app 284 / worker 442, desktop); replay ALL p50 576 / p95 978 ms, R4 0 agent cards, R2 drill p95 1270 ms; a11y 36 checks 0 serious. Owner picked logo (c) and approved deploy + publish (chat, 2026-11-12). Server deployed 2026-11-12 23:45 from d83b276-era HEAD (backup `cloud.db.pre-2026-11-12` via sqlite3 backup API; health/app/owner/downloads 200; new tables company_features, company_entitlements, feature_kill, spent_refresh; no log errors). Logo (c) merged (07eacf9); version 0.3.0; installers built and smoke-started (packaged Mac app, own profile, loads app://sotto); published to /downloads/ (arm64 dmg 127223240 B sha256 82103474…, x64 dmg 133960851 B 14ff2d43…, Windows exe 114741946 B 9fe7d89c…; all 200); tag v0.3.0 pushed; web redeployed (About 0.3.0); GitHub Release v0.3.0 via scripts/release.sh. Installed /Applications/AGN Sales Shield.app 0.3.0 for the owner; old Sotto.app, Sotto-simulator.app and the release .app copies moved to the Trash (owner request); profile sotto-desktop kept.
 0.4.0 Pre-call
-- [ ] T-053 Zoho per-user OAuth via the server, data centres, encrypted tokens, permission matrix (D-031) `owner` (OAuth client)
-- [ ] T-054 Meeting/contact matching: ≤ 3 candidates with evidence, manual search, skip
-- [ ] T-055 Context pull (deal, contact, account, meeting, last 5 notes / 90 days) with a token budget
+- [~] T-053 Zoho per-user OAuth via the server, data centres, encrypted tokens, permission matrix (D-031) `owner` (OAuth client) — `zoho-slice` (Saturday demo, branch `phase9/zoho-slice`): platform + per-org client (write-only, AES-GCM), `/auth/zoho/start` → `/auth/zoho/callback/` with one-time state bound to person + browser, encrypted refresh token, 55-min access cache, revoke on disconnect, read matrix; `tests/cloud/test_zoho.py` 21 tests; security-auditor M1/L1/L2 fixed. Left: verify on the owner's org (`GET /api/v1/zoho/modules`), write scopes (0.6.0).
+- [~] T-054 Meeting/contact matching: ≤ 3 candidates with evidence, manual search, skip — `zoho-slice` (Saturday demo, branch `phase9/zoho-slice`): Contacts + Leads by phone/email/name, ≤ 3 with the matched field, Skip, never auto-attach (`crm-rail.test.tsx`). Left: Meetings by time window.
+- [~] T-055 Context pull (deal, contact, account, meeting, last 5 notes / 90 days) with a token budget — `zoho-slice` (Saturday demo, branch `phase9/zoho-slice`): contact, account, open deals, last 5 notes / 90 days, brief text ≤ 1200 chars. Left: meeting.
 - [ ] T-056 Prep chat + structured brief, saved with the call, injected into the live prompt (replay)
-- [ ] T-057 Live context rail (collapsed; no latency regression)
+- [x] T-057 Live context rail (collapsed; no latency regression) — `zoho-slice` (Saturday demo, branch `phase9/zoho-slice`): CrmRail in the collapsed rail; brief → `crm_brief` prompt (per-turn part only); replay ALL p50 576 / p95 978 ms; screenshots `docs/evidence/phase9/zoho-slice/`.
 0.5.0 Learning loop
 - [ ] T-058 Ratings on AI advice cards with reason chips; admin aggregates
 - [ ] T-059 Learned instructions: minimised packet, 8 × 25 words, registry variable, next-call only (D-034; replay)
@@ -199,7 +199,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [ ] T-069 Local Mac cleanup + clean install keeping data `local-only`
 Added 2026-11-13 (owner)
 - [ ] T-070 Research: automate Zoho OAuth client creation, or one platform client for all orgs (multi-DC) — recommendation + decision
-- [ ] T-071 Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
+- [~] T-071 (Zoho part done in `zoho-slice`: Admin → Integrations org client + own connection; Gallabox left) Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
 
 ## Waiting on owner
 
@@ -314,6 +314,13 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 · local · Opus 5.5 · phase9/zoho-slice
+- **Done:** Saturday Zoho demo slice (T-053/T-054/T-055 slice, T-057, Zoho part of T-071). Server: `cloud/zoho/{oauth,routes,lookup}.py`, `adapters/crm/zoho.py`, store tables `zoho_platform_client`, `company_zoho_client`, `zoho_connections`, `zoho_states`; `zoho` flag `built: true`, needs_connection until the person connects (per-person layer). Owner console › Account: platform client form. App: `features/crm/**`, `CrmRail`, `/admin/integrations`, `crm.*` strings (en/ar). Engine: `crmBrief` + `crm_brief` prompt appended to the per-turn message only.
+- **Evidence:** worker 465 passed (21 Zoho), app jest 290 (6 rail), engine 63 (2 brief), desktop 17, a11y 36 checks 0 serious; replay ALL p50 576 / p95 978 ms, R4 0; lint, typecheck, boundaries green; security-auditor: M1 (forwarded link links someone else's Zoho) fixed with a browser cookie + "for <email>" page, L1 callback re-checks the flag, L2 60 lookups/min; screenshots in `docs/evidence/phase9/zoho-slice/`.
+- **Decisions for the master to record (D-037):** (a) the brief rides a separate `crm_brief` prompt appended to the per-turn message, because 0.3.0 clients throw on an unknown `{{variable}}` in `suggest`; (b) OAuth state bound to the person and to the browser that opened `/auth/zoho/start`.
+- **Outside the owned list (please review):** `packages/engine/src/{session,call}.ts` (+ test, `__tests__/bundle.json` via `pnpm gen`), `apps/app/features/call/local.ts` (one line), `apps/app/app/admin/_layout.tsx` (Integrations tab), `cloud/features.json` (`zoho` built), `cloud/owner/index.html|owner.js`. Suggest adding `/admin/integrations` to `scripts/a11y.mjs`.
+- **Next:** owner pastes the client, adds the sslip redirect, connects; then `GET /api/v1/zoho/modules` → REFERENCES. Master deploys the server.
 
 ### 2026-11-12 (b) · local · Opus 5.5 · phase9/flags-auth-fixes
 - **Done:** the master's 5 review findings, tests first, on `phase9/flags-auth-fixes` (from `claude/friendly-gates-fbhqdv` @ c17c579). (1) HIGH: `sessions.prev_refresh_hash` + `pair_used`: the predecessor refresh token renews again while the successor pair is unused (no time window); reuse after use revokes; 401s now carry `device_removed` vs `signed_out`, and the app wipes local calls/recordings only on manual sign-out or `device_removed` (D-029 amendment). (2) MED: `legacy_hash`: a repeat `/auth/migrate` with the 0.2.0 token gets a fresh pair until the pair is used. (3) MED: a changed feature map re-reads the bundle, deferred while a call is live (`setCallLive`). (4) MED: `features/call/local.ts` skips the review unless `call_review` is available. (5) LOW: `writeSecret`/`saveTokens` report whether the pair was saved; the 0.2.0 token is deleted only then, and a desktop without safeStorage never migrates.

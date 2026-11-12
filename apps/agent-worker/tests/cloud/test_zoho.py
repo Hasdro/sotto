@@ -9,14 +9,14 @@ import html
 import json
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
 from starlette.testclient import TestClient
 
-from sotto_worker.adapters.crm.zoho import ModuleNotAllowed, check_read
+from sotto_worker.adapters.crm.zoho import ModuleNotAllowed, ZohoCRMReader, check_read
 from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
@@ -476,7 +476,7 @@ def test_at_most_three_candidates() -> None:
 
     import asyncio
 
-    found = asyncio.run(lookup.find_candidates(Many(), "Jane"))  # type: ignore[arg-type]
+    found = asyncio.run(lookup.find_candidates(cast(ZohoCRMReader, Many()), "Jane"))
     assert len(found) == 3
     assert all(c["evidence"]["field"] == "name" for c in found)
 

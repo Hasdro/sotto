@@ -83,6 +83,23 @@
         <button type="submit" class="primary">Change password</button>
         <p id="pwMsg" class="note" role="status"></p>
       </form>
+      <form id="zohoForm" class="panel narrow">
+        <h2>Zoho OAuth client <small>the platform default; an organisation may add its own</small></h2>
+        <p id="zohoState" class="note">Loading…</p>
+        <label for="zohoId">Client ID</label><input id="zohoId" autocomplete="off" spellcheck="false" required>
+        <label for="zohoSecret">Client secret</label><input id="zohoSecret" type="password" autocomplete="off" required>
+        <label for="zohoDc">Data centre</label>
+        <select id="zohoDc">
+          <option value="us" selected>zoho.com (US)</option><option value="eu">zoho.eu</option>
+          <option value="in">zoho.in</option><option value="au">zoho.com.au</option>
+          <option value="jp">zoho.jp</option><option value="ca">zohocloud.ca</option>
+          <option value="cn">zoho.com.cn</option><option value="sa">zoho.sa</option>
+          <option value="uk">zoho.uk</option>
+        </select>
+        <button type="submit" class="primary">Save client</button>
+        <button type="button" id="zohoRemove" class="ghost">Remove</button>
+        <p id="zohoMsg" class="note" role="status"></p>
+      </form>
     </section>
   </main>
 </div>

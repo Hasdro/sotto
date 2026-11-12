@@ -132,7 +132,7 @@ export type LocalCallDeps = {
   /** Scenario pacing; 0.5 plays twice as fast. */
   speed?: number;
   /** R10: the brief of the CRM record the agent attached in the context rail ("" = none). */
-  crmBrief?: () => string;
+  crmBrief?: (() => string) | undefined;
 };
 
 function percentile(sorted: number[], p: number): number | null {

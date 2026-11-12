@@ -8,7 +8,7 @@ export function ZohoConnect({ zoho, compact = false }: { zoho: ZohoConn; compact
   const s = zoho.status;
   if (s?.connected) {
     return (
-      <Stack gap="sm" testID="zoho-connected">
+      <Stack gap="sm" align="flex-start" testID="zoho-connected">
         <Stack direction="row" gap="sm" align="center" wrap>
           <Badge label={t("crm.connected")} tone="answer" dot />
           {s.connected_at ? (
@@ -32,7 +32,7 @@ export function ZohoConnect({ zoho, compact = false }: { zoho: ZohoConn; compact
   }
   const noClient = zoho.error === "no_client" || (s !== null && s.client === null);
   return (
-    <Stack gap="sm" testID="zoho-connect">
+    <Stack gap="sm" align="flex-start" testID="zoho-connect">
       <Text variant="body" tone="muted">
         {noClient ? t("crm.noClient") : t("crm.connect.body")}
       </Text>

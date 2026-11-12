@@ -54,10 +54,7 @@ describe("CrmRail", () => {
     signedIn({ state: "available" });
     const brief = jest.fn(mockLookup.brief);
     await wrap(
-      <CrmRail
-        callId="c1"
-        lookup={{ search: async () => ({ candidates: [ONE] }), brief }}
-      />,
+      <CrmRail callId="c1" lookup={{ search: async () => ({ candidates: [ONE] }), brief }} />,
     );
     await fireEvent.changeText(screen.getByTestId("crm-query"), "+1 555 010 2030");
     await fireEvent.press(screen.getByTestId("crm-find"));

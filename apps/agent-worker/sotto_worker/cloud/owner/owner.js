@@ -110,7 +110,7 @@ function show(view) {
     companies: loadCompanies,
     features: loadFeatures,
     audit: loadAudit,
-    account: () => {},
+    account: loadZoho,
   })[view]();
 }
 
@@ -754,6 +754,50 @@ $("#pwForm").addEventListener("submit", async (e) => {
     start();
   } catch (err) {
     $("#pwMsg").textContent = err.message;
+  }
+});
+
+// --- Zoho platform client (D-031): write-only; the server never sends the ID or secret back ---
+function zohoState(c) {
+  $("#zohoState").textContent = c.configured
+    ? `Saved (${c.dc}) on ${new Date(c.updated_at).toLocaleString()}. Paste new values to replace it.`
+    : "No platform client yet.";
+  $("#zohoRemove").hidden = !c.configured;
+}
+async function loadZoho() {
+  try {
+    zohoState(await api("/api/owner/zoho"));
+  } catch (err) {
+    $("#zohoState").textContent = err.message;
+  }
+}
+$("#zohoForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    zohoState(
+      await api("/api/owner/zoho", {
+        method: "PUT",
+        body: {
+          client_id: $("#zohoId").value,
+          client_secret: $("#zohoSecret").value,
+          dc: $("#zohoDc").value,
+        },
+      }),
+    );
+    $("#zohoForm").reset();
+    $("#zohoMsg").textContent = "Saved.";
+  } catch (err) {
+    $("#zohoMsg").textContent = err.message;
+  }
+});
+$("#zohoRemove").addEventListener("click", async () => {
+  if (!confirm("Remove the platform Zoho client? People who use it will have to reconnect."))
+    return;
+  try {
+    zohoState(await api("/api/owner/zoho", { method: "DELETE" }));
+    $("#zohoMsg").textContent = "Removed.";
+  } catch (err) {
+    $("#zohoMsg").textContent = err.message;
   }
 });
 

@@ -92,9 +92,9 @@ export type SessionDeps = {
   onEscalation: (e: Escalation) => void;
   onTiming: (t: CardTimingRecord) => void;
   /** R10: the CRM record the agent attached (context rail), read on every turn; "" = none. */
-  crmBrief?: () => string;
+  crmBrief?: (() => string) | undefined;
   /** The `crm_brief` prompt (seed/prompts); absent in older bundles, then no block is added. */
-  briefPrompt?: PromptRecord;
+  briefPrompt?: PromptRecord | undefined;
 };
 
 export function languageFor(company: CompanyProfile, text: string): string {
