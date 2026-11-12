@@ -242,7 +242,7 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Known issues and tech debt
 
-- [x] **Flaky under load (2026-11-12), fixed:** `call.test.tsx` escalation toast test froze the clock with `jest.useFakeTimers()`, so the async render/act flush could deadlock under load and the timer state leaked when it timed out. Now `useFakeTimers({ advanceTimers: true })` in try/finally; the 8 s dismissal is still advanced by hand. 6/6 runs pass; full `pnpm test` green (app 284, worker 442).
+- [x] **Flaky under load (2026-11-12), fixed at the root (2026-11-13):** advancing 8 s of fake time in `call.test.tsx` stepped every looping animation (mascot, listening bars) frame by frame — ~0.8 s CPU idle, > 5 s under load. The test now runs with reduced motion (advance 1 ms real). Found on the way: the listening bars (`CardStack` `Bar`) ignored reduced motion (accessibility); they now use `useReduceMotion` (exported from `packages/ui`). The first attempt (`advanceTimers: true`) did not fix it.
 
 - **T-015** (2026-10-20, D-022) Gaps in the cloud server. Not yet available in hosted mode:
   - custom endpoints (Ollama/vLLM): the Mac demo only;

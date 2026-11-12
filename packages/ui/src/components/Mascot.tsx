@@ -48,7 +48,8 @@ export type MascotProps = {
   label?: string;
 };
 
-function useReduceMotion(): boolean {
+/** True when the OS asks for reduced motion; every looping animation must honour it. */
+export function useReduceMotion(): boolean {
   const [reduce, setReduce] = useState(false);
   useEffect(() => {
     let live = true;

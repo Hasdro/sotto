@@ -300,9 +300,11 @@ describe("in-call screen", () => {
   });
 
   it("an escalation shows 'Sent to your manager' and is dismissed after a while", async () => {
-    // advanceTimers: the async render/act flush schedules timers of its own; a frozen clock let
-    // them deadlock under machine load (flake, 2026-11-12). The 8 s dismissal is still driven by hand.
-    jest.useFakeTimers({ advanceTimers: true });
+    // Reduced motion: advancing 8 s of fake time otherwise steps every looping animation frame by
+    // frame (~0.8 s of CPU when idle, > 5 s under load — the 2026-11-12 flake). The dismissal is
+    // what this test checks, not the animations.
+    jest.spyOn(RN.AccessibilityInfo, "isReduceMotionEnabled").mockResolvedValue(true);
+    jest.useFakeTimers();
     try {
       const st = stateFrom([
         hello,
@@ -314,6 +316,7 @@ describe("in-call screen", () => {
       expect(screen.getByTestId("toast")).toBeOnTheScreen();
       expect(screen.getAllByText("Sent to your manager").length).toBeGreaterThan(0);
       expect(s.dismissNotice).not.toHaveBeenCalled();
+      await act(async () => {}); // let the reduced-motion check resolve and stop the loops
       await act(async () => {
         jest.advanceTimersByTime(8000);
       });

@@ -7,6 +7,7 @@ import {
   size,
   space,
   Text,
+  useReduceMotion,
   useTheme,
 } from "@sotto/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -188,7 +189,12 @@ function Activity({ speaking, writing }: { speaking: boolean; writing: boolean }
 function Bar({ h, i, fast }: { h: number; i: number; fast: boolean }) {
   const { color } = useTheme();
   const v = useRef(new Animated.Value(0)).current;
+  const reduce = useReduceMotion();
   useEffect(() => {
+    if (reduce) {
+      v.setValue(0.5); // still bars of mixed height, no movement
+      return;
+    }
     const ms = fast ? 260 : 700;
     const a = Animated.loop(
       Animated.sequence([
@@ -199,7 +205,7 @@ function Bar({ h, i, fast }: { h: number; i: number; fast: boolean }) {
     );
     a.start();
     return () => a.stop();
-  }, [fast, i, v]);
+  }, [fast, i, v, reduce]);
   return (
     <Animated.View
       style={[
