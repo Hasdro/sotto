@@ -91,6 +91,10 @@ export type SessionDeps = {
   onCard: (card: CardMessage) => void;
   onEscalation: (e: Escalation) => void;
   onTiming: (t: CardTimingRecord) => void;
+  /** R10: the CRM record the agent attached (context rail), read on every turn; "" = none. */
+  crmBrief?: () => string;
+  /** The `crm_brief` prompt (seed/prompts); absent in older bundles, then no block is added. */
+  briefPrompt?: PromptRecord;
 };
 
 export function languageFor(company: CompanyProfile, text: string): string {
@@ -408,6 +412,11 @@ export class CallSession {
     if (!user.trim()) {
       user = system;
       system = "";
+    }
+    const brief = this.deps.crmBrief?.().trim() ?? "";
+    if (brief && this.deps.briefPrompt) {
+      // Per-turn part only: the cacheable system prefix stays per-company (seed/prompts README).
+      user = `${user.trim()}\n\n${renderPrompt(this.deps.briefPrompt.body, { "crm.brief": brief })}`;
     }
     const settings = this.deps.router.route("suggest").settings ?? {};
     return {

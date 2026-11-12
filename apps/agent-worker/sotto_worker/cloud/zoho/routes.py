@@ -11,13 +11,13 @@ No response carries a client ID, client secret, code or token."""
 from __future__ import annotations
 
 import html
+import secrets
 from collections.abc import Awaitable, Callable
-from http import HTTPStatus
 from typing import Any
 
 import httpx
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from sotto_worker.adapters.crm.zoho import ModuleNotAllowed, ZohoCRMReader, ZohoError
@@ -42,9 +42,12 @@ PAGE_CSP = (
     " frame-ancestors 'none'"
 )
 NO_STORE = {"Cache-Control": "no-store"}
+BROWSER_COOKIE = "sotto_zoho_flow"
 
 
-def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
+def _page(
+    title: str, body: str, status: int = 200, *, link: tuple[str, str] | None = None
+) -> HTMLResponse:
     doc = (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -53,8 +56,15 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
         "min-height:100vh;background:#f6f7f9;color:#1b1f24}"
         "@media (prefers-color-scheme:dark){body{background:#111418;color:#e8eaed}}"
         "main{max-width:420px;padding:24px;text-align:center}h1{font-size:22px}</style>"
+        "a{display:inline-block;margin-top:12px;padding:10px 18px;border-radius:8px;"
+        "background:#1f5eff;color:#fff;text-decoration:none;font-weight:600}"
         f"</head><body><main><h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>"
-        "</main></body></html>"
+        + (
+            f"<a href='{html.escape(link[0], quote=True)}'>{html.escape(link[1])}</a>"
+            if link
+            else ""
+        )
+        + "</main></body></html>"
     )
     return HTMLResponse(
         doc,
@@ -74,6 +84,8 @@ def make_routes(
     origin_of: Callable[[Request], str],
     transport: httpx.AsyncBaseTransport | None = None,
     log: Callable[[str], None] = lambda _l: None,
+    secure_cookies: bool = False,
+    read_limit: Callable[[str], bool] = lambda _key: True,
 ) -> list[Route]:
     cache = AccessCache()
 
@@ -172,26 +184,49 @@ def make_routes(
         return JSONResponse({"connected": False, "revoked": revoked})
 
     async def start(request: Request) -> Response:
-        row = store.zoho_peek_state(request.query_params.get("state", ""))
+        state = request.query_params.get("state", "")
+        row = store.zoho_peek_state(state)
         if row is None:
             return _page("Link expired", "Start again from AGN Sales Shield.", 400)
         client = client_of(str(row["company_id"]))
         if client is None:
             return _page("Zoho is not set up", "Ask your admin to add the Zoho client.", 409)
-        return RedirectResponse(
-            authorize_url(client, str(row["redirect_uri"]), request.query_params["state"]),
-            status_code=HTTPStatus.FOUND,
-            headers={**NO_STORE, "Referrer-Policy": "no-referrer"},
+        # Bind the flow to this browser (security review M1), and say whose account it is for,
+        # so a forwarded link cannot quietly connect someone else's Zoho.
+        browser = secrets.token_urlsafe(32)
+        store.zoho_bind_browser(state, browser)
+        page = _page(
+            "Connect Zoho",
+            f"This connects your Zoho account to AGN Sales Shield for {row['email']}. "
+            "Continue only if that is you.",
+            link=(authorize_url(client, str(row["redirect_uri"]), state), "Continue to Zoho"),
         )
+        page.set_cookie(
+            BROWSER_COOKIE,
+            browser,
+            max_age=600,
+            httponly=True,
+            secure=secure_cookies,
+            samesite="lax",  # Zoho's redirect back is a top-level cross-site GET
+            path="/auth/zoho/",
+        )
+        return page
 
     async def callback(request: Request) -> Response:
         q = request.query_params
-        row = store.zoho_spend_state(q.get("state", ""))
+        row = store.zoho_spend_state(q.get("state", ""), request.cookies.get(BROWSER_COOKIE, ""))
         if row is None:
             return _page("Link expired", "Start again from AGN Sales Shield.", 400)
         if q.get("error") or not q.get("code"):
             return _page("Not connected", "Zoho did not grant access. Try again from the app.", 400)
         company_id, user_id = str(row["company_id"]), str(row["user_id"])
+        person = Principal(
+            user_id, company_id, str(row["role"]), row["device_id"], str(row["email"]), ""
+        )
+        try:
+            connectable(person)  # a kill switch or org toggle since /connect still applies
+        except FeatureUnavailable:
+            return _page("Not connected", "Zoho is switched off for your organisation.", 403)
         client = client_of(company_id)
         if client is None:
             return _page("Zoho is not set up", "Ask your admin to add the Zoho client.", 409)
@@ -251,8 +286,13 @@ def make_routes(
                     raise CloudError("zoho_reconnect", "connect Zoho again") from None
                 raise CloudError("zoho_unavailable", str(e)) from None
 
+    def limited(who: Principal) -> None:
+        if not read_limit(f"{who.company}:{who.user_id}"):
+            raise CloudError("rate_limited", "too many Zoho lookups; wait a minute")
+
     @app_route
     async def search(r: Request, who: Principal) -> Response:
+        limited(who)
         query = r.query_params.get("q", "")
         kind = lookup.classify(query)
         if kind is None:
@@ -263,6 +303,7 @@ def make_routes(
 
     @app_route
     async def record(r: Request, who: Principal) -> Response:
+        limited(who)
         module, record_id = r.path_params["module"], r.path_params["id"]
         if module not in lookup.PERSON_MODULES:
             raise CloudError("forbidden", "only contacts and leads can be attached")

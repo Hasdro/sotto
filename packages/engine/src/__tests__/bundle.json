@@ -209,6 +209,15 @@
    }
   },
   "prompts": {
+   "crm_brief": {
+    "key": "crm_brief",
+    "version": 1,
+    "stage": "suggest",
+    "variables": [
+     "crm.brief"
+    ],
+    "body": "What the CRM says about this customer (the agent confirmed this record; use it to stay relevant, never read it out, and never promise anything from it that the playbook or company facts do not support):\n{{crm.brief}}\n"
+   },
    "escalation_email": {
     "key": "escalation_email",
     "version": 1,

@@ -131,6 +131,8 @@ export type LocalCallDeps = {
   socketFactory?: SocketFactory;
   /** Scenario pacing; 0.5 plays twice as fast. */
   speed?: number;
+  /** R10: the brief of the CRM record the agent attached in the context rail ("" = none). */
+  crmBrief?: () => string;
 };
 
 function percentile(sorted: number[], p: number): number | null {
@@ -259,6 +261,8 @@ export class LocalCall {
         deps.onEscalation?.(e);
       },
       onTiming: (t) => this.timings.push(t),
+      crmBrief: deps.crmBrief,
+      briefPrompt: deps.runtime.bundle.prompts.crm_brief,
     });
   }
 

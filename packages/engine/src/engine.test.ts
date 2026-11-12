@@ -786,3 +786,71 @@ describe("UTF-8 fallback decoder (runtimes without TextDecoder)", () => {
     }
   });
 });
+
+describe("CRM brief (R10, context rail)", () => {
+  const briefPrompt = {
+    key: "crm_brief",
+    version: 1,
+    stage: "suggest",
+    variables: ["crm.brief"],
+    body: "CRM:\n{{crm.brief}}",
+  };
+  async function ask(brief: string | null, withPrompt = true): Promise<LLMRequest> {
+    const seen: LLMRequest[] = [];
+    const capture: LLMAdapter = {
+      provider: "fake",
+      model: "capture",
+      warm: async () => {},
+      async *stream(req) {
+        seen.push(req);
+        yield "ANSWER: Sure.";
+      },
+    };
+    const prompt = bundle.prompts.suggest;
+    if (!prompt) throw new Error("fixture has the suggest prompt");
+    const session = new CallSession({
+      callId: "c",
+      company: { ...bundle.company, ai_answers_allowed: true },
+      router: new ModelRouter(
+        { suggest: { provider: "fake", model: "capture" } },
+        () => capture,
+        realClock,
+      ),
+      prompt,
+      playbook: new PlaybookIndex([]),
+      clock: realClock,
+      onCard: () => {},
+      onEscalation: () => {},
+      onTiming: () => {},
+      crmBrief: brief === null ? undefined : () => brief,
+      briefPrompt: withPrompt ? briefPrompt : undefined,
+    });
+    session.onTranscript(
+      {
+        speaker: "customer",
+        text: "Can you remind me what we agreed?",
+        final: true,
+        start_ms: 0,
+        end_ms: 2000,
+      },
+      realClock.now(),
+    );
+    await session.drain();
+    const req = seen[0];
+    if (!req) throw new Error("no request");
+    return req;
+  }
+
+  it("appends the attached record to the per-turn message, never the cached prefix", async () => {
+    const req = await ask("Contact: Jane Doe, CFO");
+    expect(req.messages[0]?.content).toContain("CRM:\nContact: Jane Doe, CFO");
+    expect(req.system).not.toContain("Jane Doe");
+  });
+
+  it("adds nothing without a brief or without the prompt (older bundles)", async () => {
+    for (const r of [await ask(null), await ask(""), await ask("Contact: Jane", false)]) {
+      expect(r.messages[0]?.content).not.toContain("CRM:");
+      expect(r.messages[0]?.content).not.toContain("Jane");
+    }
+  });
+});

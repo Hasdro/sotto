@@ -250,7 +250,8 @@ CREATE TABLE IF NOT EXISTS zoho_states (
   device_id TEXT,
   redirect_uri TEXT NOT NULL,
   expires_at INTEGER NOT NULL,
-  used_at INTEGER
+  used_at INTEGER,
+  browser_hash TEXT
 );
 """
 
@@ -2157,25 +2158,37 @@ class CloudStore:
         if not state or len(state) > 100:
             return None
         rows = self._q(
-            "SELECT * FROM zoho_states"
-            " WHERE state_hash = ? AND used_at IS NULL AND expires_at >= ?",
+            "SELECT s.*, u.email FROM zoho_states s JOIN users u ON u.id = s.user_id"
+            " WHERE s.state_hash = ? AND s.used_at IS NULL AND s.expires_at >= ?",
             (_token_hash(state), now_ms()),
         )
         return rows[0] if rows else None
 
-    def zoho_spend_state(self, state: str) -> sqlite3.Row | None:
-        """Spends a state once (the callback). A replay, an unknown or an expired one: None."""
-        if not state or len(state) > 100:
+    def zoho_bind_browser(self, state: str, browser: str) -> None:
+        """/auth/zoho/start: the browser that opened the link gets a cookie; only that browser
+        may complete the flow (a forwarded link cannot connect someone else's Zoho)."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE zoho_states SET browser_hash = ? WHERE state_hash = ? AND used_at IS NULL",
+                (_token_hash(browser), _token_hash(state)),
+            )
+
+    def zoho_spend_state(self, state: str, browser: str) -> sqlite3.Row | None:
+        """Spends a state once (the callback), from the browser bound at /start. A replay, an
+        unknown or expired state, or another browser: None."""
+        if not state or len(state) > 100 or not browser or len(browser) > 100:
             return None
         h, t = _token_hash(state), now_ms()
         with self._tx() as db:
             row = db.execute(
-                "SELECT s.* FROM zoho_states s JOIN users u ON u.id = s.user_id"
+                "SELECT s.*, u.role, u.email FROM zoho_states s JOIN users u ON u.id = s.user_id"
                 " WHERE s.state_hash = ? AND s.used_at IS NULL AND s.expires_at >= ?"
                 " AND u.active = 1",
                 (h, t),
             ).fetchone()
-            if row is None:
+            if row is None or not secrets.compare_digest(
+                str(row["browser_hash"] or ""), _token_hash(browser)
+            ):
                 return None
             db.execute("UPDATE zoho_states SET used_at = ? WHERE state_hash = ?", (t, h))
         return cast(sqlite3.Row, row)

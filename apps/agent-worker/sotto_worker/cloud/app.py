@@ -174,6 +174,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     signup_limit = RateLimit(per_key=5, total=60, window_s=3600)
     token_limit = RateLimit(per_key=60, total=2000, window_s=3600)
     refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
+    zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
     minter = config.stt_minter or mint_stt_token
     tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
@@ -220,6 +221,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "zoho_no_client": HTTPStatus.CONFLICT,
         "zoho_reconnect": HTTPStatus.CONFLICT,
         "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
+        "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
     }
 
     def handle(
@@ -1007,6 +1009,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             origin_of=public_origin_of,
             transport=config.zoho_transport,
             log=config.log,
+            secure_cookies=config.secure_cookies,
+            read_limit=lambda key: zoho_limit.hit(key),
         ),
         Route("/owner", owner_page),
         Route("/owner/{file}", owner_page),

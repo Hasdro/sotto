@@ -5,7 +5,9 @@ also prove where secrets and tokens go."""
 
 from __future__ import annotations
 
+import html
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -169,15 +171,24 @@ def set_org_client(client: TestClient, auth: dict[str, str]) -> None:
     assert r.status_code == 200, r.text
 
 
+def start_flow(client: TestClient, state: str) -> Any:
+    """/auth/zoho/start: a page naming the account, a Continue link to Zoho, a browser cookie."""
+    r = client.get(f"/auth/zoho/start?state={state}")
+    assert r.status_code == 200, r.text
+    assert "admin@" in r.text
+    assert "sotto_zoho_flow" in r.headers["set-cookie"]
+    href = re.search(r"href='([^']+)'", r.text)
+    assert href
+    return urlparse(html.unescape(href.group(1)))
+
+
 def connect(client: TestClient, auth: dict[str, str], code: str = "good-code") -> Any:
     r = client.post("/api/v1/zoho/connect", headers=auth)
     assert r.status_code == 200, r.text
     start = urlparse(r.json()["url"])
     assert start.path == "/auth/zoho/start"
     state = parse_qs(start.query)["state"][0]
-    r = client.get(f"/auth/zoho/start?state={state}", follow_redirects=False)
-    assert r.status_code == 302
-    to = urlparse(r.headers["location"])
+    to = start_flow(client, state)
     q = parse_qs(to.query)
     assert to.netloc == "accounts.zoho.com"
     assert q["state"] == [state]
@@ -323,6 +334,61 @@ def test_unknown_and_expired_state_are_refused(zclient: TestClient, store: Cloud
     assert zclient.get("/api/v1/zoho/status", headers=auth).json()["connected"] is False
 
 
+def test_a_forwarded_link_cannot_connect_from_another_browser(
+    zclient: TestClient, store: CloudStore, seed: Seed, zoho: FakeZoho
+) -> None:
+    auth = signup(zclient, "Acme", "admin@acme.test")
+    set_org_client(zclient, auth)
+    url = zclient.post("/api/v1/zoho/connect", headers=auth).json()["url"]
+    state = parse_qs(urlparse(url).query)["state"][0]
+    start_flow(zclient, state)  # the attacker's browser opened the link …
+    victim = TestClient(
+        create_cloud_app(
+            CloudConfig(
+                public_origin=ORIGIN,
+                static_dir=None,
+                zoho_transport=httpx.MockTransport(zoho.handler),
+            ),
+            store,
+            seed,
+        ),
+        base_url=ORIGIN,
+    )
+    # … the victim's browser comes back from Zoho without the cookie: refused, nothing saved.
+    r = victim.get("/auth/zoho/callback/", params={"code": "good-code", "state": state})
+    assert r.status_code == 400
+    assert store._q("SELECT * FROM zoho_connections") == []
+
+
+def test_callback_rechecks_the_feature(zclient: TestClient, store: CloudStore) -> None:
+    auth = signup(zclient, "Acme", "admin@acme.test")
+    set_org_client(zclient, auth)
+    url = zclient.post("/api/v1/zoho/connect", headers=auth).json()["url"]
+    state = parse_qs(urlparse(url).query)["state"][0]
+    start_flow(zclient, state)
+    assert (
+        zclient.put(
+            "/api/v1/company/features/zoho", json={"enabled": False}, headers=auth
+        ).status_code
+        == 200
+    )
+    r = zclient.get("/auth/zoho/callback/", params={"code": "good-code", "state": state})
+    assert r.status_code == 403
+    assert store._q("SELECT * FROM zoho_connections") == []
+
+
+def test_lookups_are_rate_limited(zclient: TestClient) -> None:
+    auth = signup(zclient, "Acme", "admin@acme.test")
+    set_org_client(zclient, auth)
+    connect(zclient, auth)
+    codes = [
+        zclient.get("/api/v1/zoho/search?q=jane@acme.test", headers=auth).status_code
+        for _ in range(61)
+    ]
+    assert codes[:60] == [200] * 60
+    assert codes[60] == 429
+
+
 def test_refused_code_does_not_connect(zclient: TestClient) -> None:
     auth = signup(zclient, "Acme", "admin@acme.test")
     set_org_client(zclient, auth)
@@ -338,10 +404,12 @@ def test_callback_never_sends_the_secret_to_an_unknown_accounts_server(
     set_org_client(zclient, auth)
     url = zclient.post("/api/v1/zoho/connect", headers=auth).json()["url"]
     state = parse_qs(urlparse(url).query)["state"][0]
-    zclient.get(
+    start_flow(zclient, state)
+    r = zclient.get(
         "/auth/zoho/callback/",
         params={"code": "good-code", "state": state, "accounts-server": "https://evil.test"},
     )
+    assert r.status_code == 200
     hosts = {q.url.host for q in zoho.requests}
     assert hosts == {"accounts.zoho.com"}
     assert accounts_server_for("https://accounts.zoho.eu", Client("a", "b", "us")) == (
