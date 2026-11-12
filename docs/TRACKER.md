@@ -32,6 +32,7 @@ Tags:
 - **Next action (master):** collect the owner's 0.3.0 test results; once the Zoho OAuth client exists, T-053 starts with `GET /crm/v8/settings/modules` on the owner's org (REFERENCES § Zoho), as a child session `phase9/zoho`.
 - **Branch:** master `claude/friendly-gates-fbhqdv` (draft PR https://github.com/Hasdro/sotto/pull/1); children `phase9/brand-ui`, `phase9/flags-auth`, `phase9/landing-infra` in their own worktrees.
 - **Environment:** local Mac. ssh to us3 works (root@104.168.48.116). Electron dev runs need `env -u ELECTRON_RUN_AS_NODE` and an explicit `--user-data-dir`.
+- **Owner 13 Nov:** chose 2a (Zoho slice for the Saturday demo); Zoho client created (.com, redirect on salesshield.agncompu.com); Zoho form embed given; SMTP on 14 Nov; trial of "Zylker" reset to 26 Nov (backup `cloud.db.pre-2026-11-13-trial`, audit row).
 - **Owner (batched, Phase 9 § Owner actions):** logo choice (after T-048), DNS for salesshield.agncompu.com, Zoho OAuth client, Zoho Forms embed, Hostinger SMTP, Gallabox key/channel/templates.
 - **Note:** the owner mentioned a Zoho Partner demo "by Saturday" (14 Nov). The ladder puts Zoho in 0.4.0; see the session log 2026-11-12.
 
@@ -196,6 +197,9 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [~] T-067 DNS + Caddy for salesshield.agncompu.com; clean `/downloads/` `owner` (DNS) — `deploy/caddy/salesshield.caddy`, `deploy/publish-landing.sh` (dry run), `scripts/release.sh` (dry run) written; nothing run on us3; `caddy validate` not run (Caddy not installed locally)
 - [ ] T-068 GitHub Releases v0.3.0…v0.8.0 with installers
 - [ ] T-069 Local Mac cleanup + clean install keeping data `local-only`
+Added 2026-11-13 (owner)
+- [ ] T-070 Research: automate Zoho OAuth client creation, or one platform client for all orgs (multi-DC) — recommendation + decision
+- [ ] T-071 Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
 
 ## Waiting on owner
 

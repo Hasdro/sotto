@@ -122,6 +122,14 @@ v1 actions, each approved, edited or rejected on its own card:
 - Rebuild the latest version, install to `/Applications`, preserve `~/Library/Application Support/sotto-desktop` and the login (tests persistence).
 - Optional clean-slate test that wipes app data only if the owner asks.
 
+## Owner additions (13 Nov 2026)
+- **Saturday demo (owner chose "2a"):** a Zoho demo slice is pulled forward from 0.4.0: connect Zoho, look up the caller's contact/deal/account and recent notes before or during the call, shown in the context rail. Tracked as T-053/T-055 (slice) + T-057 (rail).
+- **Zoho OAuth client (owner created one):** Server-based Application; homepage `https://salesshield.agncompu.com/`; redirect `https://salesshield.agncompu.com/auth/zoho/callback/`; data centre `.com`. The client must also be enterable **per organization** in Admin → Integrations (write-only, encrypted like provider keys), with the platform client as the default; the desktop app uses the same admin screen.
+- **Automate client creation (T-070, research first):** find whether Zoho offers any API to create OAuth clients; if not, the recommended path is one AGN platform client (any Zoho org's user can authorize it; enable multi-DC in the API console), with the per-org client as an optional override.
+- **Gallabox (refines T-064):** Admin → Integrations has a place for the Gallabox API key, secret and channel. The template allow-list is a dropdown filled by pulling **all** templates from Gallabox; the admin selects templates and saves; the app then pulls each selected template's parameters so it knows what must be filled.
+- **Zoho Forms embed (T-066):** `https://forms.zohopublic.com/agncomputerllc/form/SalesShieldSignup/formperma/95zC6xcBOHVHXpGkfczaurMCdOmUN1bSpPIhPdLDy-Q` (iframe, 500 px high, aria-label "Sales Shield Signup").
+- **Hostinger SMTP:** owner sends it on 14 Nov.
+
 ## Definition of done per version
 
 **0.3.0**
