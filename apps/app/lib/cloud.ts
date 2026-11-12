@@ -338,11 +338,18 @@ let renewing: Promise<Renewal> | null = null;
 /** Spends the refresh token for a new pair; one at a time, so a token is never sent twice. */
 function renew(fetcher: typeof fetch): Promise<Renewal> {
   if (!renewing) {
-    renewing = renewNow(fetcher).finally(() => {
+    renewing = withRenewLock(() => renewNow(fetcher)).finally(() => {
       renewing = null;
     });
   }
   return renewing;
+}
+
+type Locks = { request<T>(name: string, fn: () => Promise<T>): Promise<T> };
+/** Web tabs share one session: only one renews at a time, and the next sees its result. */
+function withRenewLock<T>(fn: () => Promise<T>): Promise<T> {
+  const locks = (globalThis as { navigator?: { locks?: Locks } }).navigator?.locks;
+  return locks ? locks.request("sotto.renew", fn) : fn();
 }
 
 async function renewNow(fetcher: typeof fetch): Promise<Renewal> {

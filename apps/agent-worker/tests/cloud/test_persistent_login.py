@@ -16,6 +16,7 @@ from sotto_worker.cloud.store import CloudStore
 from tests.cloud.conftest import ORIGIN, PASSWORD, SignUp
 
 DAY = 86_400_000
+ORIGIN_H = {"origin": ORIGIN}
 DEVICE = {"id": "mac-1", "platform": "mac", "label": "Mac app", "app_version": "0.3.0"}
 
 
@@ -82,12 +83,13 @@ def test_rotation_gives_a_new_pair_and_retires_the_old_one(
 
 
 def test_a_reused_refresh_token_revokes_the_device_session(
-    client: TestClient, sign_up: SignUp, store: CloudStore
+    client: TestClient, sign_up: SignUp, store: CloudStore, clock: Callable[[int], None]
 ) -> None:
     sign_up()
     s = login_pair(client)
     other = login_pair(client)  # a second device session of the same person stays signed in
     n = refresh(client, s["refresh_token"]).json()
+    clock(auth.REUSE_GRACE_MS + 1000)
     stolen = refresh(client, s["refresh_token"])
     assert stolen.status_code == 401
     assert client.get("/api/v1/me", headers=bearer(n["token"])).status_code == 401
@@ -95,6 +97,25 @@ def test_a_reused_refresh_token_revokes_the_device_session(
     assert client.get("/api/v1/me", headers=bearer(other["token"])).status_code == 200
     company = s["company"]["id"]
     assert any(i["action"] == "session.refresh_reused" for i in store.owner_audit(company))
+
+
+def test_a_lost_response_or_two_windows_within_seconds_do_not_sign_out(
+    client: TestClient, sign_up: SignUp, store: CloudStore, clock: Callable[[int], None]
+) -> None:
+    """Security review M2: the server rotated but the answer never arrived, so the app sends the
+    same refresh token again a moment later. It gets a fresh pair, not a revoked session."""
+    sign_up()
+    s = login_pair(client)
+    lost = refresh(client, s["refresh_token"]).json()  # the app never saw this answer
+    clock(5000)
+    again = refresh(client, s["refresh_token"])
+    assert again.status_code == 200, again.text
+    fresh = again.json()
+    assert client.get("/api/v1/me", headers=bearer(fresh["token"])).status_code == 200
+    assert client.get("/api/v1/me", headers=bearer(lost["token"])).status_code == 401
+    assert refresh(client, fresh["refresh_token"]).status_code == 200
+    company = s["company"]["id"]
+    assert not any(i["action"] == "session.refresh_reused" for i in store.owner_audit(company))
 
 
 def test_access_token_expires_in_an_hour_and_refresh_renews_it(
@@ -125,7 +146,9 @@ def test_ninety_days_unused_signs_out_but_the_window_slides(
     assert refresh(client, token).status_code == 401
 
 
-@pytest.mark.parametrize("how", ["logout", "password", "device", "deactivate"])
+@pytest.mark.parametrize(
+    "how", ["logout", "password", "device", "deactivate", "owner_reset", "company_deleted"]
+)
 def test_signed_out_only_by_logout_password_revoke_or_deactivation(
     owner: TestClient, sign_up: SignUp, how: str
 ) -> None:
@@ -145,6 +168,14 @@ def test_signed_out_only_by_logout_password_revoke_or_deactivation(
             d for d in owner.get("/api/v1/devices", headers=h).json()["devices"] if d["this_device"]
         )
         assert owner.delete(f"/api/v1/devices/{device['id']}", headers=h).status_code == 200
+    elif how == "owner_reset":
+        r = owner.post(f"/api/owner/users/{s['user']['id']}/reset", json={}, headers=ORIGIN_H)
+        assert r.status_code == 200, r.text
+    elif how == "company_deleted":
+        r = owner.delete(
+            f"/api/owner/companies/{s['company']['id']}?confirm=Acme", headers=ORIGIN_H
+        )
+        assert r.status_code == 200, r.text
     else:
         cid = s["company"]["id"]
         user = s["user"]["id"]
@@ -184,9 +215,14 @@ def test_migration_from_a_0_2_0_token_needs_no_new_sign_in(
     devices = client.get("/api/v1/devices", headers=h).json()["devices"]
     assert len(devices) == 1
     assert devices[0]["this_device"]
-    # The new session has the full 90-day window, not the old token's remaining 10 days.
+    # Migration never adds time to a 0.2.0 token (security review L4): its 10 days remain...
+    now = int(time.time() * 1000) + 20 * DAY
+    assert abs(pair["refresh_expires_at"] - (now + 10 * DAY)) < 5000
+    # ...and the first renewal starts the normal 90-day sliding window.
+    renewed = refresh(client, pair["refresh_token"])
+    assert renewed.status_code == 200
     clock(60 * DAY)
-    assert refresh(client, pair["refresh_token"]).status_code == 200
+    assert refresh(client, renewed.json()["refresh_token"]).status_code == 200
     # A pair cannot be migrated again.
     again = login_pair(client)
     assert client.post("/api/v1/auth/migrate", headers=bearer(again["token"])).status_code == 400

@@ -54,6 +54,7 @@ COMMON_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
 }
+RECORDING_FIELDS = ("id", "started_at", "duration_s", "recording_bytes", "source", "email", "name")
 AFTER_CALL = ("call_review", "follow_up")  # features that use the after-call (summary) model
 MODEL_KEY = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
 FIRST_PASSWORD_PATHS = {"/api/v1/me", "/api/v1/auth/password", "/api/v1/auth/logout"}
@@ -481,12 +482,25 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         store.require_feature(who, purpose)
         days = request.query_params.get("days", "30")
         span = int(days) if days in ("7", "30", "90") else 30
-        return JSONResponse({"calls": store.company_usage(who, span)})
+        calls = store.company_usage(who, span)
+        if purpose == "recordings":  # only what the recordings list needs (security review M1)
+            keep: tuple[str, ...] = RECORDING_FIELDS
+            if store.feature_state(who, "reports").state == "available":
+                keep = (*RECORDING_FIELDS, "review")
+            calls = [
+                {k: c[k] for k in keep if k in c}
+                for c in calls
+                if (c.get("recording_bytes") or 0) > 0
+            ]
+        return JSONResponse({"calls": calls})
 
     @app_route
     async def settings_get(_request: Request, who: Principal) -> Response:
         who.require("admin")
-        return JSONResponse({"settings": store.settings(who.company)})
+        settings = store.settings(who.company)
+        if not store.org_feature_on(who.company, "ai_knowledge"):
+            settings.pop("context", None)  # withheld, not just hidden (D-036)
+        return JSONResponse({"settings": settings})
 
     @app_route
     async def settings_put(request: Request, who: Principal) -> Response:

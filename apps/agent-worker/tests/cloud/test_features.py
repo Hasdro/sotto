@@ -188,7 +188,7 @@ def test_off_by_platform_entitlement_hides_it_from_admin_features(
 
 
 def test_off_by_org_admin_toggle_rejects_and_is_audited(
-    client: TestClient, sign_up: SignUp
+    client: TestClient, sign_up: SignUp, store: CloudStore
 ) -> None:
     a = sign_up("Alpha", "admin@a.test")
     h = a["auth"]
@@ -199,8 +199,20 @@ def test_off_by_org_admin_toggle_rejects_and_is_audited(
     assert row["enabled"] is False
     assert row["state"] == "off_by_org"
     unavailable(client.get("/api/v1/company/usage", headers=h), "reports", "off_by_org")
-    # Recordings has its own switch, so Admin → Recordings still lists calls.
-    assert client.get("/api/v1/company/usage?for=recordings", headers=h).status_code == 200
+    # Recordings has its own switch, so Admin → Recordings still lists calls, but never the
+    # report numbers (security review M1).
+    call(client, h, "rec-1")
+    call(client, h, "no-rec")
+    client.post("/api/v1/calls/rec-1/review", json=REVIEW, headers=h)
+    who = store.principal(a["token"], kind="app")
+    assert who is not None
+    store.set_recording(who, "rec-1", 1234)  # this test server keeps no audio files
+    rec = client.get("/api/v1/company/usage?for=recordings", headers=h)
+    assert rec.status_code == 200
+    rows = rec.json()["calls"]
+    assert [r["id"] for r in rows] == [f"{a['company']['id']}:rec-1"]
+    assert "review" not in rows[0]
+    assert "cards" not in rows[0]
     items = client.get("/api/v1/audit", headers=h).json()["items"]
     assert any(i["action"] == "features.toggle" and i["detail"] == "reports off" for i in items)
     assert (
@@ -268,6 +280,8 @@ def test_withheld_from_the_bundle_when_off(client: TestClient, sign_up: SignUp) 
     client.put("/api/v1/company/features/ai_knowledge", json={"enabled": False}, headers=h)
     bundle = client.get("/api/v1/bundle", headers=h).json()
     assert bundle["company"]["context"] == ""
+    settings = client.get("/api/v1/company/settings", headers=h).json()["settings"]
+    assert "context" not in settings  # security review L3
     assert bundle["features"]["ai_knowledge"] == {"state": "off_by_org"}
     unavailable(
         client.put("/api/v1/company/settings", json={"context": "y"}, headers=h),

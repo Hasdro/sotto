@@ -597,21 +597,26 @@ class CloudStore:
 
     def refresh(self, refresh_token: str, *, ip: str = "") -> dict[str, Any] | None:
         """Spends a refresh token for a new pair, or None (sign in again). A spent token
-        presented again revokes its whole device session (D-029)."""
+        presented again revokes its whole device session (D-029), except within a short grace
+        window after it was spent: a lost response or two windows renewing at once is not theft,
+        so the session is rotated once more instead."""
         if not refresh_token.startswith(auth.REFRESH_PREFIX) or len(refresh_token) > 200:
             return None
         h = _token_hash(refresh_token)
         t = now_ms()
+        query = (
+            "SELECT s.*, u.active, d.revoked_at AS device_revoked FROM sessions s"
+            " JOIN users u ON u.id = s.user_id LEFT JOIN devices d ON d.id = s.device_id"
+        )
         with self._tx() as db:
-            s = db.execute(
-                "SELECT s.*, u.active, d.revoked_at AS device_revoked FROM sessions s"
-                " JOIN users u ON u.id = s.user_id LEFT JOIN devices d ON d.id = s.device_id"
-                " WHERE s.refresh_hash = ?",
-                (h,),
-            ).fetchone()
+            s = db.execute(f"{query} WHERE s.refresh_hash = ?", (h,)).fetchone()
             if s is None:
-                self._spent_refresh(db, h, t, ip)
-                return None
+                sid = self._spent_refresh(db, h, t, ip)
+                if sid is None:
+                    return None
+                s = db.execute(f"{query} WHERE s.sid = ?", (sid,)).fetchone()
+                if s is None:
+                    return None
             if (
                 s["kind"] != "app"
                 or s["revoked_at"]
@@ -624,7 +629,7 @@ class CloudStore:
             db.execute(
                 "INSERT OR REPLACE INTO spent_refresh(token_hash, company_id, sid, spent_at)"
                 " VALUES (?,?,?,?)",
-                (h, s["company_id"], s["sid"], t),
+                (s["refresh_hash"], s["company_id"], s["sid"], t),
             )
             db.execute(
                 "UPDATE sessions SET token_hash = ?, refresh_hash = ?, access_until = ?,"
@@ -644,13 +649,16 @@ class CloudStore:
             db.execute("DELETE FROM spent_refresh WHERE spent_at < ?", (t - auth.SPENT_KEEP_MS,))
         return _pair_out(access, new_refresh, t)
 
-    def _spent_refresh(self, db: sqlite3.Connection, h: str, t: int, ip: str) -> None:
-        """A refresh token that is not current: if it was spent before, someone copied it."""
+    def _spent_refresh(self, db: sqlite3.Connection, h: str, t: int, ip: str) -> str | None:
+        """A refresh token that is not current. Spent moments ago: the session's id (rotate
+        again). Spent earlier: someone copied it, so the device session is revoked."""
         spent = db.execute(
-            "SELECT sid, company_id FROM spent_refresh WHERE token_hash = ?", (h,)
+            "SELECT sid, company_id, spent_at FROM spent_refresh WHERE token_hash = ?", (h,)
         ).fetchone()
         if spent is None:
-            return
+            return None
+        if int(spent["spent_at"]) >= t - auth.REUSE_GRACE_MS:
+            return str(spent["sid"])
         db.execute(
             "UPDATE sessions SET revoked_at = ? WHERE sid = ? AND revoked_at IS NULL",
             (t, spent["sid"]),
@@ -662,6 +670,7 @@ class CloudStore:
             company_id=spent["company_id"],
             ip=ip,
         )
+        return None
 
     def migrate(self, who: Principal) -> dict[str, Any]:
         """Turns a 0.2.0 session (one 30-day token) into a pair in place: same device, no new
@@ -672,27 +681,29 @@ class CloudStore:
         access, refresh = auth.new_access(), auth.new_refresh()
         with self._tx() as db:
             s = db.execute(
-                "SELECT sid, kind FROM sessions WHERE token_hash = ?", (who.session,)
+                "SELECT sid, kind, expires_at FROM sessions WHERE token_hash = ?", (who.session,)
             ).fetchone()
             if s is None or s["kind"] != "app":
                 raise CloudError("signed_out", "sign in again")
             if s["sid"]:
                 raise CloudError("invalid", "this session already uses refresh tokens")
+            expires = int(s["expires_at"])
+            # The old token's end date stays until the first renewal, so migrating never gives a
+            # 0.2.0 token more time than it had (security review L4).
             db.execute(
                 "UPDATE sessions SET token_hash = ?, sid = ?, refresh_hash = ?, access_until = ?,"
-                " expires_at = ?, last_seen_at = ? WHERE token_hash = ?",
+                " last_seen_at = ? WHERE token_hash = ?",
                 (
                     _token_hash(access),
                     auth.new_sid(),
                     _token_hash(refresh),
                     t + auth.ACCESS_TTL_MS,
-                    t + auth.REFRESH_TTL_MS,
                     t,
                     who.session,
                 ),
             )
             self.audit(db, "session.migrated", who.email, company_id=who.company_id, actor=who)
-        return _pair_out(access, refresh, t)
+        return {**_pair_out(access, refresh, t), "refresh_expires_at": expires}
 
     def _device(
         self, db: sqlite3.Connection, user: sqlite3.Row, device: dict[str, Any], t: int
