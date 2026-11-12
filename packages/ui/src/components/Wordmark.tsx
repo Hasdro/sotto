@@ -5,18 +5,20 @@ import { space } from "../tokens.ts";
 import { Text } from "./Text.tsx";
 
 /**
- * The brand symbol (T-048): direction (a), a handset bent into a shield, as a placeholder until
- * the owner picks one of docs/design/logo/index.html. Geometry on a 64-unit grid; the colour is a
- * theme token, passed in. Swap this string when the owner chooses another direction.
+ * The brand symbol (T-048, owner's pick 12 Nov 2026): direction (c), a solid shield with a
+ * handset cut out of it (docs/design/logo/c.svg). Geometry on a 64-unit grid; the colour is a
+ * theme token, passed in. The cut-out is a mask, so it shows whatever is behind the mark.
  */
 export function symbolSvg(ink: string): string {
+  const handset =
+    `<g fill="#000"><rect x="6.5" y="8.5" width="21" height="14" rx="6.5" transform="rotate(-38 17 15.5)"/>` +
+    `<rect x="36.5" y="41.5" width="21" height="14" rx="6.5" transform="rotate(-52 47 48.5)"/></g>` +
+    `<path d="M15 17 C9 33 23 51 46 50" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round"/>`;
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g fill="${ink}">` +
-    `<rect x="4" y="7" width="22" height="12" rx="6.5" transform="rotate(-6 15 13.5)"/>` +
-    `<rect x="38" y="7" width="22" height="12" rx="6.5" transform="rotate(6 49 13.5)"/></g>` +
-    `<path d="M15 17 V30 C15 40 22 48.5 32 55.5 C42 48.5 49 40 49 30 V17" fill="none" ` +
-    `stroke="${ink}" stroke-width="8.5" stroke-linejoin="miter" stroke-miterlimit="8" ` +
-    `stroke-linecap="round"/></svg>`
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><mask id="cut">` +
+    `<rect width="64" height="64" fill="#fff"/><g transform="translate(14.5 14.5) scale(0.55)">${handset}</g>` +
+    `</mask></defs><path d="M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z" ` +
+    `fill="${ink}" mask="url(#cut)"/></svg>`
   );
 }
 

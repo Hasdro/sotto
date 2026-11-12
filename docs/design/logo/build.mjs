@@ -5,7 +5,7 @@
 //   <id>.svg        colour, for light backgrounds
 //   <id>-dark.svg   colour, for dark backgrounds
 //   <id>-mono.svg   one colour (black), the tray / template version
-//   <id>-small.svg  heavier strokes for 16 px
+//   <id>-small.svg  heavier strokes for 16 px (<id>-mono-small.svg: the tray template)
 //   <id>-tile.svg   the app icon (1024 grid, macOS-style rounded square)
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -92,6 +92,7 @@ for (const d of built) {
   writeFileSync(join(here, `${d.id}-dark.svg`), d.v.dark);
   writeFileSync(join(here, `${d.id}-mono.svg`), d.v.mono);
   writeFileSync(join(here, `${d.id}-small.svg`), d.v.small);
+  writeFileSync(join(here, `${d.id}-mono-small.svg`), d.v.monoSmall);
   writeFileSync(join(here, `${d.id}-tile.svg`), d.v.tile);
 }
 
@@ -163,9 +164,9 @@ const html = `<!doctype html>
 <body>
 <main>
   <h1>AGN Sales Shield: three logo directions</h1>
-  <p class="lede">Standalone symbols, no letters. Each is shown at 512, 32 and 16 px on light and dark, as the app icon, and as the one-colour menu-bar icon macOS tints itself. Direction a is wired into the app as a placeholder until you pick one.</p>
+  <p class="lede">Standalone symbols, no letters. Each is shown at 512, 32 and 16 px on light and dark, as the app icon, and as the one-colour menu-bar icon macOS tints itself. The owner picked direction c (12 Nov 2026); it is wired into the apps, installers, tray and landing page.</p>
   ${built.map(section).join("\n")}
-  <div class="pick"><strong>Your pick:</strong> reply with a, b or c (or a change, for example "a, but a thinner outline"). The icons, tray images, favicon and landing assets are then generated from the chosen file.</div>
+  <div class="pick"><strong>Chosen:</strong> c, Shield monogram (owner, 12 Nov 2026). Rasters come from <code>export.mjs c</code>.</div>
 </main>
 </body>
 </html>

@@ -25,12 +25,15 @@ const desk = join(root, "apps", "desktop", "build-assets");
 const brand = join(root, "apps", "app", "assets", "brand");
 mkdirSync(desk, { recursive: true });
 mkdirSync(brand, { recursive: true });
+/** Favicons and the Windows tray (light or dark taskbar). On white (#ffffff) 4.4:1 and on a dark tab strip (#202124) 3.7:1. */
+const FAVICON_INK = "#178680";
 const read = (name) => readFileSync(join(here, name), "utf8");
 const svgs = {
   tile: read(`${id}-tile.svg`),
   light: read(`${id}.svg`),
   small: read(`${id}-small.svg`),
   mono: read(`${id}-mono.svg`),
+  monoSmall: read(`${id}-mono-small.svg`),
 };
 
 const browser = await chromium.launch();
@@ -84,13 +87,14 @@ try {
     ico(await Promise.all(winSizes.map(async (px) => [px, await png(svgs.tile, px)]))),
   );
   // Tray: macOS template images are black with alpha (the menu bar tints them); 16 pt, @2x.
-  writeFileSync(join(desk, "trayTemplate.png"), await png(svgs.mono, 16));
-  writeFileSync(join(desk, "trayTemplate@2x.png"), await png(svgs.mono, 32));
+  // The heavy small variant: at 16 pt the regular strokes blur the handset cut-out.
+  writeFileSync(join(desk, "trayTemplate.png"), await png(svgs.monoSmall, 16));
+  writeFileSync(join(desk, "trayTemplate@2x.png"), await png(svgs.monoSmall, 32));
   writeFileSync(
     join(desk, "tray.ico"),
     ico([
-      [16, await png(svgs.small, 16)],
-      [32, await png(svgs.small, 32)],
+      [16, await png(svgs.small.replaceAll("#0b5f63", FAVICON_INK), 16)],
+      [32, await png(svgs.small.replaceAll("#0b5f63", FAVICON_INK), 32)],
     ]),
   );
 
@@ -98,8 +102,19 @@ try {
   writeFileSync(join(brand, "symbol-dark.svg"), read(`${id}-dark.svg`));
   writeFileSync(join(brand, "symbol-mono.svg"), svgs.mono);
   writeFileSync(join(brand, "icon-512.png"), await png(svgs.tile, 512));
-  writeFileSync(join(brand, "favicon-32.png"), await png(svgs.small, 32));
-  const fav48 = await png(svgs.small, 48);
+  // Favicons sit on light and dark browser tabs: a mid-teal that keeps >= 3:1 on both.
+  const fav = svgs.small.replaceAll("#0b5f63", FAVICON_INK);
+  writeFileSync(join(brand, "favicon-32.png"), await png(fav, 32));
+  writeFileSync(join(brand, "favicon-16.png"), await png(fav, 16));
+  // The SVG favicon switches ink with the tab's colour scheme.
+  writeFileSync(
+    join(brand, "favicon.svg"),
+    svgs.small.replace(
+      "<title>",
+      "<style>path{fill:#0b5f63}@media (prefers-color-scheme: dark){path{fill:#5fc4bb}}</style><title>",
+    ),
+  );
+  const fav48 = await png(fav, 48);
   writeFileSync(join(brand, "favicon-48.png"), fav48);
   writeFileSync(join(root, "apps", "app", "assets", "favicon.png"), fav48);
   writeFileSync(join(brand, "DIRECTION"), `${id}\n`);

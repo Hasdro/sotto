@@ -97,7 +97,7 @@ header.top .wrap {
   height: 32px;
   color: var(--primary);
   flex: none;
-} /* PLACEHOLDER logo: replace with the owner-approved symbol */
+} /* Logo direction (c), owner pick 12 Nov 2026 (T-048); files: logo.svg, logo-dark.svg */
 .tools {
   display: flex;
   gap: 8px;
