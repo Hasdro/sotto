@@ -8,6 +8,7 @@ the vault name binds a ciphertext to its company and key slot."""
 from __future__ import annotations
 
 import calendar
+import dataclasses
 import hashlib
 import json
 import re
@@ -20,7 +21,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sotto_worker.cloud import auth, features
 from sotto_worker.cloud.passwords import (
@@ -215,6 +216,41 @@ CREATE TABLE IF NOT EXISTS company_entitlements (
 CREATE TABLE IF NOT EXISTS feature_kill (
   feature TEXT PRIMARY KEY,
   killed_at INTEGER NOT NULL
+);
+-- Zoho (D-031). The platform OAuth client (owner; one row, no company data) and an optional
+-- per-org client that overrides it. Both hold an AES-GCM blob of {client_id, client_secret}.
+CREATE TABLE IF NOT EXISTS zoho_platform_client (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  ciphertext BLOB NOT NULL,
+  dc TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS company_zoho_client (
+  company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  ciphertext BLOB NOT NULL,
+  dc TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+-- Each person's own Zoho connection: the refresh token, encrypted, and where to use it.
+CREATE TABLE IF NOT EXISTS zoho_connections (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ciphertext BLOB NOT NULL,
+  accounts_server TEXT NOT NULL,
+  api_domain TEXT NOT NULL,
+  client_scope TEXT NOT NULL,
+  connected_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, user_id)
+);
+-- One-time OAuth `state` values (hash only), bound to the person and device that asked.
+CREATE TABLE IF NOT EXISTS zoho_states (
+  state_hash TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id TEXT,
+  redirect_uri TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER
 );
 """
 
@@ -1487,8 +1523,15 @@ class CloudStore:
             connections=self.connections(company_id),
         )
 
+    def person_layers(self, who: Principal) -> features.Layers:
+        """The org's layers plus the connections this person has made (their own Zoho)."""
+        layers = self.feature_layers(who.company)
+        if self.zoho_connected(who):
+            return dataclasses.replace(layers, connections=layers.connections | {"zoho"})
+        return layers
+
     def feature_state(self, who: Principal, feature: str) -> features.Effective:
-        return features.evaluate(feature, who.role, self.feature_layers(who.company))
+        return features.evaluate(feature, who.role, self.person_layers(who))
 
     def org_feature_on(self, company_id: str, feature: str) -> bool:
         """On for the organisation as a whole, whoever manages it: e.g. the company knowledge
@@ -1506,7 +1549,7 @@ class CloudStore:
         """The person's effective map: what the session config carries."""
         if who.company_id is None:
             return {}
-        return features.effective_map(who.role, self.feature_layers(who.company_id))
+        return features.effective_map(who.role, self.person_layers(who))
 
     def company_features(self, who: Principal) -> list[dict[str, Any]]:
         """Admin → Features: only the features AGN entitled this organisation to, each with the
@@ -1968,3 +2011,257 @@ class CloudStore:
                 (limit,),
             )
         return [dict(r) for r in rows]
+
+    # --- Zoho (D-031) --------------------------------------------------------------------------
+    # Secrets are written here and read only by the server's own Zoho calls; no method that
+    # answers an API request returns a client secret, a client ID or a token.
+    PLATFORM_ZOHO = "zoho-client:platform"
+
+    def _zoho_client_blob(self, client_id: str, client_secret: str) -> str:
+        client_id, client_secret = client_id.strip(), client_secret.strip()
+        for value, what in ((client_id, "client ID"), (client_secret, "client secret")):
+            if not 8 <= len(value) <= 200 or any(c.isspace() for c in value):
+                raise CloudError("invalid", f"that does not look like a Zoho {what}")
+        return json.dumps({"client_id": client_id, "client_secret": client_secret})
+
+    @staticmethod
+    def _zoho_dc(dc: str) -> str:
+        from sotto_worker.cloud.zoho.oauth import ACCOUNTS
+
+        dc = (dc or "us").strip().lower()
+        if dc not in ACCOUNTS:
+            raise CloudError("invalid", "unknown Zoho data centre")
+        return dc
+
+    def set_platform_zoho_client(
+        self, owner: Principal, client_id: str, client_secret: str, dc: str, *, ip: str = ""
+    ) -> None:
+        if not owner.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        blob = self._vault.encrypt(
+            self.PLATFORM_ZOHO, self._zoho_client_blob(client_id, client_secret)
+        )
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO zoho_platform_client(id, ciphertext, dc, updated_at) VALUES (1,?,?,?)"
+                " ON CONFLICT(id) DO UPDATE SET ciphertext = excluded.ciphertext,"
+                " dc = excluded.dc, updated_at = excluded.updated_at",
+                (blob, self._zoho_dc(dc), now_ms()),
+            )
+            self.audit(db, "owner.zoho_client.set", self._zoho_dc(dc), actor=owner, ip=ip)
+
+    def delete_platform_zoho_client(self, owner: Principal, *, ip: str = "") -> None:
+        if not owner.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        with self._tx() as db:
+            db.execute("DELETE FROM zoho_platform_client")
+            self.audit(db, "owner.zoho_client.deleted", "", actor=owner, ip=ip)
+
+    def set_org_zoho_client(
+        self, who: Principal, client_id: str, client_secret: str, dc: str, *, ip: str = ""
+    ) -> None:
+        who.require("admin")
+        blob = self._vault.encrypt(
+            f"zoho-client:{who.company}", self._zoho_client_blob(client_id, client_secret)
+        )
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO company_zoho_client(company_id, ciphertext, dc, updated_at)"
+                " VALUES (?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET"
+                " ciphertext = excluded.ciphertext, dc = excluded.dc,"
+                " updated_at = excluded.updated_at",
+                (who.company, blob, self._zoho_dc(dc), now_ms()),
+            )
+            self.audit(
+                db, "zoho_client.set", self._zoho_dc(dc), company_id=who.company, actor=who, ip=ip
+            )
+
+    def delete_org_zoho_client(self, who: Principal, *, ip: str = "") -> None:
+        who.require("admin")
+        with self._tx() as db:
+            db.execute("DELETE FROM company_zoho_client WHERE company_id = ?", (who.company,))
+            self.audit(db, "zoho_client.deleted", "", company_id=who.company, actor=who, ip=ip)
+
+    def zoho_client_status(self, company_id: str | None) -> dict[str, Any]:
+        """What the screens may know: whether each client exists, its data centre and date."""
+        out: dict[str, Any] = {}
+        rows = self._q("SELECT dc, updated_at FROM zoho_platform_client")
+        out["platform"] = (
+            {"configured": True, "dc": rows[0]["dc"], "updated_at": int(rows[0]["updated_at"])}
+            if rows
+            else {"configured": False}
+        )
+        if company_id is not None:
+            rows = self._q(
+                "SELECT dc, updated_at FROM company_zoho_client WHERE company_id = ?",
+                (company_id,),
+            )
+            out["org"] = (
+                {"configured": True, "dc": rows[0]["dc"], "updated_at": int(rows[0]["updated_at"])}
+                if rows
+                else {"configured": False}
+            )
+            out["active"] = (
+                "org"
+                if out["org"]["configured"]
+                else "platform"
+                if out["platform"]["configured"]
+                else None
+            )
+        return out
+
+    def zoho_client(self, company_id: str) -> dict[str, str] | None:
+        """The OAuth client this org's people use: its own when set, else the platform's.
+        Server-side use only (`scope` says which, for the connection row)."""
+        for name, sql, args in (
+            (
+                f"zoho-client:{company_id}",
+                "SELECT ciphertext, dc FROM company_zoho_client WHERE company_id = ?",
+                (company_id,),
+            ),
+            (self.PLATFORM_ZOHO, "SELECT ciphertext, dc FROM zoho_platform_client", ()),
+        ):
+            rows = self._q(sql, args)
+            if rows:
+                try:
+                    data = json.loads(self._vault.decrypt(name, rows[0]["ciphertext"]))
+                except VaultError:
+                    return None
+                scope = "org" if name != self.PLATFORM_ZOHO else "platform"
+                return {**data, "dc": str(rows[0]["dc"]), "scope": scope}
+        return None
+
+    def zoho_new_state(
+        self, who: Principal, redirect_uri: str, *, ttl_ms: int = 10 * 60_000
+    ) -> str:
+        state = secrets.token_urlsafe(32)
+        t = now_ms()
+        with self._tx() as db:
+            db.execute("DELETE FROM zoho_states WHERE expires_at < ?", (t - DAY_MS,))
+            db.execute(
+                "INSERT INTO zoho_states(state_hash, company_id, user_id, device_id,"
+                " redirect_uri, expires_at) VALUES (?,?,?,?,?,?)",
+                (
+                    _token_hash(state),
+                    who.company,
+                    who.user_id,
+                    who.device_id,
+                    redirect_uri,
+                    t + ttl_ms,
+                ),
+            )
+        return state
+
+    def zoho_peek_state(self, state: str) -> sqlite3.Row | None:
+        """A live, unused state (for /auth/zoho/start); does not spend it."""
+        if not state or len(state) > 100:
+            return None
+        rows = self._q(
+            "SELECT * FROM zoho_states"
+            " WHERE state_hash = ? AND used_at IS NULL AND expires_at >= ?",
+            (_token_hash(state), now_ms()),
+        )
+        return rows[0] if rows else None
+
+    def zoho_spend_state(self, state: str) -> sqlite3.Row | None:
+        """Spends a state once (the callback). A replay, an unknown or an expired one: None."""
+        if not state or len(state) > 100:
+            return None
+        h, t = _token_hash(state), now_ms()
+        with self._tx() as db:
+            row = db.execute(
+                "SELECT s.* FROM zoho_states s JOIN users u ON u.id = s.user_id"
+                " WHERE s.state_hash = ? AND s.used_at IS NULL AND s.expires_at >= ?"
+                " AND u.active = 1",
+                (h, t),
+            ).fetchone()
+            if row is None:
+                return None
+            db.execute("UPDATE zoho_states SET used_at = ? WHERE state_hash = ?", (t, h))
+        return cast(sqlite3.Row, row)
+
+    def zoho_save_connection(
+        self,
+        company_id: str,
+        user_id: str,
+        *,
+        refresh_token: str,
+        accounts_server: str,
+        api_domain: str,
+        client_scope: str,
+        ip: str = "",
+    ) -> None:
+        blob = self._vault.encrypt(f"zoho-refresh:{company_id}:{user_id}", refresh_token)
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO zoho_connections(company_id, user_id, ciphertext, accounts_server,"
+                " api_domain, client_scope, connected_at) VALUES (?,?,?,?,?,?,?)"
+                " ON CONFLICT(company_id, user_id) DO UPDATE SET ciphertext = excluded.ciphertext,"
+                " accounts_server = excluded.accounts_server, api_domain = excluded.api_domain,"
+                " client_scope = excluded.client_scope, connected_at = excluded.connected_at",
+                (company_id, user_id, blob, accounts_server, api_domain, client_scope, now_ms()),
+            )
+            db.execute(
+                "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
+                " VALUES (?,?,?,?,?,?)",
+                (now_ms(), company_id, user_id, "zoho.connected", api_domain, ip),
+            )
+
+    def zoho_connected(self, who: Principal) -> bool:
+        if who.company_id is None:
+            return False
+        return bool(
+            self._q(
+                "SELECT 1 FROM zoho_connections WHERE company_id = ? AND user_id = ?",
+                (who.company_id, who.user_id),
+            )
+        )
+
+    def zoho_connection(self, who: Principal) -> dict[str, Any] | None:
+        """This person's connection with the refresh token decrypted (server-side use only)."""
+        rows = self._q(
+            "SELECT * FROM zoho_connections WHERE company_id = ? AND user_id = ?",
+            (who.company, who.user_id),
+        )
+        if not rows:
+            return None
+        r = rows[0]
+        try:
+            token = self._vault.decrypt(
+                f"zoho-refresh:{r['company_id']}:{r['user_id']}", r["ciphertext"]
+            )
+        except VaultError:
+            return None
+        return {
+            "refresh_token": token,
+            "accounts_server": str(r["accounts_server"]),
+            "api_domain": str(r["api_domain"]),
+            "client_scope": str(r["client_scope"]),
+            "connected_at": int(r["connected_at"]),
+        }
+
+    def zoho_connection_status(self, who: Principal) -> dict[str, Any]:
+        rows = self._q(
+            "SELECT api_domain, connected_at FROM zoho_connections"
+            " WHERE company_id = ? AND user_id = ?",
+            (who.company, who.user_id),
+        )
+        if not rows:
+            return {"connected": False}
+        return {
+            "connected": True,
+            "api_domain": str(rows[0]["api_domain"]),
+            "connected_at": int(rows[0]["connected_at"]),
+        }
+
+    def zoho_delete_connection(self, who: Principal, *, ip: str = "") -> None:
+        with self._tx() as db:
+            db.execute(
+                "DELETE FROM zoho_connections WHERE company_id = ? AND user_id = ?",
+                (who.company, who.user_id),
+            )
+            self.audit(db, "zoho.disconnected", "", company_id=who.company, actor=who, ip=ip)
+
+    def zoho_audit(self, who: Principal, action: str, detail: str, *, ip: str = "") -> None:
+        with self._tx() as db:
+            self.audit(db, action, detail, company_id=who.company, actor=who, ip=ip)

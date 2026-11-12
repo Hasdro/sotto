@@ -30,6 +30,7 @@ from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.recordings import KINDS, Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
+from sotto_worker.cloud.zoho import routes as zoho_routes
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
 
@@ -121,6 +122,7 @@ class CloudConfig:
     log: Callable[[str], None] = field(default=lambda _line: None)
     recordings: Recordings | None = None  # None: recordings are not kept on this server
     mailer: EmailSender | None = None  # None: manager emails are off (Inbox only)
+    zoho_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Zoho
 
 
 async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
@@ -215,6 +217,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "no_seats": HTTPStatus.CONFLICT,
         "plan_blocked": HTTPStatus.PAYMENT_REQUIRED,
         "storage_full": HTTPStatus.INSUFFICIENT_STORAGE,
+        "zoho_no_client": HTTPStatus.CONFLICT,
+        "zoho_reconnect": HTTPStatus.CONFLICT,
+        "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
     }
 
     def handle(
@@ -707,6 +712,14 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     def own_origin(request: Request) -> str:
         return f"{request.url.scheme}://{request.url.netloc}"
 
+    def public_origin_of(request: Request) -> str:
+        """This request's origin, https when the server is public (behind Caddy). The Zoho
+        callback answers on whichever host the app signed in to (sslip now, the domain later)."""
+        origin = own_origin(request)
+        if (config.public_origin or "").startswith("https://") and origin.startswith("http://"):
+            origin = "https://" + origin[len("http://") :]
+        return origin
+
     def owner_host_ok(request: Request) -> bool:
         """The owner console lives on its own origin (security review M1), so a script on the
         app's origin can never use the owner's cookie."""
@@ -983,6 +996,17 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             "/api/owner/devices/{id}",
             owner_route(o_device_delete, mutating=True),
             methods=["DELETE"],
+        ),
+        *zoho_routes.make_routes(
+            store=store,
+            app_route=app_route,
+            owner_route=owner_route,
+            handle=handle,
+            body=body,
+            ip_of=ip_of,
+            origin_of=public_origin_of,
+            transport=config.zoho_transport,
+            log=config.log,
         ),
         Route("/owner", owner_page),
         Route("/owner/{file}", owner_page),

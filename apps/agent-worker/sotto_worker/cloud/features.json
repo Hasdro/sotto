@@ -43,7 +43,7 @@
       "roles": ["admin", "manager", "agent"],
       "requires": ["zoho"],
       "depends": ["integrations"],
-      "built": false
+      "built": true
     },
     {
       "id": "gallabox",
