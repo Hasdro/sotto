@@ -1,0 +1,14 @@
+{
+  "localStorage_keys": [
+    "sotto.prefs",
+    "sotto.viewRole"
+  ],
+  "token_in_localStorage": false,
+  "bridge_get": "function",
+  "session_in_safeStorage": true,
+  "secure_store_file_keys": [
+    "sotto.session"
+  ],
+  "file_contains_plain_access_prefix": false,
+  "signed_in_after_reload": true
+}
