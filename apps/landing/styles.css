@@ -1,0 +1,62 @@
+/* Colours mirror packages/ui tokens (light/dark). Swap for the brand-ui tokens when 0.3.0 lands. */
+:root {
+  --bg: #f2f4f6; --surface: #fff; --sunken: #e7ebef; --text: #15212c; --muted: #4d5b69;
+  --border: #d5dce3; --strong: #7e8c99; --primary: #0b5f63; --on-primary: #fff; --notice-fill: #fff1d6;
+  --notice-text: #5a3a00; --notice-border: #a87418;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e151c; --surface: #151f28; --sunken: #1c2833; --text: #e7edf2; --muted: #9ba9b6;
+    --border: #26333f; --strong: #6b7b8a; --primary: #5fc4bb; --on-primary: #06221f;
+    --notice-fill: #2b2210; --notice-text: #f2d596; --notice-border: #a87418;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e151c; --surface: #151f28; --sunken: #1c2833; --text: #e7edf2; --muted: #9ba9b6;
+  --border: #26333f; --strong: #6b7b8a; --primary: #5fc4bb; --on-primary: #06221f;
+  --notice-fill: #2b2210; --notice-text: #f2d596; --notice-border: #a87418;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+a { color: var(--primary); }
+:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+header.top { border-bottom: 1px solid var(--border); background: var(--surface); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); text-decoration: none; }
+.logo { width: 32px; height: 32px; color: var(--primary); flex: none; } /* PLACEHOLDER logo: replace with the owner-approved symbol */
+.tools { display: flex; gap: 8px; }
+button.ghost, .btn { font: inherit; cursor: pointer; border-radius: 10px; min-height: 44px; padding: 8px 16px; }
+button.ghost { background: transparent; color: var(--text); border: 1px solid var(--strong); }
+.btn { display: inline-flex; align-items: center; gap: 8px; background: var(--primary); color: var(--on-primary); border: 0; text-decoration: none; font-weight: 600; }
+.btn.alt { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+.hero { padding: 56px 0 40px; }
+.hero h1 { font-size: clamp(2rem, 6vw, 3.4rem); line-height: 1.12; margin: 0 0 16px; max-width: 18ch; }
+.hero p.lead { font-size: 1.2rem; color: var(--muted); max-width: 54ch; margin: 0 0 28px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.meta { color: var(--muted); font-size: .9rem; margin-top: 12px; }
+section { padding: 40px 0; }
+section h2 { font-size: 1.7rem; margin: 0 0 20px; }
+.grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+.card h3 { margin: 0 0 8px; font-size: 1.1rem; }
+.card p { margin: 0; color: var(--muted); }
+.shot { aspect-ratio: 16/10; border: 2px dashed var(--strong); border-radius: 14px; display: grid; place-items: center; text-align: center; color: var(--muted); background: var(--sunken); padding: 12px; }
+.shot figcaption { font-size: .9rem; }
+figure { margin: 0; }
+ol.steps li { margin-bottom: 8px; }
+.dl-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.dl-grid .btn { margin: 4px 8px 4px 0; }
+[dir="rtl"] .dl-grid .btn { margin: 4px 0 4px 8px; }
+.slot { border: 2px dashed var(--notice-border); background: var(--notice-fill); color: var(--notice-text); border-radius: 14px; padding: 20px; }
+.slot .note { font-size: .9rem; }
+.draft { display: inline-block; background: var(--notice-fill); color: var(--notice-text); border: 1px solid var(--notice-border); border-radius: 8px; padding: 2px 10px; font-size: .85rem; font-weight: 600; }
+footer { border-top: 1px solid var(--border); background: var(--surface); padding: 28px 0; margin-top: 24px; color: var(--muted); font-size: .95rem; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+footer nav a { margin-inline-end: 16px; }
+.hidden { display: none !important; }
+main.doc { padding: 32px 0; max-width: 760px; }
+main.doc h1 { font-size: 2rem; }
+code { background: var(--sunken); padding: 1px 6px; border-radius: 6px; }
+@media (max-width: 480px) { .hero { padding-top: 32px; } .btn { width: 100%; justify-content: center; } }

@@ -58,3 +58,23 @@ Point a DNS A record at the server, then run `deploy/push.sh root@104.168.48.116
 ## The old Docker demo server (D-020)
 
 `pnpm demo` still runs the D-020 server on the Mac for local testing. The hosted Docker kit was removed in D-022, and git history has it.
+
+## The landing page: salesshield.agncompu.com (T-066, T-067)
+
+Static page in `apps/landing/` (no build step). Installer buttons read `apps/landing/downloads.json`, which `node scripts/downloads-manifest.mjs` generates from `apps/desktop/release/` (version, file names, sizes, sha256). A new version needs no HTML edit.
+
+**Owner: DNS first.** Add an A record `salesshield.agncompu.com → 104.168.48.116`. In Cloudflare use **DNS only** (grey cloud) so Caddy gets its own certificate. If you want the orange cloud (proxied), set SSL/TLS mode to **Full (strict)** and tell the master, since certificate issuance then needs the DNS challenge.
+
+Publish (the master runs this after the owner confirms DNS; it is a dry run unless `--apply`):
+
+```bash
+node scripts/downloads-manifest.mjs
+deploy/publish-landing.sh root@104.168.48.116            # lists what it would do
+deploy/publish-landing.sh root@104.168.48.116 --apply
+```
+
+It copies the page to `/var/www/salesshield`, the three installers to `/var/www/downloads`, the site block `deploy/caddy/salesshield.caddy` to `/etc/caddy/sites/`, and deletes the stale files named in `deploy/downloads-cleanup.txt` (APK, AppImage, extension zip, blockmaps, older installers). `/downloads/` has no directory listing.
+
+**Caution:** `deploy/install.sh` rewrites `/etc/caddy/Caddyfile`. The script appends `import /etc/caddy/sites/*.caddy` to it, but a later `deploy/push.sh` would drop that line. Add the import line to the Caddyfile template in `install.sh` (outside this stream's files; the master decides).
+
+`scripts/release.sh vX.Y.Z` makes the GitHub Release (dry run unless `--publish`). `scripts/landing-check.mjs` takes the screenshots and runs axe on the page.

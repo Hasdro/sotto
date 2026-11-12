@@ -1,0 +1,19 @@
+[dry-run] gh release create v0.2.0 /var/folders/x0/48flp3cx4mddtj00tz9fh78c0000gn/T/tmp.nlPSdRsrLy/Sotto-0.2.0-arm64.dmg /var/folders/x0/48flp3cx4mddtj00tz9fh78c0000gn/T/tmp.nlPSdRsrLy/Sotto-0.2.0.dmg /var/folders/x0/48flp3cx4mddtj00tz9fh78c0000gn/T/tmp.nlPSdRsrLy/Sotto Setup 0.2.0.exe --title AGN Sales Shield v0.2.0 --notes-file /var/folders/x0/48flp3cx4mddtj00tz9fh78c0000gn/T/tmp.Kz1ayNN5Dg --target 52055fb1fb4a7f4b705ddf51837794826f2c676b
+--- notes ---
+AGN Sales Shield v0.2.0
+
+Unsigned builds. macOS: right-click the app, choose Open. Windows: SmartScreen > More info > Run anyway. No auto-update.
+
+From the tracker:
+ - **Phase:** 9 — AGN Sales Shield product round (`docs/phases/phase-9-product-round.md`), version ladder 0.3.0 → 0.8.0 (D-030). Entry: desktop 0.2.0 published (owner's Windows test still open).
+ - [ ] T-044 B6.3 Web bundle 476/450 KB `[OWNER]` (raise, cut zod, or lazy-load the call screen) — measured 22 Oct after the 0.2.0 build; over budget, not hidden
+ - [ ] T-047 Persistent login: rotating refresh tokens, 90-day sliding, `safeStorage`, 0.2.0 token migration (D-029) — `flags-auth`
+ - Done: Windows desktop parity (`apps/desktop/win-mic.cjs` + tests, `main.cjs` tray/1 s registry watcher/`Ctrl+Shift+Alt` shortcuts, Windows app names in `call-apps.cjs`, Windows microphone message, mini window 520×260); owner's four video fixes (pointer-following eyes + breathing + lower smile in `packages/ui/src/components/Mascot.tsx`, custom icon set `Icon.tsx` used across nav/pages/settings/history/sources, History hover card `CallPeek.tsx`, list starts at the top); Settings → Health check (`features/settings/Health.tsx`); version 0.2.0 (`apps/app/lib/cloud.ts`, `app.json`, `apps/desktop/package.json` + lock); built and published the Mac DMGs and Windows `.exe` with `deploy/publish-apps.sh` (also rebuilt the Linux AppImage; old 0.1.0 APK/extension were left in the folder).
+ - Evidence: `pnpm test` exit 0 (app 253, worker 410, engine/ui/shared/functions green); `pnpm typecheck` exit 0 (126 mypy files); `pnpm lint` exit 0 (5 warnings); `pnpm a11y` 33 checks, 0 serious/critical; `bash scripts/check-boundaries.sh` ok; `cd apps/desktop && npm test` 12/12; demo web screenshots `docs/evidence/desktop-0.2.0/`; Mac app 0.2.0 via CDP: `app://sotto/`, bridge keys, `callState {app:null}`, mini window 520×228; `release/Sotto-0.2.0-arm64.dmg`, `Sotto-0.2.0.dmg`, `Sotto Setup 0.2.0.exe`; downloads page 200 and each of the four desktop links 200. Bundle check: 476 KB gzipped vs 450 (over; T-044).
+ - Installed: replaced `/Applications/Sotto.app` 0.1.0 with the 0.2.0 arm64 build (`ditto`), verified Info.plist 0.2.0, launched it; `~/Library/Application Support/sotto-desktop` untouched.
+
+SHA-256:
+- 5f44158ab7b11bac7fc30c105495842694b01424fd93c4d7b1aac8e8f7247cb3  Sotto-0.2.0-arm64.dmg
+- f985d541abd456244d555a13519ac8b041951d06d23880e8b3ed36b9323f3316  Sotto-0.2.0.dmg
+- 62d6c7006eab0a4000b9b7186f5d3e245dd2e186496ad918d626ee14c7c19a39  Sotto Setup 0.2.0.exe
+--- dry run only; add --publish ---

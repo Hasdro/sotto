@@ -1,0 +1,10 @@
+# Files to remove from /var/www/downloads on us3 (T-067). One shell glob per line, relative to that folder.
+# publish-landing.sh --apply deletes these after the new installers are uploaded; without --apply it only lists them.
+*.apk
+*.AppImage
+*.zip
+*.blockmap
+# Sotto-named installers of earlier versions: keep only the version in downloads.json (the script
+# skips the current files automatically).
+Sotto-*.dmg
+Sotto*Setup*.exe

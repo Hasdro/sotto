@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "generatedAt": "2026-11-12T18:21:00.655Z",
+  "files": {
+    "mac-arm64": {
+      "file": "Sotto-0.2.0-arm64.dmg",
+      "size": 129055717,
+      "sha256": "5f44158ab7b11bac7fc30c105495842694b01424fd93c4d7b1aac8e8f7247cb3"
+    },
+    "mac-x64": {
+      "file": "Sotto-0.2.0.dmg",
+      "size": 135805285,
+      "sha256": "f985d541abd456244d555a13519ac8b041951d06d23880e8b3ed36b9323f3316"
+    },
+    "win-x64": {
+      "file": "Sotto Setup 0.2.0.exe",
+      "size": 115161998,
+      "sha256": "62d6c7006eab0a4000b9b7186f5d3e245dd2e186496ad918d626ee14c7c19a39"
+    }
+  }
+}
