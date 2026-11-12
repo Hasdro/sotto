@@ -293,7 +293,7 @@ async function request<T>(
   retried = false,
 ): Promise<T> {
   const origin = cloudOrigin();
-  if (!origin) throw new CloudError(0, "off", "no Sotto server configured");
+  if (!origin) throw new CloudError(0, "off", "no Sales Shield server configured");
   if (!AUTH_PATHS.has(path)) await renewIfDue(fetcher);
   const headers: Record<string, string> = { "x-sotto-platform": devicePlatform() };
   if (init.body !== undefined) headers["content-type"] = "application/json";
@@ -307,7 +307,7 @@ async function request<T>(
       body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
     });
   } catch {
-    throw new CloudError(0, "offline", "Cannot reach the Sotto server. Check your connection.");
+    throw new CloudError(0, "offline", "Cannot reach the Sales Shield server. Check your connection.");
   }
   const data = (await response.json().catch(() => ({}))) as {
     error?: string;
@@ -321,7 +321,7 @@ async function request<T>(
       if (renewed === "ok") return request<T>(path, init, fetcher, true);
       if (renewed === "signed_out") void signedOut();
       else
-        throw new CloudError(0, "offline", "Cannot reach the Sotto server. Check your connection.");
+        throw new CloudError(0, "offline", "Cannot reach the Sales Shield server. Check your connection.");
     }
     throw new CloudError(
       response.status,
