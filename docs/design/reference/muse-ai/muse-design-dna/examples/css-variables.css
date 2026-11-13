@@ -1,0 +1,99 @@
+/* Quiet Paper Glass — CSS custom properties
+   Values mirror DESIGN-TOKENS.json. Replace --font-ui with your own licensed or open font. */
+:root {
+  /* Color: surfaces */
+  --qpg-canvas: #fcfcfc;
+  --qpg-surface: #ffffff;
+  --qpg-surface-sunken: #f3f4f5;
+  --qpg-bubble: #e9eaeb;
+  --qpg-glass: rgba(255, 255, 255, 0.76);
+
+  /* Color: text */
+  --qpg-text: #111112;
+  --qpg-text-secondary: rgba(0, 4, 9, 0.59);
+  --qpg-text-tertiary: rgba(0, 7, 17, 0.37);
+  --qpg-text-on-accent: #ffffff;
+
+  /* Color: lines and accent */
+  --qpg-hairline: rgba(0, 0, 0, 0.1);
+  --qpg-ring: rgba(17, 17, 18, 0.08);
+  --qpg-accent: #005bbf;
+  --qpg-accent-token: #0064d4;
+
+  /* Neutral scale (subset) */
+  --qpg-gray-050: #f3f4f5;
+  --qpg-gray-100: #e9eaeb;
+  --qpg-gray-200: #d1d3d5;
+  --qpg-gray-500: #8f9296;
+  --qpg-gray-900: #383b3d;
+  --qpg-gray-1100: #111112;
+
+  /* Typography */
+  --font-ui: "Inter", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif; /* stand-in for optimisticAI */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  --fs-display: 48px;   --lh-display: 56px;
+  --fs-page-title: 34px; --lh-page-title: 40px;
+  --fs-lead: 18px;      --lh-lead: 26px;
+  --fs-body: 16px;      --lh-body: 22px;  --lh-bubble: 24px;
+  --fs-card-title: 15px; --lh-card-title: 20px;
+  --fs-button: 14px;    --lh-button: 20px;
+  --fs-secondary: 14px; --lh-secondary: 20px;
+  --fs-caption: 13px;   --lh-caption: 18px;
+  --fs-timestamp: 12px; --lh-timestamp: 16px;
+  --fs-micro: 11px;     --lh-micro: 13px;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-2h: 10px;
+  --space-3: 12px;
+  --space-3h: 14px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Radius */
+  --radius-pill: 9999px;
+  --radius-composer: 32px;
+  --radius-bubble: 22px;
+  --radius-bubble-tail: 6px;
+  --radius-card: 10px;
+  --radius-row: 12px;
+  --radius-chip: 18px;
+
+  /* Elevation and glass */
+  --shadow-float: 0 8px 40px 0 rgba(0, 0, 0, 0.12);
+  --shadow-elevated: 0 2px 8px rgba(0, 0, 0, 0.06), 0 20px 50px rgba(0, 0, 0, 0.14);
+  --blur-glass: blur(36px);
+
+  /* Layout */
+  --rail-width: 72px;
+  --rail-hit-height: 44px;
+  --rail-icon-circle: 44px;
+  --content-width: 768px;
+
+  /* Motion */
+  --dur-fast: 100ms;
+  --dur-base: 150ms;
+  --dur-medium: 200ms;
+  --dur-layout: 300ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+html { background: var(--qpg-canvas); }
+body {
+  margin: 0;
+  background: var(--qpg-canvas);
+  color: var(--qpg-text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+}

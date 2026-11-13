@@ -1,0 +1,117 @@
+/* Quiet Paper Glass — component examples. Requires css-variables.css.
+   Hover/active values marked (inferred) were not verified in the source site. */
+
+/* Layout shell */
+.qpg-rail {
+  width: var(--rail-width); height: 100vh; box-sizing: border-box;
+  border-right: 1px solid var(--qpg-hairline);
+  display: flex; flex-direction: column; align-items: center;
+}
+.qpg-rail__item {
+  width: var(--rail-width); height: var(--rail-hit-height);
+  display: grid; place-items: center; background: none; border: 0; color: var(--qpg-text);
+}
+.qpg-rail__icon {
+  width: var(--rail-icon-circle); height: var(--rail-icon-circle); border-radius: var(--radius-pill);
+  display: grid; place-items: center;
+  transition: background-color var(--dur-base) var(--ease-standard);
+}
+.qpg-rail__item:hover .qpg-rail__icon,
+.qpg-rail__item[aria-current="page"] .qpg-rail__icon { background: var(--qpg-gray-050); } /* (inferred) */
+
+/* Pills: floating glass buttons */
+.qpg-pill {
+  height: 36px; padding: 0 var(--space-3h) 0 var(--space-2h);
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  border: 0; border-radius: var(--radius-pill);
+  background: var(--qpg-glass); backdrop-filter: var(--blur-glass); -webkit-backdrop-filter: var(--blur-glass);
+  box-shadow: var(--shadow-float);
+  color: var(--qpg-text); font: var(--fw-medium) var(--fs-button)/var(--lh-button) var(--font-ui);
+  transition: box-shadow var(--dur-medium) var(--ease-standard), background-color var(--dur-medium) var(--ease-standard);
+}
+.qpg-pill:hover { background: #fff; } /* (inferred) */
+
+/* Primary button */
+.qpg-button-primary {
+  height: 36px; padding: 0 var(--space-3h) 0 var(--space-2);
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 0; border-radius: var(--radius-pill);
+  background: var(--qpg-accent); color: var(--qpg-text-on-accent);
+  font: var(--fw-medium) var(--fs-button)/var(--lh-button) var(--font-ui);
+  transition: background-color var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
+}
+.qpg-button-primary:hover { opacity: 0.92; } /* (inferred) */
+
+/* Neutral secondary chip ("Select" style) */
+.qpg-chip {
+  height: 36px; padding: 0 var(--space-3h); border: 0; border-radius: var(--radius-pill);
+  background: var(--qpg-surface-sunken); color: var(--qpg-text);
+  font: var(--fw-medium) var(--fs-button)/var(--lh-button) var(--font-ui);
+}
+
+/* Message bubble (assistant, tail bottom-left) */
+.qpg-bubble {
+  max-width: 86%; padding: 11px 15px; box-sizing: border-box;
+  background: var(--qpg-bubble); color: var(--qpg-text);
+  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-bubble) var(--radius-bubble-tail);
+  font-size: var(--fs-body); line-height: var(--lh-bubble);
+}
+.qpg-bubble--image { padding: 0; background: transparent; border-radius: var(--radius-bubble-tail) var(--radius-bubble) var(--radius-bubble) var(--radius-bubble); overflow: hidden; }
+.qpg-timestamp { text-align: center; color: var(--qpg-text-secondary); font-size: var(--fs-timestamp); line-height: var(--lh-timestamp); }
+
+/* Link card inside the thread */
+.qpg-linkcard {
+  display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+  background: var(--qpg-bubble); border-radius: var(--radius-card); text-decoration: none; color: var(--qpg-text);
+}
+.qpg-linkcard__title { font: var(--fw-medium) var(--fs-card-title)/var(--lh-card-title) var(--font-ui); }
+.qpg-linkcard__sub { color: var(--qpg-text-secondary); font-size: var(--fs-caption); line-height: var(--lh-caption); }
+.qpg-linkcard__meta { color: var(--qpg-text-secondary); font-size: var(--fs-micro); line-height: var(--lh-micro); }
+
+/* Composer: a single glass capsule */
+.qpg-composer {
+  display: flex; align-items: center; gap: var(--space-2); min-height: 58px; padding: 0 var(--space-4);
+  border-radius: var(--radius-composer); border: 1px solid transparent;
+  background: var(--qpg-glass); backdrop-filter: var(--blur-glass); -webkit-backdrop-filter: var(--blur-glass);
+  box-shadow: 0 0 0 1px var(--qpg-ring); /* ring layer: offsets inferred */
+}
+.qpg-composer input { flex: 1; border: 0; outline: 0; background: none; font: inherit; color: var(--qpg-text); }
+.qpg-composer input::placeholder { color: var(--qpg-text-secondary); }
+
+/* Search field in sidebars */
+.qpg-search {
+  height: 36px; padding: 0 16px 0 10px; display: flex; align-items: center; gap: var(--space-2);
+  border: 1px solid var(--qpg-hairline); border-radius: var(--radius-pill); background: var(--qpg-glass);
+}
+
+/* Sidebar nav row */
+.qpg-navrow { height: 36px; padding: 0 var(--space-2); display: flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-row); color: var(--qpg-text); }
+.qpg-navrow[aria-current="page"] { background: rgba(0, 0, 0, 0.025); } /* verified: oklab(0 0 0 / .0254) */
+
+/* Page header + list rows (Ideas / Goals pattern) */
+.qpg-page { max-width: var(--content-width); }
+.qpg-page__title { margin: 0; font: var(--fw-semibold) var(--fs-page-title)/var(--lh-page-title) var(--font-ui); }
+.qpg-page__lead { margin: var(--space-2) 0 0; font-size: var(--fs-lead); line-height: var(--lh-lead); }
+.qpg-section-title { margin: var(--space-8) 0 var(--space-3); font: var(--fw-semibold) var(--fs-lead)/var(--lh-lead) var(--font-ui); }
+.qpg-row { display: grid; grid-template-columns: 44px 1fr auto; gap: var(--space-3); padding: var(--space-3) 0; }
+.qpg-row__icon { width: 44px; height: 44px; border-radius: var(--radius-pill); background: var(--qpg-surface-sunken); }
+.qpg-row__title { font: var(--fw-medium) var(--fs-body)/var(--lh-body) var(--font-ui); }
+.qpg-row__desc { color: var(--qpg-text-secondary); font-size: var(--fs-secondary); line-height: var(--lh-secondary); }
+
+/* Outlined card + skeleton */
+.qpg-card { border: 1px solid var(--qpg-hairline); border-radius: var(--radius-bubble); background: var(--qpg-surface); overflow: hidden; } /* radius ~22px (inferred from screenshot) */
+.qpg-skeleton {
+  background: linear-gradient(90deg, var(--qpg-gray-050) 0%, var(--qpg-gray-100) 50%, var(--qpg-gray-050) 100%);
+  background-size: 200% 100%; animation: qpg-shimmer 1.6s var(--ease-standard) infinite; /* duration inferred */
+}
+@keyframes qpg-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* Overlay sheet (Search) */
+.qpg-overlay {
+  background: var(--qpg-glass); backdrop-filter: var(--blur-glass); -webkit-backdrop-filter: var(--blur-glass);
+  border-radius: 24px; box-shadow: var(--shadow-elevated); /* radius and shadow approximated from screenshot */
+  animation: qpg-fade-in var(--dur-medium) var(--ease-out);
+}
+@keyframes qpg-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition-duration: 0ms !important; } }

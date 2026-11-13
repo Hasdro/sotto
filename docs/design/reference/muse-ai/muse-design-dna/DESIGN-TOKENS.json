@@ -1,0 +1,145 @@
+{
+  "$meta": {
+    "name": "Quiet Paper Glass",
+    "source": "https://muse.ai/ (authenticated app shell, light theme only, viewport 1012x688)",
+    "capturedOn": "2026-11-14",
+    "legend": "status: verified = read from computed style or stylesheet variable in the live page; observed = seen in screenshot only; inferred = my interpretation"
+  },
+  "color": {
+    "canvas":        { "value": "#fcfcfc", "status": "verified", "role": "page background (body, --bg-primary)" },
+    "surface":       { "value": "#ffffff", "status": "verified", "role": "--fill-primary" },
+    "surfaceSunken": { "value": "#f3f4f5", "status": "verified", "role": "--fill-secondary / --fill-tertiary; hover and neutral fills" },
+    "bubbleAssistant": { "value": "#e9eaeb", "status": "verified", "role": "assistant message and link-card fill (= gray-100)" },
+    "glass":         { "value": "rgba(255,255,255,0.76)", "status": "verified", "role": "floating pills, composer, search field; always paired with backdrop blur" },
+    "text": {
+      "primary":   { "value": "#111112", "status": "verified" },
+      "secondary": { "value": "rgba(0,4,9,0.59)", "status": "verified", "note": "--text-secondary is #00040996" },
+      "tertiary":  { "value": "rgba(0,7,17,0.37)", "status": "verified", "note": "--text-tertiary is #0007115e" },
+      "onAccent":  { "value": "#ffffff", "status": "verified" }
+    },
+    "border": {
+      "hairline": { "value": "rgba(0,0,0,0.10)", "status": "verified", "role": "rail divider, search field border, --fill-divider" },
+      "ring":     { "value": "rgba(17,17,18,0.08)", "status": "observed", "note": "a 5th shadow layer on glass pills starts with this colour; offsets truncated in capture, so treat as 0 0 0 1px (inferred)" }
+    },
+    "accent": {
+      "blue":        { "value": "#005bbf", "status": "verified", "role": "primary button fill (computed color(srgb 0 .3529 .7482))" },
+      "blueToken":   { "value": "#0064d4", "status": "verified", "role": "--fill-blue, unread dot and links" },
+      "unreadDot":   { "value": "#0064d4", "status": "observed", "note": "dot on Chats pill and chat rail icon; colour inferred from --fill-blue" },
+      "positive":    { "value": "green text (hex not read)", "status": "observed", "role": "'Tracking' status label" }
+    },
+    "neutralScale": {
+      "status": "verified",
+      "gray-025": "#fafafa", "gray-050": "#f3f4f5", "gray-075": "#eeeff0", "gray-100": "#e9eaeb", "gray-150": "#e0e2e4",
+      "gray-200": "#d1d3d5", "gray-250": "#c4c6c9", "gray-300": "#b5b7bb", "gray-350": "#acafb2", "gray-400": "#a1a4a8",
+      "gray-450": "#989b9e", "gray-500": "#8f9296", "gray-550": "#818487", "gray-600": "#717477", "gray-650": "#686a6e",
+      "gray-700": "#5c5e61", "gray-750": "#525456", "gray-800": "#4b4d4f", "gray-850": "#454548", "gray-900": "#383b3d",
+      "gray-950": "#323435", "gray-1000": "#28292b", "gray-1050": "#1f1f20", "gray-1075": "#181819", "gray-1100": "#111112"
+    },
+    "hueScales": {
+      "status": "verified (names and step count only; hex values for red shown as sample)",
+      "hues": ["red","orange","amber","yellow","green","emerald","teal","cyan","blue","indigo","violet","purple","pink","rose","slate","gray","zinc","shamrock","olive"],
+      "steps": [50,100,200,300,400,500,600,700,800,900,950],
+      "redSample": { "50":"#fff0f2","100":"#ffe4e6","200":"#ffc4c9","300":"#ff9da8","400":"#ff7d89","500":"#ff576b","600":"#f20039","700":"#cb0021","800":"#a80016","900":"#7e0315","950":"#6b101a" }
+    }
+  },
+  "typography": {
+    "family": {
+      "ui":      { "value": "\"optimisticAI\", system-ui, sans-serif", "status": "verified", "note": "proprietary variable font, weights 400-600 in use" },
+      "text":    { "value": "\"optimisticText\", system-ui, sans-serif", "status": "verified", "note": "weights 300/400/700 declared" },
+      "mono":    { "value": "\"optimisticMono\", ui-monospace, monospace", "status": "verified" },
+      "script":  { "value": "\"hatchLetterCaveat\" (Caveat)", "status": "verified", "note": "handwritten accent, declared; usage not observed" },
+      "openSourceAlternatives": ["Inter (tight tracking off)", "Geist", "Instrument Sans", "Figtree", "DM Sans"]
+    },
+    "weight": { "regular": 400, "medium": 500, "semibold": 600 },
+    "scale": {
+      "status": "verified",
+      "landingDisplay": { "size": "48px", "lineHeight": "56px", "weight": 500, "tracking": "-0.01em" },
+      "pageTitle":      { "size": "34px", "lineHeight": "40px", "weight": 600, "tracking": "normal" },
+      "title1":         { "size": "30px", "lineHeight": "34px", "weight": "400/500/600 variants" },
+      "title2":         { "size": "24px", "lineHeight": "29px", "weight": "400/500/600 variants" },
+      "lead":           { "size": "18px", "lineHeight": "26px", "weight": 400 },
+      "sectionHeading": { "size": "18px", "lineHeight": "26px", "weight": 600 },
+      "body":           { "size": "16px", "lineHeight": "22px (inline) / 24px (bubble)", "weight": 400 },
+      "rowTitle":       { "size": "16px", "lineHeight": "22px", "weight": 500 },
+      "cardTitle":      { "size": "15px", "lineHeight": "20px", "weight": 500 },
+      "button":         { "size": "14px", "lineHeight": "20px", "weight": 500 },
+      "buttonLarge":    { "size": "16px", "lineHeight": "22px", "weight": 500 },
+      "secondary":      { "size": "14px", "lineHeight": "20px", "weight": 400, "color": "text.secondary" },
+      "caption":        { "size": "13px", "lineHeight": "18px", "weight": 400, "color": "text.secondary" },
+      "timestamp":      { "size": "12px", "lineHeight": "16px", "weight": 400, "color": "text.secondary" },
+      "micro":          { "size": "11px", "lineHeight": "13px", "weight": 400, "color": "text.secondary" }
+    },
+    "letterSpacing": { "default": "normal", "landingDisplay": "-0.01em", "status": "verified" },
+    "textTransform": "none everywhere observed (sentence case only)"
+  },
+  "spacing": {
+    "unit": { "value": "4px", "status": "verified", "note": "--spacing: calc(4px * var(--spacing-density)); density = 1" },
+    "scale": ["4px","8px","10px","12px","14px","16px","24px","32px","40px"],
+    "observed": {
+      "bubblePadding": "11px 15px",
+      "pillPadding": "0 14px 0 10px (with leading icon), height 36px",
+      "composerWrapperPadding": "12px",
+      "chatThreadInlinePadding": "16px",
+      "railWidth": "72px",
+      "railItemHitArea": "72x44",
+      "railIconCircle": "44x44",
+      "sidebarItemPadding": "0 8px, height 36px",
+      "pageContentLeft": "158px from viewport edge at 1012px width (content column ~768px)"
+    }
+  },
+  "layout": {
+    "status": "verified",
+    "railWidth": "72px",
+    "secondaryPaneWidth": "about 215px item width inside ~186px-offset pane",
+    "contentColumn": "768px wide, left-aligned within main area",
+    "composerMaxWidth": "768px, centred",
+    "messageNarrowMaxWidth": "86%",
+    "messageBubbleMaxWidth": "619px observed"
+  },
+  "radius": {
+    "pill": { "value": "9999px", "status": "verified", "note": "computed 16777200px; buttons, chips, search field" },
+    "composer": { "value": "32px", "status": "verified" },
+    "bubble": { "value": "22px 22px 22px 6px", "status": "verified", "note": "tail corner 6px on the sender side; written min(22px,60%)" },
+    "image": { "value": "6px 22px 22px 22px", "status": "verified", "note": "attached image mirrors bubble with tail corner at top-left" },
+    "linkCard": { "value": "10px", "status": "verified" },
+    "sidebarItem": { "value": "12px", "status": "verified" },
+    "chip": { "value": "18px", "status": "verified", "note": "avatar name label" },
+    "tailwindScale": { "sm": "4px", "md": "6px", "lg": "8px", "xl": "12px", "2xl": "16px", "3xl": "24px", "4xl": "32px" }
+  },
+  "shadow": {
+    "floatingGlass": { "value": "0 8px 40px 0 rgba(0,0,0,0.12)", "status": "verified", "role": "Invite and Chats pills" },
+    "overlayCard":  { "value": "soft large shadow, parameters not read", "status": "observed", "role": "Search overlay sheet" },
+    "voiceVideoElevation": { "value": "0 2px 8px rgba(0,0,0,0.06), 0 20px 50px rgba(0,0,0,0.14)", "status": "verified", "note": "--hatch-voice-video-elevation (#0000000f, #00000024)" },
+    "none": "bubbles, link cards, rows and cards use no shadow (flat fills or hairlines)"
+  },
+  "blur": {
+    "glass": { "value": "blur(36px)", "status": "verified", "role": "composer wrapper" },
+    "controls": { "value": "saturate(180%) blur(24px)", "status": "verified", "role": "voice/video controls backdrop" }
+  },
+  "motion": {
+    "status": "verified (declared timings; per-component binding mostly inferred)",
+    "durations": { "fast": "100ms", "base": "150ms", "medium": "200ms", "layout": "300ms" },
+    "easing": {
+      "standard": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "out": "cubic-bezier(0, 0, 0.2, 1)",
+      "in": "cubic-bezier(0.4, 0, 1, 1)"
+    },
+    "transitions": [
+      "colors, opacity 150ms standard",
+      "background-color, opacity 200ms standard",
+      "box-shadow 200ms standard",
+      "width 200ms standard",
+      "transform/translate/scale 150ms standard",
+      "padding-bottom 300ms ease-out"
+    ],
+    "keyframes": ["fadeIn","shimmer","shimmerSweep","pulse-light","pulse-medium","pulse-strong","hatch-dot-pulse","activity-indicator-fade","wiggle","avatar-ring-pulse","lightboxFadeIn","lightboxFadeOut","hatch-route-header-bg-reveal","hatch-route-header-title-shrink","hatch-route-header-description-fade","hatch-clock-blink"]
+  },
+  "iconography": {
+    "status": "verified for geometry, observed for style",
+    "viewBox": "0 0 320 320",
+    "renderSize": "32-34px glyph inside 44x44 circle hit target",
+    "construction": "filled outline paths (not stroked), monoline appearance about 1.75px at 24px equivalent",
+    "colorDefault": "#111112",
+    "activeState": "44x44 circle behind icon, light gray fill"
+  }
+}
