@@ -182,9 +182,12 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [ ] T-056 Prep chat + structured brief, saved with the call, injected into the live prompt (replay)
 - [x] T-057 Live context rail (collapsed; no latency regression) — `zoho-slice` (Saturday demo, branch `phase9/zoho-slice`): CrmRail in the collapsed rail; brief → `crm_brief` prompt (per-turn part only); replay ALL p50 576 / p95 978 ms; screenshots `docs/evidence/phase9/zoho-slice/`.
 0.5.0 Learning loop
-- [ ] T-058 Ratings on AI advice cards with reason chips; admin aggregates
-- [ ] T-059 Learned instructions: minimised packet, 8 × 25 words, registry variable, next-call only (D-034; replay)
-- [ ] T-060 Settings instruction editor: edit, reorder, disable, delete, versions, revert, review switch, badge
+- [x] T-058 Ratings on AI advice cards with reason chips; admin aggregates
+  - Evidence: `phase9/learning-admin`; worker `tests/cloud/test_learning.py`, app `features/rating/RatingControls.test.tsx` (no card words reach the server).
+- [x] T-059 Learned instructions: minimised packet, 8 × 25 words, registry variable, next-call only (D-034; replay)
+  - Evidence: `features/learning/packet.test.ts` (no full transcript), engine learned-instructions tests; replay p50 576 / p95 978 ms. Open: live test call on the Mac (owner).
+- [x] T-060 Settings instruction editor: edit, reorder, disable, delete, versions, revert, review switch, badge
+  - Evidence: Admin › Instructions, `features/learning/instructions.test.tsx`; a11y 39 checks 0 serious, axe 0 on the seeded page; screenshots `docs/evidence/phase9/learning-admin/`.
 0.6.0 Post-call actions
 - [ ] T-061 Post-call panel + during-call side panel (lead, contact only)
 - [ ] T-062 Zoho writes: Meeting, Lead, Contact, Deal note — approval, audit, idempotency
@@ -314,6 +317,12 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 (b) · local · Opus 5.5 · phase9/learning-admin
+- **Done:** T-058/T-059/T-060 and D-038. Server: `cloud/learning/{store,routes}.py` adds the tables `card_ratings`, `learned_versions`, `learning_state` and `learning_seen`, with company cascade. Ratings carry no call words. Instructions are versioned per org, with the review switch, revert, approve and badge. The bundle carries `learned`, and `/features` carries `learned_version`. The flags `card_ratings` and `learned_instructions` are now `built: true`. Prompts: `learned_extract` (summary stage, minimised packet) and `learned_instructions` (appended to the cacheable system part of the live suggestion, playbook wins). App: rating pills under the finished hero AI card; the after-call learning run on the device (≥ 3 ratings); Admin › Instructions editor and the tab badge. On desktop, Keys, models and prompts become a "Manage models in the web admin panel" link (D-038).
+- **Evidence:** worker 477 passed, app jest 308, engine 65, desktop 17; a11y 39 checks 0 serious; replay p50 576 / p95 978 ms, R4 0; lint, typecheck and boundaries green.
+- **Outside the owned list (master approved, additive):** `packages/engine/src/{types,call,session}.ts` (+ `engine.test.ts`, `__tests__/bundle.json` via `pnpm gen`), `features/call/local.ts` (learning hook), `features/call/components/CardStack.tsx` (one line), `lib/cloud.ts` (`learned_version` in `refreshFeatures`), `cloud/app.py` (mount, bundle, features, 2 status codes), `cloud/features.json` (2 × built), `tests/cloud/test_features.py`, `scripts/a11y.mjs`, `lib/i18n.ts` (`admin.webPanel.*`), new `features/webadmin/webAdmin.tsx`.
+- **Next:** the owner runs a test call on the Mac with ≥ 3 ratings, then the next call shows the instructions applied. The master merges and deploys the server before the 0.5.0 clients ship.
 
 ### 2026-11-13 · local · Opus 5.5 · phase9/zoho-slice
 - **Done:** Saturday Zoho demo slice (T-053/T-054/T-055 slice, T-057, Zoho part of T-071). Server: `cloud/zoho/{oauth,routes,lookup}.py`, `adapters/crm/zoho.py`, store tables `zoho_platform_client`, `company_zoho_client`, `zoho_connections`, `zoho_states`; `zoho` flag `built: true`, needs_connection until the person connects (per-person layer). Owner console › Account: platform client form. App: `features/crm/**`, `CrmRail`, `/admin/integrations`, `crm.*` strings (en/ar). Engine: `crmBrief` + `crm_brief` prompt appended to the per-turn message only.

@@ -358,13 +358,8 @@ function IconButton(props: {
       onPress={props.onPress}
       style={[styles.iconBtn, { opacity: props.disabled ? 0.4 : 1 }]}
     >
-      <View
-        style={
-          props.icon === "chevron"
-            ? { transform: [{ rotate: props.flip ? "-90deg" : "90deg" }] }
-            : null
-        }
-      >
+      {/* The chevron glyph points down; "up" turns it over. */}
+      <View style={props.flip ? { transform: [{ rotate: "180deg" }] } : null}>
         <Icon name={props.icon} size={18} color={color.textMuted} />
       </View>
     </Pressable>
