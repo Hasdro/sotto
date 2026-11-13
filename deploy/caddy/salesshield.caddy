@@ -20,12 +20,6 @@ salesshield.agncompu.com {
 	handle /auth/zoho/* {
 		reverse_proxy 127.0.0.1:8788
 	}
-	# Password-reset page (served by the management server): the link carries a token, so no
-	# Referer may leave it (it overrides the host-wide strict-origin-when-cross-origin above).
-	handle /reset-password* {
-		header Referrer-Policy no-referrer
-		reverse_proxy 127.0.0.1:8788
-	}
 	# The landing page. The manifest must never be cached stale, or buttons point at old files.
 	handle {
 		root * /var/www/salesshield

@@ -166,6 +166,8 @@ $SOTTO_DOMAIN {
 		root * /var/www
 		file_server browse
 	}
+	# The reset link carries a token in its fragment; no Referer may leave the page.
+	header /reset-password* Referrer-Policy no-referrer
 	handle {
 		reverse_proxy 127.0.0.1:$PORT
 	}
