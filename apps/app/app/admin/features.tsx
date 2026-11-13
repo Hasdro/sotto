@@ -99,52 +99,54 @@ export default function FeaturesScreen() {
               const locked = row.state === "off_by_platform";
               const reason = row.state !== "available" ? reasonFor(text, row, true) : "";
               return (
-            <View
-              key={row.id}
-              style={[
-                styles.row,
-                i > 0 ? [styles.divided, { borderTopColor: color.border }] : null,
-              ]}
-            >
-              <View style={styles.toggle}>
-                <View style={styles.toggleText}>
-                  <Text variant="body" weight="medium">
-                    {text.name[row.id]}
-                  </Text>
-                  <Text variant="label" tone="muted">
-                    {text.about[row.id]}
-                  </Text>
+                <View
+                  key={row.id}
+                  style={[
+                    styles.row,
+                    i > 0 ? [styles.divided, { borderTopColor: color.border }] : null,
+                  ]}
+                >
+                  <View style={styles.toggle}>
+                    <View style={styles.toggleText}>
+                      <Text variant="body" weight="medium">
+                        {text.name[row.id]}
+                      </Text>
+                      <Text variant="label" tone="muted">
+                        {text.about[row.id]}
+                      </Text>
+                    </View>
+                    <Switch
+                      testID={`feature-toggle-${row.id}`}
+                      accessibilityLabel={
+                        locked ? `${text.name[row.id]}: ${reason}` : text.name[row.id]
+                      }
+                      accessibilityHint={text.about[row.id]}
+                      disabled={locked}
+                      value={locked ? false : row.enabled}
+                      onValueChange={(v) => {
+                        if (busy === null) toggle(row.id, v);
+                      }}
+                      trackColor={{ false: color.borderStrong, true: color.primary }}
+                      thumbColor={color.surface}
+                      ios_backgroundColor={color.borderStrong}
+                    />
+                  </View>
+                  <View style={styles.facts}>
+                    <Badge
+                      label={text.state[row.state]}
+                      tone={TONE[row.state]}
+                      testID={`feature-state-${row.id}`}
+                    />
+                    {reason ? (
+                      <Text variant="label" tone="muted">
+                        {reason}
+                      </Text>
+                    ) : null}
+                    <Text variant="label" tone="muted">
+                      {`${text.admin.for}: ${row.roles.map((r) => text.admin.roles[r]).join(", ")}`}
+                    </Text>
+                  </View>
                 </View>
-                <Switch
-                  testID={`feature-toggle-${row.id}`}
-                  accessibilityLabel={locked ? `${text.name[row.id]}: ${reason}` : text.name[row.id]}
-                  accessibilityHint={text.about[row.id]}
-                  disabled={locked}
-                  value={locked ? false : row.enabled}
-                  onValueChange={(v) => {
-                    if (busy === null) toggle(row.id, v);
-                  }}
-                  trackColor={{ false: color.borderStrong, true: color.primary }}
-                  thumbColor={color.surface}
-                  ios_backgroundColor={color.borderStrong}
-                />
-              </View>
-              <View style={styles.facts}>
-                <Badge
-                  label={text.state[row.state]}
-                  tone={TONE[row.state]}
-                  testID={`feature-state-${row.id}`}
-                />
-                {reason ? (
-                  <Text variant="label" tone="muted">
-                    {reason}
-                  </Text>
-                ) : null}
-                <Text variant="label" tone="muted">
-                  {`${text.admin.for}: ${row.roles.map((r) => text.admin.roles[r]).join(", ")}`}
-                </Text>
-              </View>
-            </View>
               );
             })}
         </Panel>

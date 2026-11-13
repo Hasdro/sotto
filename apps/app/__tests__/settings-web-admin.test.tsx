@@ -33,7 +33,7 @@ const wrap = () =>
 describe("Settings → AI models", () => {
   it("desktop shows one row with an Open web admin button", async () => {
     mockDesktop = { platform: "darwin" };
-    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
     await wrap();
     expect(screen.getByText("AI models are managed in the web admin")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("settings-open-web-admin"));

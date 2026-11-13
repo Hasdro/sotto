@@ -88,8 +88,7 @@ const en = {
   "call.status.ended": "Ended",
   "call.mode.fake": "Practice mode",
   "call.mode.live": "Live AI",
-  "call.mode.fakeHint":
-    "Suggestions come from practice answers. Add a model key for real ones.",
+  "call.mode.fakeHint": "Suggestions come from practice answers. Add a model key for real ones.",
   "call.mode.liveHint": "Suggestions come from the configured model.",
   "call.end": "End call",
   "call.confirmEnd.title": "End this call?",
@@ -117,8 +116,7 @@ const en = {
   "call.connectionLost.body":
     "This call ended because the connection dropped. Your notes are saved. Start another call to go on.",
   "call.notInThisBuild.title": "Live calls aren't available in this version",
-  "call.notInThisBuild.body":
-    "Use the AGN Sales Shield app for Mac or Windows to take live calls.",
+  "call.notInThisBuild.body": "Use the AGN Sales Shield app for Mac or Windows to take live calls.",
   "call.mockBadge": "Sample call",
   "call.approximate": "Approximate: speaker matching",
 
@@ -273,8 +271,7 @@ const en = {
   "call.mic.unsupported": "This browser cannot share the microphone here. It needs HTTPS.",
   "call.hearing": "Hearing: {text}",
   "call.phone.title": "Live calls on the phone are coming",
-  "call.phone.body":
-    "Live calls in the phone app are coming. Use the Mac or Windows app today.",
+  "call.phone.body": "Live calls in the phone app are coming. Use the Mac or Windows app today.",
   "call.phone.download": "Get the Mac or Windows app",
   "call.listen.title": "Start listening to a call",
   "call.listen.body":
@@ -404,8 +401,7 @@ const en = {
   "admin.keys.custom.remove": "Remove endpoint",
   "admin.keys.custom.badge": "Your endpoint",
   "admin.keys.offline.title": "The keys panel needs the Sales Shield server",
-  "admin.keys.offline.body":
-    "Sign in to your company's Sales Shield account to manage keys.",
+  "admin.keys.offline.body": "Sign in to your company's Sales Shield account to manage keys.",
   "gate.title": "Sign in to AGN Sales Shield",
   "gate.body": "Enter the access code for this Sales Shield server.",
   "gate.code": "Access code",
@@ -946,8 +942,7 @@ const ar: Record<StringKey, string> = {
   "call.status.ended": "انتهت",
   "call.mode.fake": "وضع التدريب",
   "call.mode.live": "ذكاء حقيقي",
-  "call.mode.fakeHint":
-    "الاقتراحات من إجابات تدريبية. أضف مفتاح نموذج لاقتراحات حقيقية.",
+  "call.mode.fakeHint": "الاقتراحات من إجابات تدريبية. أضف مفتاح نموذج لاقتراحات حقيقية.",
   "call.mode.liveHint": "الاقتراحات من النموذج المُعد.",
   "call.end": "إنهاء المكالمة",
   "call.confirmEnd.title": "إنهاء هذه المكالمة؟",
@@ -1258,8 +1253,7 @@ const ar: Record<StringKey, string> = {
   "admin.keys.custom.remove": "احذف الخادم",
   "admin.keys.custom.badge": "خادمك",
   "admin.keys.offline.title": "لوحة المفاتيح تحتاج خادم Sales Shield",
-  "admin.keys.offline.body":
-    "سجّل الدخول إلى حساب شركتك في Sales Shield لإدارة المفاتيح.",
+  "admin.keys.offline.body": "سجّل الدخول إلى حساب شركتك في Sales Shield لإدارة المفاتيح.",
   "gate.title": "سجّل الدخول إلى AGN Sales Shield",
   "gate.body": "أدخل رمز الدخول لهذا الخادم.",
   "gate.code": "رمز الدخول",
