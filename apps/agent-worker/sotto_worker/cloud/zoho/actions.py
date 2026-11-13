@@ -14,7 +14,12 @@ from sotto_worker.cloud.store import CloudError
 
 RECORD_ID = re.compile(r"^\d{5,25}$")
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
-KINDS = ("meeting", "lead", "contact_update", "deal_note")
+KINDS = ("meeting", "lead", "contact_update", "deal_note", "call_log")
+# INT-01 (D-047): the after-call log is the review's structured summary, never transcript text;
+# the caps keep a pasted transcript out. Parent order: Deal, else Contact, else Lead.
+CALL_LOG_PARENTS = (("deal_id", "Deals"), ("contact_id", "Contacts"), ("lead_id", "Leads"))
+CHANCE_BANDS = ("low", "medium", "high")
+CALL_ID = re.compile(r"^[A-Za-z0-9_-]{1,50}$")
 # Fields each kind accepts from the app; `required` must be present and non-empty.
 FIELDS: dict[str, dict[str, int]] = {
     "meeting": {
@@ -42,12 +47,24 @@ FIELDS: dict[str, dict[str, int]] = {
         "description": 2000,
     },
     "deal_note": {"deal_id": 25, "title": 120, "content": 5000},
+    "call_log": {
+        "call_id": 50,
+        "deal_id": 25,
+        "contact_id": 25,
+        "lead_id": 25,
+        "summary": 800,
+        "objections": 400,
+        "commitments": 400,
+        "next_step": 200,
+        "chance_band": 6,
+    },
 }
 REQUIRED = {
     "meeting": ("title", "start", "end"),
     "lead": ("last_name", "company"),
     "contact_update": ("contact_id",),
     "deal_note": ("deal_id", "content"),
+    "call_log": ("call_id", "summary"),
 }
 MAX_MEETING = timedelta(hours=8)
 
@@ -57,6 +74,9 @@ class Planned:
     kind: str
     summary: str  # for the audit row: what, never the content
     fields: dict[str, str]
+    # Set by the server when the kind has a natural key (call_log: one per call), so a retry
+    # from another device or a lost response never writes twice.
+    idem_key: str | None = None
 
 
 def plan(kind: str, raw: Any) -> Planned:
@@ -84,7 +104,7 @@ def plan(kind: str, raw: Any) -> Planned:
     for name in REQUIRED[kind]:
         if not fields.get(name):
             raise CloudError("invalid", f"{name} is required")
-    for name in ("contact_id", "deal_id"):
+    for name in ("contact_id", "deal_id", "lead_id"):
         if name in fields and not RECORD_ID.match(fields[name]):
             raise CloudError("invalid", f"{name} is not a Zoho record id")
     if "email" in fields and not EMAIL.match(fields["email"]):
@@ -93,6 +113,17 @@ def plan(kind: str, raw: Any) -> Planned:
         start, end = _when(fields["start"]), _when(fields["end"])
         if not timedelta(0) < end - start <= MAX_MEETING:
             raise CloudError("invalid", "the meeting must end after it starts, within 8 hours")
+    key = None
+    if kind == "call_log":
+        if not CALL_ID.match(fields["call_id"]):
+            raise CloudError("invalid", "call_id is not valid")
+        if fields.get("chance_band", "medium") not in CHANCE_BANDS:
+            raise CloudError("invalid", "chance_band must be low, medium or high")
+        parent = next(((f, m) for f, m in CALL_LOG_PARENTS if fields.get(f)), None)
+        if parent is None:
+            raise CloudError("invalid", "link the call to a deal, contact or lead first")
+        key = f"call_log-{fields['call_id']}"
+        return Planned(kind, f"Notes on {parent[1]}:{fields[parent[0]]}", fields, key)
     summary = {
         "meeting": "Events",
         "lead": "Leads",
@@ -161,6 +192,25 @@ async def execute(writer: ZohoCRMReader, p: Planned) -> dict[str, Any]:
         if not record:
             raise CloudError("invalid", "change at least one field")
         return await writer.update("Contacts", f["contact_id"], record)
+    if p.kind == "call_log":
+        field, module = next((fl, m) for fl, m in CALL_LOG_PARENTS if f.get(fl))
+        lines = [f"Summary: {f['summary']}"]
+        for name, label in (
+            ("objections", "Objections"),
+            ("commitments", "Commitments"),
+            ("next_step", "Next step"),
+            ("chance_band", "Chance"),
+        ):
+            if f.get(name):
+                lines.append(f"{label}: {f[name]}")
+        return await writer.create(
+            "Notes",
+            {
+                "Note_Title": "Call log (AGN Sales Shield)",
+                "Note_Content": "\n".join(lines),
+                "Parent_Id": {"module": {"api_name": module}, "id": f[field]},
+            },
+        )
     # deal_note: a Note whose parent is the Deal; the Deal record itself is never written.
     note: dict[str, Any] = {
         "Note_Content": f["content"],

@@ -104,7 +104,8 @@ def test_callback_location_sends_exchange_and_api_calls_to_the_eu(
     token_hosts = {q.url.host for q in eu.requests if q.url.path == "/oauth/v2/token"}
     assert token_hosts == {"accounts.zoho.eu"}  # no probing, no secret sent elsewhere
     status = zc.get("/api/v1/zoho/status", headers=auth).json()
-    assert status["dc"] == "eu" and status["api_domain"] == "https://www.zohoapis.eu"
+    assert status["dc"] == "eu"
+    assert status["api_domain"] == "https://www.zohoapis.eu"
     zc.get("/api/v1/zoho/search", params={"q": "jane@acme.test"}, headers=auth)
     api_hosts = {q.url.host for q in eu.requests if q.url.path.startswith("/crm/")}
     assert api_hosts == {"www.zohoapis.eu"}
@@ -180,7 +181,8 @@ def test_connect_page_lists_reads_writes_dc_and_cancel(zc: TestClient) -> None:
     text = page.text
     assert "meetings, contacts, deals" in text
     assert "meetings and notes after you approve them" in text
-    assert "Zoho data centre" in text and "Change" in text
+    assert "Zoho data centre" in text
+    assert "Change" in text
     assert f"/auth/zoho/cancel?state={state}" in text
     assert "<script" not in text
 
@@ -190,7 +192,8 @@ def test_cancel_kills_the_link(zc: TestClient) -> None:
     set_org_client(zc, auth)
     state, _ = begin(zc, auth)
     r = zc.get("/auth/zoho/cancel", params={"state": state})
-    assert r.status_code == 200 and "You can close this tab" in r.text
+    assert r.status_code == 200
+    assert "You can close this tab" in r.text
     r = zc.get("/auth/zoho/callback/", params={"code": "c", "state": state, "location": "eu"})
     assert r.status_code == 400
 
@@ -202,7 +205,8 @@ def test_done_page_has_the_deep_link_and_no_token_or_code(zc: TestClient) -> Non
     code = "one-time-code-123"
     r = zc.get("/auth/zoho/callback/", params={"code": code, "state": state, "location": "eu"})
     assert r.status_code == 200
-    assert "Zoho is connected" in r.text and "You can close this tab." in r.text
+    assert "Zoho is connected" in r.text
+    assert "You can close this tab." in r.text
     assert "href='agn-sales-shield://zoho/connected'" in r.text
     for secret in (code, state, ACCESS, REFRESH):
         assert secret not in r.text

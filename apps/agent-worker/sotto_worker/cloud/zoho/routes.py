@@ -541,7 +541,7 @@ def make_routes(
         conn = store.zoho_connection(who)
         if conn is None or missing_scopes(conn.get("scopes")):
             raise CloudError("zoho_reconnect", "connect Zoho again to allow saving")
-        key = str(data.get("idempotency_key", ""))
+        key = planned.idem_key or str(data.get("idempotency_key", ""))
         earlier = store.zoho_write_begin(who, key, planned.kind)
         if earlier is not None:
             return JSONResponse({"ok": True, **earlier})
