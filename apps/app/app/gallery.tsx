@@ -7,13 +7,19 @@ import type { CardType } from "@sotto/shared";
 import {
   Badge,
   Button,
+  ChecklistRow,
+  Disclosure,
   EmptyState,
+  IconButton,
+  LtrRun,
   Mascot,
   moodFor,
   Panel,
   radius,
   SegmentedControl,
+  Sheet,
   Stack,
+  StatTile,
   SuggestionCard,
   space,
   Table,
@@ -30,6 +36,7 @@ import {
 import { useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { cardStrings } from "../features/call/components/strings";
+import { CALL_TEXT, type CallTextKey } from "../features/call/strings";
 import { directionOf, formatNumber, type Locale, t as translate } from "../lib/i18n";
 import { personaFor } from "../lib/role";
 
@@ -59,6 +66,11 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
     translate(key, locale, vars);
   const [on, setOn] = useState(true);
   const [who, setWho] = useState<"customer" | "agent">("customer");
+  const ct = (key: CallTextKey) => CALL_TEXT[locale][key];
+  const [done, setDone] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const [rated, setRated] = useState<"up" | "down" | null>(null);
+  const id = (part: string) => `gallery-${part}-${scheme}-${locale}`;
   return (
     <UIProvider scheme={scheme} direction={dir}>
       <View
@@ -98,7 +110,10 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
               source={sourceFor(type)}
               text={t("call.listeningBody")}
               done={type !== "question"}
-              strings={cardStrings(t, type, sourceFor(type))}
+              strings={{
+                ...cardStrings(t, type, sourceFor(type)),
+                notInPlaybookShort: ct("card.notInPlaybookShort"),
+              }}
             />
           ))}
           <SuggestionCard
@@ -116,6 +131,66 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
             <Button variant="danger" label={t("call.end")} />
             <Button label={t("call.composer.send")} disabled />
           </Stack>
+          {/* UX-44a: icon-only buttons (44 pt, focus ring) and helper text on a disabled button. */}
+          <Stack direction="row" gap="sm" wrap>
+            <IconButton
+              testID={id("iconbutton")}
+              icon="check"
+              label={t("rating.up")}
+              outlined
+              selected={rated === "up"}
+              onPress={() => setRated((r) => (r === "up" ? null : "up"))}
+            />
+            <IconButton
+              icon="close"
+              label={t("rating.down")}
+              outlined
+              selected={rated === "down"}
+              onPress={() => setRated((r) => (r === "down" ? null : "down"))}
+            />
+            <Button label={ct("ui.sample.save")} disabled helper={ct("ui.sample.helper")} />
+          </Stack>
+          <Disclosure testID={id("disclosure")} title={t("call.rail.title")}>
+            <Text variant="body" tone="muted">
+              {t("call.listeningBody")}
+            </Text>
+          </Disclosure>
+          <ChecklistRow
+            testID={id("checklist")}
+            checked={done}
+            label={ct("ui.sample.task")}
+            onToggle={setDone}
+            editLabel={ct("ui.edit")}
+          >
+            <TextField label={t("playbook.search")} />
+          </ChecklistRow>
+          <Stack direction="row" gap="sm" wrap>
+            <StatTile
+              testID={id("stattile")}
+              label={ct("ui.sample.calls")}
+              value={formatNumber(12, locale)}
+              hint={ct("ui.sample.callsHint")}
+            />
+          </Stack>
+          <Text variant="body" testID={id("ltrrun")}>
+            {`${ct("ui.sample.noteOn")} `}
+            <LtrRun>Acme renewal 2027</LtrRun>
+          </Text>
+          <Button
+            variant="secondary"
+            label={ct("ui.sample.sheet")}
+            onPress={() => setSheet(true)}
+            testID={id("sheet-open")}
+          />
+          <Sheet
+            open={sheet}
+            title={t("call.rail.title")}
+            closeLabel={ct("ui.close")}
+            onClose={() => setSheet(false)}
+            testID={id("sheet")}
+          >
+            <Text variant="body">{t("call.listeningBody")}</Text>
+          </Sheet>
           <Stack direction="row" gap="sm" wrap>
             <Badge tone="warning" dot label={t("call.status.live")} />
             <Badge tone="answer" label={t("call.mode.live")} />
@@ -174,7 +249,12 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
               },
             ]}
           />
-          <Toast title={t("call.escalated.title")} body={t("inbox.subtitle")} />
+          <Toast title={t("call.escalated.title")} />
+          <Toast
+            testID={id("toast-action")}
+            title={ct("ui.sample.deleted")}
+            action={{ label: ct("ui.undo"), onPress: () => {} }}
+          />
           <EmptyState
             title={t("call.offline.title")}
             body={t("call.offline.body")}

@@ -1,9 +1,11 @@
+import type { CardSource, CardType } from "@sotto/shared";
 import {
+  Button,
   layout,
-  Mascot,
   noticeFor,
   radius,
   SuggestionCard,
+  type SuggestionCardStrings,
   size,
   space,
   Text,
@@ -15,14 +17,41 @@ import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { CardView } from "../../cards/reducer";
-import { RatingControls } from "../../rating/RatingControls";
+import { RatingControls, useCanRate } from "../../rating/RatingControls";
+import { useCallText } from "../strings";
 import { cardStrings } from "./strings";
 
 /** Heights of the static "listening" mark (distinct, so they double as keys). */
 const LISTEN_BARS = [10, 18, 12, 22, 14] as const;
 
-/** Older cards shown under the hero; the rest stay in history. */
-export const EARLIER_LIMIT = 4;
+/** Older cards shown under the hero by default (UX-13); "Show earlier (n)" opens the rest. */
+export const EARLIER_LIMIT = 2;
+
+/** After leaving an older card, its rating buttons stay this long, so they can be reached. */
+const UNLIT_DELAY_MS = 200;
+
+const isHolding = (c: CardView) => c.type === "holding" || c.source === "holding";
+
+/**
+ * Older cards for the list under the hero: a holding card is dropped once a real card of the
+ * same customer turn exists (UX-14; DESIGN §5 already replaces it in the hero).
+ */
+export function earlierCards(cards: readonly CardView[]): CardView[] {
+  const [, ...earlier] = cards;
+  return earlier.filter(
+    (c) => !isHolding(c) || !cards.some((o) => o.turnKey === c.turnKey && !isHolding(o)),
+  );
+}
+
+/** Card labels plus the short visible R2 line (UX-12). */
+function useCardStrings(): (type: CardType, source: CardSource) => SuggestionCardStrings {
+  const { t } = useI18n();
+  const ct = useCallText();
+  return (type, source) => ({
+    ...cardStrings(t, type, source),
+    notInPlaybookShort: ct("card.notInPlaybookShort"),
+  });
+}
 
 type Props = {
   cards: readonly CardView[];
@@ -38,11 +67,17 @@ type Props = {
  */
 export function CardStack({ cards, wide, listening, speaking = false }: Props) {
   const { t, locale } = useI18n();
-  const [hero, ...earlier] = cards;
+  const ct = useCallText();
+  const strings = useCardStrings();
+  const hero = cards[0];
+  const earlier = earlierCards(cards);
   // One older card open at a time (T-050 density rule); the rest stay at two lines.
   const [openId, setOpenId] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
   useAnnounceWhenDone(hero);
   const writing = Boolean(hero && !hero.done);
+  const shown = all ? earlier : earlier.slice(0, EARLIER_LIMIT);
+  const more = earlier.length - EARLIER_LIMIT;
   return (
     <View style={styles.stack}>
       {listening && hero ? <Activity speaking={speaking} writing={writing} /> : null}
@@ -56,31 +91,26 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
           text={hero.text}
           done={hero.done}
           wide={wide}
-          strings={cardStrings(t, hero.type, hero.source)}
-          footnote={
-            hero.shownAfterMs === null
-              ? null
-              : t("card.shownAfter", {
-                  seconds: formatNumber(hero.shownAfterMs / 1000, locale, 2),
-                })
-          }
+          strings={strings(hero.type, hero.source)}
         />
       ) : listening ? (
         <Listening speaking={speaking} />
       ) : null}
-      {hero ? <RatingControls card={hero} /> : null}
+      {/* UX-02: no rating under the live hero; after the call every AI card is rateable. */}
+      {hero && !listening ? <RatingControls card={hero} /> : null}
       {earlier.length > 0 ? (
         <View style={styles.earlier}>
           <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
             {t("card.earlier")}
           </Text>
-          {earlier.slice(0, EARLIER_LIMIT).map((c) => (
-            <Dimmed
+          {shown.map((c) => (
+            <Earlier
               key={c.id}
-              testID={`earlier-${c.id}`}
+              card={c}
               open={openId === c.id}
               label={t(openId === c.id ? "card.collapse" : "card.expand")}
               onToggle={() => setOpenId((id) => (id === c.id ? null : c.id))}
+              alwaysRate={!listening}
             >
               {(quiet) => (
                 <SuggestionCard
@@ -92,12 +122,26 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
                   text={c.text}
                   done={c.done}
                   expanded={openId === c.id}
-                  strings={cardStrings(t, c.type, c.source)}
+                  strings={strings(c.type, c.source)}
                   testID={`earlier-${c.id}-card`}
                 />
               )}
-            </Dimmed>
+            </Earlier>
           ))}
+          {more > 0 ? (
+            <View style={styles.more}>
+              <Button
+                variant="ghost"
+                testID="show-earlier"
+                label={
+                  all
+                    ? ct("card.showFewer")
+                    : ct("card.showEarlier", { count: formatNumber(more, locale) })
+                }
+                onPress={() => setAll((v) => !v)}
+              />
+            </View>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -108,36 +152,66 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
  * Older cards step back so the newest stands out; hovering or focusing one brings it to full
  * strength (owner, 22 Oct). The step back is a colour change to the muted text token, not
  * opacity, so the sentence keeps WCAG AA contrast (T-050). Pressing one opens its whole
- * sentence; an open card stays at full strength.
+ * sentence; an open card stays at full strength. During the call its rating buttons appear only
+ * while it is lit or open (UX-02); after the call they always show.
  */
-function Dimmed({
+function Earlier({
+  card,
   children,
-  testID,
   open,
   label,
   onToggle,
+  alwaysRate,
 }: {
+  card: CardView;
   children: (quiet: boolean) => ReactNode;
-  testID?: string;
   open: boolean;
   label: string;
   onToggle: () => void;
+  alwaysRate: boolean;
 }) {
   const [lit, setLit] = useState(false);
+  const canRate = useCanRate(card);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enter = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setLit(true);
+  };
+  const leave = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setLit(false), UNLIT_DELAY_MS);
+  };
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const rate = canRate && (alwaysRate || lit || open);
   return (
     <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityHint={label}
-      accessibilityState={{ expanded: open }}
-      aria-expanded={open}
-      onPress={onToggle}
-      onHoverIn={() => setLit(true)}
-      onHoverOut={() => setLit(false)}
-      onFocus={() => setLit(true)}
-      onBlur={() => setLit(false)}
+      // Hover area only (card + its rating row): not a control, not a tab stop.
+      accessible={false}
+      focusable={false}
+      onHoverIn={enter}
+      onHoverOut={leave}
+      style={styles.earlierItem}
     >
-      {children(!(lit || open))}
+      <Pressable
+        testID={`earlier-${card.id}`}
+        accessibilityRole="button"
+        accessibilityHint={label}
+        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
+        onPress={onToggle}
+        onHoverIn={enter}
+        onFocus={enter}
+        onBlur={leave}
+      >
+        {children(!(lit || open))}
+      </Pressable>
+      {rate ? <RatingControls card={card} onFocus={enter} onBlur={leave} /> : null}
     </Pressable>
   );
 }
@@ -174,7 +248,7 @@ function Activity({ speaking, writing }: { speaking: boolean; writing: boolean }
   const state = writing ? "thinking" : speaking ? "listening" : "idle";
   return (
     <View style={styles.activity} testID={`activity-${state}`} accessibilityLiveRegion="polite">
-      <Mascot state={state} size={26} />
+      <LiveDot />
       <Text variant="label" weight="medium" tone="muted">
         {t(
           writing
@@ -185,6 +259,19 @@ function Activity({ speaking, writing }: { speaking: boolean; writing: boolean }
         )}
       </Text>
     </View>
+  );
+}
+
+/** UX-43a: a small live dot beside the listening line; the mascot is for review moods (R8). */
+function LiveDot() {
+  const { color } = useTheme();
+  return (
+    <View
+      testID="live-dot"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.dot, { backgroundColor: color.signal }]}
+    />
   );
 }
 
@@ -238,7 +325,7 @@ function Listening({ speaking }: { speaking: boolean }) {
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        <Mascot state="listening" size={40} />
+        <LiveDot />
         {LISTEN_BARS.map((h, i) => (
           <Bar key={h} h={h} i={i} fast={speaking} />
         ))}
@@ -257,6 +344,9 @@ const styles = StyleSheet.create({
   stack: { gap: space.xl },
   activity: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: -space.md },
   earlier: { gap: space.sm },
+  earlierItem: { gap: space.xs },
+  more: { alignItems: "flex-start" },
+  dot: { width: size.dot, height: size.dot, borderRadius: radius.pill, alignSelf: "center" },
   listening: {
     minHeight: layout.heroMinHeight,
     borderRadius: radius.xl,

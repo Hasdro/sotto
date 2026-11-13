@@ -127,6 +127,106 @@ describe("SuggestionCard", () => {
   });
 });
 
+describe("SuggestionCard reading order (UX-11, UX-12)", () => {
+  const short = {
+    ...strings,
+    source: "AI answer",
+    notInPlaybookShort: "Not in playbook — check first",
+  };
+
+  /** testIDs of the card's direct children, in render order. */
+  const order = (id: string) =>
+    (screen.getByTestId(id).children as { props?: { testID?: string } }[]).map(
+      (c) => c.props?.testID,
+    );
+
+  it("hero header is the icon only: the type and source are not printed above the sentence", async () => {
+    await render(
+      <SuggestionCard
+        type="answer"
+        source="ai"
+        text="Offer a visit."
+        done
+        strings={short}
+        testID="c"
+      />,
+    );
+    expect(screen.queryByText("Answer")).toBeNull();
+    expect(screen.queryByText("AI answer")).toBeNull();
+    // Still named for screen readers.
+    expect(screen.getByTestId("c").props.accessibilityLabel).toMatch(/^Answer\. /);
+  });
+
+  it("AI source: the short R2 notice sits under the sentence", async () => {
+    await render(
+      <SuggestionCard
+        type="answer"
+        source="ai"
+        text="Offer a visit."
+        done
+        strings={short}
+        testID="c"
+      />,
+    );
+    expect(screen.getByText("Not in playbook — check first")).toBeOnTheScreen();
+    const kids = order("c");
+    expect(kids.indexOf("c-notice")).toBeGreaterThan(kids.indexOf("c-text"));
+  });
+
+  it("playbook source: no notice; the source is one quiet line under the sentence", async () => {
+    await render(
+      <SuggestionCard type="answer" source="playbook" text="x" done strings={strings} testID="c" />,
+    );
+    expect(screen.queryByTestId("c-notice")).toBeNull();
+    expect(screen.getByText("From your playbook")).toBeOnTheScreen();
+    const kids = order("c");
+    expect(kids.indexOf("c-source")).toBeGreaterThan(kids.indexOf("c-text"));
+  });
+
+  it("prints no timing line", async () => {
+    await render(
+      <SuggestionCard type="answer" source="playbook" text="x" done strings={strings} testID="c" />,
+    );
+    expect(screen.queryByText(/after the customer stopped/)).toBeNull();
+    expect(order("c")).toEqual(["c-meta", "c-text", "c-source"]);
+  });
+
+  it("compact: background-tone fill so earlier cards recede (UX-13)", async () => {
+    await render(
+      <SuggestionCard
+        type="answer"
+        source="ai"
+        text="x"
+        done
+        variant="compact"
+        strings={short}
+        testID="c"
+      />,
+    );
+    expect(screen.getByTestId("c")).toHaveStyle({ backgroundColor: themes.light.color.background });
+    expect(screen.getByText("Not in playbook — check first")).toBeOnTheScreen();
+    expect(screen.queryByText("Answer")).toBeNull();
+  });
+
+  it("compact holding card keeps its dashed edge (UX-14)", async () => {
+    await render(
+      <SuggestionCard
+        type="holding"
+        source="holding"
+        text="x"
+        done
+        variant="compact"
+        strings={strings}
+        testID="c"
+      />,
+    );
+    expect(screen.getByTestId("c")).toHaveStyle({
+      borderStyle: "dashed",
+      borderColor: themes.light.card.holding.accent,
+    });
+  });
+});
+
 describe("SuggestionCard glyphs in RTL", () => {
   it.each([
     ["answer", "”"],

@@ -1,6 +1,10 @@
 /**
  * The hero of the product (DESIGN.md §5): one suggestion, read at arm's length in one second.
  *
+ * Nothing is printed above the sentence but the type's icon; the type is the voice-bar colour
+ * and the icon (UX-12). Source and the R2 notice are one short line under the sentence, and the
+ * card prints no timing (UX-11; R1 timing is logged per card, not shown to the agent).
+ *
  * Text arrives as a stream; the component renders whatever it is given with no entrance
  * animation, so the first delta is visible on the very next frame (R1). A caret marks a card
  * that is still streaming; it disappears when `done` is true.
@@ -18,8 +22,10 @@ export type SuggestionCardStrings = {
   type: string;
   /** e.g. "From your playbook", "AI answer". */
   source: string;
-  /** Shown for ai/backup cards when the worker sent no label (R2). */
+  /** Shown for ai/backup cards when the worker sent no label (R2). Read in full by screen readers. */
   notInPlaybook: string;
+  /** The visible form of the R2 notice under the sentence, e.g. "Not in playbook — check first". */
+  notInPlaybookShort?: string;
   /** Screen-reader suffix while text is still arriving. */
   streaming: string;
 };
@@ -39,8 +45,6 @@ export type SuggestionCardProps = {
   expanded?: boolean;
   /** Compact only: an older card stepping back; the sentence uses the muted text token. */
   quiet?: boolean;
-  /** Hero only: a quiet line under the text, e.g. the measured delay. */
-  footnote?: string | null;
   testID?: string;
 };
 
@@ -75,7 +79,6 @@ export function SuggestionCard({
   variant = "hero",
   wide = false,
   strings,
-  footnote,
   expanded = false,
   quiet = false,
   testID,
@@ -83,9 +86,13 @@ export function SuggestionCard({
   const theme = useTheme();
   const direction = useDirection();
   const c = theme.card[type];
-  const notice = noticeFor(source, label, strings.notInPlaybook);
   const holding = type === "holding" || source === "holding";
+  const notice = noticeFor(source, label, strings.notInPlaybook);
+  // The visible line: the worker's label, else the short built-in notice (R2).
+  const shown = noticeFor(source, label, strings.notInPlaybookShort ?? strings.notInPlaybook);
+  const sourceLine = notice || holding ? null : strings.source;
   const glyph = direction === "rtl" ? (GLYPH_RTL[type] ?? GLYPH[type]) : GLYPH[type];
+  const id = (part: string) => (testID ? `${testID}-${part}` : undefined);
   const a11yLabel = [strings.type, notice, text, done ? null : strings.streaming]
     .filter(Boolean)
     .join(". ");
@@ -98,28 +105,27 @@ export function SuggestionCard({
         accessibilityLabel={a11yLabel}
         style={[
           styles.compact,
-          { backgroundColor: theme.color.surface, borderColor: theme.color.border },
-          { borderStartColor: c.accent },
+          { backgroundColor: theme.color.background, borderColor: theme.color.border },
+          holding
+            ? { borderColor: c.accent, borderStyle: "dashed", borderStartWidth: sizes.stroke }
+            : { borderStartColor: c.accent },
         ]}
       >
-        <View style={styles.compactMeta}>
-          <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={sizes.iconSm} />
-          <Text variant="label" weight="medium" tone="muted">
-            {strings.type}
+        <Disc glyph={glyph} fill={c.accent} ink={c.fill} size={sizes.iconSm} />
+        <View style={styles.compactBody}>
+          <Text
+            variant="cardCompact"
+            tone={quiet ? "muted" : "default"}
+            numberOfLines={expanded ? undefined : 2}
+          >
+            {text}
           </Text>
-          {notice ? (
-            <Text variant="label" tone="muted" numberOfLines={1} style={styles.shrink}>
-              {notice}
+          {shown ? (
+            <Text variant="label" tone="muted" numberOfLines={1}>
+              {shown}
             </Text>
           ) : null}
         </View>
-        <Text
-          variant="cardCompact"
-          tone={quiet ? "muted" : "default"}
-          numberOfLines={expanded ? undefined : 2}
-        >
-          {text}
-        </Text>
       </View>
     );
   }
@@ -138,29 +144,15 @@ export function SuggestionCard({
           : { borderStartColor: theme.color.signal, borderStartWidth: sizes.voiceBar },
       ]}
     >
-      <View style={styles.meta}>
+      <View testID={id("meta")} style={styles.meta}>
         <Disc glyph={glyph} fill={c.heroText} ink={c.heroFill} size={sizes.iconMd} />
-        <Text variant="heading" weight="semibold" color={c.heroText} style={styles.grow}>
-          {strings.type}
-        </Text>
-        <Text variant="label" weight="medium" color={c.heroMuted}>
-          {strings.source}
-        </Text>
       </View>
-      {notice ? (
-        <View
-          testID={testID ? `${testID}-notice` : undefined}
-          style={[
-            styles.notice,
-            { backgroundColor: theme.color.noticeFill, borderColor: theme.color.noticeBorder },
-          ]}
-        >
-          <Text variant="label" weight="medium" tone="notice">
-            {notice}
-          </Text>
-        </View>
-      ) : null}
-      <Text variant={wide ? "cardWide" : "card"} weight="medium" color={c.heroText}>
+      <Text
+        testID={id("text")}
+        variant={wide ? "cardWide" : "card"}
+        weight="medium"
+        color={c.heroText}
+      >
         {text}
         {done ? null : (
           <Text variant={wide ? "cardWide" : "card"} color={c.heroMuted} testID="card-caret">
@@ -168,9 +160,22 @@ export function SuggestionCard({
           </Text>
         )}
       </Text>
-      {footnote ? (
-        <Text variant="label" color={c.heroMuted}>
-          {footnote}
+      {shown ? (
+        <View
+          testID={id("notice")}
+          style={[
+            styles.notice,
+            { backgroundColor: theme.color.noticeFill, borderColor: theme.color.noticeBorder },
+          ]}
+        >
+          <Text variant="label" weight="medium" tone="notice">
+            {shown}
+          </Text>
+        </View>
+      ) : null}
+      {sourceLine ? (
+        <Text testID={id("source")} variant="label" weight="medium" color={c.heroMuted}>
+          {sourceLine}
         </Text>
       ) : null}
     </View>
@@ -214,8 +219,6 @@ const styles = StyleSheet.create({
     minHeight: layout.heroMinHeight,
   },
   meta: { flexDirection: "row", alignItems: "center", gap: space.sm },
-  grow: { flex: 1 },
-  shrink: { flexShrink: 1 },
   notice: {
     alignSelf: "flex-start",
     borderWidth: 1,
@@ -229,8 +232,10 @@ const styles = StyleSheet.create({
     borderStartWidth: sizes.bar,
     paddingVertical: space.md,
     paddingHorizontal: space.lg,
-    gap: space.xs,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: space.md,
   },
-  compactMeta: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  compactBody: { flex: 1, gap: space.xs },
   disc: { borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
 });

@@ -61,9 +61,15 @@ export type Theme = {
     /** Text for good/bad states, e.g. a benchmark that meets or misses R1. */
     positive: Hex;
     negative: Hex;
-    /** Toasts. */
+    /** Inverted fill (light theme toasts). */
     inverseSurface: Hex;
     onInverseSurface: Hex;
+    /** One step above `surface`: sheets, popovers, the dark toast (UX-40). */
+    surfaceRaised: Hex;
+    /** Toasts: inverted in light; a raised dark surface with a border in dark (UX-40). */
+    toastFill: Hex;
+    onToast: Hex;
+    toastBorder: Hex;
     /** The R2 "Not in playbook — check before promising" label. */
     noticeFill: Hex;
     noticeText: Hex;
@@ -102,6 +108,10 @@ const light: Theme = {
     negative: "#9e2519",
     inverseSurface: "#1b2630",
     onInverseSurface: "#f2f5f8",
+    surfaceRaised: "#ffffff",
+    toastFill: "#1b2630",
+    onToast: "#f2f5f8",
+    toastBorder: "#1b2630",
     noticeFill: "#fff1d6",
     noticeText: "#5a3a00",
     noticeBorder: "#a87418",
@@ -190,6 +200,10 @@ const dark: Theme = {
     negative: "#ff8c80",
     inverseSurface: "#e6ecf1",
     onInverseSurface: "#132029",
+    surfaceRaised: "#1c2832",
+    toastFill: "#1c2832",
+    onToast: "#e6ecf1",
+    toastBorder: "#6a7a89",
     noticeFill: "#3a2a08",
     noticeText: "#fbe3b0",
     noticeBorder: "#f3c76a",
@@ -306,7 +320,7 @@ export const minTouchTarget = 44;
 export const scrimOpacity = 0.45;
 
 /** Motion never sits on the read path: card text appears with no animation (DESIGN.md §7). */
-export const motion = { fast: 120, base: 200, toastMs: 8000 } as const;
+export const motion = { fast: 120, base: 200, toastMs: 8000, undoMs: 5000 } as const;
 
 /** Fixed sizes of small marks and strokes (DESIGN.md §3.4). */
 export const size = {
@@ -327,6 +341,11 @@ export const size = {
   controlLg: 52,
   /** Height of the static listening mark. */
   listenMark: 24,
+  /** Keyboard focus ring: width and gap from the control (UX-44a). */
+  focusRing: 2,
+  focusOffset: 2,
+  /** Checkbox square in ChecklistRow. */
+  checkbox: 22,
 } as const;
 
 export const layout = {
@@ -335,6 +354,9 @@ export const layout = {
   /** The hero card slot keeps this height, so the first card causes no layout jump. */
   heroMinHeight: 200,
   toastMaxWidth: 420,
+  /** Below this window width a Sheet is a bottom sheet; at or above it, a centred dialog. */
+  sheetBreakpoint: 768,
+  sheetMaxWidth: 560,
   sidebarWidth: 248,
   /** Phone navigation drawer: this wide, or 85 % of the window if that is less (D-023). */
   drawerMaxWidth: 300,
