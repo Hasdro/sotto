@@ -14,7 +14,11 @@ jest.mock("../lib/cloud", () => ({
   cloudOrigin: () => "https://sales.example.com",
 }));
 jest.mock("../lib/useCloud", () => ({
-  useCloud: () => ({ status: "signed_in", me: { user: { id: "u" }, company: mockCompany }, bundle: null }),
+  useCloud: () => ({
+    status: "signed_in",
+    me: { user: { id: "u" }, company: mockCompany },
+    bundle: null,
+  }),
 }));
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
@@ -76,7 +80,9 @@ describe("config health banner", () => {
     mockHealth = { status: "needs_attention", reasons: [smtp] };
     await wrap("agent");
     expect(screen.queryByTestId("health-banner")).toBeNull();
-    expect(healthReasonFor({ status: "needs_attention", reasons: [smtp, zoho] }, "agent")).toEqual(zoho);
+    expect(healthReasonFor({ status: "needs_attention", reasons: [smtp, zoho] }, "agent")).toEqual(
+      zoho,
+    );
   });
 
   it("calls paused outranks the health line", async () => {

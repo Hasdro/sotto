@@ -46,7 +46,11 @@ beforeEach(() => {
     },
     createElement: () => {
       meta = {};
-      return { setAttribute: (k: string, v: string) => meta && (meta[k] = v) };
+      return {
+        setAttribute: (k: string, v: string) => {
+          if (meta) meta[k] = v;
+        },
+      };
     },
   };
   jest.mocked(confirmPasswordReset).mockReset();

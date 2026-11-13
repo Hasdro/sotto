@@ -112,11 +112,12 @@ function AdminLayout() {
     const pages = g.pages.filter((p) => !(webOnly && p.webOnly));
     return {
       ...g,
-      pages: pages.map((p, i) => (i === 0 && gone.length ? { ...p, also: [...(p.also ?? []), ...gone] } : p)),
+      pages: pages.map((p, i) =>
+        i === 0 && gone.length ? { ...p, also: [...(p.also ?? []), ...gone] } : p,
+      ),
     };
   });
-  const current =
-    groups.find((g) => g.pages.some((p) => pageActive(pathname, p))) ?? groups[0];
+  const current = groups.find((g) => g.pages.some((p) => pageActive(pathname, p))) ?? groups[0];
   const subpages = current?.pages ?? [];
   const webLink = webOnly && webAdminUrl() && current?.id === "ai";
   return (
@@ -147,7 +148,11 @@ function AdminLayout() {
                   ])}
                 >
                   <View style={styles.tabInner}>
-                    <Icon name={g.icon} size={18} color={active ? color.primary : color.textMuted} />
+                    <Icon
+                      name={g.icon}
+                      size={18}
+                      color={active ? color.primary : color.textMuted}
+                    />
                     <Text
                       variant="body"
                       weight={active ? "semibold" : "regular"}

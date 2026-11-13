@@ -22,6 +22,8 @@ describe("Admin › Company activity", () => {
     expect(screen.getByRole("header", { name: "Recordings" })).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Devices" })).toBeOnTheScreen();
     expect(screen.getByRole("header", { name: "Activity" })).toBeOnTheScreen();
-    await waitFor(() => expect(jest.mocked(cloudApi)).toHaveBeenCalledWith("/api/v1/devices?all=1"));
+    await waitFor(() =>
+      expect(jest.mocked(cloudApi)).toHaveBeenCalledWith("/api/v1/devices?all=1"),
+    );
   });
 });

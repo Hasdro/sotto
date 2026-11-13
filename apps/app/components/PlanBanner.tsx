@@ -44,20 +44,23 @@ export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | 
   const onCall = pathname === "/" || pathname.startsWith("/call");
   const paused = pausedReason(company, banner);
   if (paused && (role === "agent" || onCall)) {
-    return { kind: "paused", node: (
-      <View
-        testID="calls-paused"
-        accessibilityRole="alert"
-        style={[
-          styles.bar,
-          { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
-        ]}
-      >
-        <Text variant="label" weight="medium" color={color.noticeText}>
-          {t("plan.paused", { reason: t(paused) })}
-        </Text>
-      </View>
-    ) };
+    return {
+      kind: "paused",
+      node: (
+        <View
+          testID="calls-paused"
+          accessibilityRole="alert"
+          style={[
+            styles.bar,
+            { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
+          ]}
+        >
+          <Text variant="label" weight="medium" color={color.noticeText}>
+            {t("plan.paused", { reason: t(paused) })}
+          </Text>
+        </View>
+      ),
+    };
   }
   if (!banner || role === "agent" || onCall) return null;
   const blocked = banner.kind === "blocked";
@@ -71,23 +74,26 @@ export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | 
         minutes: plan.minutes.used.toLocaleString("en-US"),
         minuteLimit: plan.minutes.limit.toLocaleString("en-US"),
       });
-  return { kind: "plan", node: (
-    <View
-      testID="plan-banner"
-      accessibilityRole="summary"
-      style={[
-        styles.bar,
-        {
-          backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
-          borderBottomColor: notice ? color.noticeBorder : color.border,
-        },
-      ]}
-    >
-      <Text variant="label" weight="medium" color={notice ? color.noticeText : undefined}>
-        {text}
-      </Text>
-    </View>
-  ) };
+  return {
+    kind: "plan",
+    node: (
+      <View
+        testID="plan-banner"
+        accessibilityRole="summary"
+        style={[
+          styles.bar,
+          {
+            backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
+            borderBottomColor: notice ? color.noticeBorder : color.border,
+          },
+        ]}
+      >
+        <Text variant="label" weight="medium" color={notice ? color.noticeText : undefined}>
+          {text}
+        </Text>
+      </View>
+    ),
+  };
 }
 
 /** Why calls are blocked, or null when they are allowed. */

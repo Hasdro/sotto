@@ -48,7 +48,10 @@ function HealthLine({ reason }: { reason: HealthReason }) {
     <View
       testID="health-banner"
       accessibilityRole="summary"
-      style={[styles.bar, { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder }]}
+      style={[
+        styles.bar,
+        { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
+      ]}
     >
       <Text variant="label" weight="medium" color={color.noticeText} style={styles.text}>
         {t(`health.${reason.code}`)}

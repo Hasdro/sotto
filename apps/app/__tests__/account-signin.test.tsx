@@ -22,9 +22,7 @@ const wrap = () =>
   render(
     <LocaleProvider initial="en">
       <UIProvider direction="ltr">
-        <AccountGate>
-          <></>
-        </AccountGate>
+        <AccountGate>{null}</AccountGate>
       </UIProvider>
     </LocaleProvider>,
   );

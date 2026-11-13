@@ -64,7 +64,15 @@ function AuthForm({ initialError }: { initialError: string | null }) {
   );
 }
 
-function SwitchLink({ label, onPress, testID }: { label: string; onPress: () => void; testID: string }) {
+function SwitchLink({
+  label,
+  onPress,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  testID: string;
+}) {
   return (
     <Pressable accessibilityRole="button" onPress={onPress} testID={testID} style={styles.linkHit}>
       <Text variant="label" tone="primary" style={styles.link}>
@@ -251,9 +259,7 @@ function ForgotPassword({
       .then(() => setSent(address))
       .catch((err: unknown) =>
         setError(
-          err instanceof CloudError && err.status === 429
-            ? t("reset.limited")
-            : t("reset.failed"),
+          err instanceof CloudError && err.status === 429 ? t("reset.limited") : t("reset.failed"),
         ),
       )
       .finally(() => setBusy(false));
@@ -263,7 +269,12 @@ function ForgotPassword({
       <Wordmark name={t("app.name")} />
       <Heading title={t("account.reset.title")} body={t("account.reset.body")} />
       {sent ? (
-        <Text variant="body" weight="medium" accessibilityLiveRegion="polite" testID="acct-reset-sent">
+        <Text
+          variant="body"
+          weight="medium"
+          accessibilityLiveRegion="polite"
+          testID="acct-reset-sent"
+        >
           {t("account.reset.sent", { email: sent })}
         </Text>
       ) : (

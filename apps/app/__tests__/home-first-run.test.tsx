@@ -24,7 +24,10 @@ jest.mock("../features/crm/useZoho", () => ({
   onReturn: () => () => {},
 }));
 let mockCalls: unknown[] = [];
-jest.mock("../lib/deviceHistory", () => ({ deviceCalls: () => mockCalls }));
+jest.mock("../lib/deviceHistory", () => ({
+  deviceCalls: () => mockCalls,
+  allDeviceCalls: () => mockCalls,
+}));
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
   router: { push: (h: string) => mockPush(h) },

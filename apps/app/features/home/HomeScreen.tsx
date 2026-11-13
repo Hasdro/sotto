@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
-import { deviceCalls } from "../../lib/deviceHistory";
+import { allDeviceCalls, type DeviceCall, deviceCalls } from "../../lib/deviceHistory";
 import { formatTime } from "../../lib/format";
 import type { Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
@@ -48,11 +48,12 @@ export function todayStats(calls: ReturnType<typeof deviceCalls>, now = Date.now
 
 /** UX-25: questions this agent sent to the manager, newest first, from calls on this device
  * (agents cannot list the company inbox, D-050). */
-export function myQuestions(calls: ReturnType<typeof deviceCalls>, max = 3): string[] {
+export function myQuestions(calls: readonly DeviceCall[], max = 3): string[] {
   const out: string[] = [];
   for (const c of calls) {
     for (const e of [...c.transcript].reverse()) {
-      if (e.kind === "escalation" && e.text.trim()) out.push(e.text.trim());
+      const q = e.kind === "escalation" ? e.text.trim() : "";
+      if (q && !out.includes(q)) out.push(q);
       if (out.length >= max) return out;
     }
   }
@@ -125,7 +126,7 @@ export function HomeScreen() {
     },
   ];
   const tip = calls.find((c) => c.review?.tip)?.review?.tip ?? null;
-  const questions = agent ? myQuestions(calls) : [];
+  const questions = agent ? myQuestions(allDeviceCalls()) : [];
 
   const side = (
     <View style={[styles.side, wide ? styles.sideWide : null]}>
@@ -136,9 +137,8 @@ export function HomeScreen() {
               {t("home.myQuestions.none")}
             </Text>
           ) : (
-            questions.map((q, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: the same question can repeat
-              <Text key={`${i}-${q}`} variant="label" numberOfLines={2}>
+            questions.map((q) => (
+              <Text key={q} variant="label" numberOfLines={2}>
                 {q}
               </Text>
             ))
