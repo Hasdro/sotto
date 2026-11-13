@@ -193,15 +193,57 @@ describe("in-call screen", () => {
     expect(s.start).toHaveBeenLastCalledWith(null);
   });
 
-  it("shows the fake-AI mode badge and the dev-only mock badge", async () => {
+  it("header: a practice call says 'Practice'; the mock badge shows behind the dev gate (UX-06a)", async () => {
     await render(
       <CallView
         session={session(stateFrom([hello, { type: "call_started", call_id: CALL }]))}
         mock
       />,
     );
-    expect(screen.getByText("Fake AI")).toBeOnTheScreen();
+    expect(screen.getByText("Practice")).toBeOnTheScreen();
+    expect(screen.queryByText("Fake AI")).toBeNull();
     expect(screen.getByText("Mock stream (dev only)")).toBeOnTheScreen();
+  });
+
+  it("header: no mock badge when the dev gate is off", async () => {
+    jest.mocked(demoEnabled).mockReturnValue(false);
+    await render(
+      <CallView
+        session={session(stateFrom([hello, { type: "call_started", call_id: CALL }]))}
+        mock
+      />,
+    );
+    expect(screen.queryByTestId("mock-badge")).toBeNull();
+  });
+
+  it("header: a real call shows no mode label; the mode is in the live dot's tooltip (UX-06a)", async () => {
+    const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
+    await render(
+      <CallView
+        session={session(stateFrom([real, { type: "call_started", call_id: CALL }]))}
+        mock={false}
+      />,
+    );
+    expect(screen.queryByText("Practice")).toBeNull();
+    expect(screen.queryByText("Fake AI")).toBeNull();
+    expect(screen.queryByTestId("live-tooltip")).toBeNull();
+    await fireEvent(screen.getByTestId("status-live"), "hoverIn");
+    expect(screen.getByTestId("live-tooltip")).toHaveTextContent(/^Fake AI · /);
+  });
+
+  it("header: the rail toggle is labelled 'Context' and sits before the title; End call is last (UX-15)", async () => {
+    await render(
+      <CallView
+        session={session(stateFrom([hello, { type: "call_started", call_id: CALL }]))}
+        mock={false}
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: "Context" });
+    expect(screen.getByText("Context")).toBeOnTheScreen();
+    const bar = toggle.parent as { children: { props?: { testID?: string } }[] };
+    const ids = bar.children.map((c) => c.props?.testID);
+    expect(ids[0]).toBe("rail-toggle");
+    expect(ids.at(-1)).toBe("end-call");
   });
 
   it("live with no card yet: a listening placeholder holds the hero slot", async () => {
@@ -225,7 +267,8 @@ describe("in-call screen", () => {
     expect(screen.getByTestId("hero-card")).toBeOnTheScreen();
     expect(screen.getByText(/Offer a viewing/)).toBeOnTheScreen();
     expect(screen.getByTestId("card-caret")).toBeOnTheScreen();
-    expect(screen.getByText("On screen 0.10 s after the customer stopped")).toBeOnTheScreen();
+    // UX-11: timing is logged per card (R1), never printed on the card.
+    expect(screen.queryByText(/after the customer stopped/)).toBeNull();
   });
 
   it("an AI card carries the R2 notice", async () => {
@@ -235,7 +278,22 @@ describe("in-call screen", () => {
       card({ source: "ai", done: true }),
     ]);
     await render(<CallView session={session(st)} mock={false} />);
-    expect(screen.getByText("Not in playbook — check before promising")).toBeOnTheScreen();
+    // UX-12: one short line under the sentence (R2); screen readers hear the full notice.
+    expect(screen.getByText("Not in playbook — check first")).toBeOnTheScreen();
+    expect(screen.getByTestId("hero-card").props.accessibilityLabel).toContain(
+      "Not in playbook — check before promising",
+    );
+  });
+
+  it("the live hero card has no rating control (UX-02)", async () => {
+    const st = stateFrom([
+      hello,
+      { type: "call_started", call_id: CALL },
+      card({ source: "ai", done: true }),
+    ]);
+    await render(<CallView session={session(st)} mock={false} />);
+    expect(screen.queryByRole("button", { name: "Helpful" })).toBeNull();
+    expect(screen.queryByText("Was this card helpful?")).toBeNull();
   });
 
   it("the newest card is the hero; older cards are compact under 'Earlier'", async () => {
@@ -315,6 +373,8 @@ describe("in-call screen", () => {
       await render(<CallView session={s} mock={false} />);
       expect(screen.getByTestId("toast")).toBeOnTheScreen();
       expect(screen.getAllByText("Sent to your manager").length).toBeGreaterThan(0);
+      // UX-07: the toast does not repeat the question (it is in the transcript line).
+      expect(screen.getByTestId("toast")).not.toHaveTextContent(/Bitcoin/);
       expect(s.dismissNotice).not.toHaveBeenCalled();
       await act(async () => {}); // let the reduced-motion check resolve and stop the loops
       await act(async () => {
@@ -325,6 +385,30 @@ describe("in-call screen", () => {
       jest.useRealTimers();
     }
   });
+
+  it.each([
+    [true, { top: expect.any(Number) }],
+    [false, { bottom: expect.any(Number) }],
+  ])(
+    "the escalation toast sits top-end when wide=%s, above the composer when narrow (UX-07)",
+    async (wide, where) => {
+      jest.mocked(useIsWide).mockReturnValue(wide);
+      const st = stateFrom([
+        hello,
+        { type: "call_started", call_id: CALL },
+        { type: "escalation", question: "Bitcoin deposit?" },
+      ]);
+      await render(<CallView session={session(st)} mock={false} />);
+      const style = RN.StyleSheet.flatten(screen.getByTestId("toast-wrap").props.style);
+      expect(style).toMatchObject(where);
+      expect(style).toHaveProperty("pointerEvents", "none");
+      if (wide) {
+        expect(style.bottom).toBeUndefined();
+        expect(style.end).toBeDefined();
+        expect(style.start).toBeUndefined();
+      } else expect(style.top).toBeUndefined();
+    },
+  );
 
   it("ended: offers another call and hides the composer", async () => {
     const s = session(

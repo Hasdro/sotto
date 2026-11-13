@@ -18,6 +18,18 @@ const en = {
   "call.rail.label": "Context",
   /** UX-02: the thumbs' group name (no visible question). */
   "rating.group": "Rate this suggestion",
+  /** Shared primitive labels (Toast action, Sheet close, ChecklistRow edit) and gallery samples. */
+  "ui.undo": "Undo",
+  "ui.close": "Close",
+  "ui.edit": "Edit",
+  "ui.sample.noteOn": "Note on",
+  "ui.sample.calls": "Calls this week",
+  "ui.sample.callsHint": "3 more than last week",
+  "ui.sample.task": "Log the call in Zoho",
+  "ui.sample.helper": "Enter a client ID first",
+  "ui.sample.save": "Save client",
+  "ui.sample.deleted": "Note deleted",
+  "ui.sample.sheet": "Open sheet",
 } as const;
 
 export type CallTextKey = keyof typeof en;
@@ -29,6 +41,17 @@ const ar: Record<CallTextKey, string> = {
   "call.practice": "تدريب",
   "call.rail.label": "السياق",
   "rating.group": "قيّم هذا الاقتراح",
+  "ui.undo": "تراجع",
+  "ui.close": "إغلاق",
+  "ui.edit": "تعديل",
+  "ui.sample.noteOn": "ملاحظة على",
+  "ui.sample.calls": "مكالمات هذا الأسبوع",
+  "ui.sample.callsHint": "3 أكثر من الأسبوع الماضي",
+  "ui.sample.task": "سجّل المكالمة في Zoho",
+  "ui.sample.helper": "أدخل معرّف العميل أولاً",
+  "ui.sample.save": "احفظ العميل",
+  "ui.sample.deleted": "حُذفت الملاحظة",
+  "ui.sample.sheet": "افتح اللوحة",
 };
 
 export const CALL_TEXT: Record<Locale, Record<CallTextKey, string>> = { en, ar };

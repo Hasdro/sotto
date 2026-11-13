@@ -6,24 +6,10 @@
  * builds without a server use the local demo bridge (D-013); `?mock=1` (development only) replays
  * a canned call so the screen can be reviewed without the worker (mock-stream.ts).
  */
-import {
-  Button,
-  EmptyState,
-  layout,
-  motion,
-  Panel,
-  Screen,
-  Stack,
-  space,
-  Text,
-  Toast,
-  useTheme,
-} from "@sotto/ui";
+import { EmptyState, layout, motion, Screen, space, Toast, useTheme } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
-import { FeatureGate } from "../components/FeatureGate";
-import { PostCallPanel } from "../features/actions/PostCallPanel";
 import { useSharedCall } from "../features/call/CallSessionProvider";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CallNotes } from "../features/call/components/CallNotes";
@@ -31,6 +17,7 @@ import { CardStack } from "../features/call/components/CardStack";
 import { Composer, type MicControl } from "../features/call/components/Composer";
 import { ConfirmEnd } from "../features/call/components/ConfirmEnd";
 import { CrmRail } from "../features/call/components/CrmRail";
+import { EndedView } from "../features/call/components/EndedView";
 import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
@@ -39,13 +26,9 @@ import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
-import { bindCall, useAttached } from "../features/crm/attached";
+import { bindCall } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
-import { EmailAction } from "../features/email";
 import { useEscalations } from "../features/escalations/store";
-import { CallReviewPanel } from "../features/review/CallReviewPanel";
-import { FollowUp } from "../features/review/FollowUp";
-import { WhatsAppAction } from "../features/whatsapp";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 
@@ -162,6 +145,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       company={state.hello.company_name}
       phase={state.phase}
       mode={state.hello.mode}
+      practice={practice}
       startedAt={state.startedAt}
       endedAt={state.endedAt}
       mock={mock}
@@ -213,47 +197,25 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
         )
       ) : null}
       {state.phase === "ended" ? (
-        <Panel style={styles.ended} testID="call-ended">
-          <View style={styles.grow}>
-            <Text variant="heading" weight="semibold" accessibilityRole="header">
-              {t("call.ended.title")}
-            </Text>
-            <Text variant="body" tone="muted">
-              {t("call.ended.body", { cards: cards.length })}
-            </Text>
-          </View>
-          <Button
-            label={t("call.ended.again")}
-            onPress={() =>
-              practice ? session.start(null) : session.startListening(session.source)
-            }
-          />
-        </Panel>
-      ) : null}
-      {state.phase === "ended" && (!practice || mock) ? (
-        // R12 (T-061): Zoho writes, each approved on its own card, and the follow-up slot.
-        <PostCallPanel
+        <EndedView
+          cardCount={cards.length}
+          practice={practice}
+          mock={mock}
+          callId={state.callId ?? null}
           perform={mock ? mockPerform : undefined}
-          slot={<MessagingSlot callId={state.callId ?? null} />}
+          onAgain={() => (practice ? session.start(null) : session.startListening(session.source))}
         />
-      ) : null}
-      {state.phase === "ended" && !practice ? (
-        <FeatureGate feature="call_review">
-          <CallReviewPanel callId={state.callId ?? null} />
-        </FeatureGate>
-      ) : null}
-      {state.phase === "ended" && !practice ? (
-        <FeatureGate feature="follow_up">
-          <FollowUp callId={state.callId ?? null} />
-        </FeatureGate>
       ) : null}
       {state.phase !== "idle" ? (
         <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
       ) : null}
     </View>
   );
+  // UX-07: top-end on wide, above the composer on narrow; never takes a touch (pointerEvents
+  // none), so rows under it stay usable. An escalation says only "Sent to your manager": the
+  // question is already in the transcript line.
   const toast = notice ? (
-    <View style={[styles.toast, wide ? styles.toastWide : null]} pointerEvents="none">
+    <View testID="toast-wrap" style={[styles.toast, wide ? styles.toastWide : styles.toastNarrow]}>
       <Toast
         testID="toast"
         title={t(
@@ -263,7 +225,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
               ? "call.notice.title"
               : "call.error.title",
         )}
-        body={notice.kind === "error" ? t("call.error.body") : notice.text}
+        {...(notice.kind === "error"
+          ? { body: t("call.error.body") }
+          : notice.kind === "info"
+            ? { body: notice.text }
+            : {})}
       />
     </View>
   ) : null;
@@ -273,8 +239,11 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       <View testID="call-live" style={styles.row}>
         <View style={styles.grow}>
           {header}
-          <ScrollView contentContainerStyle={styles.mainWide}>{main}</ScrollView>
-          {toast}
+          {/* The toast sits at the top-end of the content, under the header's controls. */}
+          <View style={styles.grow}>
+            <ScrollView contentContainerStyle={styles.mainWide}>{main}</ScrollView>
+            {toast}
+          </View>
           {confirm}
           {controls}
         </View>
@@ -350,20 +319,7 @@ const styles = StyleSheet.create({
   sideCrm: { flexGrow: 0, maxHeight: "55%" },
   sideCrmBody: { padding: space.lg, paddingBottom: 0 },
   sideNotes: { paddingHorizontal: space.lg, paddingBottom: space.md },
-  ended: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
-  toast: { position: "absolute", bottom: space.md, start: space.md, end: space.md },
-  toastWide: { bottom: space.xl, start: space.xxl, end: undefined, maxWidth: layout.toastMaxWidth },
+  toast: { position: "absolute", pointerEvents: "none" },
+  toastNarrow: { bottom: space.md, start: space.md, end: space.md },
+  toastWide: { top: space.lg, end: space.xxl, maxWidth: layout.toastMaxWidth, width: "100%" },
 });
-
-/** R12 (T-063/T-065): email and WhatsApp after the call, prefilled from the attached Zoho record.
- * Each action greys or hides itself from the feature map and sends only after its own confirm. */
-function MessagingSlot({ callId }: { callId: string | null }) {
-  const crm = useAttached();
-  const person = crm.kind === "attached" ? crm.brief.person : null;
-  return (
-    <Stack gap="md">
-      <EmailAction callId={callId} customer={{ name: person?.name, email: person?.email }} />
-      <WhatsAppAction callId={callId} customer={{ name: person?.name, phone: person?.phone }} />
-    </Stack>
-  );
-}
