@@ -71,7 +71,7 @@
       "roles": ["admin", "manager", "agent"],
       "requires": [],
       "depends": [],
-      "built": false
+      "built": true
     },
     {
       "id": "card_ratings",

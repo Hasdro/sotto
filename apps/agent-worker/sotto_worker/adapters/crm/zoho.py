@@ -11,13 +11,16 @@ from typing import Any
 import httpx
 
 TIMEOUT_S = 8.0
-# v1 read matrix (D-031). Any other module is refused before a request leaves the server.
+# v1 matrix (D-031). Any other module is refused before a request leaves the server; Deals and
+# Accounts are read-only, so no Deal stage or amount write can be built here.
 READ_MODULES = frozenset({"Leads", "Contacts", "Accounts", "Deals", "Events", "Notes"})
+WRITE_MODULES = frozenset({"Leads", "Contacts", "Events", "Notes"})
 PERSON_FIELDS = {
     "Contacts": "Full_Name,First_Name,Last_Name,Title,Email,Phone,Mobile,Account_Name",
     "Leads": "Full_Name,First_Name,Last_Name,Designation,Email,Phone,Mobile,Company,Industry",
 }
 DEAL_FIELDS = "Deal_Name,Stage,Amount,Closing_Date,Owner"
+EVENT_FIELDS = "Event_Title,Start_DateTime,End_DateTime,Description,Who_Id,What_Id,Participants"
 NOTE_FIELDS = "Note_Title,Note_Content,Created_Time"
 ACCOUNT_FIELDS = "Account_Name,Industry"
 
@@ -35,6 +38,11 @@ class ModuleNotAllowed(ValueError):
 
 def check_read(module: str) -> None:
     if module not in READ_MODULES:
+        raise ModuleNotAllowed(module)
+
+
+def check_write(module: str) -> None:
+    if module not in WRITE_MODULES:
         raise ModuleNotAllowed(module)
 
 
@@ -95,6 +103,55 @@ class ZohoCRMReader:
             {"fields": fields, "per_page": per_page},
         )
         return [d for d in data.get("data") or [] if isinstance(d, dict)]
+
+    async def search_criteria(
+        self, module: str, criteria: str, fields: str
+    ) -> list[dict[str, Any]]:
+        data = await self._get(
+            f"{module}/search", {"criteria": criteria, "fields": fields, "per_page": 20}
+        )
+        return [d for d in data.get("data") or [] if isinstance(d, dict)]
+
+    async def _send(self, method: str, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """One record written; returns Zoho's `details` (id) and `action` (insert/update)."""
+        parts = path.strip("/").split("/")
+        for part in parts:
+            if not part.isdigit() and part != "upsert":
+                check_write(part)
+        try:
+            r = await self._http.request(
+                method,
+                f"{self._base}/{path.lstrip('/')}",
+                json=body,
+                headers=self._headers,
+                timeout=TIMEOUT_S,
+            )
+            data = r.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise ZohoError(0, type(e).__name__) from None
+        rows = data.get("data") if isinstance(data, dict) else None
+        first = rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+        if r.status_code >= 400 or str(first.get("status", "")).lower() != "success":
+            code = str(first.get("code") or (data.get("code") if isinstance(data, dict) else ""))
+            raise ZohoError(r.status_code, code[:40])
+        raw_details = first.get("details")
+        details: dict[str, Any] = raw_details if isinstance(raw_details, dict) else {}
+        return {"id": str(details.get("id", "")), "action": str(first.get("action", ""))}
+
+    async def create(self, module: str, record: dict[str, Any]) -> dict[str, Any]:
+        return await self._send("POST", module, {"data": [record]})
+
+    async def upsert(
+        self, module: str, record: dict[str, Any], duplicate_check: list[str]
+    ) -> dict[str, Any]:
+        return await self._send(
+            "POST",
+            f"{module}/upsert",
+            {"data": [record], "duplicate_check_fields": duplicate_check},
+        )
+
+    async def update(self, module: str, record_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        return await self._send("PUT", f"{module}/{record_id}", {"data": [record]})
 
     async def modules(self) -> list[dict[str, Any]]:
         data = await self._get("settings/modules")

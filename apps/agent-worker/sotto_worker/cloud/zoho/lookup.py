@@ -12,6 +12,7 @@ from typing import Any
 from sotto_worker.adapters.crm.zoho import (
     ACCOUNT_FIELDS,
     DEAL_FIELDS,
+    EVENT_FIELDS,
     NOTE_FIELDS,
     PERSON_FIELDS,
     ZohoCRMReader,
@@ -148,6 +149,7 @@ async def build_brief(
     if module == "Contacts":
         deals = [
             {
+                "id": _s(d.get("id")),
                 "name": _s(d.get("Deal_Name")),
                 "stage": _s(d.get("Stage")),
                 "amount": _s(d.get("Amount")),
@@ -188,9 +190,19 @@ async def build_brief(
 def brief_text(brief: dict[str, Any]) -> str:
     """The compact text the live prompt's `crm.brief` variable carries (data, not instructions),
     capped at BRIEF_CHARS: notes are dropped from the oldest first, then the text is cut."""
-    p = brief["person"]
-    head = ", ".join(x for x in (p["name"], p["title"]) if x)
-    lines = [f"{'Lead' if p['module'] == 'Leads' else 'Contact'}: {head}"]
+    p = brief.get("person")
+    lines: list[str] = []
+    m = brief.get("meeting")
+    if m:
+        when = f"{m['start'][:16].replace('T', ' ')} to {m['end'][11:16]}" if m.get("start") else ""
+        lines.append(f"Meeting: {m['title']}" + (f", {when}" if when else ""))
+        if m.get("participants"):
+            lines.append("Attendees: " + ", ".join(m["participants"]))
+        if m.get("agenda"):
+            lines.append(f"Agenda: {m['agenda']}")
+    if p:
+        head = ", ".join(x for x in (p["name"], p["title"]) if x)
+        lines.append(f"{'Lead' if p['module'] == 'Leads' else 'Contact'}: {head}")
     a = brief.get("account")
     if a and a.get("name"):
         lines.append("Account: " + a["name"] + (f" ({a['industry']})" if a.get("industry") else ""))
@@ -208,3 +220,84 @@ def brief_text(brief: dict[str, Any]) -> str:
     while notes and len("\n".join(lines + notes)) > BRIEF_CHARS:
         notes.pop()
     return "\n".join(lines + notes)[:BRIEF_CHARS]
+
+
+# --- Meetings (Zoho module `Events`, label "Meetings"; REFERENCES § Zoho) ---------------------
+MEETING_BEFORE = timedelta(hours=3)
+MEETING_AFTER = timedelta(hours=12)
+AGENDA_CHARS = 300
+
+
+def _iso(t: datetime) -> str:
+    return t.astimezone(UTC).replace(microsecond=0).isoformat()
+
+
+def _start(rec: dict[str, Any]) -> datetime | None:
+    try:
+        t = datetime.fromisoformat(_s(rec.get("Start_DateTime")))
+    except ValueError:
+        return None
+    return t if t.tzinfo else None
+
+
+def _participants(rec: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    for p in rec.get("Participants") or []:
+        if isinstance(p, dict):
+            name = _s(p.get("name")) or _s(p.get("Email"))
+            if name and name not in out:
+                out.append(name)
+    return out[:8]
+
+
+def _meeting(rec: dict[str, Any]) -> dict[str, Any]:
+    who = rec.get("Who_Id") if isinstance(rec.get("Who_Id"), dict) else None
+    return {
+        "id": _s(rec.get("id")),
+        "title": _s(rec.get("Event_Title")),
+        "start": _s(rec.get("Start_DateTime")),
+        "end": _s(rec.get("End_DateTime")),
+        "agenda": " ".join(_s(rec.get("Description")).split())[:AGENDA_CHARS],
+        "participants": _participants(rec),
+        "contact": {"id": _s(who.get("id")), "name": _s(who.get("name"))} if who else None,
+    }
+
+
+async def find_meetings(
+    reader: ZohoCRMReader, *, now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Meetings from 3 hours ago to 12 hours ahead, the three nearest to now. Shown as
+    candidates with their time as the evidence; the agent still picks."""
+    t = now or datetime.now(UTC)
+    criteria = (
+        f"((Start_DateTime:greater_equal:{_iso(t - MEETING_BEFORE)})"
+        f"and(Start_DateTime:less_equal:{_iso(t + MEETING_AFTER)}))"
+    )
+    rows = await reader.search_criteria("Events", criteria, EVENT_FIELDS)
+    timed = [(abs((s - t).total_seconds()), r) for r in rows if (s := _start(r)) is not None]
+    timed.sort(key=lambda x: x[0])
+    out = []
+    for _, r in timed[:MAX_CANDIDATES]:
+        m = _meeting(r)
+        out.append({**m, "evidence": {"field": "time", "value": m["start"]}})
+    return out
+
+
+async def build_meeting_brief(
+    reader: ZohoCRMReader, event_id: str, *, now: datetime | None = None
+) -> dict[str, Any] | None:
+    if not RECORD_ID.match(event_id):
+        raise ValueError("unknown meeting")
+    rec = await reader.record("Events", event_id, EVENT_FIELDS)
+    if rec is None:
+        return None
+    meeting = _meeting(rec)
+    contact = meeting.pop("contact")
+    brief: dict[str, Any] | None = None
+    if contact and RECORD_ID.match(contact["id"]):
+        brief = await build_brief(reader, "Contacts", contact["id"], now=now)
+    if brief is None:
+        brief = {"person": None, "account": None, "deals": [], "notes": []}
+    brief["meeting"] = meeting
+    brief["text"] = brief_text(brief)
+    return brief

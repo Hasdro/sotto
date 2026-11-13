@@ -221,6 +221,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "zoho_no_client": HTTPStatus.CONFLICT,
         "zoho_reconnect": HTTPStatus.CONFLICT,
         "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
+        "in_flight": HTTPStatus.CONFLICT,
         "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
     }
 
@@ -318,6 +319,21 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         return JSONResponse(
             {"features": store.features_for(who)}, headers={"Cache-Control": "no-store"}
         )
+
+    @app_route
+    async def call_brief_put(request: Request, who: Principal) -> Response:
+        """The structured pre-call brief, saved with the call (R10, T-056)."""
+        store.require_feature(who, "prep")
+        data = await body(request)
+        brief = data.get("brief")
+        if not isinstance(brief, dict):
+            raise CloudError("invalid", "send the brief")
+        store.save_call_brief(who, request.path_params["call_id"], brief)
+        return JSONResponse({"ok": True})
+
+    @app_route
+    async def call_brief_get(request: Request, who: Principal) -> Response:
+        return JSONResponse({"brief": store.call_brief(who, request.path_params["call_id"])})
 
     @app_route
     async def company_features_get(_request: Request, who: Principal) -> Response:
@@ -934,6 +950,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/usage", usage, methods=["POST"]),
         Route(f"{api}/company/usage", company_usage),
         Route(f"{api}/calls/{{call_id}}/review", review_post, methods=["POST"]),
+        Route(f"{api}/calls/{{call_id}}/brief", call_brief_put, methods=["PUT"]),
+        Route(f"{api}/calls/{{call_id}}/brief", call_brief_get),
         Route(f"{api}/recordings/{{call_id}}", recording_put, methods=["PUT"]),
         Route(f"{api}/recordings/{{call_id}}", recording_get),
         Route(f"{api}/company/settings", settings_get),
