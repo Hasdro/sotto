@@ -162,7 +162,11 @@ function subscribe(fn: () => void): () => void {
 }
 
 export function useReview(id: string | null): ReviewState {
-  useSyncExternalStore(subscribe, () => version, () => version);
+  useSyncExternalStore(
+    subscribe,
+    () => version,
+    () => version,
+  );
   return id ? reviewState(id) : { status: "none" };
 }
 
@@ -186,6 +190,10 @@ export function setAfterCallItem(
 
 /** The saved/skipped lists of one call, for React (History detail). */
 export function useAfterCall(id: string | null): AfterCall | null {
-  useSyncExternalStore(subscribe, () => version, () => version);
+  useSyncExternalStore(
+    subscribe,
+    () => version,
+    () => version,
+  );
   return id ? (deviceCall(id)?.after_call ?? null) : null;
 }

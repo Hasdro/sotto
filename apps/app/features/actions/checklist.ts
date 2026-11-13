@@ -47,7 +47,9 @@ export function deviceTimeZone(): string {
 }
 
 /** The parent of the call log (D-047): Deal, else Contact, else Lead. */
-export function callLogParent(brief: Brief | null): { field: string; module: string; id: string } | null {
+export function callLogParent(
+  brief: Brief | null,
+): { field: string; module: string; id: string } | null {
   const deal = brief?.deals.find((d) => d.id);
   if (deal) return { field: "deal_id", module: "Deals", id: deal.id };
   const p = brief?.person;
@@ -277,7 +279,11 @@ export function buildItems(opts: {
 }
 
 /** "https://www.zohoapis.eu" → "https://crm.zoho.eu/crm/tab/Deals/<id>"; null when unknown. */
-export function zohoWebUrl(apiDomain: string | undefined, module: string, id: string): string | null {
+export function zohoWebUrl(
+  apiDomain: string | undefined,
+  module: string,
+  id: string,
+): string | null {
   const m = /^https:\/\/(?:www\.)?zohoapis\.([a-z.]+)\/?$/.exec(apiDomain ?? "");
   if (!m || !/^\d{5,25}$/.test(id)) return null;
   return `https://crm.zoho.${m[1]}/crm/tab/${module}/${id}`;

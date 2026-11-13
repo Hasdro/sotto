@@ -6,7 +6,7 @@
  * Gallabox templates. Nothing is ever sent without the agent's confirm (R12). "Skip follow-up"
  * has a 5 s Undo (UX-23) and is kept with the call.
  */
-import { buildRuntime, draftFollowUp, type FollowUp as Draft } from "@sotto/engine";
+import { buildRuntime, type FollowUp as Draft, draftFollowUp } from "@sotto/engine";
 import {
   Button,
   Icon,
@@ -91,7 +91,7 @@ export function FollowUp({
       setPhase(d ? "ready" : "none");
     });
   };
-  // biome-ignore lint/correctness/useExhaustiveDependencies: draft once when the card appears
+  // Drafts once when the card appears (phase leaves "idle" on the first run).
   useEffect(() => {
     if (auto && visible && phase === "idle") make();
   }, [auto, visible]);
@@ -148,12 +148,7 @@ export function FollowUp({
             {ft("fu.sent")}
           </Text>
         ) : (
-          <Button
-            variant="ghost"
-            label={ft("fu.skip")}
-            onPress={skip}
-            testID="followup-skip"
-          />
+          <Button variant="ghost" label={ft("fu.skip")} onPress={skip} testID="followup-skip" />
         )}
       </View>
       <SegmentedControl

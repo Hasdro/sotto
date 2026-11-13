@@ -5,10 +5,15 @@ import { UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { ActionCard, localToIso } from "../features/actions/ActionCard";
 import { AfterCallChecklist } from "../features/actions/AfterCallChecklist";
-import { callLogSummary, dealNoteLabel, deviceTimeZone, zohoWebUrl } from "../features/actions/checklist";
+import {
+  callLogSummary,
+  dealNoteLabel,
+  deviceTimeZone,
+  zohoWebUrl,
+} from "../features/actions/checklist";
 import { QuickActions } from "../features/actions/PostCallPanel";
-import { EndedView } from "../features/call/components/EndedView";
 import { actionsText } from "../features/actions/strings";
+import { EndedView } from "../features/call/components/EndedView";
 import type { Brief } from "../features/crm/api";
 import { attachBrief, resetCall, setPrep } from "../features/crm/attached";
 import { useZoho } from "../features/crm/useZoho";
@@ -283,7 +288,9 @@ describe("AfterCallChecklist (UX-04, D-044)", () => {
     // Changing the time asks for a fresh confirmation and unticks the row.
     await fireEvent.changeText(screen.getByTestId("after-meeting-time"), "16:00");
     expect(checked("meeting")).toBe(false);
-    expect(screen.getByText(`I checked the date, time and time zone (${deviceTimeZone()})`)).toBeOnTheScreen();
+    expect(
+      screen.getByText(`I checked the date, time and time zone (${deviceTimeZone()})`),
+    ).toBeOnTheScreen();
   });
 
   it("previews the call-log note; risk signals are offered, reasons only, labelled AI-estimated", async () => {
@@ -305,7 +312,12 @@ describe("AfterCallChecklist (UX-04, D-044)", () => {
       attachBrief(BRIEF);
       const onOpen = jest.fn();
       await wrap(
-        <AfterCallChecklist callId="c1" review={REVIEW} perform={jest.fn()} onOpenChange={onOpen} />,
+        <AfterCallChecklist
+          callId="c1"
+          review={REVIEW}
+          perform={jest.fn()}
+          onOpenChange={onOpen}
+        />,
       );
       await fireEvent.press(screen.getByTestId("after-meeting-skip"));
       expect(screen.queryByTestId("after-meeting")).toBeNull();
@@ -376,7 +388,14 @@ describe("EndedView (UX-04, UX-24)", () => {
         },
       };
       await wrap(
-        <EndedView cardCount={2} practice={false} mock={false} callId="e1" perform={jest.fn()} onAgain={jest.fn()} />,
+        <EndedView
+          cardCount={2}
+          practice={false}
+          mock={false}
+          callId="e1"
+          perform={jest.fn()}
+          onAgain={jest.fn()}
+        />,
       );
       await act(async () => {});
       const tree = JSON.stringify(screen.toJSON());
@@ -386,7 +405,12 @@ describe("EndedView (UX-04, UX-24)", () => {
       expect(at("after-checklist")).toBeLessThan(at("followup"));
       expect(at("followup")).toBeLessThan(at("after-again-secondary"));
       expect(screen.queryByTestId("after-all-done")).toBeNull();
-      for (const id of ["after-call_log-skip", "after-meeting-skip", "after-contact_update-skip", "followup-skip"])
+      for (const id of [
+        "after-call_log-skip",
+        "after-meeting-skip",
+        "after-contact_update-skip",
+        "followup-skip",
+      ])
         await fireEvent.press(screen.getByTestId(id));
       await act(() => jest.advanceTimersByTime(5000));
       expect(screen.getByTestId("after-again-primary")).toBeOnTheScreen();

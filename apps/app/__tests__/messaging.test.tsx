@@ -7,14 +7,14 @@ import { attachBrief, resetCall } from "../features/crm/attached";
 import { EmailAction } from "../features/email";
 import { SmtpSettings } from "../features/email/SmtpSettings";
 import { EMAIL_TEXT } from "../features/email/strings";
-import { WhatsAppAction } from "../features/whatsapp";
 import { followUpWarnings } from "../features/email/warnings";
 import { FollowUp } from "../features/review/FollowUp";
 import { REVIEW_TEXT } from "../features/review/strings";
+import { WhatsAppAction } from "../features/whatsapp";
 import { GallaboxSettings } from "../features/whatsapp/GallaboxSettings";
 import { WHATSAPP_TEXT } from "../features/whatsapp/strings";
-import type { Locale } from "../lib/i18n";
 import { deviceCall, saveDeviceCall } from "../lib/deviceHistory";
+import type { Locale } from "../lib/i18n";
 import { LocaleProvider } from "../lib/locale";
 
 jest.mock("@sotto/engine", () => ({
@@ -421,7 +421,9 @@ describe("FollowUp card (UX-05, D-045)", () => {
     call("f1");
     await wrap(<FollowUp callId="f1" auto />);
     expect(screen.getByText("Follow up with \u2066Jane Doe\u2069")).toBeTruthy();
-    await waitFor(() => expect(screen.getByTestId("email-body").props.value).toBe("Thanks for today."));
+    await waitFor(() =>
+      expect(screen.getByTestId("email-body").props.value).toBe("Thanks for today."),
+    );
     expect(screen.getByTestId("email-subject").props.value).toBe("Your demo");
     expect(screen.getAllByTestId("followup")).toHaveLength(1);
     expect(screen.queryByTestId("whatsapp-action")).toBeNull();

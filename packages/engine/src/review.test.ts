@@ -116,7 +116,10 @@ describe("review v3 fields (UX-27, INT-01c, INT-02m, INT-07)", () => {
 
   it("drops a malformed date or time instead of guessing, and keeps v2 replies working", () => {
     const r = parseReview(
-      JSON.stringify({ ...V3, next_step: { text: "Call back", date: "next Tuesday", time: "3pm" } }),
+      JSON.stringify({
+        ...V3,
+        next_step: { text: "Call back", date: "next Tuesday", time: "3pm" },
+      }),
     );
     expect(r?.next_step).toEqual({ text: "Call back", date: null, time: null });
     const v2 = parseReview(JSON.stringify(GOOD));

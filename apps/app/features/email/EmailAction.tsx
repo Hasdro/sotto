@@ -304,7 +304,9 @@ function PreviewBox({ preview, title }: { preview: Preview; title: string }) {
   const rows: [string, string, string][] = [
     [t("email.from"), `${preview.from.name} <${preview.from.address}>`, "from"],
     [t("email.to"), preview.to.join(", "), "to"],
-    ...(preview.cc.length ? [[t("email.cc"), preview.cc.join(", "), "cc"] as [string, string, string]] : []),
+    ...(preview.cc.length
+      ? [[t("email.cc"), preview.cc.join(", "), "cc"] as [string, string, string]]
+      : []),
     [t("email.subject"), preview.subject, "subject"],
   ];
   return (

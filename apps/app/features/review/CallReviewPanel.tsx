@@ -92,7 +92,10 @@ function Review({ review, callId }: { review: CallReview; callId: string | null 
           style={[styles.chip, { backgroundColor: bandTone.fill }]}
           testID="review-chance"
           accessible
-          accessibilityLabel={rt("rv.chance.a11y", { band: rt(`rv.chance.${band}`), n: review.success })}
+          accessibilityLabel={rt("rv.chance.a11y", {
+            band: rt(`rv.chance.${band}`),
+            n: review.success,
+          })}
         >
           <View style={[styles.dot, { backgroundColor: bandTone.accent }]} />
           <Text variant="label" weight="medium" color={bandTone.text}>
@@ -124,7 +127,11 @@ function Review({ review, callId }: { review: CallReview; callId: string | null 
         </View>
       ) : null}
 
-      <Disclosure title={rt("rv.details")} summary={rt("rv.detailsSummary")} testID="review-details">
+      <Disclosure
+        title={rt("rv.details")}
+        summary={rt("rv.detailsSummary")}
+        testID="review-details"
+      >
         <View style={styles.body}>
           {review.summary ? (
             <View style={styles.gap}>
@@ -183,8 +190,16 @@ function Review({ review, callId }: { review: CallReview; callId: string | null 
             </Text>
           </View>
           <View style={styles.lists}>
-            <Points title={t("review.strengths")} items={review.strengths} dot={card.answer.accent} />
-            <Points title={t("review.improve")} items={review.improve} dot={card.objection.accent} />
+            <Points
+              title={t("review.strengths")}
+              items={review.strengths}
+              dot={card.answer.accent}
+            />
+            <Points
+              title={t("review.improve")}
+              items={review.improve}
+              dot={card.objection.accent}
+            />
           </View>
           <Text variant="label" tone="muted" style={{ color: color.textMuted }}>
             {t("review.disclaimer")}

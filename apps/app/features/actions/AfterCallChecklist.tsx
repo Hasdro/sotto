@@ -14,8 +14,8 @@ import {
   Stack,
   Text,
   TextField,
-  ToggleRow,
   Toast,
+  ToggleRow,
 } from "@sotto/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Linking, View } from "react-native";
@@ -37,8 +37,22 @@ import {
 } from "./checklist";
 import { useActionsText } from "./strings";
 
-type Status = "open" | "saving" | "saved" | "failed" | "unknown" | "reconnect" | "skipping" | "skipped";
-type Row = { values: Record<string, string>; ticked: boolean; status: Status; error?: string; touched?: boolean };
+type Status =
+  | "open"
+  | "saving"
+  | "saved"
+  | "failed"
+  | "unknown"
+  | "reconnect"
+  | "skipping"
+  | "skipped";
+type Row = {
+  values: Record<string, string>;
+  ticked: boolean;
+  status: Status;
+  error?: string;
+  touched?: boolean;
+};
 export type SaveLog = typeof saveCallLog;
 
 const HANDLED: readonly Status[] = ["saved", "unknown", "skipped"];
@@ -94,7 +108,12 @@ export function AfterCallChecklist({
       return next;
     });
   }, [items]);
-  useEffect(() => () => Object.values(timers.current).forEach((h) => clearTimeout(h)), []);
+  useEffect(
+    () => () => {
+      for (const h of Object.values(timers.current)) clearTimeout(h);
+    },
+    [],
+  );
 
   const row = (id: ItemId): Row => rows[id] ?? { values: {}, ticked: false, status: "open" };
   const update = (id: ItemId, patch: Partial<Row>) =>
@@ -133,7 +152,8 @@ export function AfterCallChecklist({
       const code = e instanceof CloudError ? e.code : "";
       // zoho_unknown: Zoho may have saved it; the server keeps the key, so no retry from here.
       update(item.id, {
-        status: code === "zoho_reconnect" ? "reconnect" : code === "zoho_unknown" ? "unknown" : "failed",
+        status:
+          code === "zoho_reconnect" ? "reconnect" : code === "zoho_unknown" ? "unknown" : "failed",
       });
     }
   };
