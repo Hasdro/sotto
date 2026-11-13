@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { desktop } from "../../../lib/desktop";
 import { isWindows } from "../../../lib/platform";
-import { prefs } from "../../../lib/prefs";
+import { prefs, setPrefs } from "../../../lib/prefs";
 import {
   type CheckResult,
   checkFix,
@@ -51,6 +51,7 @@ export function AudioCheck({
     setLevels({ customer: 0, agent: 0 });
     void run({ computer, onLevel: (l) => alive.current && setLevels(l) }).then((r) => {
       rememberCheck(key, r);
+      if (!checkFix(r)) setPrefs({ audioChecked: true }); // Home's "Test audio" step completes
       if (!alive.current) return;
       setResult(r);
       setFresh(true);
