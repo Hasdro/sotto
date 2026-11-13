@@ -58,7 +58,9 @@ def credentials(store: CloudStore, company_id: str) -> dict[str, str] | None:
     if not rows:
         return None
     try:
-        return dict(json.loads(store._vault.decrypt(f"gallabox:{company_id}", rows[0]["ciphertext"])))
+        return dict(
+            json.loads(store._vault.decrypt(f"gallabox:{company_id}", rows[0]["ciphertext"]))
+        )
     except VaultError:
         return None
 
@@ -86,8 +88,12 @@ def save(store: CloudStore, who: Principal, raw: dict[str, Any], *, ip: str = ""
         )
         changed = [f for f in FIELDS if creds[f] != old.get(f)]
         store.audit(
-            db, "gallabox.set", "changed " + ", ".join(changed or ["nothing"]),
-            company_id=who.company, actor=who, ip=ip,
+            db,
+            "gallabox.set",
+            "changed " + ", ".join(changed or ["nothing"]),
+            company_id=who.company,
+            actor=who,
+            ip=ip,
         )
 
 
@@ -107,9 +113,7 @@ def configured(store: CloudStore, company_id: str) -> bool:
 
 def status(store: CloudStore, company_id: str) -> dict[str, Any]:
     ensure(store)
-    rows = store._q(
-        "SELECT updated_at FROM company_gallabox WHERE company_id = ?", (company_id,)
-    )
+    rows = store._q("SELECT updated_at FROM company_gallabox WHERE company_id = ?", (company_id,))
     return {
         "configured": bool(rows),
         **({"updated_at": int(rows[0]["updated_at"])} if rows else {}),

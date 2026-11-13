@@ -120,12 +120,18 @@ def make_routes(
         if not isinstance(picked, list) or len(picked) > MAX_TEMPLATES:
             raise CloudError("invalid", f"select up to {MAX_TEMPLATES} templates")
         wanted = {
-            (str(p.get("name", "")), str(p.get("language", ""))) for p in picked if isinstance(p, dict)
+            (str(p.get("name", "")), str(p.get("language", "")))
+            for p in picked
+            if isinstance(p, dict)
         }
-        live = {(t.name, t.language): t for t in await live_templates(who.company)} if wanted else {}
+        live = (
+            {(t.name, t.language): t for t in await live_templates(who.company)} if wanted else {}
+        )
         missing = wanted - set(live)
         if missing:
-            raise CloudError("invalid", f"not in Gallabox: {', '.join(n for n, _ in sorted(missing))}")
+            raise CloudError(
+                "invalid", f"not in Gallabox: {', '.join(n for n, _ in sorted(missing))}"
+            )
         chosen = [live[k] for k in sorted(wanted)]
         unapproved = [t.name for t in chosen if t.status and t.status != "APPROVED"]
         if unapproved:
@@ -152,9 +158,10 @@ def make_routes(
         )
         if tpl is None:
             raise CloudError("invalid", "that template is not on your organisation's list")
-        raw = d.get("values") if isinstance(d.get("values"), dict) else {}
+        given, to = d.get("values"), d.get("recipient")
+        raw: dict[str, Any] = given if isinstance(given, dict) else {}
         values = {p.name: check_value(p.name, raw.get(p.name)) for p in tpl.params}
-        recipient = d.get("recipient") if isinstance(d.get("recipient"), dict) else {}
+        recipient: dict[str, Any] = to if isinstance(to, dict) else {}
         phone = digits(str(recipient.get("phone", "")))
         if not 8 <= len(phone) <= 15:
             raise CloudError("invalid", "enter the customer's phone with country code")
@@ -190,7 +197,9 @@ def make_routes(
             raise CloudError("in_progress", "this message is being sent")
         detail = f"{tpl.name}/{tpl.language} to {mask(phone)}"
         if not send_limit(f"wa:{who.company}:{who.user_id}"):
-            data.finish_send(store, who, idem, ok=False, detail=f"{detail}: rate limited", ip=ip_of(r))
+            data.finish_send(
+                store, who, idem, ok=False, detail=f"{detail}: rate limited", ip=ip_of(r)
+            )
             raise CloudError("rate_limited", "too many messages; wait a minute")
         async with http() as h:
             try:
@@ -212,7 +221,9 @@ def make_routes(
                     ) from None
                 raise failed(e) from None
             except CloudError:
-                data.finish_send(store, who, idem, ok=False, detail=f"{detail}: no keys", ip=ip_of(r))
+                data.finish_send(
+                    store, who, idem, ok=False, detail=f"{detail}: no keys", ip=ip_of(r)
+                )
                 raise
         data.finish_send(store, who, idem, ok=True, detail=detail, ip=ip_of(r))
         return JSONResponse(

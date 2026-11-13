@@ -167,7 +167,8 @@ class Gallabox:
             except ValueError:
                 data = {}
             if isinstance(data, dict):
-                err = data.get("error") if isinstance(data.get("error"), dict) else data
+                inner = data.get("error")
+                err: dict[str, Any] = inner if isinstance(inner, dict) else data
                 code = _s(err.get("code"), 20)
                 detail = _s(err.get("message") or err.get("msg"), 200)
                 if detail:
@@ -194,9 +195,7 @@ class Gallabox:
         values: dict[str, str],
     ) -> str:
         body_values = {p.name: values[p.name] for p in template.params if p.component == "body"}
-        header_values = {
-            p.name: values[p.name] for p in template.params if p.component == "header"
-        }
+        header_values = {p.name: values[p.name] for p in template.params if p.component == "header"}
         payload: dict[str, Any] = {
             "channelId": self._channel,
             "channelType": "whatsapp",

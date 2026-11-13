@@ -7,8 +7,8 @@ import base64
 import socketserver
 import threading
 from dataclasses import dataclass, field
-from email import message_from_bytes
-from email.message import Message
+from email import message_from_bytes, policy
+from email.message import EmailMessage
 from typing import Any
 
 
@@ -16,7 +16,7 @@ from typing import Any
 class Received:
     sender: str
     recipients: list[str]
-    message: Message
+    message: EmailMessage
 
 
 @dataclass
@@ -37,7 +37,8 @@ class FakeSmtp:
 
             def handle(self) -> None:
                 self.reply("220 fake.smtp ready")
-                sender, rcpts, authed = "", [], False
+                sender, authed = "", False
+                rcpts: list[str] = []
                 while True:
                     raw = self.rfile.readline()
                     if not raw:
@@ -83,7 +84,15 @@ class FakeSmtp:
                             if chunk in (b".\r\n", b""):
                                 break
                             body += chunk[1:] if chunk.startswith(b"..") else chunk
-                        fake.inbox.append(Received(sender, rcpts, message_from_bytes(body)))
+                        fake.inbox.append(
+                            Received(
+                                sender,
+                                rcpts,
+                                message_from_bytes(
+                                    body, _class=EmailMessage, policy=policy.default
+                                ),
+                            )
+                        )
                         self.reply("250 2.0.0 Ok: queued")
                     elif cmd == "QUIT":
                         self.reply("221 2.0.0 Bye")

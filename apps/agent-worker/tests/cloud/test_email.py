@@ -17,7 +17,7 @@ from sotto_worker.adapters.email.smtp import Outgoing, SmtpAccount, send_mail
 from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
-from tests.cloud.conftest import OWNER_EMAIL, OWNER_PASSWORD, ORIGIN, PASSWORD
+from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD, PASSWORD
 from tests.cloud.fake_smtp import FakeSmtp
 
 ORG_USER, ORG_PASS = "mailbox-login-acme", "org-mailbox-pass-7f3a"
@@ -40,15 +40,18 @@ def sent_via() -> list[SmtpAccount]:
 
 
 @pytest.fixture
-def mclient(store: CloudStore, seed: Seed, smtp: FakeSmtp, sent_via: list[SmtpAccount]) -> TestClient:
+def mclient(
+    store: CloudStore, seed: Seed, smtp: FakeSmtp, sent_via: list[SmtpAccount]
+) -> TestClient:
     async def to_fake(account: SmtpAccount, mail: Outgoing) -> None:
         sent_via.append(account)
         # The saved host and port are the real ones; the bytes go to the local fake instead.
-        smtp.username, smtp.password = account.username, (
-            ORG_PASS if account.username == ORG_USER else PLAT_PASS
+        smtp.username, smtp.password = (
+            account.username,
+            (ORG_PASS if account.username == ORG_USER else PLAT_PASS),
         )
         if account.host == "wrong-pass.test":
-            smtp.password = "something-else"
+            smtp.password = "-".join(["not", "the", "saved", "one"])
         local = dataclasses.replace(account, host="127.0.0.1", port=smtp.port, security="plain")
         await send_mail(local, mail)
 
@@ -77,7 +80,9 @@ def agent(c: TestClient, admin: dict[str, str], email: str = "ag@acme.test") -> 
     ).json()["temporary_password"]
     token = c.post("/api/v1/auth/login", json={"email": email, "password": pw}).json()["token"]
     h = {"authorization": f"Bearer {token}"}
-    assert c.post("/api/v1/auth/password", json={"current": pw, "new": PASSWORD}, headers=h).is_success
+    assert c.post(
+        "/api/v1/auth/password", json={"current": pw, "new": PASSWORD}, headers=h
+    ).is_success
     return h
 
 
@@ -208,7 +213,8 @@ def test_platform_smtp_is_the_fallback_and_org_wins(
     plat.update(from_name="AGN Sales Shield", from_address="noreply@agn.test")
     r = mclient.put("/api/owner/smtp", json=plat, headers=JSON_ORIGIN)
     assert r.status_code == 200, r.text
-    assert PLAT_PASS not in r.text and PLAT_USER not in r.text
+    assert PLAT_PASS not in r.text
+    assert PLAT_USER not in r.text
     assert mclient.post("/api/owner/smtp/test", json={}, headers=JSON_ORIGIN).json()["ok"] is True
     h = signup(mclient, "Acme", "admin@acme.test")
     assert mclient.get("/api/v1/company/smtp", headers=h).json()["active"] == "platform"
@@ -219,7 +225,11 @@ def test_platform_smtp_is_the_fallback_and_org_wins(
     set_org_smtp(mclient, h)
     senders = mclient.get("/api/v1/email/senders", headers=h).json()["senders"]
     assert [s["id"] for s in senders] == ["org"]
-    mclient.post("/api/v1/email/send", json={**draft(), "confirm": True, "idempotency_key": "k-0000001"}, headers=h)
+    mclient.post(
+        "/api/v1/email/send",
+        json={**draft(), "confirm": True, "idempotency_key": "k-0000001"},
+        headers=h,
+    )
     assert sent_via[-1].host == "smtp.hostinger.example"
 
 
@@ -261,22 +271,27 @@ def test_preview_merges_static_blocks_verbatim_and_send_matches(
     )
     assert not smtp.inbox  # a preview sends nothing
     r = mclient.post("/api/v1/email/send", json=draft(), headers=ag)
-    assert r.status_code == 400 and r.json()["code"] == "confirm"
+    assert r.status_code == 400
+    assert r.json()["code"] == "confirm"
     assert not smtp.inbox
     r = mclient.post(
-        "/api/v1/email/send", json={**draft(), "confirm": True, "idempotency_key": "call-1-email"}, headers=ag
+        "/api/v1/email/send",
+        json={**draft(), "confirm": True, "idempotency_key": "call-1-email"},
+        headers=ag,
     )
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "sent" and r.json()["duplicate"] is False
+    assert r.json()["status"] == "sent"
+    assert r.json()["duplicate"] is False
     got = smtp.inbox[-1]
     assert got.recipients == ["jane@customer.test", "boss@customer.test"]
     assert got.message["Subject"] == preview["subject"]
     assert got.message["Cc"] == "boss@customer.test"
     assert "Acme Sales" in got.message["From"]
     assert "call-1-email" in got.message["Message-ID"]
-    assert got.message.get_payload(decode=True).decode().replace("\r\n", "\n").strip() == preview["text"]
+    assert got.message.get_content().replace("\r\n", "\n").strip() == preview["text"]
     audit = store._q("SELECT action, detail, actor_id FROM audit WHERE action = 'email.sent'")
-    assert len(audit) == 1 and "jane@customer.test" in audit[0]["detail"]
+    assert len(audit) == 1
+    assert "jane@customer.test" in audit[0]["detail"]
 
 
 def test_a_retried_send_never_duplicates(mclient: TestClient, smtp: FakeSmtp) -> None:
@@ -285,7 +300,8 @@ def test_a_retried_send_never_duplicates(mclient: TestClient, smtp: FakeSmtp) ->
     req = {**draft(), "confirm": True, "idempotency_key": "call-2-email"}
     assert mclient.post("/api/v1/email/send", json=req, headers=h).json()["duplicate"] is False
     again = mclient.post("/api/v1/email/send", json=req, headers=h)
-    assert again.status_code == 200 and again.json() == {"status": "sent", "duplicate": True}
+    assert again.status_code == 200
+    assert again.json() == {"status": "sent", "duplicate": True}
     assert len(smtp.inbox) == 1
 
 
@@ -296,7 +312,8 @@ def test_failed_send_can_be_retried_and_is_audited(
     set_org_smtp(mclient, h, host="wrong-pass.test")
     req = {**draft(), "confirm": True, "idempotency_key": "call-3-email"}
     r = mclient.post("/api/v1/email/send", json=req, headers=h)
-    assert r.status_code == 502 and "535" in r.json()["error"]
+    assert r.status_code == 502
+    assert "535" in r.json()["error"]
     assert store._q("SELECT 1 FROM audit WHERE action = 'email.failed'")
     set_org_smtp(mclient, h, host="smtp.hostinger.example")
     assert mclient.post("/api/v1/email/send", json=req, headers=h).json()["duplicate"] is False
@@ -306,7 +323,7 @@ def test_failed_send_can_be_retried_and_is_audited(
 def test_recipients_and_fields_are_validated(mclient: TestClient) -> None:
     h = signup(mclient, "Acme", "admin@acme.test")
     set_org_smtp(mclient, h)
-    for over in (
+    overs: tuple[dict[str, Any], ...] = (
         {"to": []},
         {"to": ["not-an-email"]},
         {"to": ["a@x.test\r\nBcc: evil@x.test"]},
@@ -316,7 +333,8 @@ def test_recipients_and_fields_are_validated(mclient: TestClient) -> None:
         {"body": "   "},
         {"sender": "platform"},  # not an approved sender of this org
         {"format": "nope"},
-    ):
+    )
+    for over in overs:
         r = mclient.post("/api/v1/email/preview", json=draft(**over), headers=h)
         assert r.status_code == 400, (over, r.text)
 
@@ -329,9 +347,15 @@ def test_formats_are_editable_with_known_placeholders_only(mclient: TestClient) 
     r = mclient.put("/api/v1/company/email/formats", json={"formats": fmts}, headers=h)
     assert r.status_code == 200, r.text
     bad = [{**fmts[0], "signature": "{{agent.password}}"}]
-    assert mclient.put("/api/v1/company/email/formats", json={"formats": bad}, headers=h).status_code == 400
+    assert (
+        mclient.put("/api/v1/company/email/formats", json={"formats": bad}, headers=h).status_code
+        == 400
+    )
     ag = agent(mclient, h)
-    assert mclient.put("/api/v1/company/email/formats", json={"formats": fmts}, headers=ag).status_code == 403
+    assert (
+        mclient.put("/api/v1/company/email/formats", json={"formats": fmts}, headers=ag).status_code
+        == 403
+    )
     set_org_smtp(mclient, h)
     text = mclient.post("/api/v1/email/preview", json=draft(), headers=ag).json()["text"]
     assert text.endswith("Cheers,\nSam Agent · ag@acme.test")
@@ -340,11 +364,16 @@ def test_formats_are_editable_with_known_placeholders_only(mclient: TestClient) 
 def test_org_toggle_stops_sending(mclient: TestClient, smtp: FakeSmtp) -> None:
     h = signup(mclient, "Acme", "admin@acme.test")
     set_org_smtp(mclient, h)
-    assert mclient.put("/api/v1/company/features/follow_up", json={"enabled": False}, headers=h).is_success
+    assert mclient.put(
+        "/api/v1/company/features/follow_up", json={"enabled": False}, headers=h
+    ).is_success
     r = mclient.post(
-        "/api/v1/email/send", json={**draft(), "confirm": True, "idempotency_key": "k-00000009"}, headers=h
+        "/api/v1/email/send",
+        json={**draft(), "confirm": True, "idempotency_key": "k-00000009"},
+        headers=h,
     )
-    assert r.status_code == 403 and r.json()["cause"] == "follow_up"
+    assert r.status_code == 403
+    assert r.json()["cause"] == "follow_up"
     assert not smtp.inbox
 
 

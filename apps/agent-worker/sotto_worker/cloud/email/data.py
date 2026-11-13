@@ -45,7 +45,9 @@ CREATE TABLE IF NOT EXISTS email_sends (
 PLATFORM = "platform"
 PORTS = {465: "ssl", 587: "starttls"}
 EMAIL = re.compile(r"^[^@\s,;<>\"]+@[^@\s,;<>\"]+\.[^@\s,;<>\"]+$")
-HOST = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$")
+HOST = re.compile(
+    r"^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$"
+)
 PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 PLACEHOLDERS = ("agent.name", "agent.email", "company.name", "customer.name")
 FORMAT_ID = re.compile(r"^[a-z0-9_-]{1,40}$")
@@ -255,7 +257,8 @@ def _clean_block(value: object, what: str, limit: int) -> str:
     for name in PLACEHOLDER.findall(text):
         if name not in PLACEHOLDERS:
             raise CloudError(
-                "invalid", f"unknown placeholder {{{{{name}}}}} in {what}; use {', '.join(PLACEHOLDERS)}"
+                "invalid",
+                f"unknown placeholder {{{{{name}}}}} in {what}; use {', '.join(PLACEHOLDERS)}",
             )
     return text
 
@@ -288,7 +291,9 @@ def formats(store: CloudStore, company_id: str) -> list[dict[str, str]]:
     return [dict(f) for f in DEFAULTS["formats"]]
 
 
-def save_formats(store: CloudStore, who: Principal, raw: Any, *, ip: str = "") -> list[dict[str, str]]:
+def save_formats(
+    store: CloudStore, who: Principal, raw: Any, *, ip: str = ""
+) -> list[dict[str, str]]:
     ensure(store)
     who.require("admin")
     if not isinstance(raw, list) or not 1 <= len(raw) <= 20:
@@ -304,7 +309,12 @@ def save_formats(store: CloudStore, who: Principal, raw: Any, *, ip: str = "") -
             (who.company, json.dumps(cleaned), now_ms()),
         )
         store.audit(
-            db, "email.formats.set", f"{len(cleaned)} formats", company_id=who.company, actor=who, ip=ip
+            db,
+            "email.formats.set",
+            f"{len(cleaned)} formats",
+            company_id=who.company,
+            actor=who,
+            ip=ip,
         )
     return cleaned
 

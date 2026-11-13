@@ -154,7 +154,9 @@ def make_routes(
             "agent.name": who.name,
             "agent.email": who.email,
             "company.name": data.company_name(store, who.company),
-            "customer.name": data._one_line(d.get("customer_name"), "customer name", 100, required=False),
+            "customer.name": data._one_line(
+                d.get("customer_name"), "customer name", 100, required=False
+            ),
         }
         out = render(fmt, subject=subject, body=text, values=values)
         mail = Outgoing(to=to, cc=cc, subject=out.subject, text=out.text, message_id_seed="")
@@ -203,9 +205,7 @@ def make_routes(
         try:
             await sender(account, mail)
         except SmtpSendError as e:
-            data.finish_send(
-                store, who, idem, ok=False, detail=f"{recipients}: {e}", ip=ip_of(r)
-            )
+            data.finish_send(store, who, idem, ok=False, detail=f"{recipients}: {e}", ip=ip_of(r))
             log(f"email: send failed for company {who.company}: {e}")
             raise CloudError("email_failed", str(e)) from None
         data.finish_send(
