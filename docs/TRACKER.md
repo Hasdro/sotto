@@ -231,6 +231,7 @@ Wave 4
 - [ ] T-081 `review-followup-automation` `owner` — INT-08, INT-09, INT-10, INT-13, INT-14b
 - [ ] T-082 `review-zoho-scopes` `owner` — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
 - [ ] T-083 `review-ai-autoconfig` `owner` — ZC-04, ZC-05, ZC-12
+- [x] T-084 `design-system` — Quiet Paper Glass from the owner's muse-ai reference (D-041): `docs/design/DESIGN-SYSTEM.md`, tokens + primitives in `packages/ui`, `tokens.css`/`components.css` for HTML, Inter + IBM Plex Sans Arabic, gallery screens in `docs/design/screens/` (branch `phase9/design-system`, `docs/design/READY`)
 
 ## Waiting on owner
 
@@ -345,6 +346,12 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 (c) · local · Opus 5.5 · phase9/design-system
+- **Done (T-084, D-041):** reference copied to `docs/design/reference/muse-ai/`; `docs/design/DESIGN-SYSTEM.md` (principles, light/dark tokens, type, spacing, radius, elevation, motion, icons, component specs, page templates, a11y, screen-by-screen mapping in §7). `packages/ui`: new token values (canvas `#fcfcfc`, gray ramp, one `#005bbf` accent, glass, pill radii, 100–300 ms motion), new keys (`bubble`, `textTertiary`, `glass`, `gray`, `easing`, `radius.sheet/composer`, type roles `timestamp/secondary/pageTitle/display`); hero card = accent bubble (warning red, holding neutral); restyled Button/IconButton/TextField/Panel/Table/Sheet/Toast/TranscriptLine/SegmentedControl; new `GlassSurface`, `PageHeader`, `NavRow`, `ListRow`, `Skeleton`, `useGlassStyle`; `tokens.css` generated (`pnpm --filter @sotto/ui gen:css`, staleness test) + `components.css`. App loads Inter + IBM Plex Sans Arabic (Readex Pro removed); gallery updated.
+- **Evidence:** `@sotto/ui` vitest 189 + jest 96 pass; app jest 466 pass; lint + typecheck green; screenshots light/dark × LTR/RTL × 390/1280 in `docs/design/screens/`. No replay (card timing untouched; only styles).
+- **Outside the owned list:** `apps/app/app/_layout.tsx` (fonts), `apps/app/app/gallery.tsx`, `apps/app/package.json` + lockfile, `biome.json` (ignore generated `tokens.css`).
+- **For the redesign sessions:** the app's own `components/PageHeader.tsx` should move to `@sotto/ui` `PageHeader`; `cloud/owner/owner.css` still names Readex Pro; HTML pages link `tokens.css` + `components.css` (DESIGN-SYSTEM §8).
 
 ### 2026-11-13 · local · Opus 5.5 · phase9/review-post-call
 - **Done (T-076):** after the call: review line (tip + mascot mood + Likely/Unclear/Unlikely, risk signals "AI-estimated", scores/talk time/strengths under Details) → "Suggested updates (n)" checklist (`features/actions/{checklist.ts,AfterCallChecklist.tsx}`: nothing pre-ticked, Edit per row, one "Save n to Zoho", own key per row, call log via `saveCallLog`, meeting prefilled from the review's agreed date and tickable only after date/time/time zone are confirmed, "Note on <deal>" in an LTR run, Skip + 5 s Undo) → one "Follow up with <name>" card (draft = email body, WhatsApp tab, copy fallback without SMTP) → done state + "Open in Zoho"; "Start another call" secondary until all are saved/skipped. Email preview as From/To/Subject rows with attachment and [placeholder] warnings. History detail: AI cards rateable (R11), saved/skipped list. Engine review v3 (objections, commitments, next_step, risks, `chanceBand`); prompts review v3, followup v2 (body only). Default email formats per action incl. proposal/booking links as static blocks.

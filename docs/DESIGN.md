@@ -1,5 +1,7 @@
 # AGN Sales Shield — Design
 
+> **14 Nov 2026 (D-041): the visual style is now "Quiet Paper Glass" — see [`docs/design/DESIGN-SYSTEM.md`](design/DESIGN-SYSTEM.md)** (tokens, components, templates, screen mapping; reference in `docs/design/reference/muse-ai/`). It replaces §2 (directions) and the token values in §3 below. The product rules here (the job of the interface, one loud thing, motion off the read path, RTL, density) still hold; where this file and DESIGN-SYSTEM.md disagree on colours, type or shape, DESIGN-SYSTEM.md wins.
+
 > Phase 9 (T-048…T-051, D-026): the product is now **AGN Sales Shield**; technical identifiers keep `sotto`. The "Prompter's box" direction below still holds; §2.1 records how it evolved for 0.3.0.
 
 The design rules for every screen. Tokens live in `packages/ui/src/tokens.ts`; this file

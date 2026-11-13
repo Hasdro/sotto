@@ -14,7 +14,8 @@
       "!scripts/tests/fixtures",
       "!docs/owner-hub.html",
       "!packages/engine/src/__tests__/bundle.json",
-      "!packages/ui/tokens.css"
+      "!packages/ui/tokens.css",
+      "!docs/design/reference"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },

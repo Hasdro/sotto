@@ -418,3 +418,11 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 ## D-040 — Learned instructions go in the cacheable system part through their own prompt
 2026-11-13 · Claude (technical, learning-admin)
 - **Decision:** approved learned instructions reach the live model through a separate `learned_instructions` prompt appended to the cacheable system part (same pattern as D-037), from the next call only; the playbook wins on conflict. Older bundles skip the block, so 0.3.x clients keep working. Extraction uses `learned_extract` on a minimised packet (summary, brief, rated cards with the customer turn before and after), never the full transcript.
+
+## D-041 — Muse-ai design system replaces the current visual style (owner, 14 Nov 2026)
+2026-11-14 · owner (style choice) + Claude (adaptation, design-system session)
+- **Context:** the owner wants every Sales Shield app and online panel to follow the reference style in `docs/design/reference/muse-ai/` ("Quiet Paper Glass").
+- **Decision:** `docs/design/DESIGN-SYSTEM.md` replaces DESIGN.md's "Prompter's box" visuals (D-014, T-050 evolution). Near-white canvas, the reference gray ramp, one blue accent (`#005bbf`), pill controls, 22/6 bubbles, glass + float shadow on floating chrome only, 100–300 ms standard-ease motion; dark derived from the ramp. Fonts: Inter + IBM Plex Sans Arabic (replaces Readex Pro). The live hero card is an accent-filled bubble (warning red, holding neutral); compact cards and badges are neutral with the type hue only in small marks. `packages/ui/tokens.ts` stays the single source; `tokens.css` is generated from it for HTML pages.
+- **Departures from the reference (requirements win):** 44 pt targets, outlined inputs (WCAG 1.4.11), focus rings, a red warning card, a dark theme, slightly taller line heights for Arabic (DESIGN-SYSTEM §10). Muse's mascot, fonts and copy are not reused.
+- **Consequence:** the app and admin/HTML redesigns build on branch `phase9/design-system`; tests keep every contrast pair at AA.
+
