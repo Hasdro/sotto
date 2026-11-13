@@ -26,14 +26,17 @@ from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 from sotto_worker.cloud.zoho import actions, lookup
 from sotto_worker.cloud.zoho.oauth import (
+    ACCOUNTS,
+    DC_NAMES,
     SCOPES,
     AccessCache,
     Client,
     ZohoAuthError,
-    accounts_server_for,
     authorize_url,
+    detect_dc,
     exchange_code,
     missing_scopes,
+    probe_order,
     refresh_access,
     revoke,
 )
@@ -46,6 +49,10 @@ PAGE_CSP = (
 )
 NO_STORE = {"Cache-Control": "no-store"}
 BROWSER_COOKIE = "sotto_zoho_flow"
+# UX-35 / D-054: the desktop app's "return to the app" link. It never carries a token or code.
+APP_LINK = "agn-sales-shield://zoho/connected"
+READS = "meetings, contacts, deals"
+WRITES = "meetings and notes after you approve them"
 
 
 # Brand colours (packages/ui tokens: light + dark primary, surface, background, text).
@@ -71,6 +78,12 @@ PAGE_STYLE = (
     "a.go{display:inline-block;margin-top:20px;padding:12px 20px;border-radius:10px;"
     "background:var(--brand);color:var(--on-brand);text-decoration:none;font-weight:600}"
     "a.go:focus-visible{outline:3px solid var(--ink);outline-offset:2px}"
+    ".facts{text-align:start;margin:16px 0 0;padding:0;list-style:none;display:grid;gap:8px}"
+    ".facts li{color:var(--muted);line-height:1.5}.facts b{color:var(--ink)}"
+    "details{text-align:start;margin-top:8px}summary{cursor:pointer;color:var(--brand)}"
+    ".dcs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}"
+    ".dcs a,a.quiet{color:var(--brand)}a.quiet{display:inline-block;margin-top:14px}"
+    "a:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:2px}"
 )
 SHIELD = (
     "<svg width='22' height='22' viewBox='0 0 24 24' aria-hidden='true'>"
@@ -85,9 +98,12 @@ def _page(
     *,
     link: tuple[str, str] | None = None,
     state: str | None = None,
+    extra: str = "",
+    after: str = "",
 ) -> HTMLResponse:
     """A small branded page for the browser half of the OAuth flow. All styling is in the head's
-    <style> (allowed by PAGE_CSP); every dynamic value is escaped."""
+    <style> (allowed by PAGE_CSP); every dynamic value is escaped. `extra` (before the main link)
+    and `after` are HTML the caller built from escaped values."""
     badge = {
         "ok": "<div class='state ok' aria-hidden='true'>&#10003;</div>",
         "bad": "<div class='state bad' aria-hidden='true'>!</div>",
@@ -104,7 +120,7 @@ def _page(
         f"<title>{html.escape(title)} · AGN Sales Shield</title>"
         f"<style>{PAGE_STYLE}</style></head><body><main>"
         f"<div class='mark'>{SHIELD}<span>AGN Sales Shield</span></div>{badge}"
-        f"<h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>{go}"
+        f"<h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>{extra}{go}{after}"
         "</main></body></html>"
     )
     return HTMLResponse(
@@ -228,6 +244,43 @@ def make_routes(
         store.zoho_delete_connection(who, ip=ip_of(r))
         return JSONResponse({"connected": False, "revoked": revoked})
 
+    def connect_page(state: str, row: Any, client: Client) -> HTMLResponse:
+        """UX-35: what is read and written, the data centre with "Change", and Cancel."""
+        chosen = row["dc"] if row["dc"] in ACCOUNTS else None
+        known = chosen or store.zoho_known_dc(str(row["company_id"]), str(row["user_id"]))
+        if chosen:
+            dc_line = f"{DC_NAMES[chosen]} (you chose it)"
+        elif known:
+            dc_line = f"{DC_NAMES.get(known, known)} (detected when you sign in)"
+        else:
+            dc_line = "Detected automatically when you sign in"
+        q = html.escape(state, quote=True)
+        choices = "".join(
+            f"<a href='/auth/zoho/start?state={q}&amp;dc={code}'>{html.escape(name)}</a>"
+            for code, name in DC_NAMES.items()
+        )
+        facts = (
+            "<ul class='facts'>"
+            f"<li><b>Reads:</b> {html.escape(READS)}</li>"
+            f"<li><b>Writes:</b> {html.escape(WRITES)}</li>"
+            f"<li><b>Zoho data centre:</b> {html.escape(dc_line)}"
+            "<details><summary>Change</summary>"
+            f"<div class='dcs'>{choices}"
+            f"<a href='/auth/zoho/start?state={q}&amp;dc=auto'>Detect automatically</a></div>"
+            "</details></li></ul>"
+        )
+        return _page(
+            "Connect Zoho",
+            f"This connects your Zoho account to AGN Sales Shield for {row['email']}. "
+            "Continue only if that is you.",
+            link=(
+                authorize_url(client, str(row["redirect_uri"]), state, dc=chosen),
+                "Continue to Zoho",
+            ),
+            extra=facts,
+            after=f"<br><a class='quiet' href='/auth/zoho/cancel?state={q}'>Cancel</a>",
+        )
+
     async def start(request: Request) -> Response:
         state = request.query_params.get("state", "")
         row = store.zoho_peek_state(state)
@@ -238,16 +291,15 @@ def make_routes(
             return _page(
                 "Zoho is not set up", "Ask your admin to add the Zoho client.", 409, state="bad"
             )
+        pick = request.query_params.get("dc")
+        if pick is not None:  # "Change": a known DC, or "auto" to detect again
+            store.zoho_choose_dc(state, pick if pick in ACCOUNTS else None)
+            row = store.zoho_peek_state(state) or row
         # Bind the flow to this browser (security review M1), and say whose account it is for,
         # so a forwarded link cannot quietly connect someone else's Zoho.
         browser = secrets.token_urlsafe(32)
         store.zoho_bind_browser(state, browser)
-        page = _page(
-            "Connect Zoho",
-            f"This connects your Zoho account to AGN Sales Shield for {row['email']}. "
-            "Continue only if that is you.",
-            link=(authorize_url(client, str(row["redirect_uri"]), state), "Continue to Zoho"),
-        )
+        page = connect_page(state, row, client)
         page.set_cookie(
             BROWSER_COOKIE,
             browser,
@@ -258,6 +310,18 @@ def make_routes(
             path="/auth/zoho/",
         )
         return page
+
+    async def cancel(request: Request) -> Response:
+        """UX-35 Cancel: spends the state from the bound browser, so the link is dead."""
+        store.zoho_spend_state(
+            request.query_params.get("state", ""), request.cookies.get(BROWSER_COOKIE, "")
+        )
+        return _page(
+            "Not connected",
+            "Nothing was connected. You can close this tab.",
+            after=f"<br><a class='quiet' href='{APP_LINK.replace('connected', 'cancelled')}'>"
+            "Open Sales Shield</a>",
+        )
 
     async def callback(request: Request) -> Response:
         q = request.query_params
@@ -286,12 +350,25 @@ def make_routes(
             return _page(
                 "Zoho is not set up", "Ask your admin to add the Zoho client.", 409, state="bad"
             )
-        accounts = accounts_server_for(q.get("accounts-server"), client)
+        # ZC-02: Zoho names the DC; else the chosen one; else probe the known DCs in order.
+        chosen = row["dc"] if row["dc"] in ACCOUNTS else None
+        fallback = chosen or store.zoho_known_dc(company_id, user_id) or client.dc
+        accounts, dc = detect_dc(q.get("accounts-server"), q.get("location"), fallback)
+        tries = [accounts] if dc or chosen else probe_order(fallback)
+        tokens: dict[str, str] | None = None
         try:
             async with http() as h:
-                tokens = await exchange_code(
-                    h, client, accounts, q["code"], str(row["redirect_uri"])
-                )
+                for server in tries:
+                    try:
+                        tokens = await exchange_code(
+                            h, client, server, q["code"], str(row["redirect_uri"])
+                        )
+                        accounts = server
+                        break
+                    except ZohoAuthError as e:
+                        last = e
+                if tokens is None:
+                    raise last
         except ZohoAuthError as e:
             log(f"zoho: code exchange failed for company {company_id}: {e}")
             return _page(
@@ -309,14 +386,16 @@ def make_routes(
             api_domain=tokens["api_domain"],
             client_scope=scope,
             scopes=tokens.get("scope") or ",".join(SCOPES),
+            dc=dc or chosen or next((k for k, v in ACCOUNTS.items() if v == accounts), None),
             ip=ip_of(request),
         )
         if tokens["access_token"]:
             cache.put((company_id, user_id), tokens["access_token"], int(tokens["expires_in"]))
         return _page(
-            "Connected to Zoho",
-            "You can close this tab. AGN Sales Shield shows the connection when you return.",
+            "Zoho is connected",
+            "You can close this tab.",
             state="ok",
+            link=(APP_LINK, "Open Sales Shield"),
         )
 
     # --- read-only lookup ------------------------------------------------------------------------
@@ -335,6 +414,8 @@ def make_routes(
                 )
             except ZohoAuthError as e:
                 log(f"zoho: refresh failed for company {who.company}: {e}")
+                if "refused" in str(e):  # Zoho said no (not "unreachable"): ZC-14 health
+                    store.zoho_mark_refresh(who, ok=False)
                 raise CloudError("zoho_reconnect", "connect Zoho again") from None
             cache.put(key, token, ttl)
         return ZohoCRMReader(h, conn["api_domain"], token)
@@ -525,4 +606,5 @@ def make_routes(
         Route(f"{api}/zoho/actions/{{kind}}", action, methods=["POST"]),
         Route("/auth/zoho/start", handle(start)),
         Route("/auth/zoho/callback/", handle(callback)),
+        Route("/auth/zoho/cancel", handle(cancel)),
     ]

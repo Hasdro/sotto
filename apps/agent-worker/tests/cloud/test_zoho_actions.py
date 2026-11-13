@@ -155,7 +155,7 @@ def test_oauth_pages_keep_all_css_in_the_head(zc: TestClient) -> None:
     assert "{" not in re.sub(r"<svg.*?</svg>", "", body)  # no CSS leaked into the page text
     assert "AGN Sales Shield" in body
     done = zc.get("/auth/zoho/callback/", params={"code": "good-code", "state": state})
-    assert "Connected to Zoho" in done.text
+    assert "Zoho is connected" in done.text
     assert "{" not in re.sub(r"<svg.*?</svg>", "", done.text.split("</head>", 1)[1])
 
 

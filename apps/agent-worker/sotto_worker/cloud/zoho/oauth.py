@@ -31,6 +31,21 @@ ACCOUNTS: dict[str, str] = {
     "uk": "https://accounts.zoho.uk",
 }
 ACCOUNTS_SERVERS = frozenset(ACCOUNTS.values())
+DC_OF_SERVER = {v: k for k, v in ACCOUNTS.items()}
+# ZC-02 (D-046): the flow starts on the global accounts host; Zoho sends the person to their own
+# DC and names it in the callback (`location`, `accounts-server`).
+GLOBAL_ACCOUNTS = "https://accounts.zoho.com"
+DC_NAMES: dict[str, str] = {
+    "us": "United States",
+    "eu": "Europe",
+    "in": "India",
+    "au": "Australia",
+    "jp": "Japan",
+    "ca": "Canada",
+    "cn": "China",
+    "sa": "Saudi Arabia",
+    "uk": "United Kingdom",
+}
 # The CRM API host the token response names; only these may receive an access token.
 API_DOMAIN = re.compile(r"^https://(www\.)?zohoapis\.(com|eu|in|com\.au|jp|ca|com\.cn|sa|uk)$")
 # D-031 v1 matrix: read Leads, Contacts, Accounts, Deals, Meetings (Events), Notes; write Leads,
@@ -77,7 +92,9 @@ class Client:
     dc: str
 
 
-def authorize_url(client: Client, redirect_uri: str, state: str) -> str:
+def authorize_url(client: Client, redirect_uri: str, state: str, *, dc: str | None = None) -> str:
+    """The Zoho consent URL: the global accounts host (Zoho routes the person to their DC), or
+    the DC the person chose with "Change" (R10 "chosen data centre")."""
     query = urlencode(
         {
             "scope": ",".join(SCOPES),
@@ -90,7 +107,8 @@ def authorize_url(client: Client, redirect_uri: str, state: str) -> str:
             "state": state,
         }
     )
-    return f"{ACCOUNTS[client.dc]}/oauth/v2/auth?{query}"
+    host = ACCOUNTS.get(dc or "", GLOBAL_ACCOUNTS)
+    return f"{host}/oauth/v2/auth?{query}"
 
 
 def accounts_server_for(param: str | None, client: Client) -> str:
@@ -98,6 +116,29 @@ def accounts_server_for(param: str | None, client: Client) -> str:
     (multi-DC: the person's account may live in another DC), else the client's own DC."""
     value = (param or "").rstrip("/")
     return value if value in ACCOUNTS_SERVERS else ACCOUNTS[client.dc]
+
+
+def detect_dc(
+    accounts_server: str | None, location: str | None, fallback: str | None
+) -> tuple[str, str | None]:
+    """(accounts server, detected DC) from the callback (ZC-02). `accounts-server` wins when it
+    is a known Zoho host, then `location`; anything else is ignored (the client secret only ever
+    goes to a known Zoho accounts server). Without either, the fallback DC and None (the caller
+    may probe)."""
+    value = (accounts_server or "").strip().rstrip("/")
+    if value in ACCOUNTS_SERVERS:
+        return value, DC_OF_SERVER[value]
+    loc = (location or "").strip().lower()
+    if loc in ACCOUNTS:
+        return ACCOUNTS[loc], loc
+    dc = fallback if fallback in ACCOUNTS else "us"
+    return ACCOUNTS[dc], None
+
+
+def probe_order(first: str) -> list[str]:
+    """Accounts servers to try a code at when Zoho named none: the expected DC, then the rest."""
+    head = ACCOUNTS.get(first, GLOBAL_ACCOUNTS)
+    return [head, *[a for a in ACCOUNTS.values() if a != head]]
 
 
 def _error_of(data: Any) -> str | None:

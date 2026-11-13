@@ -177,7 +177,7 @@ def start_flow(client: TestClient, state: str) -> Any:
     assert r.status_code == 200, r.text
     assert "admin@" in r.text
     assert "sotto_zoho_flow" in r.headers["set-cookie"]
-    href = re.search(r"href='([^']+)'", r.text)
+    href = re.search(r"class='go' href='([^']+)'", r.text)
     assert href
     return urlparse(html.unescape(href.group(1)))
 
@@ -291,7 +291,7 @@ def test_needs_connection_until_connected_then_available(zclient: TestClient) ->
     assert r.json()["error"] == "feature_unavailable"
     r, _ = connect(zclient, auth)
     assert r.status_code == 200
-    assert "Connected to Zoho" in r.text
+    assert "Zoho is connected" in r.text
     no_secret_in(r.text)
     s = zclient.get("/api/v1/zoho/status", headers=auth)
     assert s.json()["connected"] is True

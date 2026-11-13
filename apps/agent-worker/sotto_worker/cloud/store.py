@@ -274,6 +274,13 @@ CREATE TABLE IF NOT EXISTS zoho_states (
   used_at INTEGER,
   browser_hash TEXT
 );
+-- ZC-02 (D-046): the org's Zoho data centre, set by the first detected connection; a default
+-- for the connect page. Each person's own DC is on their connection row.
+CREATE TABLE IF NOT EXISTS zoho_org_dc (
+  company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  dc TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 """
 
 
@@ -393,6 +400,9 @@ ADDED_COLUMNS = (
     ("sessions", "pair_used", "INTEGER"),
     ("zoho_connections", "scopes", "TEXT"),  # zoho-actions: scopes granted (NULL = read-only era)
     ("sessions", "legacy_hash", "TEXT"),  # the 0.2.0 token a migrated pair replaced
+    ("zoho_states", "dc", "TEXT"),  # ZC-02: the DC the person chose with "Change" (else NULL)
+    ("zoho_connections", "dc", "TEXT"),  # ZC-02: the person's detected (or chosen) DC
+    ("zoho_connections", "failed_at", "INTEGER"),  # ZC-14: last refresh Zoho refused
 )
 EXCERPT_MAX_CHARS = 2000
 REVIEW_DIMENSIONS = ("opening", "discovery", "listening", "objections", "clarity", "next_step")
@@ -2233,17 +2243,19 @@ class CloudStore:
         api_domain: str,
         client_scope: str,
         scopes: str = "",
+        dc: str | None = None,
         ip: str = "",
     ) -> None:
         blob = self._vault.encrypt(f"zoho-refresh:{company_id}:{user_id}", refresh_token)
         with self._tx() as db:
             db.execute(
                 "INSERT INTO zoho_connections(company_id, user_id, ciphertext, accounts_server,"
-                " api_domain, client_scope, connected_at, scopes) VALUES (?,?,?,?,?,?,?,?)"
+                " api_domain, client_scope, connected_at, scopes, dc, failed_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,NULL)"
                 " ON CONFLICT(company_id, user_id) DO UPDATE SET ciphertext = excluded.ciphertext,"
                 " accounts_server = excluded.accounts_server, api_domain = excluded.api_domain,"
                 " client_scope = excluded.client_scope, connected_at = excluded.connected_at,"
-                " scopes = excluded.scopes",
+                " scopes = excluded.scopes, dc = excluded.dc, failed_at = NULL",
                 (
                     company_id,
                     user_id,
@@ -2253,12 +2265,43 @@ class CloudStore:
                     client_scope,
                     now_ms(),
                     scopes,
+                    dc,
                 ),
             )
+            if dc:  # the first detected DC becomes the org's default (ZC-02)
+                db.execute(
+                    "INSERT OR IGNORE INTO zoho_org_dc(company_id, dc, updated_at) VALUES (?,?,?)",
+                    (company_id, dc, now_ms()),
+                )
             db.execute(
                 "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
                 " VALUES (?,?,?,?,?,?)",
                 (now_ms(), company_id, user_id, "zoho.connected", api_domain, ip),
+            )
+
+    def zoho_choose_dc(self, state: str, dc: str | None) -> None:
+        """/auth/zoho/start?dc=…: the person's manual DC choice for this flow (None = detect)."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE zoho_states SET dc = ? WHERE state_hash = ? AND used_at IS NULL",
+                (dc, _token_hash(state)),
+            )
+
+    def zoho_known_dc(self, company_id: str, user_id: str) -> str | None:
+        """The DC this person connected from before, else the org's default (ZC-02)."""
+        rows = self._q(
+            "SELECT dc FROM zoho_connections"
+            " WHERE company_id = ? AND user_id = ? AND dc IS NOT NULL",
+            (company_id, user_id),
+        ) or self._q("SELECT dc FROM zoho_org_dc WHERE company_id = ?", (company_id,))
+        return str(rows[0]["dc"]) if rows else None
+
+    def zoho_mark_refresh(self, who: Principal, *, ok: bool) -> None:
+        """ZC-14: remember that Zoho refused this person's refresh token (cleared on success)."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE zoho_connections SET failed_at = ? WHERE company_id = ? AND user_id = ?",
+                (None if ok else now_ms(), who.company, who.user_id),
             )
 
     def zoho_connected(self, who: Principal) -> bool:
@@ -2297,7 +2340,7 @@ class CloudStore:
 
     def zoho_connection_status(self, who: Principal) -> dict[str, Any]:
         rows = self._q(
-            "SELECT api_domain, connected_at, scopes FROM zoho_connections"
+            "SELECT api_domain, connected_at, scopes, dc, failed_at FROM zoho_connections"
             " WHERE company_id = ? AND user_id = ?",
             (who.company, who.user_id),
         )
@@ -2310,7 +2353,9 @@ class CloudStore:
             "api_domain": str(rows[0]["api_domain"]),
             "connected_at": int(rows[0]["connected_at"]),
             # Connected before writes existed: reads work, saving to Zoho needs a reconnect.
-            "needs_reconnect": bool(missing_scopes(rows[0]["scopes"])),
+            "needs_reconnect": bool(missing_scopes(rows[0]["scopes"]))
+            or rows[0]["failed_at"] is not None,
+            "dc": rows[0]["dc"],
         }
 
     def zoho_delete_connection(self, who: Principal, *, ip: str = "") -> None:
