@@ -10,7 +10,7 @@ Size: **S** ≤ 1–2 days · **M** ≈ 3–7 days · **L** > 1 week. Status: wa
 
 ## Waves and streams
 
-At most 3 streams run in parallel (D-035). Streams in one wave own disjoint files. Hub files (`apps/app/lib/i18n.ts`, `cloud/app.py`, `cloud/store.py`, `cloud/features.json`, `cloud/bundle.py`, `components/AppShell.tsx`, `app/admin/_layout.tsx`, `apps/desktop/**`) have **one owner per wave**; any other stream that needs a line there writes it in its report and the master adds it at merge (proposed D-041).
+At most 3 streams run in parallel (D-035). Streams in one wave own disjoint files. Hub files (`apps/app/lib/i18n.ts`, `cloud/app.py`, `cloud/store.py`, `cloud/features.json`, `cloud/bundle.py`, `components/AppShell.tsx`, `app/admin/_layout.tsx`, `apps/desktop/**`) have **one owner per wave**; any other stream that needs a line there writes it in its report and the master adds it at merge (proposed D-058).
 
 | Wave | Stream (branch `phase9/<stream>`) | Tracker | Items | Model | Depends on |
 |---|---|---|---|---|---|
@@ -230,7 +230,7 @@ Only items that spend money, need a new paid account, change production/infra be
 
 The zero-config review's DD-1…DD-8 get D-numbers only when the owner accepts them. Our own technical choices:
 
-- **D-041 — Review-backlog ownership.** One owner per hub file per wave (i18n.ts, cloud/app.py, store.py, features.json, bundle.py, AppShell, admin/_layout, apps/desktop). New strings go in feature-local `strings.ts` files (pattern of `features/email/strings.ts`). Other streams request hub lines in their report; the master adds them at merge.
+- **D-058 — Review-backlog ownership.** One owner per hub file per wave (i18n.ts, cloud/app.py, store.py, features.json, bundle.py, AppShell, admin/_layout, apps/desktop). New strings go in feature-local `strings.ts` files (pattern of `features/email/strings.ts`). Other streams request hub lines in their report; the master adds them at merge.
 - **D-042 — The live call carries no rating question, no timing line and no CRM form** (UX-02, UX-11, UX-19). R11 is unchanged: only AI advice cards are rateable, now on collapsed cards, after the call and in History. R1 timing is still logged per card.
 - **D-043 — No during-call side panel for Lead/Contact** (UX-19 + INT-11). Unknown callers get a dedupe search and a prefilled Lead before the call starts and in the after-call checklist; during the call one "Note for after the call" field. Supersedes the phase 9 brief line "During the call, a side panel limited to lead creation and contact updates".
 - **D-044 — After-call checklist approval** (UX-04). Nothing is pre-ticked; each ticked item is its own approval, its own idempotent write and its own audit row; "Save n to Zoho" submits only ticked items (R12 holds).

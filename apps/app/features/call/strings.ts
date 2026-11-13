@@ -1,5 +1,5 @@
 /**
- * Live-call strings added by the review round (T-072, D-041): kept here, not in lib/i18n.ts,
+ * Live-call strings added by the review round (T-072, D-058): kept here, not in lib/i18n.ts,
  * so this work merges cleanly with the copy pass that owns i18n.ts this wave. English and Arabic
  * in step (pattern of features/email/strings.ts).
  */

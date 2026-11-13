@@ -1,5 +1,5 @@
 /**
- * Strings for the after-call checklist (UX-04, UX-23, UX-41, INT-01c, INT-02m; D-041 keeps them
+ * Strings for the after-call checklist (UX-04, UX-23, UX-41, INT-01c, INT-02m; D-058 keeps them
  * out of lib/i18n.ts). English and Arabic in step; a test checks the key sets match.
  */
 

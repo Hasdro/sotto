@@ -1,6 +1,6 @@
 /**
  * Strings for the after-call review and the follow-up card (UX-05, UX-22, UX-23, UX-24, UX-27,
- * INT-07) and the History after-call list. English and Arabic in step (D-041: not in i18n.ts).
+ * INT-07) and the History after-call list. English and Arabic in step (D-058: not in i18n.ts).
  */
 import { useMemo } from "react";
 import type { Locale } from "../../lib/i18n";
