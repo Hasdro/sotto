@@ -15,6 +15,10 @@ export type Prefs = {
   micId: string | null;
   tutorialDone: boolean;
   playbookHelpSeen: boolean;
+  /** UX-10: the audio check passed once on this device (set by the call screen's check). */
+  audioChecked: boolean;
+  /** UX-10: first-run steps this person marked done by hand (step ids). */
+  setupDone: string[];
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -26,6 +30,8 @@ export const DEFAULT_PREFS: Prefs = {
   micId: null,
   tutorialDone: false,
   playbookHelpSeen: false,
+  audioChecked: false,
+  setupDone: [],
 };
 
 const KEY = "sotto.prefs";

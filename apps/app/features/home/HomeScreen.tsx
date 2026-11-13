@@ -1,22 +1,28 @@
 /**
- * Home (owner, 21 Oct): who you are, your company and plan, the AI in use, today's numbers and
- * recent calls, so the app opens on something useful instead of an empty call screen.
- * Everything here is already on the device (session, bundle, on-device calls): no extra requests.
+ * Home (owner, 21 Oct; UX-10, UX-25, UX-26, UX-43b): what is next for me. The next meeting in
+ * the title, the first-run steps until they are done, today's numbers, the next meetings with
+ * Prepare / Start, the last call's tip and recent calls. Agents also see the questions they
+ * sent to their manager; admins and managers see the company line and the playbook instead.
+ * Agents never see model names or company stats (D-050).
  */
 
-import { Badge, Button, type Hex, Mascot, radius, space, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, StatTile, space, Text, useTheme } from "@sotto/ui";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
-import { providerOf } from "../../lib/cloudCompat";
 import { deviceCalls } from "../../lib/deviceHistory";
+import { formatTime } from "../../lib/format";
+import type { Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
+import { useRole } from "../../lib/role";
 import { useCloud } from "../../lib/useCloud";
+import type { MeetingCandidate } from "../crm/api";
 import { HomeMeetings } from "../crm/HomeMeetings";
 import { useOpenCount } from "../escalations/store";
+import { SetupChecklist } from "./SetupChecklist";
 
 const DAY_MS = 86_400_000;
-const STAGES = ["suggest", "suggest_backup", "stt", "stt_backup"] as const;
 
 export function startOfToday(now = Date.now()): number {
   const d = new Date(now);
@@ -40,25 +46,66 @@ export function todayStats(calls: ReturnType<typeof deviceCalls>, now = Date.now
   };
 }
 
-function greeting(hour: number): "home.morning" | "home.afternoon" | "home.evening" {
-  if (hour < 12) return "home.morning";
-  if (hour < 18) return "home.afternoon";
-  return "home.evening";
+/** UX-25: questions this agent sent to the manager, newest first, from calls on this device
+ * (agents cannot list the company inbox, D-050). */
+export function myQuestions(calls: ReturnType<typeof deviceCalls>, max = 3): string[] {
+  const out: string[] = [];
+  for (const c of calls) {
+    for (const e of [...c.transcript].reverse()) {
+      if (e.kind === "escalation" && e.text.trim()) out.push(e.text.trim());
+      if (out.length >= max) return out;
+    }
+  }
+  return out;
+}
+
+/** UX-43b: the hero line: the next meeting, or a plain ready line. */
+export function nextLine(
+  t: ReturnType<typeof useI18n>["t"],
+  locale: Locale,
+  next: MeetingCandidate | null,
+): string {
+  if (!next || Number.isNaN(new Date(next.start).getTime())) return t("home.ready");
+  // The title is often Latin inside an Arabic line: isolate its direction (FSI … PDI, UX-41).
+  return t("home.next", {
+    title: `\u2068${next.title || t("meetings.untitled")}\u2069`,
+    time: formatTime(next.start, locale),
+  });
+}
+
+/** UX-25 / ZC A14: plan and seats as one status line (admins and managers only). */
+export function statusLine(
+  t: ReturnType<typeof useI18n>["t"],
+  c: {
+    status: string;
+    days_left: number | null;
+    seats_used: number;
+    seats: number;
+    can_call: boolean;
+  },
+): string {
+  const seats = { used: c.seats_used, total: c.seats };
+  if (!c.can_call || c.status === "expired" || c.status === "suspended")
+    return t("home.status.paused", seats);
+  if (c.status === "trial") return t("home.status.trial", { days: c.days_left ?? 0, ...seats });
+  return t("home.status.active", seats);
 }
 
 export function HomeScreen() {
   const { t, locale } = useI18n();
-  const { color, card } = useTheme();
+  const { color } = useTheme();
   const router = useRouter();
   const cloud = useCloud();
+  const { role } = useRole();
   const wide = useWindowDimensions().width >= 1000;
   const openCount = useOpenCount();
   const calls = deviceCalls();
   const stats = todayStats(calls);
+  const [next, setNext] = useState<MeetingCandidate | null>(null);
   const me = cloud.status === "signed_in" ? cloud.me : null;
   const bundle = cloud.status === "signed_in" ? cloud.bundle : null;
   const company = me?.company ?? null;
-  const first = me?.user.name.split(" ")[0] ?? "";
+  const agent = role === "agent";
   const fmtTime = (ms: number) =>
     new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(new Date(ms));
   const fmtDay = (ms: number) =>
@@ -66,93 +113,61 @@ export function HomeScreen() {
       ? t("home.today")
       : new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(ms));
 
-  const tiles: { label: string; value: string; accent: Hex }[] = [
-    { label: t("home.stat.calls"), value: String(stats.calls), accent: card.answer.accent },
-    { label: t("home.stat.minutes"), value: String(stats.minutes), accent: card.question.accent },
-    { label: t("home.stat.cards"), value: String(stats.cards), accent: color.positive },
+  // UX-26: one neutral style for numbers; card colours stay on cards.
+  const tiles: { id: string; label: string; value: string }[] = [
+    { id: "calls", label: t("home.stat.calls"), value: String(stats.calls) },
+    { id: "minutes", label: t("home.stat.minutes"), value: String(stats.minutes) },
+    { id: "cards", label: t("home.stat.cards"), value: String(stats.cards) },
     {
+      id: "speed",
       label: t("home.stat.speed"),
       value: stats.p95 === null ? "—" : `${(stats.p95 / 1000).toFixed(1)} s`,
-      accent: card.objection.accent,
     },
   ];
+  const tip = calls.find((c) => c.review?.tip)?.review?.tip ?? null;
+  const questions = agent ? myQuestions(calls) : [];
 
   const side = (
     <View style={[styles.side, wide ? styles.sideWide : null]}>
-      {company ? (
+      {agent ? (
+        <Section title={t("home.myQuestions")} testID="home-my-questions">
+          {questions.length === 0 ? (
+            <Text variant="label" tone="muted">
+              {t("home.myQuestions.none")}
+            </Text>
+          ) : (
+            questions.map((q, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the same question can repeat
+              <Text key={`${i}-${q}`} variant="label" numberOfLines={2}>
+                {q}
+              </Text>
+            ))
+          )}
+        </Section>
+      ) : null}
+      {!agent && company ? (
         <Section title={t("home.company")} testID="home-company">
-          <Row
-            label={company.name}
-            value={
-              <Badge
-                label={t(`home.plan.${company.status}`)}
-                tone={
-                  company.status === "active"
-                    ? "answer"
-                    : company.status === "trial"
-                      ? "question"
-                      : "warning"
-                }
-              />
-            }
-          />
-          {company.days_left !== null ? (
-            <Row label={t("home.daysLeft")} value={String(company.days_left)} />
-          ) : null}
-          <Meter
-            label={t("home.seats", { used: company.seats_used, total: company.seats })}
-            value={company.seats_used / Math.max(1, company.seats)}
-            fill={card.question.accent}
-          />
-          <Meter
-            label={t("home.minutes", { used: company.minutes_used, total: company.minutes_month })}
-            value={company.minutes_used / Math.max(1, company.minutes_month)}
-            fill={card.answer.accent}
-          />
+          <Text weight="medium">{company.name}</Text>
+          <Text variant="label" tone="muted" testID="home-status">
+            {statusLine(t, company)}
+          </Text>
         </Section>
       ) : null}
-      {bundle ? (
-        <Section title={t("home.ai")} testID="home-ai">
-          {STAGES.map((id) => {
-            const route = bundle.stages[id];
-            const pid = providerOf(bundle, route);
-            const provider = pid ? bundle.providers[pid] : undefined;
-            const ready = provider
-              ? (bundle.key_status?.[provider.key_env] ?? null) !== null
-              : false;
-            return (
-              <View key={id} style={styles.aiRow}>
-                <View
-                  style={[
-                    styles.dot,
-                    { backgroundColor: ready ? color.positive : color.borderStrong },
-                  ]}
-                  accessibilityLabel={ready ? t("home.ai.ready") : t("home.ai.missing")}
-                />
-                <View style={styles.flex}>
-                  <Text variant="label" tone="muted">
-                    {bundle.stage_slots[id]?.label ?? id}
-                  </Text>
-                  <Text variant="label" weight="medium" numberOfLines={1}>
-                    {provider ? `${provider.name} · ${route?.model ?? ""}` : t("home.ai.none")}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
+      {agent ? null : (
+        <Section title={t("home.playbook")} testID="home-playbook">
+          <AppLink href="/playbook" accessibilityRole="link">
+            <Row label={t("home.entries")} value={String(bundle?.playbook.length ?? 0)} />
+          </AppLink>
+          <AppLink href="/inbox" accessibilityRole="link">
+            <Row
+              label={t("home.openQuestions")}
+              value={
+                <Badge label={String(openCount)} tone={openCount > 0 ? "objection" : "neutral"} />
+              }
+            />
+          </AppLink>
         </Section>
-      ) : null}
-      <Section title={t("home.playbook")} testID="home-playbook">
-        <Row label={t("home.entries")} value={String(bundle?.playbook.length ?? 0)} />
-        <AppLink href="/inbox" accessibilityRole="link">
-          <Row
-            label={t("home.openQuestions")}
-            value={
-              <Badge label={String(openCount)} tone={openCount > 0 ? "objection" : "neutral"} />
-            }
-          />
-        </AppLink>
-      </Section>
+      )}
     </View>
   );
 
@@ -163,33 +178,25 @@ export function HomeScreen() {
       testID="home"
     >
       <View style={[styles.hero, { backgroundColor: color.surface, borderColor: color.border }]}>
-        <Mascot state={me ? "idle" : "offline"} size={56} />
         <View style={styles.flex}>
-          <Text variant="title" weight="semibold">
-            {t(greeting(new Date().getHours()), { name: first })}
+          <Text variant="title" weight="semibold" accessibilityRole="header" testID="home-next">
+            {nextLine(t, locale, next)}
           </Text>
           <Text tone="muted">
             {me
-              ? `${me.user.email} · ${t(`role.short.${me.user.role}`)}${company ? ` · ${company.name}` : ""}`
+              ? `${me.user.name} · ${t(`role.short.${me.user.role}`)}${company ? ` · ${company.name}` : ""}`
               : t("home.signedOut")}
           </Text>
         </View>
         <Button label={t("home.start")} onPress={() => router.push("/call")} testID="home-start" />
       </View>
 
+      <SetupChecklist />
+
       <View style={styles.tiles}>
         {tiles.map((tile) => (
-          <View
-            key={tile.label}
-            style={[styles.tile, { backgroundColor: color.surface, borderColor: color.border }]}
-          >
-            <View style={[styles.tileBar, { backgroundColor: tile.accent }]} />
-            <Text variant="label" tone="muted">
-              {tile.label}
-            </Text>
-            <Text variant="title" weight="semibold" style={styles.num}>
-              {tile.value}
-            </Text>
+          <View key={tile.id} style={styles.tile}>
+            <StatTile label={tile.label} value={tile.value} testID={`home-stat-${tile.id}`} />
           </View>
         ))}
       </View>
@@ -197,7 +204,12 @@ export function HomeScreen() {
       <View style={[styles.columns, wide ? styles.columnsWide : null]}>
         <View style={styles.main}>
           {/* Owner request (14 Nov 2026): upcoming Zoho meetings first when connected. */}
-          <HomeMeetings />
+          <HomeMeetings onLoaded={(m) => setNext(m[0] ?? null)} />
+          {tip ? (
+            <Section title={t("home.lastTip")} testID="home-last-tip">
+              <Text>{tip}</Text>
+            </Section>
+          ) : null}
           <Section title={t("home.recent")} testID="home-recent">
             {calls.length === 0 ? (
               <Text tone="muted">{t("home.noCalls")}</Text>
@@ -211,7 +223,6 @@ export function HomeScreen() {
                   style={(state) => [
                     styles.callRow,
                     { borderColor: color.border },
-                    i === 0 ? { backgroundColor: card.answer.fill } : null,
                     (state as { hovered?: boolean }).hovered
                       ? { backgroundColor: color.surfaceSunken }
                       : null,
@@ -228,7 +239,7 @@ export function HomeScreen() {
                   {c.p95_ms !== null ? (
                     <Badge
                       label={`${(c.p95_ms / 1000).toFixed(1)} s`}
-                      tone={c.p95_ms <= 1500 ? "answer" : "warning"}
+                      tone={c.p95_ms <= 1500 ? "neutral" : "warning"}
                     />
                   ) : null}
                 </AppLink>
@@ -283,25 +294,6 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Meter({ label, value, fill }: { label: string; value: number; fill: Hex }) {
-  const { color } = useTheme();
-  const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
-  return (
-    <View
-      style={styles.meter}
-      accessibilityRole="progressbar"
-      accessibilityValue={{ now: pct, min: 0, max: 100 }}
-    >
-      <Text variant="label" tone="muted">
-        {label}
-      </Text>
-      <View style={[styles.track, { backgroundColor: color.surfaceSunken }]}>
-        <View style={[styles.bar, { width: `${pct}%`, backgroundColor: fill }]} />
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   page: { padding: space.xl, gap: space.lg, maxWidth: 1240, width: "100%", alignSelf: "center" },
   flex: { flex: 1, minWidth: 0 },
@@ -315,17 +307,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
-  tile: {
-    flexGrow: 1,
-    flexBasis: 180,
-    padding: space.lg,
-    paddingTop: space.lg + 3,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    gap: space.xs,
-  },
-  tileBar: { position: "absolute", top: 0, left: 0, right: 0, height: 3 },
+  tile: { flexGrow: 1, flexBasis: 180 },
   num: { fontVariant: ["tabular-nums"] },
   columns: { gap: space.lg },
   columnsWide: { flexDirection: "row", alignItems: "flex-start" },
@@ -339,11 +321,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 28 },
-  aiRow: { flexDirection: "row", alignItems: "center", gap: space.md },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  meter: { gap: space.xs },
-  track: { height: 6, borderRadius: 3, overflow: "hidden" },
-  bar: { height: 6, borderRadius: 3 },
   callRow: {
     flexDirection: "row",
     alignItems: "center",

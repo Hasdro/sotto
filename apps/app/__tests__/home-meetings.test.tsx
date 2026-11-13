@@ -54,13 +54,31 @@ describe("HomeMeetings", () => {
     expect(attachedBriefText()).toBe(""); // viewing attaches nothing
   });
 
-  it("'Use for my next call' attaches the meeting and opens the call", async () => {
+  it("Prepare binds the meeting and opens the call on the brief editor (UX-03h)", async () => {
     signedIn({ state: "available" });
     await wrap(<HomeMeetings source={mockMeetings} brief={mockLookup.meetingBrief} />);
-    await waitFor(() => screen.getByTestId(`meeting-${ID}-toggle`));
-    await fireEvent.press(screen.getByTestId(`meeting-${ID}-toggle`));
-    await fireEvent.press(screen.getByTestId(`meeting-${ID}-use`));
+    await waitFor(() => screen.getByTestId(`meeting-${ID}-prepare`));
+    await fireEvent.press(screen.getByTestId(`meeting-${ID}-prepare`));
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/call?prepare=1"));
+    expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+  });
+
+  it("'Start call with this meeting' binds it and opens the call", async () => {
+    signedIn({ state: "available" });
+    mockPush.mockReset();
+    await wrap(<HomeMeetings source={mockMeetings} brief={mockLookup.meetingBrief} />);
+    await waitFor(() => screen.getByTestId(`meeting-${ID}-start`));
+    await fireEvent.press(screen.getByTestId(`meeting-${ID}-start`));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/call"));
     expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+  });
+
+  it("lists three before Show more and reports the first page (Next: … at …)", async () => {
+    signedIn({ state: "available" });
+    const loaded = jest.fn();
+    await wrap(<HomeMeetings source={mockMeetings} onLoaded={loaded} />);
+    await waitFor(() => expect(loaded).toHaveBeenCalled());
+    expect(loaded.mock.calls[0][0][0].title).toBe("Acme renewal call");
+    expect(screen.getAllByTestId(/^meeting-\d+$/).length).toBeLessThanOrEqual(3);
   });
 });
