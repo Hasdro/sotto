@@ -16,8 +16,16 @@ TIMEOUT_S = 8.0
 READ_MODULES = frozenset({"Leads", "Contacts", "Accounts", "Deals", "Events", "Notes"})
 WRITE_MODULES = frozenset({"Leads", "Contacts", "Events", "Notes"})
 PERSON_FIELDS = {
-    "Contacts": "Full_Name,First_Name,Last_Name,Title,Email,Phone,Mobile,Account_Name",
-    "Leads": "Full_Name,First_Name,Last_Name,Designation,Email,Phone,Mobile,Company,Industry",
+    # INT-16: Lead_Source and the Campaign_Source lookup's name come with the record (no
+    # Campaigns module scope is needed to read the name on the Lead/Contact itself).
+    "Contacts": (
+        "Full_Name,First_Name,Last_Name,Title,Email,Phone,Mobile,Account_Name,"
+        "Lead_Source,Campaign_Source"
+    ),
+    "Leads": (
+        "Full_Name,First_Name,Last_Name,Designation,Email,Phone,Mobile,Company,Industry,"
+        "Lead_Source,Campaign_Source"
+    ),
 }
 DEAL_FIELDS = "Deal_Name,Stage,Amount,Closing_Date,Owner"
 EVENT_FIELDS = (

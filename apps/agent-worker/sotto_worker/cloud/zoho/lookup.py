@@ -5,9 +5,12 @@ Nothing is attached without the agent's pick; this module only reads."""
 from __future__ import annotations
 
 import asyncio
+import functools
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
+
+import yaml
 
 from sotto_worker.adapters.crm.zoho import (
     ACCOUNT_FIELDS,
@@ -19,6 +22,7 @@ from sotto_worker.adapters.crm.zoho import (
     ZohoCRMReader,
     ZohoError,
 )
+from sotto_worker.runtime import SEED
 
 MAX_CANDIDATES = 3
 PERSON_MODULES = ("Contacts", "Leads")
@@ -30,6 +34,32 @@ NOTE_CHARS = 280
 BRIEF_CHARS = 1200
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 RECORD_ID = re.compile(r"^\d{5,25}$")
+SOURCE_CHARS = 80
+
+
+@functools.cache
+def _stage_seed() -> tuple[str, dict[str, str]]:
+    """INT-03 (D-048): the stage label and guidance lines from seed/prompts/crm_brief.md."""
+    _, front, _ = (SEED / "prompts" / "crm_brief.md").read_text(encoding="utf-8").split("---\n", 2)
+    meta = yaml.safe_load(front) or {}
+    table = {str(k).lower(): str(v) for k, v in (meta.get("stage_guidance") or {}).items()}
+    return str(meta.get("stage_label") or "{stage}"), table
+
+
+def _norm(stage: str) -> str:
+    return " ".join(stage.lower().replace("-", " ").split())
+
+
+def stage_guidance(stage: str) -> str | None:
+    """The guidance line for a Deal stage (longest matching start), or None."""
+    label, table = _stage_seed()
+    s = _norm(stage)
+    if not s:
+        return None
+    keys = sorted((k for k in table if s.startswith(_norm(k))), key=len, reverse=True)
+    if not keys:
+        return None
+    return f"{label.replace('{stage}', stage.strip())}: {table[keys[0]]}"
 
 
 def classify(query: str) -> tuple[str, str] | None:
@@ -135,6 +165,8 @@ async def build_brief(
         "title": _s(rec.get("Title") or rec.get("Designation")),
         "email": _s(rec.get("Email")),
         "phone": _s(rec.get("Phone") or rec.get("Mobile")),
+        "source": _s(rec.get("Lead_Source"))[:SOURCE_CHARS],
+        "campaign": _s(rec.get("Campaign_Source"))[:SOURCE_CHARS],
     }
     account: dict[str, str] | None = None
     deals: list[dict[str, str]] = []
@@ -208,6 +240,12 @@ def brief_text(brief: dict[str, Any]) -> str:
     if p:
         head = ", ".join(x for x in (p["name"], p["title"]) if x)
         lines.append(f"{'Lead' if p['module'] == 'Leads' else 'Contact'}: {head}")
+        origin = [
+            p.get("source") and f"source {p['source']}",
+            p.get("campaign") and f"campaign {p['campaign']}",
+        ]
+        if any(origin):
+            lines.append("Came from: " + ", ".join(o for o in origin if o))
     a = brief.get("account")
     if a and a.get("name"):
         lines.append("Account: " + a["name"] + (f" ({a['industry']})" if a.get("industry") else ""))
@@ -218,6 +256,10 @@ def brief_text(brief: dict[str, Any]) -> str:
             d["close_date"] and f"closes {d['close_date']}",
         ]
         lines.append(f"Open deal: {d['name']} — " + ", ".join(b for b in bits if b))
+    deals = brief.get("deals") or []
+    guide = stage_guidance(deals[0]["stage"]) if deals else None
+    if guide:
+        lines.append(guide)
     notes = [
         f"Note {n['date']}: {n['title'] + ' — ' if n['title'] else ''}{n['text']}"
         for n in brief.get("notes") or []
