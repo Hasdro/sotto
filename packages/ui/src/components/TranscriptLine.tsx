@@ -17,8 +17,9 @@ export type TranscriptLineProps = {
 };
 
 /**
- * One line of the live transcript, as a chat bubble: the customer in blue on the start side (their
- * words trigger cards, R4), the agent in amber on the end side (owner, 22 Oct); system lines
+ * One line of the live transcript, as a chat bubble: the customer in the reference's bubble gray on
+ * the start side with a blue label (their words trigger cards, R4), the agent in the lighter gray
+ * on the end side (owner, 22 Oct; restyled D-037); system lines
  * (escalations) use the notice style.
  */
 export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: TranscriptLineProps) {
@@ -73,17 +74,18 @@ export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: Tr
 const styles = StyleSheet.create({
   line: {
     gap: 2,
-    paddingVertical: space.sm,
-    paddingHorizontal: space.md,
-    borderRadius: radius.lg,
-    maxWidth: "92%",
+    // The reference bubble: 22 px with one 6 px tail corner on the speaker's side, flat fill.
+    paddingVertical: space.sm + 3,
+    paddingHorizontal: space.md + 3,
+    borderRadius: radius.xl,
+    maxWidth: "86%",
   },
-  customer: { borderTopStartRadius: radius.sm },
-  agent: { borderTopEndRadius: radius.sm },
+  customer: { borderBottomStartRadius: radius.sm },
+  agent: { borderBottomEndRadius: radius.sm },
   head: { flexDirection: "row", alignItems: "baseline", gap: space.sm },
   system: {
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     gap: 2,

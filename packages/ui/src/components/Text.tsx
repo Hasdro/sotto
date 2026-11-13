@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useTheme } from "../theme.tsx";
 import {
+  arabicFontFamily,
   type FontWeightName,
   fontFamily,
   type Hex,
@@ -46,10 +47,17 @@ const toneColor = (theme: Theme, tone: TextTone): Hex => {
   return map[tone];
 };
 
-/** fontFamily for a weight, with a system fallback stack on web (DESIGN.md §4). */
+/**
+ * fontFamily for a weight (DESIGN-SYSTEM §3.3). On web the Arabic face follows the Latin one, so
+ * the browser picks IBM Plex Sans Arabic for Arabic glyphs and Inter for the rest; native falls
+ * back to the system Arabic face.
+ */
 export function fontFor(weight: FontWeightName): TextStyle {
   const family = fontFamily[weight];
-  return { fontFamily: Platform.OS === "web" ? `${family}, ${webFontFallback}` : family };
+  return {
+    fontFamily:
+      Platform.OS === "web" ? `${family}, ${arabicFontFamily[weight]}, ${webFontFallback}` : family,
+  };
 }
 
 export type TextProps = Omit<RNTextProps, "style"> & {

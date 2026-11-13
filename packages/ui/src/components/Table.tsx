@@ -48,7 +48,7 @@ export function Table({ columns, rows, stacked = false, accessibilityLabel, test
   }
   return (
     <View testID={testID} accessibilityLabel={accessibilityLabel} style={frame}>
-      <View style={[styles.row, styles.headRow, { backgroundColor: color.surfaceSunken }]}>
+      <View style={[styles.row, styles.headRow]}>
         {columns.map((col) => (
           <View key={col.key} style={{ flex: col.flex ?? 1 }}>
             <Text variant="label" weight="medium" tone="muted">
@@ -82,7 +82,8 @@ function Cell({ children }: { children: ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  frame: { borderWidth: 1, borderRadius: radius.lg, overflow: "hidden" },
+  // Reference adaptation for dense data: hairline rules, no zebra, no filled header.
+  frame: { borderWidth: 1, borderRadius: radius.xl, overflow: "hidden" },
   row: {
     flexDirection: "row",
     alignItems: "center",

@@ -65,7 +65,7 @@ export function SegmentedControl<V extends string>({
 const styles = StyleSheet.create({
   track: {
     flexDirection: "row",
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     borderWidth: 1,
     padding: 2,
     gap: 2,
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     minHeight: minTouchTarget - 4,
     minWidth: minTouchTarget,
     paddingHorizontal: space.md,
-    borderRadius: radius.md - 2,
+    borderRadius: radius.pill,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",

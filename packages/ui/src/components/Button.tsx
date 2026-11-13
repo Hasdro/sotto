@@ -11,7 +11,10 @@ export type ButtonProps = {
   label: string;
   onPress?: () => void;
   variant?: ButtonVariant;
-  /** "lg" for the one main action of an agent screen; "md" elsewhere. Both are ≥ 44 pt. */
+  /**
+   * "lg" for the one main action of an agent screen; "md" elsewhere. Both are pills ≥ 44 pt
+   * (the reference's 36 px pill is kept for pointer-only HTML pages, DESIGN-SYSTEM §4.1).
+   */
   size?: "md" | "lg";
   disabled?: boolean;
   /** Leading visual, e.g. a dot or glyph. Decorative: hidden from screen readers. */
@@ -44,8 +47,9 @@ export function Button({
     ButtonVariant,
     { fill: Hex | "transparent"; text: Hex; border: Hex | "transparent" }
   > = {
+    // One primary per view (D-037). Secondary is the reference's neutral chip: flat gray, no border.
     primary: { fill: color.primary, text: color.onPrimary, border: color.primary },
-    secondary: { fill: color.surface, text: color.text, border: color.borderStrong },
+    secondary: { fill: color.surfaceSunken, text: color.text, border: color.surfaceSunken },
     ghost: { fill: "transparent", text: color.primary, border: "transparent" },
     danger: { fill: color.danger, text: color.onDanger, border: color.danger },
   };
@@ -61,11 +65,16 @@ export function Button({
       testID={testID}
       onFocus={focus.onFocus}
       onBlur={focus.onBlur}
-      style={({ pressed }) => [
+      style={(state) => [
         styles.base,
         size === "lg" ? styles.lg : null,
         { backgroundColor: p.fill, borderColor: p.border },
-        pressed ? styles.pressed : null,
+        isHovered(state) && !disabled
+          ? variant === "secondary" || variant === "ghost"
+            ? { backgroundColor: color.bubble, borderColor: color.bubble }
+            : styles.hovered
+          : null,
+        state.pressed ? styles.pressed : null,
         disabled ? styles.disabled : null,
         focus.ring,
         style,
@@ -76,7 +85,12 @@ export function Button({
           {leading}
         </View>
       ) : null}
-      <Text variant="body" weight="medium" color={p.text} numberOfLines={1}>
+      <Text
+        variant={size === "lg" ? "body" : "secondary"}
+        weight="medium"
+        color={p.text}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </Pressable>
@@ -92,12 +106,17 @@ export function Button({
   );
 }
 
+/** react-native-web passes `hovered` to the style callback; native never does. */
+export function isHovered(state: object): boolean {
+  return (state as { hovered?: boolean }).hovered === true;
+}
+
 const styles = StyleSheet.create({
   base: {
     minHeight: minTouchTarget,
     minWidth: minTouchTarget,
-    paddingHorizontal: space.lg,
-    borderRadius: radius.md,
+    paddingHorizontal: space.lg + 2,
+    borderRadius: radius.pill,
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -105,7 +124,8 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   lg: { minHeight: size.controlLg, paddingHorizontal: space.xl },
-  pressed: { opacity: 0.8 },
+  hovered: { opacity: 0.92 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   disabled: { opacity: 0.45 },
   withHelper: { gap: space.xs, alignItems: "flex-start" },
 });

@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   center: { textAlign: "center" },
   code: {
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
   },

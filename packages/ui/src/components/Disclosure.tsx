@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: space.xs,
   },
   pressed: { opacity: 0.8 },

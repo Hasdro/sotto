@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useDirection, useTheme } from "../theme.tsx";
 import { layout, radius, scrimOpacity, space } from "../tokens.ts";
+import { useGlassStyle } from "./glass.ts";
 import { IconButton } from "./IconButton.tsx";
 import { Text } from "./Text.tsx";
 
@@ -45,6 +46,7 @@ export function Sheet({
   const { color } = useTheme();
   const dir = useDirection();
   const window = useWindowDimensions();
+  const glass = useGlassStyle({ elevated: true });
   if (!open) return null;
   const bottom = (width ?? window.width) < layout.sheetBreakpoint;
   const id = (s: string) => (testID ? `${testID}-${s}` : undefined);
@@ -77,6 +79,8 @@ export function Sheet({
             styles.panel,
             bottom ? styles.panelBottom : styles.panelCentre,
             { backgroundColor: color.surfaceRaised, borderColor: color.border },
+            // The reference's overlay sheet: glass + the elevated shadow on web (D-037).
+            Platform.OS === "web" ? [glass, styles.noBorder] : null,
           ]}
         >
           <View style={styles.head}>
@@ -110,15 +114,16 @@ const styles = StyleSheet.create({
     start: 0,
     end: 0,
     maxHeight: "90%",
-    borderTopStartRadius: radius.xl,
-    borderTopEndRadius: radius.xl,
+    borderTopStartRadius: radius.sheet,
+    borderTopEndRadius: radius.sheet,
   },
   panelCentre: {
     width: "100%",
     maxWidth: layout.sheetMaxWidth,
     maxHeight: "85%",
-    borderRadius: radius.xl,
+    borderRadius: radius.sheet,
   },
+  noBorder: { borderWidth: 0 },
   head: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.lg },
   grow: { flex: 1 },
   body: { flexGrow: 0 },

@@ -29,7 +29,8 @@ export function TextField({ label, accessibilityLabel, height, ...rest }: TextFi
           fontFor("regular"),
           {
             color: color.text,
-            backgroundColor: color.surfaceSunken,
+            // Flat paper field with a 3:1 outline (WCAG 1.4.11; the reference shows no forms).
+            backgroundColor: color.surface,
             borderColor: color.borderStrong,
           },
           height ? { height, textAlignVertical: "top" } : null,
@@ -46,8 +47,8 @@ const styles = StyleSheet.create({
   input: {
     minHeight: minTouchTarget,
     borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space.md,
+    borderRadius: radius.lg,
+    paddingHorizontal: space.lg,
     paddingVertical: space.sm,
   },
 });

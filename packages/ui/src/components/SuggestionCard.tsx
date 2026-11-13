@@ -1,8 +1,11 @@
 /**
- * The hero of the product (DESIGN.md §5): one suggestion, read at arm's length in one second.
+ * The hero of the product (DESIGN-SYSTEM §5.3): one suggestion, read at arm's length in one second.
  *
- * Nothing is printed above the sentence but the type's icon; the type is the voice-bar colour
- * and the icon (UX-12). Source and the R2 notice are one short line under the sentence, and the
+ * Quiet Paper Glass (D-037): the hero is the reference's message bubble (22 px, one 6 px tail
+ * corner at the bottom of the reading-start side, flat, no border, no shadow) filled with the one
+ * accent, because it is the single primary thing in the live view. Warning is red; holding is a
+ * pale neutral with a dashed outline. Nothing is printed above the sentence but the type's icon
+ * (UX-12). Source and the R2 notice are one short line under the sentence, and the
  * card prints no timing (UX-11; R1 timing is logged per card, not shown to the agent).
  *
  * Text arrives as a stream; the component renders whatever it is given with no entrance
@@ -141,7 +144,7 @@ export function SuggestionCard({
         { backgroundColor: c.heroFill },
         holding
           ? { borderColor: c.accent, borderStyle: "dashed", borderWidth: sizes.stroke }
-          : { borderStartColor: theme.color.signal, borderStartWidth: sizes.voiceBar },
+          : null,
       ]}
     >
       <View testID={id("meta")} style={styles.meta}>
@@ -214,6 +217,7 @@ function Disc({
 const styles = StyleSheet.create({
   hero: {
     borderRadius: radius.xl,
+    borderBottomStartRadius: radius.sm,
     padding: space.xl,
     gap: space.md,
     minHeight: layout.heroMinHeight,
@@ -222,12 +226,13 @@ const styles = StyleSheet.create({
   notice: {
     alignSelf: "flex-start",
     borderWidth: 1,
-    borderRadius: radius.sm,
-    paddingHorizontal: space.sm,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.md,
     paddingVertical: space.xs,
   },
   compact: {
     borderRadius: radius.lg,
+    borderBottomStartRadius: radius.sm,
     borderWidth: 1,
     borderStartWidth: sizes.bar,
     paddingVertical: space.md,

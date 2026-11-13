@@ -1,9 +1,11 @@
 export * from "./components/Badge.tsx";
 export * from "./components/Button.tsx";
 export * from "./components/ChecklistRow.tsx";
+export * from "./components/chrome.tsx";
 export * from "./components/Disclosure.tsx";
 export * from "./components/EmptyState.tsx";
 export { useFocusRing } from "./components/focus.ts";
+export { useGlassStyle } from "./components/glass.ts";
 export * from "./components/Icon.tsx";
 export * from "./components/IconButton.tsx";
 export * from "./components/LtrRun.tsx";

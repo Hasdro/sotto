@@ -2,6 +2,7 @@ import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../theme.tsx";
 import { minTouchTarget, radius, space } from "../tokens.ts";
 import { isActivationKey, keyOf, useFocusRing } from "./focus.ts";
+import { useGlassStyle } from "./glass.ts";
 import { Text } from "./Text.tsx";
 
 export type ToastAction = { label: string; onPress: () => void };
@@ -16,20 +17,26 @@ export type ToastProps = {
 
 /**
  * A short confirmation (e.g. "Sent to your manager"). The app positions it and times it out.
- * Light: an inverted slab. Dark: a raised dark surface with a border, so it never outshines the
- * card (UX-40).
+ * Floating chrome, so it wears the glass layer on web (D-037): a paper slab with the float shadow
+ * in light; a raised dark surface with a visible border in dark, so it never outshines the card
+ * (UX-40).
  */
 export function Toast({ title, body, action, testID }: ToastProps) {
   const { color } = useTheme();
+  const glass = useGlassStyle();
   return (
     <View
       testID={testID}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
-      style={[styles.toast, { backgroundColor: color.toastFill, borderColor: color.toastBorder }]}
+      style={[
+        styles.toast,
+        { backgroundColor: color.toastFill, borderColor: color.toastBorder },
+        Platform.OS === "web" ? [glass, { borderColor: color.toastBorder }] : null,
+      ]}
     >
       <View style={styles.text}>
-        <Text variant="body" weight="semibold" color={color.onToast}>
+        <Text variant="body" weight="medium" color={color.onToast}>
           {title}
         </Text>
         {body ? (
@@ -72,9 +79,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: space.lg + 4,
     paddingVertical: space.md,
   },
   text: { flex: 1, gap: 2 },
@@ -82,7 +89,7 @@ const styles = StyleSheet.create({
     minHeight: minTouchTarget,
     minWidth: minTouchTarget,
     paddingHorizontal: space.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
   },

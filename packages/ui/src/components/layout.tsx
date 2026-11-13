@@ -89,7 +89,10 @@ export function Stack({
   );
 }
 
-/** A bordered surface for grouping content (lists, forms, the transcript). */
+/**
+ * A surface for grouping content: the reference's outlined card (paper fill, hairline, 22 px) or,
+ * `sunken`, a flat gray well with no border. Never a shadow.
+ */
 export function Panel({
   children,
   sunken = false,
@@ -105,7 +108,7 @@ export function Panel({
         styles.panel,
         {
           backgroundColor: sunken ? color.surfaceSunken : color.surface,
-          borderColor: color.border,
+          borderColor: sunken ? color.surfaceSunken : color.border,
         },
         padded ? styles.panelPadded : null,
         style,
@@ -127,6 +130,6 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   grow: { flexGrow: 1 },
   padded: { padding: space.lg },
-  panel: { borderRadius: radius.lg, borderWidth: 1, overflow: "hidden" },
+  panel: { borderRadius: radius.xl, borderWidth: 1, overflow: "hidden" },
   panelPadded: { padding: space.lg },
 });

@@ -45,8 +45,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: 160,
     borderWidth: 1,
-    borderRadius: radius.lg,
-    padding: space.lg,
+    borderRadius: radius.xl,
+    paddingVertical: space.lg,
+    paddingHorizontal: space.xl,
     gap: space.xs,
   },
 });

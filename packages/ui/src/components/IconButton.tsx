@@ -5,6 +5,7 @@
 import { Pressable, type StyleProp, StyleSheet, type ViewStyle } from "react-native";
 import { useTheme } from "../theme.tsx";
 import { type Hex, minTouchTarget, radius } from "../tokens.ts";
+import { isHovered } from "./Button.tsx";
 import { useFocusRing } from "./focus.ts";
 import { Icon, type IconName } from "./Icon.tsx";
 
@@ -58,22 +59,19 @@ export function IconButton({
       onPress={onPress}
       onFocus={focus.onFocus}
       onBlur={focus.onBlur}
-      style={({ pressed }) => [
+      style={(state) => [
         styles.base,
-        outlined || on
-          ? {
-              borderWidth: 1,
-              borderColor: on ? color.primary : color.borderStrong,
-              backgroundColor: on ? color.surfaceSunken : "transparent",
-            }
-          : null,
-        pressed ? styles.pressed : null,
+        // Reference: a gray circle behind the glyph on hover and when on; the glyph keeps its colour.
+        isHovered(state) && !disabled ? { backgroundColor: color.surfaceSunken } : null,
+        outlined ? { borderWidth: 1, borderColor: color.borderStrong } : null,
+        on ? { borderWidth: 1, borderColor: color.primary, backgroundColor: color.bubble } : null,
+        state.pressed ? styles.pressed : null,
         disabled ? styles.disabled : null,
         focus.ring,
         style,
       ]}
     >
-      <Icon name={icon} size={iconSize} color={ink ?? (on ? color.primary : color.textMuted)} />
+      <Icon name={icon} size={iconSize} color={ink ?? (on ? color.primary : color.text)} />
     </Pressable>
   );
 }
@@ -82,7 +80,7 @@ const styles = StyleSheet.create({
   base: {
     minWidth: minTouchTarget,
     minHeight: minTouchTarget,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
   },
