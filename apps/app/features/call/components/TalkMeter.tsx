@@ -1,6 +1,9 @@
 /**
  * Talk-time meter (owner, 22 Oct): who has done the talking so far, by words spoken. A warning
  * when the agent talks much more than the customer (good calls let the customer talk).
+ *
+ * UX-18: during the call (`variant="alert"`, the default) it shows only while the agent is
+ * talking too much; `variant="full"` always shows the bar (the after-call review mounts it).
  */
 import { Icon, radius, space, Text, useTheme } from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
@@ -25,12 +28,19 @@ export function talkShare(
   return { customer, agent: 100 - customer };
 }
 
-export function TalkMeter({ lines }: { lines: readonly TranscriptEntry[] }) {
+export function TalkMeter({
+  lines,
+  variant = "alert",
+}: {
+  lines: readonly TranscriptEntry[];
+  variant?: "alert" | "full";
+}) {
   const { t } = useI18n();
   const { speaker, color } = useTheme();
   const share = talkShare(lines);
   if (!share) return null;
   const tooMuch = share.agent > AGENT_TOO_MUCH;
+  if (variant === "alert" && !tooMuch) return null;
   return (
     <View style={styles.wrap} testID="talk-meter" accessibilityLabel={t("call.talk.a11y", share)}>
       <View style={[styles.bar, { backgroundColor: color.surfaceSunken }]}>

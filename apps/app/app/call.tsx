@@ -6,7 +6,7 @@
  * builds without a server use the local demo bridge (D-013); `?mock=1` (development only) replays
  * a canned call so the screen can be reviewed without the worker (mock-stream.ts).
  */
-import { EmptyState, layout, motion, Screen, space, Toast, useTheme } from "@sotto/ui";
+import { EmptyState, layout, motion, Screen, Sheet, space, Toast, useTheme } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
@@ -24,6 +24,7 @@ import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
+import { useCallText } from "../features/call/strings";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
 import { bindCall } from "../features/crm/attached";
@@ -38,13 +39,15 @@ export default function CallScreen() {
 }
 
 function DemoCallScreen() {
-  const params = useLocalSearchParams<{ mock?: string }>();
+  const params = useLocalSearchParams<{ mock?: string; prepare?: string }>();
   const mock = __DEV__ && params.mock === "1"; // never in a release build (D-024)
-  return mock ? <MockCallScreen /> : <SharedCallScreen />;
+  // Home's "Prepare" (UX-03h): `/call?prepare=1` opens the rail on the brief editor.
+  const prepare = params.prepare === "1";
+  return mock ? <MockCallScreen prepare={prepare} /> : <SharedCallScreen prepare={prepare} />;
 }
 
 /** The real call: held by CallSessionProvider, so leaving this screen keeps it live (T-025). */
-function SharedCallScreen() {
+function SharedCallScreen({ prepare }: { prepare: boolean }) {
   const { session, activate } = useSharedCall();
   useEffect(activate, [activate]);
   // An escalated question is now in the manager's inbox on the server: refresh the badge.
@@ -53,14 +56,14 @@ function SharedCallScreen() {
   useEffect(() => {
     if (escalated > 0) reload();
   }, [escalated, reload]);
-  return <CallView session={session} mock={false} />;
+  return <CallView session={session} mock={false} prepare={prepare} />;
 }
 
 /** `?mock=1` (development only): a canned call owned by this screen alone. */
-function MockCallScreen() {
+function MockCallScreen({ prepare }: { prepare: boolean }) {
   const { locale } = useI18n();
   const session = useCallSession({ mock: true, locale });
-  return <CallView session={session} mock />;
+  return <CallView session={session} mock prepare={prepare} />;
 }
 
 /** Production builds: no local demo bridge and no mock calls (D-013). Exported for tests. */
@@ -78,8 +81,18 @@ export function NotInThisBuild() {
 }
 
 /** The screen for a given session; exported for tests. */
-export function CallView({ session, mock }: { session: CallSession; mock: boolean }) {
+export function CallView({
+  session,
+  mock,
+  prepare = false,
+}: {
+  session: CallSession;
+  mock: boolean;
+  /** `/call?prepare=1`: open the rail on the brief editor before the call. */
+  prepare?: boolean;
+}) {
   const { t } = useI18n();
+  const tc = useCallText();
   const wide = useIsWide();
   const { color } = useTheme();
   const { state } = session;
@@ -87,8 +100,13 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   const { dismissNotice } = session;
   const [confirming, setConfirming] = useState(false);
   // Density rule (T-050): the live call shows the card, the status and one collapsed rail toggle.
-  const [railOpen, setRailOpen] = useState(false);
+  // Before the call the same toggle opens the brief editor (UX-01); Home's Prepare opens it.
+  const [railOpen, setRailOpen] = useState(prepare);
+  useEffect(() => {
+    if (prepare) setRailOpen(true);
+  }, [prepare]);
   const live = state.phase === "live";
+  const idle = state.phase === "idle";
   // A new call starts with a clean brief, unless a meeting was picked for it on Home.
   useEffect(() => bindCall(state.callId), [state.callId]);
   useEffect(() => {
@@ -151,16 +169,20 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       mock={mock}
       onEnd={() => setConfirming(true)}
       wide={wide}
-      rail={
-        state.phase === "idle" ? null : { open: railOpen, onToggle: () => setRailOpen((o) => !o) }
-      }
+      rail={{ open: railOpen, onToggle: () => setRailOpen((o) => !o) }}
     />
   );
-  const showRail = railOpen && state.phase !== "idle";
+  const showRail = railOpen;
   // R10: Zoho lookup in the rail; the dev mock call uses canned records (never in a release).
+  // Before the call: the full brief editor; live: a quiet read-only brief (UX-01).
   const crm = (
-    <CrmRail lookup={mock ? mockLookup : undefined} perform={mock ? mockPerform : undefined} />
+    <CrmRail
+      stage={idle ? "prepare" : "live"}
+      lookup={mock ? mockLookup : undefined}
+      perform={mock ? mockPerform : undefined}
+    />
   );
+  const notes = !practice && !idle ? <CallNotes /> : null;
   const controls = practice ? (
     live ? (
       <Composer
@@ -257,17 +279,18 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
               { backgroundColor: color.surface, borderStartColor: color.border },
             ]}
           >
-            <ScrollView style={styles.sideCrm} contentContainerStyle={styles.sideCrmBody}>
+            <ScrollView
+              style={idle ? styles.grow : styles.sideCrm}
+              contentContainerStyle={styles.sideCrmBody}
+            >
               {crm}
             </ScrollView>
-            <View style={styles.sideScroll}>
-              <TranscriptPane lines={state.transcript} scroll />
-            </View>
-            {!practice ? (
-              <View style={styles.sideNotes}>
-                <CallNotes />
+            {idle ? null : (
+              <View style={styles.sideScroll}>
+                <TranscriptPane lines={state.transcript} scroll />
               </View>
-            ) : null}
+            )}
+            {notes ? <View style={styles.sideNotes}>{notes}</View> : null}
           </View>
         ) : null}
       </View>
@@ -278,21 +301,21 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
     <View testID="call-live" style={styles.grow}>
       {header}
       <View style={styles.grow}>
-        <ScrollView contentContainerStyle={styles.mainNarrow}>
-          {main}
-          {showRail ? (
-            <View
-              testID="call-rail"
-              accessibilityLabel={t("call.rail.title")}
-              role="complementary"
-              style={styles.railNarrow}
-            >
-              {crm}
-              <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
-              {!practice ? <CallNotes /> : null}
-            </View>
-          ) : null}
-        </ScrollView>
+        <ScrollView contentContainerStyle={styles.mainNarrow}>{main}</ScrollView>
+        {/* UX-01: on a phone the rail is a bottom sheet over the card, never instead of it. */}
+        <Sheet
+          open={showRail}
+          title={t("call.rail.title")}
+          closeLabel={tc("ui.close")}
+          onClose={() => setRailOpen(false)}
+          testID="call-rail-sheet"
+        >
+          <View testID="call-rail" style={styles.railNarrow}>
+            {crm}
+            {idle ? null : <TranscriptPane lines={state.transcript} limit={6} scroll={false} />}
+            {notes}
+          </View>
+        </Sheet>
         {toast}
         {confirm}
       </View>

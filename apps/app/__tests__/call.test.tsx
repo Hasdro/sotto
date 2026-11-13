@@ -441,4 +441,53 @@ describe("in-call screen", () => {
       backgroundColor: themes[scheme].card.answer.heroFill,
     });
   });
+
+  describe("context rail (UX-01, T-075)", () => {
+    const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
+    const inputs = () =>
+      (screen.root?.queryAll((n) => n.type === "TextInput") ?? []) as { props: { testID?: string } }[];
+
+    it("`prepare=1` opens the rail on the brief editor before the call", async () => {
+      jest.replaceProperty(RN.Platform, "OS", "web");
+      jest.mocked(useIsWide).mockReturnValue(true);
+      await render(<CallView session={session(stateFrom([real]))} mock={false} prepare />);
+      expect(screen.getByTestId("call-rail")).toBeOnTheScreen();
+      expect(screen.getByTestId("prep-objective")).toBeOnTheScreen();
+      expect(screen.getByTestId("listen-start")).toBeOnTheScreen();
+      expect(screen.queryByText("Transcript")).toBeNull(); // nothing heard yet
+    });
+
+    it("without `prepare` the rail stays collapsed before the call; the toggle opens the editor", async () => {
+      jest.replaceProperty(RN.Platform, "OS", "web");
+      jest.mocked(useIsWide).mockReturnValue(true);
+      await render(<CallView session={session(stateFrom([real]))} mock={false} />);
+      expect(screen.queryByTestId("call-rail")).toBeNull();
+      await fireEvent.press(screen.getByTestId("rail-toggle"));
+      expect(screen.getByTestId("prep-objective")).toBeOnTheScreen();
+    });
+
+    it("live: the note field is the only input in the rail; the brief is read-only", async () => {
+      jest.mocked(useIsWide).mockReturnValue(true);
+      const st = stateFrom([real, { type: "call_started", call_id: CALL }]);
+      await render(<CallView session={session(st)} mock={false} />);
+      await fireEvent.press(screen.getByTestId("rail-toggle"));
+      expect(screen.getByTestId("live-brief")).toBeOnTheScreen();
+      expect(screen.getByText("Transcript")).toBeOnTheScreen();
+      expect(inputs().map((n) => n.props.testID)).toEqual(["call-notes"]);
+      expect(screen.getByText("Note for after the call")).toBeOnTheScreen();
+    });
+
+    it("at 390 px the rail is a bottom sheet over the card, not instead of it", async () => {
+      jest.mocked(useIsWide).mockReturnValue(false);
+      const st = stateFrom([real, { type: "call_started", call_id: CALL }, card({ done: true })]);
+      await render(<CallView session={session(st)} mock={false} />);
+      expect(screen.queryByTestId("call-rail-sheet")).toBeNull();
+      await fireEvent.press(screen.getByTestId("rail-toggle"));
+      expect(screen.getByTestId("call-rail-sheet")).toBeOnTheScreen();
+      expect(screen.getByTestId("call-rail")).toBeOnTheScreen();
+      expect(screen.getByTestId("hero-card")).toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId("call-rail-sheet-close"));
+      expect(screen.queryByTestId("call-rail-sheet")).toBeNull();
+    });
+  });
 });
