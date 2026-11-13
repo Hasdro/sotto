@@ -33,6 +33,7 @@ describe("real accounts show no sample data", () => {
     expect(await screen.findByText("No calls yet")).toBeOnTheScreen();
     expect(screen.queryByText("Sample calls")).toBeNull();
     expect(screen.queryByText("Layla Haddad")).toBeNull();
+    expect(screen.getByText("Open a sample call to see what a review looks like")).toBeOnTheScreen();
   });
 
   it("Playbook shows no sample answers while loading or when the server fails", async () => {

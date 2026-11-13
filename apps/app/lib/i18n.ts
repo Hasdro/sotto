@@ -150,6 +150,7 @@ const en = {
   "history.yours": "Your calls",
   "history.samples": "Sample calls",
   "history.none.title": "No calls yet",
+  "history.none.sample": "Open a sample call to see what a review looks like",
   "history.none.body":
     "Calls you take in Sales Shield on this device appear here with their transcripts and cards.",
 
@@ -260,6 +261,8 @@ const en = {
   "admin.settings.appLanguage": "App language",
   "admin.settings.calls": "Calls",
   "admin.settings.display": "Display",
+  "admin.settings.models": "AI models are managed in the web admin",
+  "admin.settings.models.open": "Open web admin",
 
   "call.mic.start": "Speak as the customer",
   "call.mic.stop": "Stop microphone",
@@ -1005,6 +1008,7 @@ const ar: Record<StringKey, string> = {
   "history.yours": "مكالماتك",
   "history.samples": "مكالمات نموذجية",
   "history.none.title": "لا توجد مكالمات بعد",
+  "history.none.sample": "افتح مكالمة نموذجية لترى شكل المراجعة",
   "history.none.body":
     "تظهر هنا المكالمات التي تجريها في Sales Shield على هذا الجهاز مع نصوصها وبطاقاتها.",
 
@@ -1112,6 +1116,8 @@ const ar: Record<StringKey, string> = {
   "admin.settings.appLanguage": "لغة التطبيق",
   "admin.settings.calls": "المكالمات",
   "admin.settings.display": "العرض",
+  "admin.settings.models": "تُدار نماذج الذكاء الاصطناعي في لوحة الإدارة على الويب",
+  "admin.settings.models.open": "فتح لوحة الإدارة",
 
   "call.mic.start": "تحدّث بصوت العميل",
   "call.mic.stop": "أوقف الميكروفون",

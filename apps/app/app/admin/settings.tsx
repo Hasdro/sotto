@@ -16,6 +16,7 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { type CardLanguage, useCompanySettings } from "../../features/admin/settings";
+import { configInWebOnly, openWebAdmin, webAdminUrl } from "../../features/webadmin/webAdmin";
 import type { Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
@@ -68,6 +69,19 @@ export default function SettingsScreen() {
           />
         </View>
       </Section>
+      {configInWebOnly() && webAdminUrl() ? (
+        <Section icon="cards" title={t("admin.settings.models")}>
+          <View style={styles.field}>
+            <Button
+              testID="settings-open-web-admin"
+              label={t("admin.settings.models.open")}
+              variant="secondary"
+              accessibilityHint={webAdminUrl() ?? undefined}
+              onPress={openWebAdmin}
+            />
+          </View>
+        </Section>
+      ) : null}
       <Section icon="mail" title={t("admin.settings.email")}>
         <ManagerEmail
           value={settings.manager_email ?? ""}
