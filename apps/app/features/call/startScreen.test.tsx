@@ -1,8 +1,8 @@
 /** UX-20 one start screen, UX-21 desktop permission help, ZC-08 audio check screen. */
 import { UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { prefs } from "../../lib/prefs";
 import { LocaleProvider } from "../../lib/locale";
+import { prefs } from "../../lib/prefs";
 import type { CheckResult } from "./audioSetup";
 import { AudioCheck } from "./components/AudioCheck";
 import { ListenBar, permissionHelp } from "./components/ListenBar";
@@ -159,13 +159,14 @@ describe("audio check screen (ZC-08)", () => {
   it("a passing check marks Home's Test audio step done; a failing one does not", async () => {
     ua("Mozilla/5.0 (Macintosh) Electron/44");
     const bad = jest.fn(async () => ({ customer: "silent", agent: "ok", at: 1 }) as CheckResult);
-    await wrap(<AudioCheck computer run={bad as never} />);
+    const first = await wrap(<AudioCheck computer run={bad as never} />);
     await fireEvent.press(screen.getByTestId("check-run"));
     await waitFor(() => expect(screen.getByTestId("check-result")).toBeOnTheScreen());
     expect(prefs().audioChecked).toBeFalsy();
+    await first.unmount();
     const good = jest.fn(async () => ({ customer: "ok", agent: "ok", at: 2 }) as CheckResult);
     await wrap(<AudioCheck computer run={good as never} />);
-    await fireEvent.press(screen.getAllByTestId("check-run")[0]!);
+    await fireEvent.press(screen.getByTestId("check-run"));
     await waitFor(() => expect(prefs().audioChecked).toBe(true));
   });
 });
