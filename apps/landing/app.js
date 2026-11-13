@@ -25,6 +25,9 @@
     document.querySelectorAll("[data-i18n]").forEach((el) => {
       el.textContent = t(el.getAttribute("data-i18n"));
     });
+    document.querySelectorAll("[data-i18n-alt]").forEach((el) => {
+      el.setAttribute("alt", t(el.getAttribute("data-i18n-alt")));
+    });
     renderDownloads();
   }
   var manifest = null;
@@ -60,16 +63,24 @@
       return;
     }
     var ua = navigator.userAgent || "",
-      isMac = /Mac/.test(ua) && !/iPhone|iPad/.test(ua);
-    var heroKey = isMac ? "mac-arm64" : "win-x64";
-    hero.innerHTML = isMac
-      ? link("mac-arm64", `${t("dl.mac")} (${t("dl.arm")})`, `${t("dl.ver")} ${manifest.version}`) +
-        '<p class="meta"><a href="#download">' +
-        t("dl.x64") +
-        " · " +
-        t("dl.win") +
-        "</a></p>"
-      : `${link("win-x64", t("dl.win"), `${t("dl.ver")} ${manifest.version}`)}<p class="meta"><a href="#download">${t("dl.mac")}</a></p>`;
+      isMac = /Mac/.test(ua) && !/iPhone|iPad|Mobile/.test(ua);
+    var ver = `${t("dl.ver")} ${manifest.version}`;
+    var href = (key) => `/downloads/${encodeURIComponent(manifest.files[key].file)}`;
+    // The button follows the visitor's platform; the line under it links every build.
+    hero.innerHTML =
+      link(isMac ? "mac-arm64" : "win-x64", isMac ? t("dl.mac") : t("dl.win"), ver) +
+      '<p class="meta">' +
+      ["mac-arm64", "mac-x64", "win-x64"]
+        .map(
+          (k) =>
+            '<a href="' +
+            href(k) +
+            '" download>' +
+            (k === "mac-arm64" ? t("dl.arm") : k === "mac-x64" ? t("dl.x64") : "Windows") +
+            "</a>",
+        )
+        .join(" · ") +
+      "</p>";
     all.innerHTML =
       '<div class="card"><h3>macOS</h3>' +
       link("mac-arm64", t("dl.arm"), `${t("dl.ver")} ${manifest.version}`) +
@@ -79,7 +90,6 @@
       '<div class="card"><h3>Windows</h3>' +
       link("win-x64", t("dl.win"), `${t("dl.ver")} ${manifest.version}`) +
       "</div>";
-    void heroKey;
   }
   document.addEventListener("DOMContentLoaded", () => {
     var lb = document.getElementById("lang-btn"),

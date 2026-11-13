@@ -32,6 +32,73 @@ const PAGES = [
   "/admin/instructions",
   "/gallery",
 ];
+// The owner console (a static page the server serves at /owner, UX-44b). Its API is stubbed here
+// with realistic data so axe sees filled tables, the chart and the kill-switch statuses.
+const OWNER_DIR = join(root, "apps", "agent-worker", "sotto_worker", "cloud", "owner");
+const OWNER_VIEWS = ["overview", "companies", "features", "audit", "account"];
+const DAY = 86_400_000;
+const NOW = Date.UTC(2026, 10, 13, 9, 0, 0);
+const OWNER_COMPANY = {
+  id: "c1",
+  name: "Zylker Trading",
+  admin_email: "admin@zylker.example",
+  status: "trial",
+  plan: "trial",
+  days_left: 12,
+  seats: 3,
+  seats_used: 2,
+  minutes_month: 300,
+  minutes_used: 120,
+  calls_30d: 14,
+  p95_avg_ms: 1180,
+  last_active: NOW - 3_600_000,
+};
+const OWNER_API = {
+  "/api/owner/me": { email: "owner@agn.example", must_change: false },
+  "/api/owner/stats": {
+    now: NOW,
+    companies: 1,
+    users: 3,
+    devices: 4,
+    active_today: 2,
+    by_status: { trial: 1 },
+    platforms: { mac: 2, windows: 1 },
+    month: { calls: 14, minutes: 120, cards: 60, holding_lines: 2, escalations: 1 },
+    p95_ms_30d: 1180,
+    daily: [{ day: NOW - DAY, calls: 3, minutes: 22 }],
+    trials_ending: [],
+  },
+  "/api/owner/companies": { companies: [OWNER_COMPANY] },
+  "/api/owner/features": {
+    features: [
+      { id: "call_review", built: true, killed_at: null },
+      { id: "zoho", built: true, killed_at: NOW - 86_400_000 },
+      { id: "whatsapp", built: true, killed_at: null },
+    ],
+    companies: [
+      {
+        id: "c1",
+        name: "Zylker Trading",
+        entitled: { call_review: true, zoho: true, whatsapp: false },
+      },
+    ],
+  },
+  "/api/owner/audit": {
+    items: [
+      {
+        at: NOW,
+        company: "Zylker Trading",
+        actor: "owner",
+        action: "owner.features.kill",
+        detail: "zoho",
+        ip: "203.0.113.5",
+      },
+    ],
+  },
+  "/api/owner/zoho": { configured: false },
+  "/api/owner/smtp": { configured: false },
+};
+
 const MODES = [
   { scheme: "light", locale: "en" },
   { scheme: "dark", locale: "en" },
@@ -50,6 +117,17 @@ const TYPES = {
 function serve() {
   const server = createServer((req, res) => {
     const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]));
+    if (path === "/owner" || path.startsWith("/owner/")) {
+      const name = path === "/owner" || path === "/owner/" ? "index.html" : path.slice(7);
+      const file = join(OWNER_DIR, name);
+      if (!file.startsWith(OWNER_DIR)) return res.writeHead(404).end();
+      try {
+        res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
+        return res.end(readFileSync(file));
+      } catch {
+        return res.writeHead(404).end();
+      }
+    }
     let file = join(dist, path);
     if (!file.startsWith(dist)) return res.writeHead(404).end();
     try {
@@ -108,6 +186,40 @@ try {
         for (const n of v.nodes.slice(0, 3)) console.log(`        ${n.target.join(" ")}`);
         const [first] = v.nodes;
         if (first) console.log(`        ${first.html}\n        ${first.failureSummary}`);
+      }
+    }
+    // The owner console, same two colour schemes (English only: the console has no Arabic).
+    if (mode.locale === "en") {
+      await context.route("**/api/owner/**", (route) => {
+        const url = new URL(route.request().url());
+        const body = OWNER_API[url.pathname];
+        return body
+          ? route.fulfill({ json: body })
+          : route.fulfill({ status: 404, json: { error: "not_found" } });
+      });
+      for (const view of OWNER_VIEWS) {
+        await page.goto(`${base}/owner`, { waitUntil: "networkidle" });
+        await page.click(`.tabs button[data-view="${view}"]`);
+        await page.waitForTimeout(300);
+        await page.addScriptTag({ content: axeSource });
+        const result = await page.evaluate(async () =>
+          globalThis.axe.run(document, {
+            runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+          }),
+        );
+        checked += 1;
+        const bad = result.violations.filter((v) => ["serious", "critical"].includes(v.impact));
+        const label = `/owner ${view} (${mode.scheme}, ${mode.locale})`;
+        if (bad.length === 0) {
+          console.log(`ok    ${label}`);
+          continue;
+        }
+        failures += bad.length;
+        console.log(`FAIL  ${label}`);
+        for (const v of bad) {
+          console.log(`      ${v.impact}: ${v.id} — ${v.help} (${v.nodes.length} element(s))`);
+          for (const n of v.nodes.slice(0, 3)) console.log(`        ${n.target.join(" ")}`);
+        }
       }
     }
     await context.close();

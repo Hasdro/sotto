@@ -382,3 +382,23 @@ def test_owner_routes_validate_and_need_the_owner(owner: TestClient, sign_up: Si
         ).status_code
         == 401
     )
+
+
+def test_shipped_features_are_built_so_no_later_version_label_shows() -> None:
+    """UX-09: every feature that ships today is built; `release` (the "Coming in a later
+    version" reason) can only come from a feature a future version adds as built=false."""
+    shipped = {
+        "zoho", "zoho_actions", "email_send", "gallabox", "whatsapp", "card_ratings",
+        "learned_instructions", "prep", "integrations", "call_review", "follow_up",
+        "recordings", "reports", "ai_knowledge",
+    }  # fmt: skip
+    for fid in shipped & set(features.CATALOG):
+        assert features.CATALOG[fid].built, fid
+    layers = features.Layers(
+        killed=frozenset(),
+        not_entitled=frozenset(),
+        org_off=frozenset(),
+        connections=frozenset({"zoho", "gallabox", "email_sender"}),
+    )
+    for fid in features.CATALOG:
+        assert features.evaluate(fid, "admin", layers).cause != "release", fid

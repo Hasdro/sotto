@@ -87,7 +87,7 @@ const en: Text = {
   admin: {
     title: "Features",
     subtitle:
-      "Turn features on or off for everyone in your organization. Features your plan does not include are not listed.",
+      "Turn features on or off for everyone in your organization. A switch that is off and locked is switched off by AGN; the reason is under it.",
     for: "For",
     roles: { admin: "Admins", manager: "Managers", agent: "Agents" },
     saved: "Saved.",
@@ -149,7 +149,8 @@ const ar: Text = {
   action: { features: "فتح الميزات", settings: "فتح الإعدادات" },
   admin: {
     title: "الميزات",
-    subtitle: "فعّل الميزات أو أوقفها لكل من في مؤسستك. الميزات غير المشمولة في خطتك لا تظهر هنا.",
+    subtitle:
+      "فعّل الميزات أو أوقفها لكل من في مؤسستك. المفتاح المتوقف والمقفل أوقفته AGN، وسببه تحته.",
     for: "لـ",
     roles: { admin: "المسؤولون", manager: "المديرون", agent: "الموظفون" },
     saved: "تم الحفظ.",

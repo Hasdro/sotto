@@ -76,8 +76,8 @@ describe("in-call screen", () => {
     globalThis.WebSocket = ws as unknown as typeof WebSocket;
     try {
       await render(<CallScreen />);
-      expect(screen.getByText("Live calls arrive in Phase 4")).toBeOnTheScreen();
-      expect(screen.queryByText("Mock stream (dev only)")).toBeNull();
+      expect(screen.getByText("Live calls aren't available in this version")).toBeOnTheScreen();
+      expect(screen.queryByText("Sample call")).toBeNull();
       expect(ws).not.toHaveBeenCalled();
     } finally {
       globalThis.WebSocket = original;
@@ -164,13 +164,13 @@ describe("in-call screen", () => {
   it("a server error shows a localised line, not the raw message", async () => {
     const st = stateFrom([hello, { type: "error", message: "KeyError: scenario" }]);
     await render(<CallView session={session(st)} mock={false} />);
-    expect(screen.getByText("The demo reported a problem")).toBeOnTheScreen();
+    expect(screen.getByText("Something went wrong with this call")).toBeOnTheScreen();
     expect(screen.queryByText("KeyError: scenario")).toBeNull();
   });
 
   it("shows the connecting state before hello", async () => {
     await render(<CallView session={session(initialSessionState)} mock={false} />);
-    expect(screen.getByText("Connecting to the demo")).toBeOnTheScreen();
+    expect(screen.getByText("Connecting…")).toBeOnTheScreen();
   });
 
   it("offline: tells the owner to run pnpm demo and retries on request", async () => {
@@ -178,7 +178,7 @@ describe("in-call screen", () => {
       sessionReducer(initialSessionState, { type: "connection", status: "offline" }),
     );
     await render(<CallView session={s} mock={false} />);
-    expect(screen.getByText("pnpm demo")).toBeOnTheScreen();
+    expect(screen.getByText("Restart AGN Sales Shield")).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole("button", { name: "Try again" }));
     expect(s.retry).toHaveBeenCalledTimes(1);
   });
@@ -202,7 +202,7 @@ describe("in-call screen", () => {
     );
     expect(screen.getByText("Practice")).toBeOnTheScreen();
     expect(screen.queryByText("Fake AI")).toBeNull();
-    expect(screen.getByText("Mock stream (dev only)")).toBeOnTheScreen();
+    expect(screen.getByText("Sample call")).toBeOnTheScreen();
   });
 
   it("header: no mock badge when the dev gate is off", async () => {
@@ -228,7 +228,7 @@ describe("in-call screen", () => {
     expect(screen.queryByText("Fake AI")).toBeNull();
     expect(screen.queryByTestId("live-tooltip")).toBeNull();
     await fireEvent(screen.getByTestId("status-live"), "hoverIn");
-    expect(screen.getByTestId("live-tooltip")).toHaveTextContent(/^Fake AI · /);
+    expect(screen.getByTestId("live-tooltip")).toHaveTextContent(/^Practice mode · /);
   });
 
   it("header: the rail toggle is labelled 'Context' and sits before the title; End call is last (UX-15)", async () => {

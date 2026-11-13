@@ -102,7 +102,7 @@ describe("mock screens", () => {
 
   it("admin hides the prompt editor until edits are saved and reach calls (T-040)", async () => {
     await open("/admin/prompts");
-    expect(screen.getByText("Prompt editing comes in a later phase")).toBeOnTheScreen();
+    expect(screen.getByText("Prompt editing comes in a later version")).toBeOnTheScreen();
     expect(screen.queryByText("Published v4")).toBeNull();
     expect(screen.queryByRole("link", { name: "Prompts" })).toBeNull();
   });

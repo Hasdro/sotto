@@ -136,7 +136,24 @@ def test_owner_creates_and_deletes_a_company(owner: TestClient, client: TestClie
 def test_owner_page_is_served_with_a_strict_policy(client: TestClient) -> None:
     page = client.get("/owner")
     assert page.status_code == 200
-    assert "Owner console" in page.text
+    assert "<title>AGN Sales Shield · Owner</title>" in page.text
+    assert "Sotto" not in page.text
+    assert "Sotto" not in client.get("/owner/owner.js").text
     assert "script-src 'self'" in page.headers["content-security-policy"]
     assert client.get("/owner/owner.js").status_code == 200
     assert client.get("/owner/secret.txt").status_code == 404
+
+
+def test_owner_kill_switch_is_a_status_table_with_a_confirmed_destructive_action(
+    client: TestClient,
+) -> None:
+    """UX-33: the page ships a status table, a confirm dialog and the two button labels; the
+    server side (audit row per kill, D-028) is covered in test_features."""
+    page = client.get("/owner").text
+    assert '<table id="kills"' in page
+    assert 'id="killDialog"' in page
+    js = client.get("/owner/owner.js").text
+    for text in ("Turn off for everyone", "Turn back on", "Killed since", "Live"):
+        assert text in js, text
+    kill = js[js.index("async function setKill") :].split("async function setEntitled")[0]
+    assert "await confirmKill(f)" in kill  # turning off waits for the dialog

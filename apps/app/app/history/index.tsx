@@ -14,6 +14,7 @@ import {
   TextField,
   useTheme,
 } from "@sotto/ui";
+import { router } from "expo-router";
 import { useMemo, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
@@ -52,10 +53,22 @@ export default function HistoryScreen() {
           <Text tone="muted">{t("history.search.none", { q: query.trim() })}</Text>
         ) : null}
         {found && found.length > 0 ? (
-          <CallList calls={found} snippets={query.trim() ? hits : undefined} />
+          <>
+            <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
+              {t("history.yours")}
+            </Text>
+            <CallList calls={found} snippets={query.trim() ? hits : undefined} />
+          </>
         ) : null}
         {!mine || mine.length === 0 ? (
-          <EmptyState title={t("history.none.title")} body={t("history.none.body")} />
+          <EmptyState
+            title={t("history.none.title")}
+            body={t("history.none.body")}
+            action={{
+              label: t("history.none.sample"),
+              onPress: () => router.push(`/history/${PAST_CALLS[0]?.id ?? "c-1042"}`),
+            }}
+          />
         ) : null}
       </Screen>
     );
@@ -69,12 +82,15 @@ export default function HistoryScreen() {
             {t("history.yours")}
           </Text>
           <CallList calls={mine} />
+        </>
+      ) : (
+        <>
           <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
             {t("history.samples")}
           </Text>
+          <CallList calls={PAST_CALLS} />
         </>
-      ) : null}
-      <CallList calls={PAST_CALLS} />
+      )}
     </Screen>
   );
 }

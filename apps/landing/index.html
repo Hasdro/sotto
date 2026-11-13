@@ -23,6 +23,7 @@
   <div class="hero">
     <h1 data-i18n="hero.h1">The right words, while the customer is still talking.</h1>
     <p class="lead" data-i18n="hero.lead">AGN Sales Shield listens only to your customer's side of a live call and shows you one short suggestion card, fast enough to use in the next sentence.</p>
+    <p class="zoho-badge" data-i18n="hero.zoho">Works with Zoho CRM</p>
     <div class="cta"><div id="hero-dl" aria-live="polite"></div></div>
   </div>
 
@@ -37,17 +38,16 @@
       <div class="card"><h3 data-i18n="f1.h">Customer audio only</h3><p data-i18n="f1.p"></p></div>
       <div class="card"><h3 data-i18n="f2.h">One card, no clutter</h3><p data-i18n="f2.p"></p></div>
       <div class="card"><h3 data-i18n="f3.h">Your playbook first</h3><p data-i18n="f3.p"></p></div>
-      <div class="card"><h3 data-i18n="f4.h">Your company, your settings</h3><p data-i18n="f4.p"></p></div>
+      <div class="card"><h3 data-i18n="f4.h">Works with Zoho CRM</h3><p data-i18n="f4.p"></p></div>
     </div>
   </section>
 
   <section aria-labelledby="shots">
     <h2 id="shots" data-i18n="shots.h2">See it</h2>
-    <!-- PLACEHOLDER slots: replace with the 0.3.0 screenshots (docs/evidence/phase9/) -->
     <div class="grid">
-      <figure><div class="shot" role="img" aria-label="Screenshot placeholder"><figcaption data-i18n="shots.cap1">Screenshot slot</figcaption></div></figure>
-      <figure><div class="shot" role="img" aria-label="Screenshot placeholder"><figcaption data-i18n="shots.cap2">Screenshot slot</figcaption></div></figure>
-      <figure><div class="shot" role="img" aria-label="Screenshot placeholder"><figcaption data-i18n="shots.cap3">Screenshot slot</figcaption></div></figure>
+      <figure><img class="shot" src="shot-call-card.png" width="604" height="366" loading="lazy" decoding="async" alt="" data-i18n-alt="shots.alt1"><figcaption data-i18n="shots.cap1">The live call card</figcaption></figure>
+      <figure><img class="shot" src="shot-after-call.png" width="570" height="384" loading="lazy" decoding="async" alt="" data-i18n-alt="shots.alt2"><figcaption data-i18n="shots.cap2">After the call: approve what goes to Zoho</figcaption></figure>
+      <figure><img class="shot" src="shot-meetings.png" width="660" height="396" loading="lazy" decoding="async" alt="" data-i18n-alt="shots.alt3"><figcaption data-i18n="shots.cap3">Your upcoming Zoho meetings</figcaption></figure>
     </div>
   </section>
 
@@ -62,7 +62,7 @@
   </section>
 
   <section aria-labelledby="inst">
-    <h2 id="inst" data-i18n="inst.h2">First open</h2>
+    <h2 id="inst" data-i18n="inst.h2">First open on Mac and Windows</h2>
     <div class="grid">
       <div class="card"><h3 data-i18n="inst.mac.h">macOS</h3><ol class="steps"><li data-i18n="inst.mac.1"></li><li data-i18n="inst.mac.2"></li><li data-i18n="inst.mac.3"></li></ol></div>
       <div class="card"><h3 data-i18n="inst.win.h">Windows</h3><ol class="steps"><li data-i18n="inst.win.1"></li><li data-i18n="inst.win.2"></li><li data-i18n="inst.win.3"></li></ol></div>
@@ -71,9 +71,13 @@
 
   <section aria-labelledby="form">
     <h2 id="form" data-i18n="form.h2">Talk to us</h2>
-    <iframe class="zoho-form" aria-label="Sales Shield Signup" title="Sales Shield Signup" loading="lazy"
-      src="https://forms.zohopublic.com/agncomputerllc/form/SalesShieldSignup/formperma/95zC6xcBOHVHXpGkfczaurMCdOmUN1bSpPIhPdLDy-Q"
-      width="100%" height="500" frameborder="0" style="border:0"></iframe>
+    <div class="form-box">
+      <p class="form-loading" id="form-loading" data-i18n="form.loading">Loading the form…</p>
+      <iframe id="zoho-form" class="zoho-form" aria-label="Sales Shield Signup" title="Sales Shield Signup" loading="lazy"
+        src="https://forms.zohopublic.com/agncomputerllc/form/SalesShieldSignup/formperma/95zC6xcBOHVHXpGkfczaurMCdOmUN1bSpPIhPdLDy-Q"
+        width="100%" height="500" frameborder="0" style="border:0"></iframe>
+    </div>
+    <p class="meta"><span data-i18n="form.fallback">Form not loading?</span> <a id="form-mailto" href="mailto:sotto@agncompu.com?subject=AGN%20Sales%20Shield" data-i18n="form.mail">Email us instead</a></p>
     <p class="meta"><span data-i18n="form.privacy"></span> <a href="privacy.html" data-i18n="nav.privacy">Privacy</a></p>
   </section>
 </div>

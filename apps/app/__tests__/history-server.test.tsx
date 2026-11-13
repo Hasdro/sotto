@@ -51,13 +51,13 @@ describe("history from this server (D-020)", () => {
     ]);
   });
 
-  it("lists this server's calls above the samples and opens one", async () => {
+  it("lists the real calls without mixing in samples", async () => {
     serve();
     await renderRouter(routes, { initialUrl: "/history" });
-    expect(await screen.findByText("Calls on this server")).toBeOnTheScreen();
+    expect(await screen.findByText("Your calls")).toBeOnTheScreen();
     expect(screen.getByText("Spoken call")).toBeOnTheScreen();
-    expect(screen.getByText("Sample calls")).toBeOnTheScreen();
-    expect(screen.getByText("Layla Haddad")).toBeOnTheScreen();
+    expect(screen.queryByText("Sample calls")).toBeNull();
+    expect(screen.queryByText("Layla Haddad")).toBeNull();
   });
 
   it("shows a server call's transcript and cards", async () => {

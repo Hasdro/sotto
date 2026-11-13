@@ -183,18 +183,16 @@ section h2 {
   color: var(--muted);
 }
 .shot {
-  aspect-ratio: 16 / 10;
-  border: 2px dashed var(--strong);
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--strong);
   border-radius: 14px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  color: var(--muted);
-  background: var(--sunken);
-  padding: 12px;
 }
-.shot figcaption {
+figcaption {
+  margin-top: 8px;
   font-size: 0.9rem;
+  color: var(--muted);
 }
 figure {
   margin: 0;
@@ -275,10 +273,38 @@ code {
   }
 }
 
+.zoho-badge {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--strong);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--primary);
+}
+.form-box {
+  position: relative;
+  height: 500px;
+  border-radius: 14px;
+  background: var(--sunken);
+}
+.form-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted);
+}
 .zoho-form {
   width: 100%;
   height: 500px;
   border: 0;
   border-radius: 14px;
   background: #fff;
+}
+.form-box .zoho-form {
+  position: relative;
+  background: transparent;
 }

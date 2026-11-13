@@ -512,39 +512,55 @@ dialog h2 {
 }
 
 /* Features: kill switch and entitlement matrix (D-028) */
-.kills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 input[type="checkbox"] {
   width: auto;
   padding: 0;
   margin: 0;
   accent-color: var(--brand);
 }
-.kill {
-  margin: 0;
-  font-size: 14px;
-  color: var(--ink);
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  cursor: pointer;
+.kills-table {
+  min-width: 480px;
 }
-.kill.on {
-  border-color: var(--bad);
-  background: var(--bad-soft);
+.kills-table .act {
+  text-align: end;
+}
+.status {
+  font-weight: 500;
+}
+.status.ok {
+  color: var(--ok, var(--ink));
+}
+.status.bad {
+  color: var(--bad);
 }
 .kill-note {
   color: var(--muted);
 }
-.kill-note.bad {
-  color: var(--bad);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* sentence-case headers and a sticky first column in the two feature tables */
+#matrix th,
+.kills-table th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+#matrix tbody th,
+#matrix thead th:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 2;
+  background: var(--surface);
+  text-align: start;
+  color: var(--ink);
+  font-weight: 500;
+  border-inline-end: 1px solid var(--line);
 }
 #matrix th,
 #matrix td {
