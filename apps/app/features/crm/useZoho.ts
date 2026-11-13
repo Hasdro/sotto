@@ -6,11 +6,14 @@
  * re-reads the status whenever the window regains focus or becomes visible (desktop timers are
  * throttled in the background), and polls every 2 s for 3 minutes while a connect is pending.
  * When the status turns connected it refreshes the feature map (every screen sees `zoho`
- * available) and sets `justConnected` so the screen can confirm it.
+ * available) and sets `justConnected` so the screen can confirm it. In the desktop app the
+ * browser step ends on `agn-sales-shield://zoho/connected` (D-054), which re-reads at once; focus
+ * and polling stay as the fallback (a browser that never opens the link).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking } from "react-native";
 import { CloudError, refreshFeatures } from "../../lib/cloud";
+import { desktop } from "../../lib/desktop";
 import { type ZohoStatus, zohoConnect, zohoDisconnect, zohoStatus } from "./api";
 
 const POLL_MS = 2000;
@@ -89,8 +92,12 @@ export function useZoho(deps: { open?: (url: string) => unknown } = {}): ZohoCon
   useEffect(() => {
     reload();
     const off = onReturn(reload);
+    const offLink = desktop()?.onDeepLink?.((link) => {
+      if (link.kind === "zoho") reload();
+    });
     return () => {
       off();
+      offLink?.();
       stop();
     };
   }, [reload, stop]);

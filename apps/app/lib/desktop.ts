@@ -18,6 +18,11 @@ export type MiniState = {
   source: string | null;
 };
 
+/** An `agn-sales-shield://` link the desktop app understood (D-054); never carries a token. */
+export type DeepLink = { kind: "zoho"; status: "connected" | "cancelled" };
+export type PrivacyPane = "mic" | "system-audio";
+export type PrivacyResult = { ok: true } | { ok: false; reason: string };
+
 export type Desktop = {
   callState: () => Promise<CallState>;
   onCallState: (cb: (s: CallState) => void) => () => void;
@@ -27,6 +32,10 @@ export type Desktop = {
   showMini?: (show: boolean) => void;
   /** From the mini window: ask the main window to do something. */
   miniAction?: (a: Shortcut | "open") => void;
+  /** W1-DESK: the app's own deep links (zoho/connected, zoho/cancelled). */
+  onDeepLink?: (cb: (link: DeepLink) => void) => () => void;
+  /** W1-DESK / UX-21: opens the OS privacy pane; `not_needed` where the OS asks nothing. */
+  openPrivacySettings?: (pane: PrivacyPane) => Promise<PrivacyResult>;
 };
 
 export function desktop(): Desktop | null {
