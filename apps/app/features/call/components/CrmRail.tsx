@@ -1,20 +1,29 @@
 /**
- * The live-call context rail (R10, T-056, T-057): find who is on the call in Zoho — the
- * person's own upcoming meetings first (the main path, owner 14 Nov 2026), a search by name,
- * email or phone as the fallback (≤ 3 candidates with evidence) — or skip. Nothing is attached without that pick.
- * Below it, the structured call brief the agent can edit (works without Zoho), and the
- * during-call quick actions (Lead, Contact update; collapsed). The attached record and the brief
- * reach the live prompt through the `crm_brief` prompt (features/crm/attached.ts).
+ * The call's context rail (R10, T-056, T-057; UX-01, UX-03r, UX-16, UX-17, UX-19, T-075).
+ *
+ * Two states:
+ * - **Before the call** (`stage="prepare"`): find who the call is with in Zoho — the person's own
+ *   upcoming meetings first, a search by name, email or phone as the fallback (≤ 3 candidates
+ *   with evidence) — or skip; nothing is attached without that pick. An unknown caller (the
+ *   dedupe search found nobody) is offered a prefilled Lead, written only when the agent
+ *   approves it (R12). Then the full brief editor.
+ * - **Live** (`stage="live"`): a quiet, read-only 4-line brief (who, company, objective, next
+ *   step) with an Edit link, Zoho details behind "More from Zoho", and — only when the call
+ *   started unlinked — one line "Not linked to Zoho · Link". No CRM forms (R12 writes belong
+ *   after the call).
+ *
+ * The attached record and the brief reach the live prompt through the `crm_brief` prompt
+ * (features/crm/attached.ts) in both states.
  */
-import { Badge, Button, Panel, Stack, space, Text, TextField } from "@sotto/ui";
+import { Badge, Button, Disclosure, Panel, Stack, space, Text, TextField, useTheme } from "@sotto/ui";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../../components/FeatureGate";
 import { CloudError } from "../../../lib/cloud";
+import { formatDay, formatMoney, formatWhen } from "../../../lib/format";
 import type { StringKey } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
-import type { Perform } from "../../actions/ActionCard";
-import { QuickActions } from "../../actions/PostCallPanel";
+import { ActionCard, type Perform } from "../../actions/ActionCard";
 import { type Brief, type Candidate, zohoBrief, zohoMeetingBrief, zohoSearch } from "../../crm/api";
 import {
   attachBrief,
@@ -27,6 +36,7 @@ import {
 import { type MeetingSource, UpcomingMeetings } from "../../crm/UpcomingMeetings";
 import { useZoho } from "../../crm/useZoho";
 import { ZohoConnect } from "../../crm/ZohoConnect";
+import { useCallText } from "../strings";
 
 export type Lookup = {
   search: typeof zohoSearch;
@@ -34,6 +44,7 @@ export type Lookup = {
   meetings?: MeetingSource;
   meetingBrief?: typeof zohoMeetingBrief;
 };
+export type RailStage = "prepare" | "live";
 
 function errorKey(e: unknown): StringKey {
   if (e instanceof CloudError) {
@@ -43,31 +54,150 @@ function errorKey(e: unknown): StringKey {
   return "crm.error";
 }
 
-function timeOf(iso: string, locale: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? iso
-    : d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-}
-
-export function CrmRail({ lookup, perform }: { lookup?: Lookup; perform?: Perform }) {
-  return (
+export function CrmRail({
+  lookup,
+  perform,
+  stage = "prepare",
+}: {
+  lookup?: Lookup;
+  perform?: Perform;
+  stage?: RailStage;
+}) {
+  return stage === "live" ? (
+    <LiveRail lookup={lookup} />
+  ) : (
     <Stack gap="md">
-      <ZohoPart lookup={lookup} />
+      <ZohoPart lookup={lookup} perform={perform} />
       <PrepPanel />
-      <QuickActions perform={perform} />
     </Stack>
   );
 }
 
-function ZohoPart({ lookup }: { lookup?: Lookup | undefined }) {
+// ---------------------------------------------------------------------------------------------
+// Live: read-only
+
+function LiveRail({ lookup }: { lookup?: Lookup | undefined }) {
+  const tc = useCallText();
+  const zoho = useFeature("zoho");
+  const { crm } = useAttachedState();
+  const [editing, setEditing] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const zohoOn = zoho.state === "available";
+  const linked = crm.kind === "attached";
+  return (
+    <Stack gap="md" testID="crm-rail-live">
+      {zohoOn && !linked ? (
+        linking ? (
+          <Finder lookup={lookup} onDone={() => setLinking(false)} />
+        ) : (
+          <NotLinked onLink={() => setLinking(true)} />
+        )
+      ) : null}
+      {editing ? (
+        <PrepPanel onDone={() => setEditing(false)} />
+      ) : (
+        <LiveBrief onEdit={() => setEditing(true)} />
+      )}
+      {linked ? (
+        <Disclosure title={tc("rail.more")} testID="crm-more">
+          <BriefView brief={crm.brief} />
+        </Disclosure>
+      ) : null}
+    </Stack>
+  );
+}
+
+/** UX-03r: the only Zoho line of a call that started unlinked. */
+function NotLinked({ onLink }: { onLink: () => void }) {
+  const tc = useCallText();
+  const { color } = useTheme();
+  return (
+    <View style={styles.inline} testID="crm-not-linked">
+      <Text variant="label" tone="muted">
+        {`${tc("rail.notLinked")} · `}
+      </Text>
+      <Pressable accessibilityRole="button" onPress={onLink} testID="crm-link" hitSlop={8}>
+        <Text variant="label" weight="semibold" color={color.primary}>
+          {tc("rail.link")}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** The 4 lines an agent can read in a glance: who, company, objective, next step. */
+export function briefLines(
+  state: ReturnType<typeof useAttachedState>,
+): { key: "who" | "company" | "objective" | "next"; value: string }[] {
+  const brief = state.crm.kind === "attached" ? state.crm.brief : null;
+  const p = brief?.person;
+  const who = p ? [p.name, p.title].filter(Boolean).join(", ") : state.prep.attendees.trim();
+  const company = brief?.account?.name ?? "";
+  const lines = [
+    { key: "who" as const, value: who },
+    { key: "company" as const, value: company },
+    { key: "objective" as const, value: state.prep.objective.trim() || state.prep.tldr.trim() },
+    { key: "next" as const, value: state.prep.next_step.trim() },
+  ];
+  return lines.filter((l) => l.value);
+}
+
+function LiveBrief({ onEdit }: { onEdit: () => void }) {
+  const tc = useCallText();
+  const { color } = useTheme();
+  const state = useAttachedState();
+  const prep = useFeature("prep");
+  if (prep.state === "no_permission") return null;
+  const lines = briefLines(state);
+  const editable = prep.state === "available";
+  return (
+    <Panel sunken testID="live-brief">
+      <Stack gap="xs">
+        <View style={styles.headRow}>
+          <Text variant="label" weight="semibold" tone="muted" accessibilityRole="header">
+            {tc("rail.brief")}
+          </Text>
+          {editable ? (
+            <Pressable accessibilityRole="button" onPress={onEdit} testID="brief-edit" hitSlop={8}>
+              <Text variant="label" weight="semibold" color={color.primary}>
+                {tc("ui.edit")}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {state.crm.kind === "attached" ? (
+          <Text variant="label" tone="muted" testID="crm-linked">
+            {tc("rail.linked")}
+          </Text>
+        ) : null}
+        {lines.length ? (
+          lines.map((l) => (
+            <Text key={l.key} variant="body" numberOfLines={1} testID={`brief-line-${l.key}`}>
+              <Text variant="body" tone="muted">{`${tc(`rail.${l.key}`)}: `}</Text>
+              {l.value}
+            </Text>
+          ))
+        ) : (
+          <Text variant="label" tone="muted" testID="brief-empty">
+            {tc("rail.empty")}
+          </Text>
+        )}
+      </Stack>
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Before the call: Zoho pick and the brief editor
+
+function ZohoPart({ lookup, perform }: { lookup?: Lookup | undefined; perform?: Perform }) {
   const effective = useFeature("zoho");
   const connectable = effective.state === "needs_connection" && effective.cause === "zoho";
   if (effective.state === "no_permission") return null;
   if (effective.state !== "available" && !connectable) {
     return <FeatureOff feature="zoho" effective={effective} />;
   }
-  return connectable ? <ConnectFirst /> : <Finder lookup={lookup} />;
+  return connectable ? <ConnectFirst /> : <Finder lookup={lookup} perform={perform} />;
 }
 
 function ConnectFirst() {
@@ -85,14 +215,25 @@ function ConnectFirst() {
   );
 }
 
-function Finder({ lookup }: { lookup?: Lookup | undefined }) {
+function Finder({
+  lookup,
+  perform,
+  onDone,
+}: {
+  lookup?: Lookup | undefined;
+  perform?: Perform | undefined;
+  /** Live "Link": close the finder once a record is attached. */
+  onDone?: () => void;
+}) {
   const { t } = useI18n();
+  const tc = useCallText();
   const { crm: attached } = useAttachedState();
   const zoho = useZoho();
   const search = lookup?.search ?? zohoSearch;
   const fetchBrief = lookup?.brief ?? zohoBrief;
   const meetingBrief = lookup?.meetingBrief ?? zohoMeetingBrief;
   const [query, setQuery] = useState("");
+  const [searched, setSearched] = useState("");
   const [busy, setBusy] = useState<"search" | "brief" | null>(null);
   const [found, setFound] = useState<Candidate[] | null>(null);
   const [error, setError] = useState<StringKey | null>(null);
@@ -102,8 +243,12 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
     setBusy("search");
     setError(null);
     setFound(null);
-    search(query.trim())
-      .then((r) => setFound(r.candidates.slice(0, 3)))
+    const q = query.trim();
+    search(q)
+      .then((r) => {
+        setFound(r.candidates.slice(0, 3));
+        setSearched(q);
+      })
       .catch((e: unknown) => setError(errorKey(e)))
       .finally(() => setBusy(null));
   };
@@ -113,6 +258,7 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
     p.then((r) => {
       attachBrief(r.brief);
       setFound(null);
+      onDone?.();
     })
       .catch((e: unknown) => setError(errorKey(e)))
       .finally(() => setBusy(null));
@@ -156,8 +302,8 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
           {header}
           {notice}
           <BriefView brief={attached.brief} />
-          <Text variant="label" tone="muted">
-            {t("crm.attached")}
+          <Text variant="label" tone="muted" testID="crm-linked">
+            {tc("rail.linked")}
           </Text>
           <Button variant="ghost" label={t("crm.change")} onPress={clearCrm} testID="crm-change" />
           {reconnect}
@@ -165,7 +311,7 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
       </Panel>
     );
   }
-  if (attached.kind === "skipped") {
+  if (attached.kind === "skipped" && !onDone) {
     return (
       <Panel testID="crm-rail" sunken>
         <Stack gap="sm">
@@ -178,6 +324,7 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
       </Panel>
     );
   }
+  const unknown = found !== null && found.length === 0 && !onDone;
   return (
     <Panel testID="crm-rail" sunken>
       <Stack gap="sm">
@@ -198,7 +345,7 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
             onPress: (m) => attach(meetingBrief(m.id)),
           }}
         />
-        {/* Fallback: search by name, email or phone. */}
+        {/* Fallback: search by name, email or phone (also the dedupe check for a new caller). */}
         <Text variant="label" tone="muted">
           {t("meetings.notListed")}
         </Text>
@@ -221,7 +368,15 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
             disabled={working || !query.trim()}
             testID="crm-find"
           />
-          <Button variant="ghost" label={t("crm.skip")} onPress={skipCrm} testID="crm-skip" />
+          <Button
+            variant="ghost"
+            label={t("crm.skip")}
+            onPress={() => {
+              skipCrm();
+              onDone?.();
+            }}
+            testID="crm-skip"
+          />
         </Stack>
         {busy ? (
           <Text variant="label" tone="muted" aria-live="polite" accessibilityLiveRegion="polite">
@@ -237,6 +392,13 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
           <Text variant="label" tone="muted" testID="crm-none">
             {t("crm.none")}
           </Text>
+        ) : null}
+        {unknown ? (
+          <NewLeadOffer
+            query={searched}
+            perform={perform}
+            onSaved={(id) => attach(fetchBrief({ module: "Leads", id }))}
+          />
         ) : null}
         {found?.map((c) => (
           <View
@@ -273,9 +435,65 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
   );
 }
 
-/** The structured brief (T-056): editable, read by the AI, saved with the call. */
-function PrepPanel() {
+/** The searched text as Lead fields: an email, a phone, or a name split in two. Pure. */
+export function leadFromQuery(q: string): Record<string, string> {
+  const s = q.trim();
+  if (/^\S+@\S+\.\S+$/.test(s)) return { email: s };
+  if (/^\+?[\d\s().-]{6,}$/.test(s)) return { phone: s };
+  const [first, ...rest] = s.split(/\s+/);
+  return rest.length ? { first_name: first ?? "", last_name: rest.join(" ") } : { last_name: s };
+}
+
+/** UX-19 / INT-11: an unknown caller, before the call. Written only on approval (R12). */
+function NewLeadOffer({
+  query,
+  perform,
+  onSaved,
+}: {
+  query: string;
+  perform?: Perform | undefined;
+  onSaved: (id: string) => void;
+}) {
   const { t } = useI18n();
+  const tc = useCallText();
+  return (
+    <Stack gap="sm" testID="lead-offer">
+      <Text variant="label" weight="semibold">
+        {tc("lead.offer.title")}
+      </Text>
+      <Text variant="label" tone="muted">
+        {tc("lead.offer.body")}
+      </Text>
+      <ActionCard
+        key={query}
+        kind="lead"
+        title={t("actions.lead")}
+        perform={perform}
+        specs={[
+          { name: "first_name", label: "actions.field.first_name" },
+          { name: "last_name", label: "actions.field.last_name" },
+          { name: "company", label: "actions.field.company" },
+          { name: "email", label: "actions.field.email" },
+          { name: "phone", label: "actions.field.phone" },
+        ]}
+        initial={leadFromQuery(query)}
+        build={(v) =>
+          Object.fromEntries(
+            ["first_name", "last_name", "company", "email", "phone"]
+              .map((k) => [k, (v[k] ?? "").trim()])
+              .filter(([, x]) => x),
+          )
+        }
+        onSaved={onSaved}
+      />
+    </Stack>
+  );
+}
+
+/** The structured brief (T-056): editable, read by the AI, saved with the call. */
+function PrepPanel({ onDone }: { onDone?: () => void }) {
+  const { t } = useI18n();
+  const tc = useCallText();
   const prep = useFeature("prep");
   const { prep: values } = useAttachedState();
   if (prep.state === "no_permission") return null;
@@ -286,8 +504,8 @@ function PrepPanel() {
         <Text variant="label" weight="semibold" tone="muted" accessibilityRole="header">
           {t("prep.title")}
         </Text>
-        <Text variant="label" tone="muted">
-          {t("prep.hint")}
+        <Text variant="label" tone="muted" testID="prep-help">
+          {tc("prep.help")}
         </Text>
         {PREP_FIELDS.map((f) => (
           <TextField
@@ -300,13 +518,34 @@ function PrepPanel() {
             testID={`prep-${f}`}
           />
         ))}
+        {onDone ? (
+          <Button variant="secondary" label={tc("rail.done")} onPress={onDone} testID="prep-done" />
+        ) : null}
       </Stack>
     </Panel>
   );
 }
 
+/** One deal as a line: "Acme renewal 2027 · Negotiation · AED 12,000 · closes 1 Dec" (UX-17). */
+export function dealLine(
+  d: Brief["deals"][number],
+  locale: "en" | "ar",
+  closes: (date: string) => string,
+  now?: Date,
+): string {
+  return [
+    d.name,
+    d.stage,
+    formatMoney(d.amount, d.currency, locale),
+    d.close_date ? closes(formatDay(d.close_date, locale, now)) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function BriefView({ brief }: { brief: Brief }) {
   const { t, locale } = useI18n();
+  const tc = useCallText();
   const p = brief.person;
   const m = brief.meeting;
   return (
@@ -317,9 +556,7 @@ export function BriefView({ brief }: { brief: Brief }) {
             {`${t("crm.meeting")}: ${m.title}`}
           </Text>
           <Text variant="label" tone="muted">
-            {[t("crm.meetings.at", { time: timeOf(m.start, locale) }), m.participants.join(", ")]
-              .filter(Boolean)
-              .join(" · ")}
+            {[formatWhen(m.start, locale), m.participants.join(", ")].filter(Boolean).join(" · ")}
           </Text>
           {m.agenda ? (
             <Text variant="label" tone="muted" numberOfLines={3}>
@@ -348,8 +585,13 @@ export function BriefView({ brief }: { brief: Brief }) {
           </Text>
           {brief.deals.length ? (
             brief.deals.map((d) => (
-              <Text key={`${d.name}-${d.close_date}`} variant="label" tone="muted">
-                {[d.name, d.stage, d.amount, d.close_date].filter(Boolean).join(" · ")}
+              <Text
+                key={`${d.name}-${d.close_date}`}
+                variant="label"
+                tone="muted"
+                testID="crm-deal"
+              >
+                {dealLine(d, locale, (date) => tc("rail.closes", { date }))}
               </Text>
             ))
           ) : (
@@ -366,8 +608,14 @@ export function BriefView({ brief }: { brief: Brief }) {
           </Text>
           {brief.notes.length ? (
             brief.notes.map((n) => (
-              <Text key={`${n.date}-${n.title}`} variant="label" tone="muted" numberOfLines={3}>
-                {`${n.date} · ${n.title ? `${n.title}: ` : ""}${n.text}`}
+              <Text
+                key={`${n.date}-${n.title}`}
+                variant="label"
+                tone="muted"
+                numberOfLines={3}
+                testID="crm-note"
+              >
+                {`${formatDay(n.date, locale)} · ${n.title ? `${n.title}: ` : ""}${n.text}`}
               </Text>
             ))
           ) : (
@@ -383,4 +631,6 @@ export function BriefView({ brief }: { brief: Brief }) {
 
 const styles = StyleSheet.create({
   candidate: { gap: space.xs, paddingTop: space.sm },
+  inline: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
+  headRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 });

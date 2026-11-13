@@ -3,7 +3,7 @@
  * connect-first, the structured brief and the reconnect prompt. */
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { CrmRail } from "../features/call/components/CrmRail";
+import { CrmRail, dealLine, leadFromQuery } from "../features/call/components/CrmRail";
 import type { Candidate } from "../features/crm/api";
 import {
   attachedBriefText,
@@ -12,7 +12,7 @@ import {
   resetCall,
   setPrep,
 } from "../features/crm/attached";
-import { mockLookup } from "../features/crm/mock";
+import { mockLookup, mockPerform } from "../features/crm/mock";
 import type { Locale } from "../lib/i18n";
 import { LocaleProvider } from "../lib/locale";
 
@@ -202,5 +202,127 @@ describe("CrmRail", () => {
     await wrap(<CrmRail lookup={mockLookup} />);
     await waitFor(() => expect(screen.getByTestId("crm-reconnect")).toBeOnTheScreen());
     cloudApi.mockImplementation(() => new Promise(() => {}));
+  });
+});
+
+describe("CrmRail stages (UX-01, UX-03r, UX-16, UX-17, UX-19)", () => {
+  // Every editable text field on screen (host TextInputs carry `editable`/`onChangeText`).
+  const inputs = () =>
+    (screen.root?.queryAll((n) => n.type === "TextInput") ?? []) as unknown[];
+
+  it("before the call: the full brief editor, with the timing note as help text (UX-16)", async () => {
+    signedIn({ state: "available" });
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />);
+    for (const f of ["tldr", "objective", "attendees", "pains", "competitors", "next_step"]) {
+      expect(screen.getByTestId(`prep-${f}`)).toBeOnTheScreen();
+    }
+    expect(screen.getByTestId("prep-help")).toHaveTextContent(/from the next sentence/);
+    expect(inputs().length).toBeGreaterThanOrEqual(7); // search + 6 brief fields
+    await fireEvent.changeText(screen.getByTestId("prep-objective"), "Agree the start date");
+    expect(attachedBriefText()).toContain("Call objective: Agree the start date");
+  });
+
+  it("linked: 'Linked to this call.', no candidate picker (UX-16, UX-03r)", async () => {
+    signedIn({ state: "available" });
+    attachForNextCall((await mockLookup.meetingBrief(MEETING)).brief);
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />);
+    expect(screen.getByText("Linked to this call.")).toBeOnTheScreen();
+    expect(screen.queryByText(/The AI uses it from the next sentence/)).toBeNull();
+    expect(screen.queryByTestId("crm-query")).toBeNull();
+  });
+
+  it("live: only 4 brief lines + Edit; More from Zoho collapsed; no inputs (UX-01, UX-19)", async () => {
+    signedIn({ state: "available" });
+    attachForNextCall((await mockLookup.meetingBrief(MEETING)).brief);
+    setPrep("objective", "Agree the start date");
+    setPrep("next_step", "Send the order form");
+    setPrep("pains", "Too many tools");
+    await wrap(<CrmRail lookup={mockLookup} stage="live" />);
+    expect(screen.getByTestId("brief-line-who")).toHaveTextContent("Who: Jane Doe, CFO");
+    expect(screen.getByTestId("brief-line-company")).toHaveTextContent("Company: Acme Corp");
+    expect(screen.getByTestId("brief-line-objective")).toHaveTextContent(/Agree the start date/);
+    expect(screen.getByTestId("brief-line-next")).toHaveTextContent(/Send the order form/);
+    expect(screen.queryByText(/Too many tools/)).toBeNull(); // not one of the 4 lines
+    expect(screen.getByText("Linked to this call.")).toBeOnTheScreen();
+    expect(screen.queryByTestId("crm-not-linked")).toBeNull();
+    // CRM details stay behind the collapsed disclosure.
+    expect(screen.getByTestId("crm-more")).toBeOnTheScreen();
+    expect(screen.queryByTestId("crm-deal")).toBeNull();
+    expect(inputs()).toHaveLength(0);
+    expect(screen.queryByTestId("quick-actions")).toBeNull();
+    // Edit opens the editor on demand; Done closes it.
+    await fireEvent.press(screen.getByTestId("brief-edit"));
+    expect(screen.getByTestId("prep-objective")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("prep-done"));
+    expect(inputs()).toHaveLength(0);
+  });
+
+  it("live, More from Zoho: amounts and dates are formatted (UX-17)", async () => {
+    signedIn({ state: "available" });
+    attachForNextCall((await mockLookup.brief({ module: "Contacts", id: "x" })).brief);
+    await wrap(<CrmRail lookup={mockLookup} stage="live" />);
+    await fireEvent.press(screen.getByRole("button", { name: /More from Zoho/ }));
+    const deal = screen.getByTestId("crm-deal");
+    expect(deal).toHaveTextContent(/AED 12,000/);
+    expect(deal).not.toHaveTextContent(/2026-12-01/);
+    expect(screen.getAllByTestId("crm-note")[0]).toHaveTextContent(/^4 Nov · Pricing call/);
+  });
+
+  it("a deal line in Arabic keeps Western digits", () => {
+    const d = { id: "1", name: "Acme", stage: "Won", amount: "12000", close_date: "2026-12-01", owner: "", currency: "AED" };
+    const line = dealLine(d, "ar", (date) => `الإغلاق ${date}`, new Date("2026-11-13T06:00:00Z"));
+    expect(line).toMatch(/12[,٬]000/);
+    expect(line).not.toMatch(/[٠-٩]/);
+  });
+
+  it("live, started unlinked: exactly one 'Not linked to Zoho · Link' line (UX-03r)", async () => {
+    signedIn({ state: "available" });
+    await wrap(<CrmRail lookup={mockLookup} stage="live" />);
+    expect(screen.getAllByTestId("crm-not-linked")).toHaveLength(1);
+    expect(screen.getByText("Link")).toBeOnTheScreen();
+    expect(screen.queryByTestId("crm-meetings")).toBeNull();
+    expect(screen.queryByTestId("crm-query")).toBeNull();
+    expect(inputs()).toHaveLength(0);
+    await fireEvent.press(screen.getByTestId("crm-link"));
+    await waitFor(() => expect(screen.getByTestId(`meeting-${MEETING}`)).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId(`meeting-${MEETING}-toggle`));
+    await waitFor(() => expect(screen.getByTestId(`meeting-${MEETING}-use`)).toBeOnTheScreen());
+    await fireEvent.press(screen.getByTestId(`meeting-${MEETING}-use`));
+    await waitFor(() => expect(screen.getByTestId("crm-linked")).toBeOnTheScreen());
+    expect(screen.queryByTestId("crm-not-linked")).toBeNull();
+  });
+
+  it("unknown caller before the call: dedupe search, then a prefilled Lead, written only on approval", async () => {
+    signedIn({ state: "available" });
+    const perform = jest.fn(mockPerform);
+    const search = jest.fn(async () => ({ candidates: [] }));
+    await wrap(
+      <CrmRail lookup={{ ...mockLookup, search }} perform={perform} stage="prepare" />,
+    );
+    await fireEvent.changeText(screen.getByTestId("crm-query"), "new@caller.test");
+    await fireEvent.press(screen.getByTestId("crm-find"));
+    await waitFor(() => expect(screen.getByTestId("lead-offer")).toBeOnTheScreen());
+    expect(search).toHaveBeenCalledWith("new@caller.test");
+    expect(screen.getByTestId("action-lead-email").props.value).toBe("new@caller.test");
+    expect(perform).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByTestId("action-lead-last_name"), "Caller");
+    await fireEvent.press(screen.getByTestId("action-lead-approve"));
+    await waitFor(() => expect(perform).toHaveBeenCalledTimes(1));
+    expect(perform.mock.calls[0]?.[0]).toBe("lead");
+    expect(perform.mock.calls[0]?.[1]).toEqual({ last_name: "Caller", email: "new@caller.test" });
+  });
+
+  it("turns the searched text into Lead fields", () => {
+    expect(leadFromQuery("a@b.co")).toEqual({ email: "a@b.co" });
+    expect(leadFromQuery("+971 50 123 4567")).toEqual({ phone: "+971 50 123 4567" });
+    expect(leadFromQuery("Jane Q Doe")).toEqual({ first_name: "Jane", last_name: "Q Doe" });
+    expect(leadFromQuery("Jane")).toEqual({ last_name: "Jane" });
+  });
+
+  it("live rail speaks Arabic", async () => {
+    signedIn({ state: "available" });
+    await wrap(<CrmRail lookup={mockLookup} stage="live" />, "ar");
+    expect(screen.getByText("اربط")).toBeOnTheScreen();
+    expect(screen.getByText("الملخص")).toBeOnTheScreen();
   });
 });

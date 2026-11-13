@@ -64,6 +64,8 @@ export type Brief = {
     amount: string;
     close_date: string;
     owner: string;
+    /** ISO 4217 code when the org sends one (multi-currency Zoho); shown with the amount. */
+    currency?: string;
   }[];
   notes: { date: string; title: string; text: string }[];
   /** The compact text the live prompt gets (`crm.brief`), capped by the server. */
