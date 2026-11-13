@@ -14,6 +14,13 @@ body {
   /* biome-ignore lint/complexity/noImportantStyles: [hidden] must beat display rules below */
   display: none !important;
 }
+b,
+strong {
+  font-weight: var(--ss-weight-semibold);
+}
+td b {
+  font-weight: var(--ss-weight-medium);
+}
 button,
 input,
 select,
@@ -536,6 +543,14 @@ th:last-child,
 td:last-child {
   padding-inline-end: var(--ss-space-xl);
 }
+.panel:not(.flush) th:first-child,
+.panel:not(.flush) td:first-child {
+  padding-inline-start: 0;
+}
+.panel:not(.flush) th:last-child,
+.panel:not(.flush) td:last-child {
+  padding-inline-end: 0;
+}
 tbody tr {
   transition: background-color var(--ss-dur-base) var(--ss-ease-standard);
 }
@@ -637,7 +652,8 @@ td.num {
   line-height: var(--ss-leading-body);
   font-weight: var(--ss-weight-semibold);
 }
-.drawer-body table {
+.drawer-body table,
+#trials table {
   min-inline-size: 0;
 }
 .drawer-body th:first-child,
