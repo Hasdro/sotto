@@ -1,19 +1,22 @@
 /**
- * After the call (W1-SPLIT, T-072): the "Call ended" panel, the Zoho writes, the review and the
- * follow-up. Moved out of app/call.tsx unchanged (same render, same testIDs) so the live call and
- * the after-call view can be owned and changed separately (wave 2: review-post-call).
+ * After the call (UX-04): one short review line, one checklist of suggested Zoho updates
+ * (nothing pre-ticked, one save), one follow-up card, then a clear done state. Cards and the
+ * transcript live in History detail. "Start another call" stays secondary while an item is
+ * still open (UX-24) and becomes the primary action once everything is saved or skipped.
  */
 import { Button, Panel, Stack, space, Text } from "@sotto/ui";
-import type { ComponentProps } from "react";
+import { router } from "expo-router";
+import { useCallback, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureGate } from "../../../components/FeatureGate";
+import { useReview } from "../../../lib/deviceHistory";
 import { useI18n } from "../../../lib/locale";
-import { PostCallPanel } from "../../actions/PostCallPanel";
-import { useAttached } from "../../crm/attached";
-import { EmailAction } from "../../email";
+import type { Perform } from "../../actions/ActionCard";
+import { AfterCallChecklist, type SaveLog } from "../../actions/AfterCallChecklist";
+import { ZohoGate } from "../../actions/PostCallPanel";
 import { CallReviewPanel } from "../../review/CallReviewPanel";
 import { FollowUp } from "../../review/FollowUp";
-import { WhatsAppAction } from "../../whatsapp";
+import { useReviewText } from "../../review/strings";
 
 type Props = {
   /** Cards shown during the call (for "n suggestions"). */
@@ -24,14 +27,24 @@ type Props = {
   mock: boolean;
   callId: string | null;
   /** Dev mock: canned Zoho writes (never in a release). */
-  perform?: ComponentProps<typeof PostCallPanel>["perform"] | undefined;
+  perform?: Perform | undefined;
+  /** Tests: the call-log write. */
+  saveLog?: SaveLog | undefined;
   onAgain: () => void;
 };
 
-export function EndedView({ cardCount, practice, mock, callId, perform, onAgain }: Props) {
+export function EndedView({ cardCount, practice, mock, callId, perform, saveLog, onAgain }: Props) {
   const { t } = useI18n();
+  const rt = useReviewText();
+  const review = useReview(callId);
+  const [openUpdates, setOpenUpdates] = useState(0);
+  const [openFollowUp, setOpenFollowUp] = useState(0);
+  const onUpdates = useCallback((n: number) => setOpenUpdates(n), []);
+  const onFollowUp = useCallback((n: number) => setOpenFollowUp(n), []);
+  const open = openUpdates + openFollowUp;
+  const showUpdates = (!practice || mock) && callId;
   return (
-    <>
+    <Stack gap="md" testID="after-call">
       <Panel style={styles.ended} testID="call-ended">
         <View style={styles.grow}>
           <Text variant="heading" weight="semibold" accessibilityRole="header">
@@ -41,35 +54,51 @@ export function EndedView({ cardCount, practice, mock, callId, perform, onAgain 
             {t("call.ended.body", { cards: cardCount })}
           </Text>
         </View>
-        <Button label={t("call.ended.again")} onPress={onAgain} />
+        {callId && !practice ? (
+          <Button
+            variant="ghost"
+            label={rt("after.inHistory")}
+            onPress={() => router.push(`/history/${callId}`)}
+            testID="after-history"
+          />
+        ) : null}
       </Panel>
-      {!practice || mock ? (
-        // R12 (T-061): Zoho writes, each approved on its own card, and the follow-up slot.
-        <PostCallPanel {...(perform ? { perform } : {})} slot={<MessagingSlot callId={callId} />} />
-      ) : null}
       {!practice ? (
         <FeatureGate feature="call_review">
           <CallReviewPanel callId={callId} />
         </FeatureGate>
       ) : null}
+      {showUpdates ? (
+        // R12, D-044: each ticked row is its own approval and its own idempotent write.
+        <ZohoGate>
+          <AfterCallChecklist
+            callId={callId}
+            review={review.status === "ready" ? review.review : null}
+            {...(perform ? { perform } : {})}
+            {...(saveLog ? { saveLog } : {})}
+            onOpenChange={onUpdates}
+          />
+        </ZohoGate>
+      ) : null}
       {!practice ? (
         <FeatureGate feature="follow_up">
-          <FollowUp callId={callId} />
+          <FollowUp callId={callId} auto onOpenChange={onFollowUp} />
         </FeatureGate>
       ) : null}
-    </>
-  );
-}
-
-/** R12 (T-063/T-065): email and WhatsApp after the call, prefilled from the attached Zoho record.
- * Each action greys or hides itself from the feature map and sends only after its own confirm. */
-function MessagingSlot({ callId }: { callId: string | null }) {
-  const crm = useAttached();
-  const person = crm.kind === "attached" ? crm.brief.person : null;
-  return (
-    <Stack gap="md">
-      <EmailAction callId={callId} customer={{ name: person?.name, email: person?.email }} />
-      <WhatsAppAction callId={callId} customer={{ name: person?.name, phone: person?.phone }} />
+      <View style={styles.again} testID={`after-again-${open > 0 ? "secondary" : "primary"}`}>
+        {open === 0 && !practice ? (
+          <Text variant="body" weight="semibold" testID="after-all-done">
+            {rt("after.allDone")}
+          </Text>
+        ) : null}
+        <View style={styles.grow} />
+        <Button
+          variant={open > 0 ? "secondary" : "primary"}
+          label={t("call.ended.again")}
+          onPress={onAgain}
+          testID="call-again"
+        />
+      </View>
     </Stack>
   );
 }
@@ -77,4 +106,5 @@ function MessagingSlot({ callId }: { callId: string | null }) {
 const styles = StyleSheet.create({
   grow: { flex: 1 },
   ended: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
+  again: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.md },
 });

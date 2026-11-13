@@ -7,12 +7,20 @@ import { ActionCard, localToIso } from "../features/actions/ActionCard";
 import { AfterCallChecklist } from "../features/actions/AfterCallChecklist";
 import { callLogSummary, dealNoteLabel, deviceTimeZone, zohoWebUrl } from "../features/actions/checklist";
 import { QuickActions } from "../features/actions/PostCallPanel";
+import { EndedView } from "../features/call/components/EndedView";
 import { actionsText } from "../features/actions/strings";
 import type { Brief } from "../features/crm/api";
 import { attachBrief, resetCall, setPrep } from "../features/crm/attached";
 import { useZoho } from "../features/crm/useZoho";
 import { ZohoConnect } from "../features/crm/ZohoConnect";
+import { saveDeviceCall, setDeviceReview } from "../lib/deviceHistory";
 import { LocaleProvider } from "../lib/locale";
+
+jest.mock("@sotto/engine", () => ({
+  ...jest.requireActual("@sotto/engine"),
+  buildRuntime: () => ({ router: {}, company: {} }),
+  draftFollowUp: jest.fn(async () => ({ subject: "Your demo", body: "Thanks for today." })),
+}));
 
 let mockCloud: unknown = { status: "off" };
 jest.mock("../lib/useCloud", () => ({ useCloud: () => mockCloud }));
@@ -339,6 +347,53 @@ describe("AfterCallChecklist (UX-04, D-044)", () => {
     );
     expect(zohoWebUrl("https://evil.test", "Deals", "4150868000000400001")).toBeNull();
     expect(zohoWebUrl("https://www.zohoapis.com", "Deals", "../x")).toBeNull();
+  });
+});
+
+describe("EndedView (UX-04, UX-24)", () => {
+  it("orders review line → checklist → follow-up → done; 'Start another call' is primary only when all are handled", async () => {
+    jest.useFakeTimers();
+    try {
+      attachBrief(BRIEF);
+      saveDeviceCall({
+        id: "e1",
+        started_at: 1,
+        ended_at: 2,
+        title: "Jane",
+        mode: "live",
+        cards: 2,
+        p50_ms: null,
+        p95_ms: null,
+        transcript: [{ kind: "line", speaker: "customer", text: "Send the demo.", at_ms: 1 }],
+      });
+      setDeviceReview("e1", REVIEW);
+      mockCloud = {
+        status: "signed_in",
+        bundle: { prompts: { followup: { key: "followup", body: "x" } } },
+        me: {
+          user: { id: "u", role: "agent" },
+          features: { zoho: { state: "available" }, email_send: { state: "needs_connection" } },
+        },
+      };
+      await wrap(
+        <EndedView cardCount={2} practice={false} mock={false} callId="e1" perform={jest.fn()} onAgain={jest.fn()} />,
+      );
+      await act(async () => {});
+      const tree = JSON.stringify(screen.toJSON());
+      const at = (id: string) => tree.indexOf(`"${id}"`);
+      expect(at("review-line")).toBeGreaterThan(-1);
+      expect(at("review-line")).toBeLessThan(at("after-checklist"));
+      expect(at("after-checklist")).toBeLessThan(at("followup"));
+      expect(at("followup")).toBeLessThan(at("after-again-secondary"));
+      expect(screen.queryByTestId("after-all-done")).toBeNull();
+      for (const id of ["after-call_log-skip", "after-meeting-skip", "after-contact_update-skip", "followup-skip"])
+        await fireEvent.press(screen.getByTestId(id));
+      await act(() => jest.advanceTimersByTime(5000));
+      expect(screen.getByTestId("after-again-primary")).toBeOnTheScreen();
+      expect(screen.getByTestId("after-all-done")).toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

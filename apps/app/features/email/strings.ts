@@ -59,6 +59,9 @@ const en = {
   "email.duplicate": "Already sent; not sent again.",
   "email.failed": "Not sent: {error}",
   "email.another": "Write another",
+  "email.warnAttached":
+    "The message mentions an attachment, but nothing is attached. Add a link or change the text.",
+  "email.warnPlaceholder": "Fill in {items} before sending.",
 } as const;
 
 export type EmailKey = keyof typeof en;
@@ -116,6 +119,8 @@ const ar: Record<EmailKey, string> = {
   "email.duplicate": "أُرسلت سابقًا؛ لم تُرسل مرة أخرى.",
   "email.failed": "لم تُرسل: {error}",
   "email.another": "كتابة رسالة أخرى",
+  "email.warnAttached": "تذكر الرسالة مرفقًا، لكن لا يوجد مرفق. أضف رابطًا أو غيّر النص.",
+  "email.warnPlaceholder": "املأ {items} قبل الإرسال.",
 };
 
 export const EMAIL_TEXT: Record<Locale, Record<EmailKey, string>> = { en, ar };
