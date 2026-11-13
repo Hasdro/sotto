@@ -401,3 +401,8 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Context:** D-028 requires the server to reject every non-available action, but under D-022 live suggestions and call review run in the client.
 - **Decision:** The server is the only place that computes flag state. (1) Every server route that serves a capability checks it and answers `403 {"error":"feature_unavailable","state":…,"feature":…}`: key and token delivery, recording upload, review sync, reports, settings writes, Zoho, email and Gallabox. (2) The session config the client fetches carries the effective feature map; the app greys from it and refreshes it on sign-in, on focus and every 10 minutes. (3) A client-only capability is effectively stopped because the server withholds what it needs (the model keys for its route, the upload, the integration call).
 - **Accepted limit:** a modified client using its own keys can run client-only logic; it can never reach company data, integrations or the server's keys.
+
+## D-037 — Zoho brief goes in through its own prompt; connect link is browser-bound
+2026-11-13 · Claude (technical, zoho-slice)
+- **Decision:** (1) The attached Zoho brief reaches the live model through a separate `crm_brief` prompt in the registry (`seed/prompts/crm_brief.md`), not a new variable in `suggest`, because 0.3.0 clients break when `suggest` gets an unknown variable. (2) The `/auth/zoho/start` link only completes in the browser that opened it (state bound to that browser), so a forwarded link cannot attach someone else's Zoho account.
+- **Consequence:** older clients keep working without the brief; a user who starts the connect on one device must finish it there.
