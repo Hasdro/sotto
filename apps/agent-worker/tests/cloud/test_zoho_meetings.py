@@ -73,6 +73,7 @@ class FakeZohoMeetings(FakeZoho):
                             "Deal_Name": "Acme renewal",
                             "Stage": "Proposal",
                             "Amount": 9000,
+                            "Currency": "AED",
                             "Closing_Date": "2026-12-20",
                             "Account_Name": {"name": "Acme Corp", "id": ACCOUNT_ID},
                         }
@@ -181,6 +182,7 @@ def test_picking_a_meeting_brings_its_contact_deal_and_account(
         "name": "Acme renewal",
         "stage": "Proposal",
         "amount": "9000",
+        "currency": "AED",
         "close_date": "2026-12-20",
         "owner": "",
     }

@@ -342,7 +342,7 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Ideas (not scheduled; need a requirement or decision first)
 
-_None yet._
+- Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
 

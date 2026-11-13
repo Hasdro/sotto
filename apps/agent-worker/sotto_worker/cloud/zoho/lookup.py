@@ -187,6 +187,7 @@ async def build_brief(
                 "name": _s(d.get("Deal_Name")),
                 "stage": _s(d.get("Stage")),
                 "amount": _s(d.get("Amount")),
+                "currency": _s(d.get("Currency")),
                 "close_date": _s(d.get("Closing_Date")),
                 "owner": _s(d.get("Owner")),
             }
@@ -473,6 +474,7 @@ async def build_meeting_brief(
                 "name": _s(deal.get("Deal_Name")),
                 "stage": _s(deal.get("Stage")),
                 "amount": _s(deal.get("Amount")),
+                "currency": _s(deal.get("Currency")),
                 "close_date": _s(deal.get("Closing_Date")),
                 "owner": _s(deal.get("Owner")),
             }

@@ -99,6 +99,7 @@ class FakeZoho:
                                 "Deal_Name": "Acme renewal",
                                 "Stage": "Negotiation",
                                 "Amount": 12000,
+                                "Currency": "USD",
                                 "Closing_Date": "2026-12-01",
                                 "Owner": {"name": "Ada Admin"},
                             },
@@ -459,6 +460,7 @@ def test_lookup_returns_candidates_with_evidence_and_a_capped_brief(
     brief = r.json()["brief"]
     assert brief["account"] == {"name": "Acme Corp", "industry": "Retail"}
     assert [d["name"] for d in brief["deals"]] == ["Acme renewal"]  # closed deals left out
+    assert brief["deals"][0]["currency"] == "USD"
     assert len(brief["notes"]) == 5  # last five …
     assert all(n["date"] >= (NOW - timedelta(days=90)).date().isoformat() for n in brief["notes"])
     assert len(brief["text"]) <= lookup.BRIEF_CHARS

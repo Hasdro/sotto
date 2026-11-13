@@ -27,11 +27,11 @@ PERSON_FIELDS = {
         "Lead_Source,Campaign_Source"
     ),
 }
-DEAL_FIELDS = "Deal_Name,Stage,Amount,Closing_Date,Owner"
+DEAL_FIELDS = "Deal_Name,Stage,Amount,Currency,Closing_Date,Owner"
 EVENT_FIELDS = (
     "Event_Title,Start_DateTime,End_DateTime,Description,Who_Id,What_Id,Participants,Owner,Venue"
 )
-DEAL_DETAIL_FIELDS = "Deal_Name,Stage,Amount,Closing_Date,Owner,Account_Name,Contact_Name"
+DEAL_DETAIL_FIELDS = "Deal_Name,Stage,Amount,Currency,Closing_Date,Owner,Account_Name,Contact_Name"
 NOTE_FIELDS = "Note_Title,Note_Content,Created_Time"
 ACCOUNT_FIELDS = "Account_Name,Industry"
 
