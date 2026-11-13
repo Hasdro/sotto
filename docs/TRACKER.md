@@ -321,6 +321,12 @@ _None yet._
 
 ## Session log
 
+### 2026-11-14 (b) · local · Opus 5.5 · phase9/zoho-meetings
+- **Done (owner request 14 Nov):** meetings are the main way to get call context. Server: `GET /zoho/meetings?page=` lists only Events owned by the connected Zoho user (`users?type=CurrentUser`, new scope `ZohoCRM.users.READ` → older connections are asked to reconnect, nothing listed until they do), not yet over, next 14 days, soonest first, 20/page; `GET /zoho/meetings/{id}/detail` view-only (someone else's → 404); meeting brief pulls Who_Id contact (else related/participant contact or lead), related Deal + its Account, notes. App: Home "Your upcoming meetings" (when connected) with expandable view-only detail and "Use for my next call" (brief carried into the next call via `bindCall`); rail lists the same meetings first, name/email/phone search under it.
+- **Evidence:** worker 530 (7 new meeting tests incl. owner filter + isolation), app 334, engine 65, desktop 17; lint/typecheck/boundaries green; a11y 39 checks 0 serious; replay ALL p50 576 / p95 978 ms, R4 0. Screenshots `docs/evidence/phase9/zoho-meetings/` (home list/detail, rail; light/dark/ar; 390/1280).
+- **Outside the owned list:** `features/home/HomeScreen.tsx` (one mount line), `app/call.tsx` (`bindCall`).
+- **Owner:** after deploy, Reconnect Zoho once more (users.READ) — the app prompts.
+
 ### 2026-11-14 · local · Opus 5.5 · phase9/zoho-actions
 - **Done:** owner bugs (OAuth page CSS leaked as text → all CSS in `<head>`, branded light/dark page; app didn't notice the finished connect → status re-read on focus/visibility + 2 s poll while pending + "Connected to Zoho" confirmation). Meetings in the rail + meeting in the brief (T-054/055), structured brief saved with the call (T-056 part), post-call panel + quick actions shell with messaging slot (T-061 part), approved idempotent Zoho writes with write scopes and reconnect prompt (T-062).
 - **Evidence:** worker 137 cloud tests (39 Zoho), app 301, engine 63, desktop 17; replay ALL p50 576 / p95 978 ms, R4 0, R2 drill p95 1270; security-auditor on the writes: H1 ambiguous failure could double-write → `unknown` status keeps the key; M1 lead upsert overwrote → plain create; L1–L3 (brief squat, failed-write audit, granted scope) fixed. Screenshots `docs/evidence/phase9/zoho-actions/`.

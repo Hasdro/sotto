@@ -10,8 +10,8 @@ import { useFeature } from "../../components/FeatureGate";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 import { zohoMeetingBrief } from "./api";
-import { mockLookup, mockMeetings } from "./mock";
 import { attachForNextCall } from "./attached";
+import { mockLookup, mockMeetings } from "./mock";
 import { type MeetingSource, UpcomingMeetings } from "./UpcomingMeetings";
 
 export function HomeMeetings({
