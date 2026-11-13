@@ -328,11 +328,12 @@ function Row({ label, body, children }: { label: string; body: string; children:
 const styles = StyleSheet.create({
   page: { padding: space.xl, gap: space.lg, maxWidth: 760, width: "100%", alignSelf: "center" },
   groupTitle: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  // Outlined card (D-041): hairline, 22 px radius.
   group: {
-    padding: space.lg,
+    padding: space.xl,
     gap: space.md,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
+    borderWidth: 1,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" },
   flex: { flex: 1, minWidth: 0 },
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.md,
     padding: space.md,
-    borderRadius: radius.sm,
+    borderRadius: radius.lg,
     borderWidth: 1,
   },
   radio: {

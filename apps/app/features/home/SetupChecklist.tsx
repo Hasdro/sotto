@@ -74,7 +74,8 @@ function Checklist({ facts }: { facts: SetupFacts }) {
   return (
     <View
       testID="home-setup"
-      style={[styles.box, { backgroundColor: color.surface, borderColor: color.border }]}
+      // A flat well (D-041): first-run steps sit apart from the outlined cards, no border.
+      style={[styles.box, { backgroundColor: color.surfaceSunken }]}
     >
       <View style={styles.head}>
         <Text variant="heading" weight="semibold" accessibilityRole="header">
@@ -109,10 +110,9 @@ function Checklist({ facts }: { facts: SetupFacts }) {
 
 const styles = StyleSheet.create({
   box: {
-    padding: space.lg,
+    padding: space.xl,
     gap: space.sm,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
   },
   head: {
     flexDirection: "row",

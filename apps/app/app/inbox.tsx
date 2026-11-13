@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     marginTop: space.sm,
     padding: space.md,
     borderStartWidth: 3,
-    borderRadius: radius.sm,
+    borderRadius: radius.lg,
     gap: 2,
   },
 });

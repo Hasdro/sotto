@@ -1,4 +1,4 @@
-import { Button, radius, scrimOpacity, space, Text, useTheme } from "@sotto/ui";
+import { Button, radius, scrimOpacity, space, Text, useGlassStyle, useTheme } from "@sotto/ui";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useI18n } from "../../../lib/locale";
 
@@ -13,6 +13,8 @@ export function ConfirmEnd({
   onConfirm: () => void;
 }) {
   const { color } = useTheme();
+  // A dialog is an overlay (D-041): glass with the elevated shadow, 24 px radius.
+  const glass = useGlassStyle({ elevated: true });
   const { t, dir } = useI18n();
   if (!open) return null;
   return (
@@ -24,11 +26,7 @@ export function ConfirmEnd({
           onPress={onCancel}
           style={[StyleSheet.absoluteFill, { backgroundColor: color.scrim, opacity: scrimOpacity }]}
         />
-        <View
-          testID="confirm-end"
-          accessibilityViewIsModal
-          style={[styles.box, { backgroundColor: color.surface, borderColor: color.border }]}
-        >
+        <View testID="confirm-end" accessibilityViewIsModal style={[styles.box, glass]}>
           <Text variant="heading" weight="semibold" accessibilityRole="header">
             {t("call.confirmEnd.title")}
           </Text>
@@ -62,8 +60,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     gap: space.md,
     padding: space.xl,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    borderRadius: radius.sheet,
   },
   actions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: space.sm },
 });

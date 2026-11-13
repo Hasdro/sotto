@@ -25,6 +25,8 @@ const MODES = [
   { scheme: "light", locale: "en" },
   { scheme: "dark", locale: "en" },
   { scheme: "light", locale: "ar" },
+  // SOTTO_SHOT_ALL=1 adds dark Arabic, so every screen has light/dark × LTR/RTL (T-085).
+  ...(process.env.SOTTO_SHOT_ALL ? [{ scheme: "dark", locale: "ar" }] : []),
 ];
 const TYPES = {
   ".html": "text/html",
@@ -62,7 +64,7 @@ try {
     const context = await browser.newContext({
       colorScheme: mode.scheme,
       viewport: { width, height: 844 },
-      deviceScaleFactor: 2,
+      deviceScaleFactor: Number(process.env.SOTTO_SHOT_SCALE ?? 2),
     });
     await context.addInitScript(
       ([locale, token, role]) => {

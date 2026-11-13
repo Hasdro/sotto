@@ -1,4 +1,4 @@
-import { Badge, Button, radius, size, space, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, size, space, Text, useGlassStyle, useTheme } from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
 import { desktop, type PrivacyPane } from "../../../lib/desktop";
 import type { StringKey } from "../../../lib/i18n";
@@ -71,6 +71,7 @@ export function ListenBar({ state, source, vendor, partial, onToggle }: Props) {
   const { t } = useI18n();
   const tc = useCallText();
   const { color } = useTheme();
+  const glass = useGlassStyle();
   const win = isWindows();
   const os = osOf();
   const bridge = desktop();
@@ -90,10 +91,7 @@ export function ListenBar({ state, source, vendor, partial, onToggle }: Props) {
           })
         : t("call.listen.paused");
   return (
-    <View
-      style={[styles.wrap, { borderTopColor: color.border, backgroundColor: color.surface }]}
-      testID="listen-bar"
-    >
+    <View style={[styles.wrap, glass]} testID="listen-bar">
       {partial ? (
         <Text
           variant="label"
@@ -135,7 +133,14 @@ export function ListenBar({ state, source, vendor, partial, onToggle }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: space.sm, padding: space.md, borderTopWidth: 1 },
+  // The composer capsule (DESIGN-SYSTEM §4.3, D-041): floating glass, 32 px radius, inset.
+  wrap: {
+    gap: space.sm,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    margin: space.md,
+    borderRadius: radius.composer,
+  },
   row: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },
   status: { flexShrink: 1 },
   dot: { width: size.dot, height: size.dot, borderRadius: radius.pill },

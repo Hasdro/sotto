@@ -4,7 +4,7 @@
  * person can fix and a button to the page that fixes it. Agents only see what is theirs to fix
  * (their Zoho connection); plan and email problems go to the people who can open those pages.
  */
-import { Button, space, Text, useTheme } from "@sotto/ui";
+import { Button, radius, space, Text, useTheme } from "@sotto/ui";
 import { router } from "expo-router";
 import { type ReactNode, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
@@ -54,10 +54,7 @@ function HealthLine({ reason }: { reason: HealthReason }) {
     <View
       testID="health-banner"
       accessibilityRole="summary"
-      style={[
-        styles.bar,
-        { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
-      ]}
+      style={[styles.bar, { backgroundColor: color.noticeFill, borderColor: color.noticeBorder }]}
     >
       <Text variant="label" weight="medium" color={color.noticeText} style={styles.text}>
         {t(`health.${reason.code}`)}
@@ -78,9 +75,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexWrap: "wrap",
     gap: space.md,
-    paddingHorizontal: space.lg,
+    marginHorizontal: space.lg,
+    marginTop: space.md,
+    paddingStart: space.lg,
+    paddingEnd: space.xs,
     paddingVertical: space.xs,
-    borderBottomWidth: 1,
+    borderWidth: 1,
+    borderRadius: radius.xl,
   },
   text: { flexShrink: 1 },
 });

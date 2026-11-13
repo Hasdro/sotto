@@ -2,7 +2,16 @@
  * ⌘K / Ctrl+K quick search (owner, 22 Oct: in the spirit of the Claude desktop app): type to jump
  * to any section, a common action or a recent call; Enter opens the first match. Web and desktop.
  */
-import { Icon, type IconName, radius, space, Text, TextField, useTheme } from "@sotto/ui";
+import {
+  Icon,
+  type IconName,
+  radius,
+  space,
+  Text,
+  TextField,
+  useGlassStyle,
+  useTheme,
+} from "@sotto/ui";
 import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
@@ -26,6 +35,7 @@ export function CommandPalette({
 }) {
   const { t } = useI18n();
   const { color } = useTheme();
+  const glass = useGlassStyle({ elevated: true });
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -91,11 +101,7 @@ export function CommandPalette({
         onPress={() => setOpen(false)}
         accessibilityLabel={t("nav.close")}
       />
-      <View
-        style={[styles.sheet, { backgroundColor: color.surface, borderColor: color.border }]}
-        testID="palette"
-        accessibilityViewIsModal
-      >
+      <View style={[styles.sheet, glass]} testID="palette" accessibilityViewIsModal>
         <TextField
           autoFocus
           accessibilityLabel={t("palette.search")}
@@ -151,8 +157,7 @@ const styles = StyleSheet.create({
     maxWidth: "92%",
     padding: space.md,
     gap: space.sm,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sheet,
   },
   list: { gap: 2 },
   item: {
@@ -161,7 +166,7 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
   },
   grow: { flex: 1, minWidth: 0 },
   none: { padding: space.md },

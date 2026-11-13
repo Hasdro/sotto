@@ -4,7 +4,16 @@
  * on the row: company, the review's chance to close, notes and the first suggestion. Shown by
  * the row on hover or keyboard focus; pointer events stay inside the row, so it does not flicker.
  */
-import { Badge, Icon, type IconName, radius, space, Text, useTheme } from "@sotto/ui";
+import {
+  Badge,
+  Icon,
+  type IconName,
+  radius,
+  space,
+  Text,
+  useGlassStyle,
+  useTheme,
+} from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
 import type { PastCall } from "../features/history/mock";
 import { OUTCOME_TONE } from "../features/history/outcome";
@@ -15,6 +24,7 @@ import { useI18n } from "../lib/locale";
 export function CallPeek({ call }: { call: PastCall }) {
   const { t, locale } = useI18n();
   const { color, card } = useTheme();
+  const glass = useGlassStyle({ elevated: true });
   const meta = SOURCE_META[call.source ?? "computer"];
   const cards = call.cardCount ?? call.cards.length;
   const tone =
@@ -32,10 +42,7 @@ export function CallPeek({ call }: { call: PastCall }) {
       // The row already says all of this to a screen reader; this is a visual quick look.
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[
-        styles.card,
-        { backgroundColor: color.surface, borderColor: color.border, shadowColor: color.text },
-      ]}
+      style={[styles.card, glass]}
     >
       <View style={styles.head}>
         <View style={styles.grow}>
@@ -110,13 +117,8 @@ const styles = StyleSheet.create({
   card: {
     width: 330,
     gap: space.sm,
-    padding: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    padding: space.lg,
+    borderRadius: radius.xl,
   },
   head: { flexDirection: "row", alignItems: "flex-start", gap: space.sm },
   grow: { flex: 1, minWidth: 0 },

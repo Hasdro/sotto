@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: space.md,
     padding: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
   },
   text: { flex: 1, minWidth: 180, gap: 2 },

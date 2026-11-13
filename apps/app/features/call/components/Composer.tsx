@@ -7,6 +7,7 @@ import {
   space,
   Text,
   TextField,
+  useGlassStyle,
   useTheme,
 } from "@sotto/ui";
 import { useState } from "react";
@@ -35,6 +36,7 @@ type Props = {
 export function Composer({ onSay, disabled, compact = false, mic = null, partial = null }: Props) {
   const { t } = useI18n();
   const { color } = useTheme();
+  const glass = useGlassStyle();
   const [speaker, setSpeaker] = useState<Speaker>("customer");
   const [text, setText] = useState("");
   const submit = () => {
@@ -44,21 +46,23 @@ export function Composer({ onSay, disabled, compact = false, mic = null, partial
   };
   const speakerLabel = t(speaker === "customer" ? "call.speaker.customer" : "call.speaker.agent");
   const field = (
-    <TextField
-      accessibilityLabel={t("call.composer.label")}
-      placeholder={t(
-        speaker === "customer"
-          ? "call.composer.customerPlaceholder"
-          : "call.composer.agentPlaceholder",
-      )}
-      value={text}
-      onChangeText={setText}
-      onSubmitEditing={submit}
-      returnKeyType="send"
-      editable={!disabled}
-      maxLength={2000}
-      testID="composer-input"
-    />
+    <View style={styles.field}>
+      <TextField
+        accessibilityLabel={t("call.composer.label")}
+        placeholder={t(
+          speaker === "customer"
+            ? "call.composer.customerPlaceholder"
+            : "call.composer.agentPlaceholder",
+        )}
+        value={text}
+        onChangeText={setText}
+        onSubmitEditing={submit}
+        returnKeyType="send"
+        editable={!disabled}
+        maxLength={2000}
+        testID="composer-input"
+      />
+    </View>
   );
   const send = (
     <Button
@@ -112,7 +116,7 @@ export function Composer({ onSay, disabled, compact = false, mic = null, partial
     </Text>
   ) : null;
   return (
-    <View style={[styles.wrap, { borderTopColor: color.border, backgroundColor: color.surface }]}>
+    <View style={[styles.wrap, glass]}>
       {hearing}
       {micRow}
       {compact ? (
@@ -122,10 +126,7 @@ export function Composer({ onSay, disabled, compact = false, mic = null, partial
             accessibilityLabel={`${t("call.composer.who")}: ${speakerLabel}`}
             onPress={() => setSpeaker((s) => (s === "customer" ? "agent" : "customer"))}
             testID="speaker-toggle"
-            style={[
-              styles.chip,
-              { borderColor: color.borderStrong, backgroundColor: color.surface },
-            ]}
+            style={[styles.chip, { backgroundColor: color.surfaceSunken }]}
           >
             <View
               style={[
@@ -167,16 +168,23 @@ export function Composer({ onSay, disabled, compact = false, mic = null, partial
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: space.sm, padding: space.md, borderTopWidth: 1 },
+  // The composer capsule (DESIGN-SYSTEM §4.3, D-041): floating glass, 32 px radius, inset.
+  wrap: {
+    gap: space.sm,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    margin: space.md,
+    borderRadius: radius.composer,
+  },
   row: { flexDirection: "row", alignItems: "flex-end", gap: space.sm },
+  field: { flex: 1, minWidth: 0 },
   chip: {
     minHeight: minTouchTarget,
     flexDirection: "row",
     alignItems: "center",
     gap: space.xs,
-    paddingHorizontal: space.sm,
-    borderWidth: 1,
-    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
   },
   chipDot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
   micRow: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },

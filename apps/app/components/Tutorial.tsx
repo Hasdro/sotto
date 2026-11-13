@@ -12,6 +12,7 @@ import {
   SuggestionCard,
   space,
   Text,
+  useGlassStyle,
   useTheme,
 } from "@sotto/ui";
 import { useEffect, useRef, useState } from "react";
@@ -62,6 +63,7 @@ export function TutorialDialog({
   testID?: string;
 }) {
   const { t } = useI18n();
+  const glass = useGlassStyle({ elevated: true });
   const { color } = useTheme();
   const [i, setI] = useState(0);
   const [never, setNever] = useState(false);
@@ -80,11 +82,7 @@ export function TutorialDialog({
   return (
     <Modal transparent visible animationType="fade" onRequestClose={() => onClose(never)}>
       <View style={[styles.scrim, { backgroundColor: `${color.scrim}99` }]}>
-        <View
-          testID={testID}
-          accessibilityViewIsModal
-          style={[styles.sheet, { backgroundColor: color.surface, borderColor: color.border }]}
-        >
+        <View testID={testID} accessibilityViewIsModal style={[styles.sheet, glass]}>
           <Animated.View
             style={[
               styles.body,
@@ -230,8 +228,7 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
     padding: space.xl,
     gap: space.lg,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sheet,
   },
   body: { alignItems: "center", gap: space.md, minHeight: 300 },
   center: { textAlign: "center" },
@@ -251,7 +248,7 @@ const styles = StyleSheet.create({
   demo: { alignSelf: "stretch", gap: space.sm },
   bubble: {
     padding: space.md,
-    borderRadius: radius.md,
+    borderRadius: radius.xl,
     gap: 2,
     alignSelf: "flex-start",
     maxWidth: "85%",

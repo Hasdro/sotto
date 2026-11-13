@@ -290,9 +290,9 @@ function Slider({
 
 const styles = StyleSheet.create({
   panel: {
-    padding: space.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    padding: space.xl,
+    borderRadius: radius.xl,
+    borderWidth: 1,
     gap: space.md,
   },
   body: { gap: space.lg },
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   track: { position: "relative" },
   rail: { overflow: "hidden" },
   knob: { position: "absolute", borderWidth: 3 },
-  tip: { padding: space.lg, borderRadius: radius.md, gap: space.xs },
+  tip: { padding: space.lg, borderRadius: radius.xl, gap: space.xs },
   lists: { flexDirection: "row", flexWrap: "wrap", gap: space.xl },
   points: { flexGrow: 1, flexBasis: 220, gap: space.xs },
   point: { flexDirection: "row", alignItems: "center", gap: space.sm },
