@@ -34,17 +34,12 @@ def layers(**kw: set[str]) -> Layers:
 # --- the evaluator --------------------------------------------------------------------------------
 def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> None:
     existing = {"call_review", "follow_up", "recordings", "reports", "ai_knowledge", "integrations"}
-    planned = {
-        "zoho",
-        "gallabox",
-        "email_send",
-        "whatsapp",
-        "prep",
-        "card_ratings",
-        "learned_instructions",
-    }
-    assert set(features.CATALOG) == existing | planned
-    assert all(features.CATALOG[f].built for f in existing)
+    learning = {"card_ratings", "learned_instructions"}  # built in 0.5.0 (T-058, T-059)
+    planned = {"zoho", "gallabox", "email_send", "whatsapp", "prep"}
+    assert set(features.CATALOG) == existing | learning | planned
+    assert all(features.CATALOG[f].built for f in existing | learning)
+    for f in learning:
+        assert evaluate(f, "agent", NONE).state == "available", f
     for f in planned:
         assert evaluate(f, "admin", NONE).state == "needs_connection", f
 

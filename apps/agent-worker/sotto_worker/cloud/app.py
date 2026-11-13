@@ -27,6 +27,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.features import FeatureUnavailable
+from sotto_worker.cloud.learning import routes as learning_routes
+from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.recordings import KINDS, Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
@@ -176,6 +178,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
     zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
     minter = config.stt_minter or mint_stt_token
+    learning = LearningStore(store)
     tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
     static_root = config.static_dir.resolve() if config.static_dir else None
@@ -222,6 +225,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "zoho_reconnect": HTTPStatus.CONFLICT,
         "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
         "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
+        "too_few_ratings": HTTPStatus.CONFLICT,
+        "not_rateable": HTTPStatus.UNPROCESSABLE_ENTITY,
     }
 
     def handle(
@@ -316,7 +321,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     @app_route
     async def features_get(_request: Request, who: Principal) -> Response:
         return JSONResponse(
-            {"features": store.features_for(who)}, headers={"Cache-Control": "no-store"}
+            # learned_version: a changed list makes the app reload the bundle between calls.
+            {"features": store.features_for(who), "learned_version": learning.version_of(who)},
+            headers={"Cache-Control": "no-store"},
         )
 
     @app_route
@@ -422,6 +429,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         out["plan"] = state
         out["key_status"] = store.key_status(who)
         out["features"] = store.features_for(who)
+        out["learned"] = learning.active_for_call(who)  # R11: applies from the next call
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
     @app_route
@@ -998,6 +1006,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             "/api/owner/devices/{id}",
             owner_route(o_device_delete, mutating=True),
             methods=["DELETE"],
+        ),
+        *learning_routes.make_routes(
+            learning=learning, app_route=app_route, body=body, ip_of=ip_of
         ),
         *zoho_routes.make_routes(
             store=store,
