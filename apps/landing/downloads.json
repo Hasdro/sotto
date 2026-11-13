@@ -1,21 +1,21 @@
 {
-  "version": "0.2.0",
-  "generatedAt": "2026-11-12T18:21:00.655Z",
+  "version": "0.3.1",
+  "generatedAt": "2026-11-13T09:11:29.497Z",
   "files": {
     "mac-arm64": {
-      "file": "Sotto-0.2.0-arm64.dmg",
-      "size": 129055717,
-      "sha256": "5f44158ab7b11bac7fc30c105495842694b01424fd93c4d7b1aac8e8f7247cb3"
+      "file": "AGN Sales Shield-0.3.1-arm64.dmg",
+      "size": 127236061,
+      "sha256": "669b87a1086e75e15b633f9cca4c7503aafadfe8a35c88c4e1f03692154e38fe"
     },
     "mac-x64": {
-      "file": "Sotto-0.2.0.dmg",
-      "size": 135805285,
-      "sha256": "f985d541abd456244d555a13519ac8b041951d06d23880e8b3ed36b9323f3316"
+      "file": "AGN Sales Shield-0.3.1.dmg",
+      "size": 133966855,
+      "sha256": "be29995299de44fde025a2e624c27cacfbd078c95fc090ae24a44068ff8e1add"
     },
     "win-x64": {
-      "file": "Sotto Setup 0.2.0.exe",
-      "size": 115161998,
-      "sha256": "62d6c7006eab0a4000b9b7186f5d3e245dd2e186496ad918d626ee14c7c19a39"
+      "file": "AGN Sales Shield Setup 0.3.0.exe",
+      "size": 114741946,
+      "sha256": "9fe7d89c0a9726d2d24b3874b396a3a45d14fa26fe304a42f1cc25b8d1f99797"
     }
   }
 }

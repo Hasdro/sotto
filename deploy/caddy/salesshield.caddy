@@ -16,6 +16,10 @@ salesshield.agncompu.com {
 		header Content-Disposition attachment
 		file_server
 	}
+	# Zoho OAuth callback lands here (redirect URI is on this host); served by the management server.
+	handle /auth/zoho/* {
+		reverse_proxy 127.0.0.1:8788
+	}
 	# The landing page. The manifest must never be cached stale, or buttons point at old files.
 	handle {
 		root * /var/www/salesshield
