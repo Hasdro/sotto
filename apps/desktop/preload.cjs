@@ -1,6 +1,7 @@
 // The one bridge from the desktop app to its pages: which call app, if any, is using a
 // microphone (auto pick-up), the global shortcuts, the mini window's card, and the sign-in
-// tokens' secure storage (D-029). Nothing else of Electron or Node reaches the page.
+// tokens' secure storage (D-029), the app's own deep links and the OS privacy panes (W1-DESK).
+// Nothing else of Electron or Node reaches the page.
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("sottoDesktop", {
@@ -24,6 +25,14 @@ contextBridge.exposeInMainWorld("sottoDesktop", {
   },
   showMini: (show) => ipcRenderer.send("mini-show", Boolean(show)),
   miniAction: (action) => ipcRenderer.send("mini-action", String(action)),
+  // agn-sales-shield:// links (D-054), e.g. { kind: "zoho", status: "connected" }; no tokens.
+  onDeepLink: (cb) => {
+    const listener = (_event, msg) => cb(msg);
+    ipcRenderer.on("deep-link", listener);
+    return () => ipcRenderer.removeListener("deep-link", listener);
+  },
+  // "mic" or "system-audio" only; resolves { ok } or { ok: false, reason }.
+  openPrivacySettings: (kind) => ipcRenderer.invoke("privacy:open", String(kind)),
   // Keychain / Credential Manager through safeStorage (secure-store.cjs); app keys only.
   secureStore: {
     get: (key) => ipcRenderer.invoke("secure-store:get", String(key)),

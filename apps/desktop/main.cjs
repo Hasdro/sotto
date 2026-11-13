@@ -21,6 +21,7 @@ const {
 const { callApp } = require("./call-apps.cjs");
 const { parseMicUsage } = require("./win-mic.cjs");
 const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
+const { registerDeepLinks, registerPrivacy } = require("./deep-link.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -42,6 +43,22 @@ const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   `img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:${LOCAL}; ` +
   "media-src 'self' blob:; object-src 'none'; base-uri 'none'";
+
+// W1-DESK (D-054): agn-sales-shield:// brings the person back (one instance; focus on open).
+let pendingLink = null;
+const firstInstance = registerDeepLinks({
+  app,
+  argv: process.argv,
+  defaultApp: Boolean(process.defaultApp),
+  onFocus: () => {
+    if (app.isReady()) focusMain(); // a cold start via the link opens the window as usual
+  },
+  onLink: (msg) => {
+    if (mainWin && !mainWin.webContents.isLoading()) mainWin.webContents.send("deep-link", msg);
+    else pendingLink = msg;
+  },
+});
+if (!firstInstance) app.exit(0); // the first instance got the link and focused itself
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -247,6 +264,10 @@ function createWindow() {
   });
   guard(win);
   mainWin = win;
+  win.webContents.on("did-finish-load", () => {
+    if (pendingLink) win.webContents.send("deep-link", pendingLink);
+    pendingLink = null;
+  });
   win.on("closed", () => {
     if (mainWin === win) mainWin = null;
     miniWin?.close(); // the mini window has nothing to show without the main window
@@ -260,6 +281,8 @@ app.whenReady().then(() => {
   const { safeStorage } = require("electron");
   const secure = createSecureStore({ safeStorage, dir: app.getPath("userData") });
   registerSecureStore({ ipcMain, store: secure, origin: ORIGIN });
+  // UX-21: open the OS privacy pane for the microphone or the computer's sound (fixed list).
+  registerPrivacy({ ipcMain, shell, platform: process.platform, origin: ORIGIN });
   // Only audio capture, only for the app's own pages: the microphone, or the computer's sound.
   const own = (url) => typeof url === "string" && url.startsWith(`${ORIGIN}/`);
   const allowed = (wc, permission) =>

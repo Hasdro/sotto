@@ -305,7 +305,13 @@ export async function cloudBlob(path: string, fetcher: typeof fetch = fetch): Pr
   }
 }
 
-const AUTH_PATHS = new Set(["/api/v1/auth/login", "/api/v1/auth/signup", "/api/v1/auth/refresh"]);
+const AUTH_PATHS = new Set([
+  "/api/v1/auth/login",
+  "/api/v1/auth/signup",
+  "/api/v1/auth/refresh",
+  "/api/v1/auth/reset/request",
+  "/api/v1/auth/reset/confirm",
+]);
 
 async function request<T>(
   path: string,
@@ -506,11 +512,14 @@ export async function refreshFeatures(): Promise<void> {
   lastCheck = Date.now();
   try {
     if (state.offline) return await loadSession();
-    const r = await cloudApi<{ features: FeatureMap; learned_version?: number | null }>(
-      "/api/v1/features",
-    );
+    const r = await cloudApi<{
+      features: FeatureMap;
+      learned_version?: number | null;
+      health?: ConfigHealth;
+    }>("/api/v1/features");
     reads.delete("/api/v1/features");
     if (state.status !== "signed_in") return;
+    if (r.health) health = r.health;
     // R11: a new learned-instructions version reaches the bundle too, between calls only.
     const learned =
       r.learned_version !== undefined &&
@@ -610,4 +619,82 @@ export async function refreshCloud(): Promise<void> {
 export async function changePassword(current: string, next: string): Promise<void> {
   await cloudApi("/api/v1/auth/password", { method: "POST", body: { current, new: next } });
   await loadSession();
+}
+
+// --- T-074 (wave 1 server core): typed calls for the new routes; screens come in waves 2–3. ---
+
+/** ZC-14 (D-057): one org status, refreshed with the feature map. */
+export type HealthReason = {
+  code: "zoho_token_expired" | "smtp_failing" | "minutes_low" | "trial_ending";
+  /** The app route that fixes it. */
+  fix: string;
+};
+export type ConfigHealth = { status: "ok" | "needs_attention"; reasons: HealthReason[] };
+let health: ConfigHealth = { status: "ok", reasons: [] };
+
+/** The last config health the server sent (ok until the first feature refresh). */
+export function configHealth(): ConfigHealth {
+  return health;
+}
+
+/** UX-39 (D-053): always resolves the same way, known address or not. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await cloudApi("/api/v1/auth/reset/request", { method: "POST", body: { email } });
+}
+
+/** Sets the new password; every signed-in device of that person is signed out. */
+export async function confirmPasswordReset(token: string, password: string): Promise<void> {
+  await cloudApi("/api/v1/auth/reset/confirm", { method: "POST", body: { token, password } });
+}
+
+/** ZC-11: company defaults. Admins get everything; others only `record_calls`. */
+export type RecordCalls = "agent_choice" | "on" | "off";
+export type ConsentRecord = {
+  choice: "all" | "primary_only";
+  accepted_by: string;
+  accepted_at: number;
+  text_version: string;
+};
+export type CompanyDefaults = {
+  record_calls: RecordCalls;
+  consent?: ConsentRecord | null;
+  vendor_allow_list?: string[];
+  agent_context?: boolean;
+  manager?: { emails: string[]; source: "setting" | "managers" | "admins" | "none" };
+};
+export type CompanyDefaultsChange = {
+  record_calls?: RecordCalls;
+  consent?: { choice: ConsentRecord["choice"]; text_version: string };
+  vendor_allow_list?: string[];
+};
+
+export async function companyDefaults(): Promise<CompanyDefaults> {
+  return cloudApi<CompanyDefaults>("/api/v1/company/defaults");
+}
+
+export async function saveCompanyDefaults(change: CompanyDefaultsChange): Promise<CompanyDefaults> {
+  return cloudApi<CompanyDefaults>("/api/v1/company/defaults", { method: "PUT", body: change });
+}
+
+/** INT-01 (D-047): the after-call log as one Note on the Deal, else Contact, else Lead. */
+export type CallLogFields = {
+  call_id: string;
+  deal_id?: string;
+  contact_id?: string;
+  lead_id?: string;
+  summary: string;
+  objections?: string;
+  commitments?: string;
+  next_step?: string;
+  chance_band?: "low" | "medium" | "high";
+};
+
+/** One per call: a retry (any key) returns the first note with `repeat: true`. */
+export async function saveCallLog(
+  fields: CallLogFields,
+): Promise<{ ok: true; id: string; action?: string; repeat?: boolean }> {
+  return cloudApi("/api/v1/zoho/actions/call_log", {
+    method: "POST",
+    body: { approved: true, idempotency_key: `call_log-${fields.call_id}`, fields },
+  });
 }

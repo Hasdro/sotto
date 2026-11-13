@@ -32,6 +32,7 @@ class MultiDC:
     def __init__(self, home: str = "accounts.zoho.eu") -> None:
         self.home = home
         self.requests: list[httpx.Request] = []
+        self.refuse_refresh = False
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -44,12 +45,14 @@ class MultiDC:
                 return httpx.Response(
                     200,
                     json={
-                        "access_token": ACCESS,
+                        "access_token": "" if self.refuse_refresh else ACCESS,
                         "refresh_token": REFRESH,
                         "api_domain": API[self.home],
                         "expires_in": 3600,
                     },
                 )
+            if self.refuse_refresh:
+                return httpx.Response(400, json={"error": "invalid_code"})
             return httpx.Response(200, json={"access_token": ACCESS, "expires_in": 3600})
         if url.host.startswith("www.zohoapis.") and url.path.endswith("/search"):
             return httpx.Response(204)
@@ -210,3 +213,21 @@ def test_done_page_has_the_deep_link_and_no_token_or_code(zc: TestClient) -> Non
     assert "href='agn-sales-shield://zoho/connected'" in r.text
     for secret in (code, state, ACCESS, REFRESH):
         assert secret not in r.text
+
+
+def test_refused_refresh_shows_in_health_until_reconnect(zc: TestClient, eu: MultiDC) -> None:
+    auth = signup(zc, "Acme", "admin@acme.test")
+    set_org_client(zc, auth)
+    eu.refuse_refresh = True
+    state, _ = begin(zc, auth)
+    zc.get("/auth/zoho/callback/", params={"code": "c", "state": state, "location": "eu"})
+    r = zc.get("/api/v1/zoho/search", params={"q": "jane@acme.test"}, headers=auth)
+    assert r.json()["code"] == "zoho_reconnect"
+    reasons = zc.get("/api/v1/features", headers=auth).json()["health"]["reasons"]
+    assert "zoho_token_expired" in [x["code"] for x in reasons]
+    assert zc.get("/api/v1/zoho/status", headers=auth).json()["needs_reconnect"] is True
+    eu.refuse_refresh = False
+    state, _ = begin(zc, auth)
+    zc.get("/auth/zoho/callback/", params={"code": "c", "state": state, "location": "eu"})
+    reasons = zc.get("/api/v1/features", headers=auth).json()["health"]["reasons"]
+    assert "zoho_token_expired" not in [x["code"] for x in reasons]

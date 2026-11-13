@@ -59,6 +59,21 @@ SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "manager_email": (str, ()),
 }
 CONTEXT_MAX_CHARS = 8000
+# ZC-11: company defaults (data only; the legal text is the owner's, DD-4).
+RECORD_CALLS = ("agent_choice", "on", "off")  # A4: the org policy; agent_choice = as before
+CONSENT_CHOICES = ("all", "primary_only")
+VENDOR_ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,39}$")
+MAX_VENDORS = 30
+# ZC-14 (D-057): where each health reason is fixed in the apps.
+HEALTH_FIX = {
+    "zoho_token_expired": "/settings#zoho",
+    "smtp_failing": "/admin/integrations#email",
+    "minutes_low": "/account#plan",
+    "trial_ending": "/account#plan",
+}
+MINUTES_LOW_SHARE = 0.8
+TRIAL_ENDING_DAYS = 3
+RESET_TTL_MS = 30 * 60_000
 
 SCHEMA = """
 PRAGMA journal_mode=WAL;
@@ -276,6 +291,24 @@ CREATE TABLE IF NOT EXISTS zoho_states (
 );
 -- ZC-02 (D-046): the org's Zoho data centre, set by the first detected connection; a default
 -- for the connect page. Each person's own DC is on their connection row.
+-- ZC-11 (D-044 data part): the org's defaults an admin sets once; one row per key, audited.
+CREATE TABLE IF NOT EXISTS company_defaults (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  updated_by TEXT,
+  PRIMARY KEY (company_id, key)
+);
+-- UX-39 (D-053): emailed password-reset tokens (hash only), single use, 30 minutes.
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT PRIMARY KEY,
+  company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER
+);
 CREATE TABLE IF NOT EXISTS zoho_org_dc (
   company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
   dc TEXT NOT NULL,
@@ -2459,3 +2492,187 @@ class CloudStore:
             args = (*args, who.user_id)
         rows = self._q(sql, args)
         return cast(dict[str, Any], json.loads(rows[0]["brief_json"])) if rows else None
+
+    # --- ZC-11: company defaults -----------------------------------------------------------------
+    def _defaults_raw(self, company_id: str) -> dict[str, Any]:
+        rows = self._q(
+            "SELECT key, value_json FROM company_defaults WHERE company_id = ?", (company_id,)
+        )
+        return {r["key"]: json.loads(r["value_json"]) for r in rows}
+
+    def manager_of(self, company_id: str) -> dict[str, Any]:
+        """B9: the address an admin set, else the active managers, else the active admins."""
+        chosen = str(self.settings(company_id).get("manager_email") or "").strip()
+        if chosen:
+            return {"emails": [chosen], "source": "setting"}
+        for role, source in (("manager", "managers"), ("admin", "admins")):
+            rows = self._q(
+                "SELECT email FROM users WHERE company_id = ? AND role = ? AND active = 1"
+                " ORDER BY created_at",
+                (company_id, role),
+            )
+            if rows:
+                return {"emails": [str(r["email"]) for r in rows], "source": source}
+        return {"emails": [], "source": "none"}
+
+    def company_defaults(self, who: Principal) -> dict[str, Any]:
+        """Admins see all; everyone else only the org's recording policy (A4)."""
+        raw = self._defaults_raw(who.company)
+        record = raw.get("record_calls", "agent_choice")
+        if who.role != "admin":
+            return {"record_calls": record}
+        return {
+            "record_calls": record,
+            "consent": raw.get("consent"),
+            "vendor_allow_list": raw.get("vendor_allow_list", []),
+            "agent_context": bool(self.settings(who.company).get("agent_context", False)),
+            "manager": self.manager_of(who.company),
+        }
+
+    def set_company_defaults(
+        self, who: Principal, changes: dict[str, Any], *, ip: str = ""
+    ) -> dict[str, Any]:
+        who.require("admin")
+        clean: dict[str, tuple[Any, str]] = {}  # key → (value, audit detail)
+        for key, value in changes.items():
+            if key == "record_calls":
+                if value not in RECORD_CALLS:
+                    raise CloudError("invalid", "record_calls must be agent_choice, on or off")
+                clean[key] = (value, str(value))
+            elif key == "consent":
+                if not isinstance(value, dict) or set(value) - {"choice", "text_version"}:
+                    raise CloudError("invalid", "send consent as {choice, text_version}")
+                choice, version = value.get("choice"), value.get("text_version")
+                if choice not in CONSENT_CHOICES:
+                    raise CloudError("invalid", "consent choice must be all or primary_only")
+                if not isinstance(version, str) or not re.fullmatch(r"[\w.-]{1,40}", version):
+                    raise CloudError("invalid", "text_version is required")
+                record = {
+                    "choice": choice,
+                    "accepted_by": who.user_id,
+                    "accepted_at": now_ms(),
+                    "text_version": version,
+                }
+                clean[key] = (record, f"{choice} v{version}")
+            elif key == "vendor_allow_list":
+                if not isinstance(value, list) or len(value) > MAX_VENDORS:
+                    raise CloudError("invalid", f"send up to {MAX_VENDORS} vendor ids")
+                if not all(isinstance(v, str) and VENDOR_ID.match(v) for v in value):
+                    raise CloudError("invalid", "vendor ids are short lowercase names")
+                vendors = sorted(set(value))
+                clean[key] = (vendors, ",".join(vendors) or "(all approved)")
+            else:
+                raise CloudError("invalid", f"unknown default {key!r}")
+        t = now_ms()
+        with self._tx() as db:
+            for key, (value, detail) in clean.items():
+                db.execute(
+                    "INSERT INTO company_defaults(company_id, key, value_json, updated_at,"
+                    " updated_by) VALUES (?,?,?,?,?) ON CONFLICT(company_id, key) DO UPDATE SET"
+                    " value_json = excluded.value_json, updated_at = excluded.updated_at,"
+                    " updated_by = excluded.updated_by",
+                    (who.company, key, json.dumps(value), t, who.user_id),
+                )
+                self.audit(db, f"defaults.{key}", detail, company_id=who.company, actor=who, ip=ip)
+        return self.company_defaults(who)
+
+    # --- ZC-14: config health --------------------------------------------------------------------
+    def config_health(self, who: Principal) -> dict[str, Any]:
+        """One status per org (D-057), shipped with the feature map. Reasons are machine codes
+        with the app route that fixes them; nothing secret. A Zoho token counts for the person
+        asking (admins: anyone in the org), since each person connects their own."""
+        company = who.company
+        t = now_ms()
+        reasons: list[str] = []
+        sql = "SELECT 1 FROM zoho_connections WHERE company_id = ? AND failed_at IS NOT NULL"
+        args: tuple[Any, ...] = (company,)
+        if who.role != "admin":
+            sql += " AND user_id = ?"
+            args = (*args, who.user_id)
+        if self._q(sql + " LIMIT 1", args):
+            reasons.append("zoho_token_expired")
+        try:
+            last = self._q(
+                "SELECT status FROM email_sends WHERE company_id = ? AND status IN"
+                " ('sent', 'failed') AND at > ? ORDER BY at DESC LIMIT 1",
+                (company, t - DAY_MS),
+            )
+        except sqlite3.OperationalError:  # the email module never ran on this server
+            last = []
+        if last and last[0]["status"] == "failed":
+            reasons.append("smtp_failing")
+        plan = plan_state(self.company_row(company), self.minutes_used(company, t), t)
+        if plan["minutes_month"] and plan["minutes_used"] >= (
+            plan["minutes_month"] * MINUTES_LOW_SHARE
+        ):
+            reasons.append("minutes_low")
+        if plan["status"] == "trial" and (plan["days_left"] or 0) <= TRIAL_ENDING_DAYS:
+            reasons.append("trial_ending")
+        return {
+            "status": "needs_attention" if reasons else "ok",
+            "reasons": [{"code": r, "fix": HEALTH_FIX[r]} for r in reasons],
+        }
+
+    # --- UX-39: password reset -------------------------------------------------------------------
+    def reset_request(self, email: str, *, ip: str = "") -> tuple[str, sqlite3.Row] | None:
+        """A single-use token for an active app user, or None (unknown, owner, inactive): the
+        route answers the same either way. Earlier unused tokens of that person stop working."""
+        rows = self._q(
+            "SELECT * FROM users WHERE email = ? AND active = 1 AND role != 'owner'",
+            (email.strip().lower(),),
+        )
+        if not rows:
+            return None
+        user = rows[0]
+        token = secrets.token_urlsafe(32)
+        t = now_ms()
+        with self._tx() as db:
+            db.execute("DELETE FROM password_resets WHERE expires_at < ?", (t - DAY_MS,))
+            db.execute(
+                "UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL",
+                (t, user["id"]),
+            )
+            db.execute(
+                "INSERT INTO password_resets(token_hash, company_id, user_id, created_at,"
+                " expires_at) VALUES (?,?,?,?,?)",
+                (_token_hash(token), user["company_id"], user["id"], t, t + RESET_TTL_MS),
+            )
+            db.execute(
+                "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
+                " VALUES (?,?,?,?,?,?)",
+                (t, user["company_id"], user["id"], "user.reset.requested", "", ip),
+            )
+        return token, user
+
+    def reset_confirm(self, token: str, new: str, *, ip: str = "") -> None:
+        """Spends the token, sets the password and ends every session (and so every refresh
+        token) of that person (D-029): whoever had the old password is signed out."""
+        if not token or len(token) > 100:
+            raise CloudError("reset_invalid", "this reset link is not valid; ask for a new one")
+        problem = password_problem(new)
+        if problem:
+            raise CloudError("weak_password", problem)
+        h, t = _token_hash(token), now_ms()
+        with self._tx() as db:
+            row = db.execute(
+                "SELECT r.*, u.email FROM password_resets r JOIN users u ON u.id = r.user_id"
+                " WHERE r.token_hash = ? AND r.used_at IS NULL AND r.expires_at >= ?"
+                " AND u.active = 1",
+                (h, t),
+            ).fetchone()
+            if row is None:
+                raise CloudError("reset_invalid", "this reset link is not valid; ask for a new one")
+            db.execute("UPDATE password_resets SET used_at = ? WHERE token_hash = ?", (t, h))
+            db.execute(
+                "UPDATE users SET pw_hash = ?, must_change_pw = 0 WHERE id = ?",
+                (hash_password(new), row["user_id"]),
+            )
+            db.execute(
+                "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+                (t, row["user_id"]),
+            )
+            db.execute(
+                "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
+                " VALUES (?,?,?,?,?,?)",
+                (t, row["company_id"], row["user_id"], "user.reset.done", str(row["email"]), ip),
+            )

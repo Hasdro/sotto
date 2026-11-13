@@ -25,7 +25,9 @@ from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, R
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from sotto_worker.adapters.email.smtp import Outgoing, send_mail
 from sotto_worker.cloud.bundle import Seed, build_bundle
+from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.email import routes as email_routes
 from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.gallabox import routes as gallabox_routes
@@ -33,6 +35,7 @@ from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.recordings import KINDS, Recordings
+from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
 from sotto_worker.cloud.zoho import routes as zoho_routes
 from sotto_worker.outbox import EmailMessage, EmailSender
@@ -182,6 +185,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
     zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
     send_limit = RateLimit(per_key=10, total=600, window_s=60)  # email + WhatsApp sends
+    # UX-39 (D-053): reset requests, per address and per client (counted on every request).
+    reset_limit = RateLimit(per_key=5, total=500, window_s=3600)  # per address; token guesses
+    reset_client_limit = RateLimit(per_key=20, total=2000, window_s=3600)  # per client
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
@@ -337,7 +343,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def features_get(_request: Request, who: Principal) -> Response:
         return JSONResponse(
             # learned_version: a changed list makes the app reload the bundle between calls.
-            {"features": store.features_for(who), "learned_version": learning.version_of(who)},
+            # health: ZC-14 (D-057), one org status refreshed on the same cycle as the features.
+            {
+                "features": store.features_for(who),
+                "learned_version": learning.version_of(who),
+                "health": store.config_health(who),
+            },
             headers={"Cache-Control": "no-store"},
         )
 
@@ -356,6 +367,83 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def call_brief_get(request: Request, who: Principal) -> Response:
         store.require_feature(who, "prep")
         return JSONResponse({"brief": store.call_brief(who, request.path_params["call_id"])})
+
+    @app_route
+    async def company_defaults_get(_request: Request, who: Principal) -> Response:
+        return JSONResponse(store.company_defaults(who), headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def company_defaults_put(request: Request, who: Principal) -> Response:
+        data = await body(request)
+        return JSONResponse(store.set_company_defaults(who, data, ip=ip_of(request)))
+
+    pending_resets: set[asyncio.Task[None]] = set()
+
+    async def send_reset(user: Any, token: str, origin: str) -> None:
+        """The reset email, from the org's mailbox, else the platform's (the existing path)."""
+        link = f"{origin}/reset-password#token={token}"  # a fragment: never in server logs
+        subject = "Reset your AGN Sales Shield password"
+        text = (
+            "Someone asked to reset the password for this AGN Sales Shield account.\n\n"
+            f"Choose a new password here (the link works once, for 30 minutes):\n{link}\n\n"
+            "If it was not you, ignore this email; your password stays the same."
+        )
+        try:
+            scope = email_data.active_scope(store, str(user["company_id"]))
+            account = email_data.account(store, scope) if scope else None
+            if account is not None:
+                await (config.smtp_sender or send_mail)(
+                    account,
+                    Outgoing(
+                        to=(str(user["email"]),),
+                        cc=(),
+                        subject=subject,
+                        text=text,
+                        message_id_seed=f"reset-{token[:12]}",
+                    ),
+                )
+            elif config.mailer is not None:
+                await config.mailer.send(
+                    EmailMessage(to=str(user["email"]), subject=subject, text=text),
+                    idempotency_key=f"reset-{token[:12]}",
+                )
+            else:
+                config.log("password reset: no mailbox is set up")
+        except Exception as err:  # the person can ask again; never leak why
+            config.log(f"password reset email failed: {type(err).__name__}")
+
+    @handle
+    async def reset_request(request: Request) -> Response:
+        data = await body(request)
+        email = str(data.get("email", "")).strip().lower()[:254]
+        by_client = reset_client_limit.hit(ip_key(request))
+        if not (reset_limit.hit("email:" + email) and by_client):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        found = store.reset_request(email, ip=ip_of(request)) if EMAIL_SHAPE.match(email) else None
+        if found is not None:
+            # In the background, so a known address answers as fast as an unknown one.
+            task = asyncio.create_task(send_reset(found[1], found[0], public_origin_of(request)))
+            pending_resets.add(task)
+            task.add_done_callback(pending_resets.discard)
+        return JSONResponse(
+            {"ok": True, "message": "If that address has an account, we sent a reset link."},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @handle
+    async def reset_confirm(request: Request) -> Response:
+        if reset_limit.blocked(ip_key(request)):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        data = await body(request)
+        try:
+            store.reset_confirm(
+                str(data.get("token", "")), str(data.get("password", "")), ip=ip_of(request)
+            )
+        except CloudError as e:
+            if e.code == "reset_invalid":
+                reset_limit.record(ip_key(request))  # guessing tokens costs the client
+            raise
+        return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
 
     @app_route
     async def company_features_get(_request: Request, who: Principal) -> Response:
@@ -962,6 +1050,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         Route(f"{api}/auth/logout", logout, methods=["POST"]),
         Route(f"{api}/auth/refresh", refresh, methods=["POST"]),
         Route(f"{api}/auth/migrate", migrate, methods=["POST"]),
+        Route(f"{api}/auth/reset/request", reset_request, methods=["POST"]),
+        Route(f"{api}/auth/reset/confirm", reset_confirm, methods=["POST"]),
+        Route(f"{api}/company/defaults", company_defaults_get),
+        Route(f"{api}/company/defaults", company_defaults_put, methods=["PUT"]),
         Route(f"{api}/features", features_get),
         Route(f"{api}/company/features", company_features_get),
         Route(f"{api}/company/features/{{id}}", company_feature_put, methods=["PUT"]),
