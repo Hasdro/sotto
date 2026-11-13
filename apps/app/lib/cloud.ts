@@ -506,10 +506,17 @@ export async function refreshFeatures(): Promise<void> {
   lastCheck = Date.now();
   try {
     if (state.offline) return await loadSession();
-    const r = await cloudApi<{ features: FeatureMap }>("/api/v1/features");
+    const r = await cloudApi<{ features: FeatureMap; learned_version?: number | null }>(
+      "/api/v1/features",
+    );
     reads.delete("/api/v1/features");
     if (state.status !== "signed_in") return;
-    const changed = JSON.stringify(state.me.features ?? {}) !== JSON.stringify(r.features);
+    // R11: a new learned-instructions version reaches the bundle too, between calls only.
+    const learned =
+      r.learned_version !== undefined &&
+      (state.bundle?.learned?.version ?? null) !== (r.learned_version ?? null);
+    const changed =
+      learned || JSON.stringify(state.me.features ?? {}) !== JSON.stringify(r.features);
     set({ ...state, me: { ...state.me, features: r.features } });
     // D-036: what a switched-off feature needs (company knowledge, keys) leaves the device too.
     if (changed) {

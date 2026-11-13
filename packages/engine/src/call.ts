@@ -263,6 +263,8 @@ export class LocalCall {
       onTiming: (t) => this.timings.push(t),
       crmBrief: deps.crmBrief,
       briefPrompt: deps.runtime.bundle.prompts.crm_brief,
+      learned: deps.runtime.bundle.learned?.instructions,
+      learnedPrompt: deps.runtime.bundle.prompts.learned_instructions,
     });
   }
 

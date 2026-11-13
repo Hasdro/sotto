@@ -28,6 +28,7 @@ import {
 } from "../../lib/deviceHistory";
 import { attachedBriefText } from "../crm/attached";
 import { stateOf } from "../flags/catalog";
+import { learnAfterCall } from "../learning/learn";
 import type { Bridge, BridgeHandlers } from "./bridge";
 
 /** Call review is a flagged feature (D-028): when it is not available the transcript never goes
@@ -121,12 +122,28 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     const lines = transcript.flatMap((e) =>
       e.kind === "line" ? [{ speaker: e.speaker, text: e.text }] : [],
     );
-    if (reviewAllowed()) review(s.call_id, lines);
+    // R11: after the review (its summary goes into the learning packet), or at once without one.
+    const learn = (summary: string) =>
+      void learnAfterCall({
+        callId: s.call_id,
+        router: runtime.router,
+        bundle,
+        transcript,
+        summary,
+        brief: attachedBriefText(),
+        now: Date.now(),
+      });
+    if (reviewAllowed()) review(s.call_id, lines, learn);
+    else learn("");
     void cloudApi("/api/v1/usage", { method: "POST", body: { ...s, source } }).catch((err) =>
       console.warn("[engine] usage not reported", err),
     );
   };
-  const review = (callId: string, lines: { speaker: "customer" | "agent"; text: string }[]) => {
+  const review = (
+    callId: string,
+    lines: { speaker: "customer" | "agent"; text: string }[],
+    then: (summary: string) => void,
+  ) => {
     markReviewing(callId);
     void reviewCall({
       router: runtime.router,
@@ -136,6 +153,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       now: Date.now(),
     }).then((result) => {
       setDeviceReview(callId, result);
+      then(result?.summary ?? "");
       // Reports (owner, 22 Oct): only the numbers go to the server, never the summary or tips.
       if (result) {
         const { scores, success, sentiment } = result;
