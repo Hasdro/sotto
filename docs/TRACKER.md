@@ -207,6 +207,25 @@ Added 2026-11-13 (owner)
 - [ ] T-070 Research: automate Zoho OAuth client creation, or one platform client for all orgs (multi-DC) — recommendation + decision
 - [~] T-071 (Zoho part done in `zoho-slice`: Admin → Integrations org client + own connection; Gallabox part built in `phase9/messaging`, unverified on a real account) Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
 
+### Review backlog (Nov 2026)
+Items, waves, owned files and owner questions: `docs/reviews/backlog-2026-11.md`. Wave-1 prompts: `docs/prompts/review-{ui-core,copy-brand,server-core}.md`. Branches `phase9/<stream>`.
+Wave 1
+- [ ] T-072 `review-ui-core` — UX-02, UX-11, UX-12, UX-13, UX-14, UX-15, UX-06a, UX-07, UX-40, UX-43a, UX-44a, W1-UI, W1-SPLIT
+- [ ] T-073 `review-copy-brand` (sonnet) — UX-06b, UX-42, UX-08, UX-09 (+B11), UX-33, UX-44b, UX-28, UX-34, UX-36, UX-37, UX-38
+- [ ] T-074 `review-server-core` — ZC-02, UX-35, W1-DESK, ZC-14s, UX-39s, ZC-11s, INT-01s, INT-03, INT-16
+Wave 2
+- [ ] T-075 `review-live-call` — UX-01, UX-03r, UX-16, UX-17, UX-18, UX-19 (+INT-11), UX-20, UX-21, ZC-08
+- [ ] T-076 `review-post-call` — UX-04, UX-05, UX-22, UX-23, UX-24, UX-27, UX-41, INT-01c, INT-02m, INT-07, INT-14a, W2-REPLAY
+- [ ] T-077 `review-home-shell` — UX-10 (+ZC-09, DD-8), UX-03h, UX-25, UX-26, UX-43b, UX-29, UX-39, ZC-14c, ZC-map-agent, W2-A11Y
+Wave 3
+- [ ] T-078 `review-integrations` — UX-30, UX-32 (+ZC-03), ZC-07, ZC-13, UX-44c, W3-INT-EVID
+- [ ] T-079 `review-owner-platform` `owner` — ZC-01, ZC-06, DD-1, DD-2, ZC-10, W3-OWN-A11Y
+- [ ] T-080 `review-company-coaching` `owner` — ZC-11c, DD-4, DD-5, ZC-B10, UX-31, UX-06c, INT-05, INT-15
+Wave 4
+- [ ] T-081 `review-followup-automation` `owner` — INT-08, INT-09, INT-10, INT-13, INT-14b
+- [ ] T-082 `review-zoho-scopes` `owner` — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
+- [ ] T-083 `review-ai-autoconfig` `owner` — ZC-04, ZC-05, ZC-12
+
 ## Waiting on owner
 
 Things only the owner can do, so the agent never waits silently.
