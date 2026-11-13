@@ -60,7 +60,30 @@ export function attachBrief(brief: Brief): void {
 export const skipCrm = () => set({ crm: { kind: "skipped" } });
 export const clearCrm = () => set({ crm: { kind: "none" } });
 /** A new call: nothing attached, an empty brief. */
-export const resetCall = () => set({ crm: { kind: "none" }, prep: EMPTY_PREP });
+export const resetCall = () => {
+  carry = false;
+  set({ crm: { kind: "none" }, prep: EMPTY_PREP });
+};
+
+// Which call the state belongs to. A meeting picked before the call (home screen) is carried
+// into the next call; otherwise a new call id starts clean.
+let boundCall: string | null = null;
+let carry = false;
+
+/** Picked on the home screen: becomes the next call's brief. */
+export function attachForNextCall(brief: Brief): void {
+  resetCall();
+  attachBrief(brief);
+  carry = true;
+}
+
+/** Called with the call screen's call id; a different id starts a clean brief. */
+export function bindCall(callId: string | null): void {
+  if (!callId || callId === boundCall) return;
+  if (boundCall !== null && !carry) resetCall();
+  carry = false;
+  boundCall = callId;
+}
 export function setPrep(field: PrepField, value: string): void {
   set({ prep: { ...state.prep, [field]: value.slice(0, PREP_MAX) } });
 }

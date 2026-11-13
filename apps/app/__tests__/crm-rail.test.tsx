@@ -1,10 +1,17 @@
-/** Zoho in the call's context rail (R10, T-057): candidates with evidence, nothing attached
- * without the agent's pick, Skip, connect-first, and the brief the live prompt reads. */
+/** Zoho in the call's context rail (R10, T-057; owner 14 Nov 2026): the person's upcoming
+ * meetings first, search as the fallback, nothing attached without the agent's pick, Skip,
+ * connect-first, the structured brief and the reconnect prompt. */
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { CrmRail } from "../features/call/components/CrmRail";
 import type { Candidate } from "../features/crm/api";
-import { attachedBriefText, resetCall, setPrep } from "../features/crm/attached";
+import {
+  attachedBriefText,
+  attachForNextCall,
+  bindCall,
+  resetCall,
+  setPrep,
+} from "../features/crm/attached";
 import { mockLookup } from "../features/crm/mock";
 import type { Locale } from "../lib/i18n";
 import { LocaleProvider } from "../lib/locale";
@@ -21,7 +28,11 @@ jest.mock("../lib/cloud", () => {
       this.code = code;
     }
   }
-  return { CloudError, cloudApi: jest.fn(() => new Promise(() => {})), refreshFeatures: jest.fn() };
+  return {
+    CloudError,
+    cloudApi: jest.fn(() => new Promise(() => {})),
+    refreshFeatures: jest.fn(),
+  };
 });
 jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 
@@ -46,119 +57,136 @@ const ONE: Candidate = {
   phone: "+1 555",
   evidence: { field: "phone", value: "+1 555" },
 };
+const MEETING = "4150868000000300001";
+
+beforeEach(() => resetCall());
 
 describe("CrmRail", () => {
-  beforeEach(() => resetCall());
+  it("lists the person's meetings first; opening one shows details and attaches nothing", async () => {
+    signedIn({ state: "available" });
+    const meetingBrief = jest.fn(mockLookup.meetingBrief);
+    await wrap(<CrmRail lookup={{ ...mockLookup, meetingBrief }} />);
+    await waitFor(() => expect(screen.getByTestId(`meeting-${MEETING}`)).toBeOnTheScreen());
+    // The search fallback sits under the list.
+    expect(
+      screen.getByText("Not in your meetings? Search by name, email or phone."),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId(`meeting-${MEETING}-toggle`));
+    await waitFor(() => expect(screen.getByTestId(`meeting-${MEETING}-detail`)).toBeOnTheScreen());
+    expect(meetingBrief).not.toHaveBeenCalled();
+    expect(attachedBriefText()).toBe("");
+    await fireEvent.press(screen.getByTestId(`meeting-${MEETING}-use`));
+    await waitFor(() => expect(screen.getByTestId("crm-brief-meeting")).toBeOnTheScreen());
+    expect(meetingBrief).toHaveBeenCalledWith(MEETING);
+    expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+  });
 
-  it("never attaches by itself, even when exactly one record matches", async () => {
+  it("search never attaches by itself, even when exactly one record matches", async () => {
     signedIn({ state: "available" });
     const brief = jest.fn(mockLookup.brief);
     await wrap(
-      <CrmRail callId="c1" lookup={{ search: async () => ({ candidates: [ONE] }), brief }} />,
+      <CrmRail lookup={{ ...mockLookup, search: async () => ({ candidates: [ONE] }), brief }} />,
     );
-    await fireEvent.press(screen.getByTestId("crm-mode-search"));
     await fireEvent.changeText(screen.getByTestId("crm-query"), "+1 555 010 2030");
     await fireEvent.press(screen.getByTestId("crm-find"));
     await waitFor(() => expect(screen.getByTestId(`crm-candidate-${ONE.id}`)).toBeOnTheScreen());
     expect(screen.getByText("Matched on phone: +1 555")).toBeOnTheScreen();
     expect(brief).not.toHaveBeenCalled();
     expect(attachedBriefText()).toBe("");
-    expect(screen.queryByTestId("crm-brief")).toBeNull();
-
     await fireEvent.press(screen.getByTestId(`crm-pick-${ONE.id}`));
     await waitFor(() => expect(screen.getByTestId("crm-brief")).toBeOnTheScreen());
     expect(brief).toHaveBeenCalledTimes(1);
-    expect(attachedBriefText()).toContain("Contact: Jane Doe, CFO");
   });
 
-  it("shows at most three candidates", async () => {
+  it("shows at most three search candidates", async () => {
     signedIn({ state: "available" });
     const many = [1, 2, 3, 4, 5].map((i) => ({ ...ONE, id: `41508680000002240${i}0` }));
-    await wrap(
-      <CrmRail
-        callId="c1"
-        lookup={{ search: async () => ({ candidates: many }), brief: mockLookup.brief }}
-      />,
-    );
-    await fireEvent.press(screen.getByTestId("crm-mode-search"));
+    await wrap(<CrmRail lookup={{ ...mockLookup, search: async () => ({ candidates: many }) }} />);
     await fireEvent.changeText(screen.getByTestId("crm-query"), "Jane");
     await fireEvent.press(screen.getByTestId("crm-find"));
     await waitFor(() => expect(screen.getAllByText("Jane Doe")).toHaveLength(3));
   });
 
-  it("skips, and a new call starts with nothing attached", async () => {
+  it("shows the empty and error states of the meetings list", async () => {
     signedIn({ state: "available" });
-    const view = await wrap(<CrmRail callId="c1" lookup={mockLookup} />);
+    const { CloudError } = jest.requireMock("../lib/cloud") as {
+      CloudError: new (s: number, c: string, m: string) => Error;
+    };
+    await wrap(
+      <CrmRail
+        lookup={{
+          ...mockLookup,
+          meetings: {
+            ...mockLookup.meetings,
+            meetings: async () => ({ meetings: [], page: 1, more: false }),
+          },
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("crm-meetings-empty")).toBeOnTheScreen());
+    await wrap(
+      <CrmRail
+        lookup={{
+          ...mockLookup,
+          meetings: {
+            ...mockLookup.meetings,
+            meetings: () => Promise.reject(new CloudError(409, "zoho_reconnect", "x")),
+          },
+        }}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Reconnect Zoho to see your meetings.")).toBeOnTheScreen(),
+    );
+  });
+
+  it("skips; a new call starts clean, but a meeting picked on Home carries into the next call", async () => {
+    signedIn({ state: "available" });
+    bindCall("c1");
+    await wrap(<CrmRail lookup={mockLookup} />);
     await fireEvent.press(screen.getByTestId("crm-skip"));
     expect(screen.getByText("No CRM record for this call.")).toBeOnTheScreen();
+    setPrep("objective", "Close it");
+    bindCall("c2");
     expect(attachedBriefText()).toBe("");
-    // Attach on call 1, then call 2 begins: cleared.
-    await fireEvent.press(screen.getByTestId("crm-change"));
-    await fireEvent.press(screen.getByTestId("crm-mode-search"));
-    await fireEvent.changeText(screen.getByTestId("crm-query"), "Jane");
-    await fireEvent.press(screen.getByTestId("crm-find"));
-    await waitFor(() => screen.getByTestId(`crm-pick-${ONE.id}`));
-    await fireEvent.press(screen.getByTestId(`crm-pick-${ONE.id}`));
-    await waitFor(() => expect(attachedBriefText()).not.toBe(""));
-    await view.rerender(
-      <LocaleProvider initial="en">
-        <UIProvider direction="ltr">
-          <CrmRail callId="c2" lookup={mockLookup} />
-        </UIProvider>
-      </LocaleProvider>,
-    );
-    await waitFor(() => expect(attachedBriefText()).toBe(""));
+    const { brief } = await mockLookup.meetingBrief(MEETING);
+    attachForNextCall(brief);
+    bindCall("c3");
+    expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+    bindCall("c4");
+    expect(attachedBriefText()).toBe("");
   });
 
   it("asks to connect first while the person has not connected Zoho", async () => {
     signedIn({ state: "needs_connection", cause: "zoho" });
-    await wrap(<CrmRail callId="c1" lookup={mockLookup} />);
+    await wrap(<CrmRail lookup={mockLookup} />);
     expect(screen.queryByTestId("crm-query")).toBeNull();
     await waitFor(() => expect(screen.getByTestId("zoho-connect")).toBeOnTheScreen());
   });
 
   it("is greyed with a reason when the organisation turned Zoho off", async () => {
     signedIn({ state: "off_by_org" });
-    await wrap(<CrmRail callId="c1" lookup={mockLookup} />);
+    await wrap(<CrmRail lookup={mockLookup} />);
     expect(screen.getByTestId("feature-off-zoho")).toBeOnTheScreen();
   });
 
   it("speaks Arabic", async () => {
     signedIn({ state: "available" });
-    await wrap(<CrmRail callId="c1" lookup={mockLookup} />, "ar");
-    await fireEvent.press(screen.getByTestId("crm-mode-search"));
+    await wrap(<CrmRail lookup={mockLookup} />, "ar");
+    expect(screen.getByText("اجتماعاتك القادمة")).toBeOnTheScreen();
     expect(screen.getByText("ابحث في Zoho")).toBeOnTheScreen();
   });
-});
 
-describe("meetings, brief and reconnect (zoho-actions)", () => {
-  beforeEach(() => resetCall());
-
-  it("lists the nearest meetings without attaching one, and attaches the picked meeting", async () => {
-    signedIn({ state: "available" });
-    const meetingBrief = jest.fn(mockLookup.meetingBrief);
-    await wrap(<CrmRail callId="c1" lookup={{ ...mockLookup, meetingBrief }} />);
-    await waitFor(() =>
-      expect(screen.getByTestId("crm-meeting-4150868000000300001")).toBeOnTheScreen(),
-    );
-    expect(meetingBrief).not.toHaveBeenCalled();
-    expect(attachedBriefText()).toBe("");
-    await fireEvent.press(screen.getByTestId("crm-pick-meeting-4150868000000300001"));
-    await waitFor(() => expect(screen.getByTestId("crm-brief-meeting")).toBeOnTheScreen());
-    expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
-  });
-
-  it("the structured brief reaches the prompt text without Zoho, starting from the attendees", async () => {
-    signedIn({ state: "needs_connection", cause: "zoho", prep: undefined } as never);
-    await wrap(<CrmRail callId="c1" lookup={mockLookup} />);
+  it("the structured brief reaches the prompt text without Zoho", async () => {
+    signedIn({ state: "needs_connection", cause: "zoho" });
+    await wrap(<CrmRail lookup={mockLookup} />);
     await fireEvent.changeText(screen.getByTestId("prep-objective"), "Book the start date");
     setPrep("competitors", "Globex");
-    const text = attachedBriefText();
-    expect(text).toContain("Call objective: Book the start date");
-    expect(text).toContain("Competitors: Globex");
+    expect(attachedBriefText()).toContain("Call objective: Book the start date");
+    expect(attachedBriefText()).toContain("Competitors: Globex");
   });
 
-  it("shows the reconnect prompt when the connection predates Zoho writes", async () => {
+  it("shows the reconnect prompt when the connection lacks new scopes", async () => {
     signedIn({ state: "available" });
     const { cloudApi } = jest.requireMock("../lib/cloud") as { cloudApi: jest.Mock };
     cloudApi.mockImplementation((path: string) =>
@@ -171,7 +199,7 @@ describe("meetings, brief and reconnect (zoho-actions)", () => {
           })
         : new Promise(() => {}),
     );
-    await wrap(<CrmRail callId="c1" lookup={mockLookup} />);
+    await wrap(<CrmRail lookup={mockLookup} />);
     await waitFor(() => expect(screen.getByTestId("crm-reconnect")).toBeOnTheScreen());
     cloudApi.mockImplementation(() => new Promise(() => {}));
   });

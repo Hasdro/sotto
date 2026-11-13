@@ -1,13 +1,13 @@
 /**
- * The live-call context rail (R10, T-056, T-057): find who is on the call in Zoho — today's
- * meetings first, or a search by phone, email or name — and let the agent pick one of at most
- * three candidates (each with its evidence) or skip. Nothing is attached without that pick.
+ * The live-call context rail (R10, T-056, T-057): find who is on the call in Zoho — the
+ * person's own upcoming meetings first (the main path, owner 14 Nov 2026), a search by name,
+ * email or phone as the fallback (≤ 3 candidates with evidence) — or skip. Nothing is attached without that pick.
  * Below it, the structured call brief the agent can edit (works without Zoho), and the
  * during-call quick actions (Lead, Contact update; collapsed). The attached record and the brief
  * reach the live prompt through the `crm_brief` prompt (features/crm/attached.ts).
  */
-import { Badge, Button, Panel, SegmentedControl, Stack, space, Text, TextField } from "@sotto/ui";
-import { useEffect, useRef, useState } from "react";
+import { Badge, Button, Panel, Stack, space, Text, TextField } from "@sotto/ui";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../../components/FeatureGate";
 import { CloudError } from "../../../lib/cloud";
@@ -15,31 +15,23 @@ import type { StringKey } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { Perform } from "../../actions/ActionCard";
 import { QuickActions } from "../../actions/PostCallPanel";
-import {
-  type Brief,
-  type Candidate,
-  type MeetingCandidate,
-  zohoBrief,
-  zohoMeetingBrief,
-  zohoMeetings,
-  zohoSearch,
-} from "../../crm/api";
+import { type Brief, type Candidate, zohoBrief, zohoMeetingBrief, zohoSearch } from "../../crm/api";
 import {
   attachBrief,
   clearCrm,
   PREP_FIELDS,
-  resetCall,
   setPrep,
   skipCrm,
   useAttachedState,
 } from "../../crm/attached";
+import { type MeetingSource, UpcomingMeetings } from "../../crm/UpcomingMeetings";
 import { useZoho } from "../../crm/useZoho";
 import { ZohoConnect } from "../../crm/ZohoConnect";
 
 export type Lookup = {
   search: typeof zohoSearch;
   brief: typeof zohoBrief;
-  meetings?: typeof zohoMeetings;
+  meetings?: MeetingSource;
   meetingBrief?: typeof zohoMeetingBrief;
 };
 
@@ -58,23 +50,7 @@ function timeOf(iso: string, locale: string): string {
     : d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 }
 
-export function CrmRail({
-  callId,
-  lookup,
-  perform,
-}: {
-  callId: string | null;
-  lookup?: Lookup;
-  perform?: Perform;
-}) {
-  // A new call starts with nothing attached and an empty brief.
-  const lastCall = useRef(callId);
-  useEffect(() => {
-    if (lastCall.current !== callId) {
-      lastCall.current = callId;
-      resetCall();
-    }
-  }, [callId]);
+export function CrmRail({ lookup, perform }: { lookup?: Lookup; perform?: Perform }) {
   return (
     <Stack gap="md">
       <ZohoPart lookup={lookup} />
@@ -110,34 +86,16 @@ function ConnectFirst() {
 }
 
 function Finder({ lookup }: { lookup?: Lookup | undefined }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { crm: attached } = useAttachedState();
   const zoho = useZoho();
   const search = lookup?.search ?? zohoSearch;
   const fetchBrief = lookup?.brief ?? zohoBrief;
-  const meetings = lookup?.meetings ?? zohoMeetings;
   const meetingBrief = lookup?.meetingBrief ?? zohoMeetingBrief;
-  const [mode, setMode] = useState<"meetings" | "search">("meetings");
   const [query, setQuery] = useState("");
-  const [busy, setBusy] = useState<"search" | "brief" | "meetings" | null>(null);
+  const [busy, setBusy] = useState<"search" | "brief" | null>(null);
   const [found, setFound] = useState<Candidate[] | null>(null);
-  const [today, setToday] = useState<MeetingCandidate[] | null>(null);
   const [error, setError] = useState<StringKey | null>(null);
-
-  const showMeetings = mode === "meetings" && attached.kind === "none";
-  // Loading the meeting list never blocks a search or a pick.
-  const working = busy === "search" || busy === "brief";
-  useEffect(() => {
-    if (!showMeetings || today !== null) return;
-    setBusy("meetings");
-    meetings()
-      .then((r) => setToday(r.candidates.slice(0, 3)))
-      .catch((e: unknown) => {
-        setToday([]);
-        setError(errorKey(e));
-      })
-      .finally(() => setBusy(null));
-  }, [showMeetings, today, meetings]);
 
   const find = () => {
     if (!query.trim()) return;
@@ -159,6 +117,7 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
       .catch((e: unknown) => setError(errorKey(e)))
       .finally(() => setBusy(null));
   };
+  const working = busy !== null;
 
   const header = (
     <Text variant="label" weight="semibold" tone="muted" accessibilityRole="header">
@@ -225,47 +184,48 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
         {header}
         {notice}
         {reconnect}
-        <SegmentedControl
-          options={[
-            { value: "meetings", label: t("crm.tab.meetings") },
-            { value: "search", label: t("crm.tab.search") },
-          ]}
-          value={mode}
-          onChange={setMode}
-          accessibilityLabel={t("crm.tab.label")}
-          testID="crm-mode"
+        {/* Main path (owner, 14 Nov): this person's upcoming meetings. */}
+        <Text variant="label" weight="semibold">
+          {t("meetings.title")}
+        </Text>
+        <UpcomingMeetings
+          source={lookup?.meetings}
+          limit={3}
+          testID="crm-meetings"
+          action={{
+            label: t("meetings.useNow"),
+            busy: working,
+            onPress: (m) => attach(meetingBrief(m.id)),
+          }}
         />
-        {mode === "search" ? (
-          <>
-            <TextField
-              label={t("crm.search.label")}
-              placeholder={t("crm.search.placeholder")}
-              value={query}
-              onChangeText={setQuery}
-              onSubmitEditing={find}
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-              testID="crm-query"
-            />
-            <Button
-              label={t("crm.find")}
-              onPress={find}
-              disabled={working || !query.trim()}
-              testID="crm-find"
-            />
-          </>
-        ) : null}
-        <Button variant="ghost" label={t("crm.skip")} onPress={skipCrm} testID="crm-skip" />
+        {/* Fallback: search by name, email or phone. */}
+        <Text variant="label" tone="muted">
+          {t("meetings.notListed")}
+        </Text>
+        <TextField
+          label={t("crm.search.label")}
+          placeholder={t("crm.search.placeholder")}
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={find}
+          returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={false}
+          testID="crm-query"
+        />
+        <Stack direction="row" gap="sm" wrap>
+          <Button
+            variant="secondary"
+            label={t("crm.find")}
+            onPress={find}
+            disabled={working || !query.trim()}
+            testID="crm-find"
+          />
+          <Button variant="ghost" label={t("crm.skip")} onPress={skipCrm} testID="crm-skip" />
+        </Stack>
         {busy ? (
           <Text variant="label" tone="muted" aria-live="polite" accessibilityLiveRegion="polite">
-            {t(
-              busy === "search"
-                ? "crm.searching"
-                : busy === "meetings"
-                  ? "crm.meetings.loading"
-                  : "crm.loading",
-            )}
+            {t(busy === "search" ? "crm.searching" : "crm.loading")}
           </Text>
         ) : null}
         {error ? (
@@ -273,71 +233,41 @@ function Finder({ lookup }: { lookup?: Lookup | undefined }) {
             {t(error)}
           </Text>
         ) : null}
-        {mode === "meetings" && today && today.length === 0 && !error ? (
-          <Text variant="label" tone="muted" testID="crm-meetings-none">
-            {t("crm.meetings.none")}
-          </Text>
-        ) : null}
-        {mode === "meetings"
-          ? today?.map((m) => (
-              <View key={m.id} style={styles.candidate} testID={`crm-meeting-${m.id}`}>
-                <Stack direction="row" gap="sm" align="center" wrap>
-                  <Text weight="semibold">{m.title}</Text>
-                  <Badge label={t("crm.meeting")} />
-                </Stack>
-                <Text variant="label" tone="muted">
-                  {t("crm.meetings.at", { time: timeOf(m.start, locale) })}
-                  {m.participants.length ? ` · ${m.participants.join(", ")}` : ""}
-                </Text>
-                <Button
-                  variant="secondary"
-                  label={t("crm.pickMeeting")}
-                  onPress={() => attach(meetingBrief(m.id))}
-                  disabled={working}
-                  testID={`crm-pick-meeting-${m.id}`}
-                />
-              </View>
-            ))
-          : null}
-        {mode === "search" && found && found.length === 0 ? (
+        {found && found.length === 0 ? (
           <Text variant="label" tone="muted" testID="crm-none">
             {t("crm.none")}
           </Text>
         ) : null}
-        {mode === "search"
-          ? found?.map((c) => (
-              <View
-                key={`${c.module}:${c.id}`}
-                style={styles.candidate}
-                testID={`crm-candidate-${c.id}`}
-              >
-                <Stack direction="row" gap="sm" align="center" wrap>
-                  <Text weight="semibold">{c.name}</Text>
-                  <Badge
-                    label={t(c.module === "Leads" ? "crm.module.Leads" : "crm.module.Contacts")}
-                  />
-                </Stack>
-                {c.title || c.company ? (
-                  <Text variant="label" tone="muted">
-                    {[c.title, c.company].filter(Boolean).join(" · ")}
-                  </Text>
-                ) : null}
-                <Text variant="label" tone="muted">
-                  {t("crm.matched", {
-                    field: t(`crm.field.${c.evidence.field}` as StringKey),
-                    value: c.evidence.value,
-                  })}
-                </Text>
-                <Button
-                  variant="secondary"
-                  label={t("crm.pickNamed", { name: c.name })}
-                  onPress={() => attach(fetchBrief(c))}
-                  disabled={working}
-                  testID={`crm-pick-${c.id}`}
-                />
-              </View>
-            ))
-          : null}
+        {found?.map((c) => (
+          <View
+            key={`${c.module}:${c.id}`}
+            style={styles.candidate}
+            testID={`crm-candidate-${c.id}`}
+          >
+            <Stack direction="row" gap="sm" align="center" wrap>
+              <Text weight="semibold">{c.name}</Text>
+              <Badge label={t(c.module === "Leads" ? "crm.module.Leads" : "crm.module.Contacts")} />
+            </Stack>
+            {c.title || c.company ? (
+              <Text variant="label" tone="muted">
+                {[c.title, c.company].filter(Boolean).join(" · ")}
+              </Text>
+            ) : null}
+            <Text variant="label" tone="muted">
+              {t("crm.matched", {
+                field: t(`crm.field.${c.evidence.field}` as StringKey),
+                value: c.evidence.value,
+              })}
+            </Text>
+            <Button
+              variant="secondary"
+              label={t("crm.pickNamed", { name: c.name })}
+              onPress={() => attach(fetchBrief(c))}
+              disabled={working}
+              testID={`crm-pick-${c.id}`}
+            />
+          </View>
+        ))}
       </Stack>
     </Panel>
   );

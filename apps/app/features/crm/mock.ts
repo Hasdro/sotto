@@ -1,6 +1,6 @@
 /** Development only (`/call?mock=1`): a canned Zoho lookup so the rail can be reviewed and
  * screenshotted without a Zoho account. Never used in a release build (CallView's mock flag). */
-import type { Brief, Candidate, MeetingCandidate } from "./api";
+import type { Brief, Candidate, MeetingCandidate, MeetingDetail } from "./api";
 
 const JANE: Candidate = {
   module: "Contacts",
@@ -49,21 +49,58 @@ const BRIEF: Brief = {
   text: "Contact: Jane Doe, CFO\nAccount: Acme Corp (Retail)\nOpen deal: Acme renewal 2027 — Negotiation, amount 12000, closes 2026-12-01",
 };
 
-const soon = new Date(Date.now() + 30 * 60_000);
-soon.setSeconds(0, 0);
-const MEETING: MeetingCandidate = {
-  id: "4150868000000300001",
-  title: "Acme renewal call",
-  start: soon.toISOString(),
-  end: new Date(soon.getTime() + 30 * 60_000).toISOString(),
-  agenda: "Go through volume pricing and the start date.",
-  participants: ["Jane Doe", "Ada Admin"],
+const at = (minutes: number) => {
+  const d = new Date(Date.now() + minutes * 60_000);
+  d.setSeconds(0, 0);
+  return d;
+};
+const MEETINGS: MeetingCandidate[] = [
+  ["4150868000000300001", "Acme renewal call", 30, "Acme renewal 2027"],
+  ["4150868000000300002", "Globex intro", 26 * 60, "Globex pilot"],
+  ["4150868000000300003", "Initech pricing follow-up", 3 * 24 * 60, "Initech expansion"],
+].map(([id, title, mins, deal]) => {
+  const start = at(mins as number);
+  return {
+    id: id as string,
+    title: title as string,
+    start: start.toISOString(),
+    end: new Date(start.getTime() + 30 * 60_000).toISOString(),
+    agenda: "Go through volume pricing and the start date.",
+    participants: ["Jane Doe", "Ada Admin"],
+    related: { module: "Deals" as const, id: "4150868000000400001", name: deal as string },
+    evidence: { field: "time" as const, value: start.toISOString() },
+  };
+});
+const MEETING = MEETINGS[0] as MeetingCandidate;
+const DETAIL: MeetingDetail = {
+  id: MEETING.id,
+  title: MEETING.title,
+  start: MEETING.start,
+  end: MEETING.end,
+  participants: [
+    { name: "Jane Doe", email: "jane@acme.test", type: "contact" },
+    { name: "Ada Admin", email: "ada@agn.test", type: "user" },
+  ],
+  related: MEETING.related ?? null,
   contact: { id: JANE.id, name: JANE.name },
-  evidence: { field: "time", value: soon.toISOString() },
+  description: "Go through volume pricing above 50 seats and agree the start date.",
+  venue: "Zoho Meeting",
+  link: "https://meeting.zoho.com/example",
+};
+
+export const mockMeetings = {
+  meetings: async (_page?: number) => ({ meetings: MEETINGS, page: 1, more: false }),
+  detail: async (id: string) => ({
+    meeting: {
+      ...DETAIL,
+      ...(MEETINGS.find((m) => m.id === id) ?? {}),
+      participants: DETAIL.participants,
+    },
+  }),
 };
 
 export const mockLookup = {
-  meetings: async () => ({ candidates: [MEETING] }),
+  meetings: mockMeetings,
   meetingBrief: async (_id: string) => ({
     brief: {
       ...BRIEF,

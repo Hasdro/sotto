@@ -39,7 +39,7 @@ import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
-import { useAttached } from "../features/crm/attached";
+import { bindCall, useAttached } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
 import { EmailAction } from "../features/email";
 import { useEscalations } from "../features/escalations/store";
@@ -106,6 +106,8 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   // Density rule (T-050): the live call shows the card, the status and one collapsed rail toggle.
   const [railOpen, setRailOpen] = useState(false);
   const live = state.phase === "live";
+  // A new call starts with a clean brief, unless a meeting was picked for it on Home.
+  useEffect(() => bindCall(state.callId), [state.callId]);
   useEffect(() => {
     if (!live) setConfirming(false);
   }, [live]);
@@ -173,11 +175,7 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   const showRail = railOpen && state.phase !== "idle";
   // R10: Zoho lookup in the rail; the dev mock call uses canned records (never in a release).
   const crm = (
-    <CrmRail
-      callId={state.callId}
-      lookup={mock ? mockLookup : undefined}
-      perform={mock ? mockPerform : undefined}
-    />
+    <CrmRail lookup={mock ? mockLookup : undefined} perform={mock ? mockPerform : undefined} />
   );
   const controls = practice ? (
     live ? (

@@ -12,6 +12,7 @@ import { providerOf } from "../../lib/cloudCompat";
 import { deviceCalls } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
+import { HomeMeetings } from "../crm/HomeMeetings";
 import { useOpenCount } from "../escalations/store";
 
 const DAY_MS = 86_400_000;
@@ -195,6 +196,8 @@ export function HomeScreen() {
 
       <View style={[styles.columns, wide ? styles.columnsWide : null]}>
         <View style={styles.main}>
+          {/* Owner request (14 Nov 2026): upcoming Zoho meetings first when connected. */}
+          <HomeMeetings />
           <Section title={t("home.recent")} testID="home-recent">
             {calls.length === 0 ? (
               <Text tone="muted">{t("home.noCalls")}</Text>

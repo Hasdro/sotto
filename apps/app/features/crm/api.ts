@@ -16,6 +16,7 @@ export type Candidate = {
   evidence: Evidence;
 };
 export type Meeting = {
+  related?: Related | null;
   id: string;
   title: string;
   start: string;
@@ -23,9 +24,27 @@ export type Meeting = {
   agenda: string;
   participants: string[];
 };
+export type Related = {
+  module: "Deals" | "Accounts" | "Contacts" | "Leads";
+  id: string;
+  name: string;
+};
 export type MeetingCandidate = Meeting & {
-  contact: { id: string; name: string } | null;
+  related?: Related | null;
   evidence: { field: "time"; value: string };
+};
+export type MeetingPage = { meetings: MeetingCandidate[]; page: number; more: boolean };
+export type MeetingDetail = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  participants: { name: string; email: string; type: string }[];
+  related: Related | null;
+  contact: { id: string; name: string } | null;
+  description: string;
+  venue: string;
+  link: string;
 };
 export type Brief = {
   meeting?: Meeting;
@@ -82,8 +101,11 @@ export const saveOrgClient = (body: { client_id: string; client_secret: string; 
   cloudApi<ClientStatus>("/api/v1/company/zoho/client", { method: "PUT", body });
 export const removeOrgClient = () =>
   cloudApi<ClientStatus>("/api/v1/company/zoho/client", { method: "DELETE" });
-export const zohoMeetings = () =>
-  cloudApi<{ candidates: MeetingCandidate[] }>(`/api/v1/zoho/meetings?t=${Date.now()}`);
+/** The connected user's own upcoming meetings, soonest first, 20 a page. */
+export const zohoMeetings = (page = 1) =>
+  cloudApi<MeetingPage>(`/api/v1/zoho/meetings?page=${page}&t=${Date.now()}`);
+export const zohoMeetingDetail = (id: string) =>
+  cloudApi<{ meeting: MeetingDetail }>(`/api/v1/zoho/meetings/${encodeURIComponent(id)}/detail`);
 export const zohoMeetingBrief = (id: string) =>
   cloudApi<{ brief: Brief }>(`/api/v1/zoho/meetings/${encodeURIComponent(id)}`);
 
