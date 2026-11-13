@@ -4,7 +4,7 @@ import { TalkMeter } from "./components/TalkMeter";
 import type { TranscriptEntry } from "./session";
 
 const line = (speaker: "customer" | "agent", words: number, id: number): TranscriptEntry =>
-  ({ id: String(id), speaker, text: Array(words).fill("w").join(" "), atMs: id }) as TranscriptEntry;
+  ({ id, speaker, text: Array(words).fill("w").join(" "), atMs: id }) as TranscriptEntry;
 
 const balanced = [line("customer", 50, 1), line("agent", 50, 2)];
 const tooMuch = [line("customer", 20, 1), line("agent", 80, 2)];
