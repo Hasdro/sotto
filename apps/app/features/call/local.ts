@@ -96,6 +96,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
             kind: "card",
             type: c.type,
             source: c.source,
+            id: c.card_id,
             text: text.trim(),
             at_ms: Date.now() - startedAt,
           });

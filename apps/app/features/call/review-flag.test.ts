@@ -4,12 +4,14 @@ import type { CallBundle } from "@sotto/engine";
 
 const mockReviewCall = jest.fn(async () => null);
 let mockOnEnded: ((s: unknown) => void) | null = null;
+let mockSend: ((m: unknown) => void) | null = null;
 jest.mock("@sotto/engine", () => ({
   buildRuntime: () => ({ router: {}, company: {}, mode: "live" }),
   reviewCall: (...args: unknown[]) => mockReviewCall(...(args as [])),
   LocalCallBridge: class {
-    constructor(opts: { onEnded: (s: unknown) => void }) {
+    constructor(opts: { onEnded: (s: unknown) => void; send: (m: unknown) => void }) {
       mockOnEnded = opts.onEnded;
+      mockSend = opts.send;
     }
     handle() {}
     close() {}
@@ -24,9 +26,10 @@ jest.mock("../../lib/cloud", () => ({
   cloudState: () => ({ status: "signed_in", me: { features: mockFeatures } }),
   setCallLive: (on: boolean) => mockLive.push(on),
 }));
+const mockSave = jest.fn();
 jest.mock("../../lib/deviceHistory", () => ({
   markReviewing: jest.fn(),
-  saveDeviceCall: jest.fn(),
+  saveDeviceCall: (...a: unknown[]) => mockSave(...a),
   setDeviceReview: jest.fn(),
 }));
 
@@ -65,4 +68,31 @@ describe("call review flag", () => {
       expect(mockLive).toEqual([false]); // the call is over: a pending bundle may reload now
     },
   );
+});
+
+describe("device history card ids", () => {
+  it("keeps the live card id on the saved card entry", () => {
+    mockFeatures = { call_review: { state: "off_by_org" } };
+    mockSave.mockClear();
+    connectLocal(bundle, handlers as never);
+    const callId = "11111111-1111-4111-8111-111111111111";
+    const cardId = "22222222-2222-4222-8222-222222222222";
+    mockSend?.({ type: "call_started", call_id: callId });
+    mockSend?.({
+      type: "card",
+      card: {
+        v: 1,
+        card_id: cardId,
+        call_id: callId,
+        seq: 0,
+        type: "answer",
+        source: "playbook",
+        delta: "Hello there",
+        done: true,
+      },
+    });
+    mockOnEnded?.({ ...SUMMARY, call_id: callId });
+    const saved = mockSave.mock.calls[0]?.[0] as { transcript: { kind: string; id?: string }[] };
+    expect(saved.transcript.find((e) => e.kind === "card")?.id).toBe(cardId);
+  });
 });
