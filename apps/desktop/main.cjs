@@ -11,6 +11,7 @@ const {
   globalShortcut,
   ipcMain,
   Menu,
+  nativeTheme,
   nativeImage,
   net,
   protocol,
@@ -18,6 +19,11 @@ const {
   shell,
   Tray,
 } = require("electron");
+
+/** Window background before the page paints: the design-system canvas (D-041), light or dark. */
+function canvasColor() {
+  return nativeTheme.shouldUseDarkColors ? "#111112" : "#fcfcfc";
+}
 const { callApp } = require("./call-apps.cjs");
 const { parseMicUsage } = require("./win-mic.cjs");
 const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
@@ -144,7 +150,7 @@ function showMini(show) {
     fullscreenable: false,
     minimizable: false,
     maximizable: false,
-    backgroundColor: "#F1F4F2",
+    backgroundColor: canvasColor(),
     show: false,
     webPreferences: {
       contextIsolation: true,
@@ -253,7 +259,7 @@ function createWindow() {
     minWidth: 380,
     minHeight: 560,
     title: NAME,
-    backgroundColor: "#F1F4F2",
+    backgroundColor: canvasColor(),
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
