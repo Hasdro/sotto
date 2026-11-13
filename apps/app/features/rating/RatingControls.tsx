@@ -1,12 +1,16 @@
 /**
- * Helpful / Not helpful under a finished AI advice card, then optional reason chips (T-058).
- * One quiet row, so the card stays the one thing to read (R8 density). Hidden for playbook,
- * holding and system cards, and whenever ratings are not available to this person.
+ * Thumbs up / down for a finished AI advice card (T-058, UX-02): two 44 pt icon buttons with
+ * accessible names and no visible question, so the card stays the one thing to read. Reason
+ * chips open only after a thumbs-down. Hidden for playbook, holding and system cards, and
+ * whenever ratings are not available to this person. Where it shows (never under the live
+ * hero; on collapsed cards on hover or focus; on every AI card after the call) is CardStack's
+ * choice (D-042 draft).
  */
-import { Icon, minTouchTarget, radius, space, Text, useTheme } from "@sotto/ui";
+import { IconButton, minTouchTarget, radius, space, Text, useTheme } from "@sotto/ui";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
 import { useI18n } from "../../lib/locale";
+import { useCallText } from "../call/strings";
 import type { CardView } from "../cards/reducer";
 import {
   isRateable,
@@ -17,11 +21,27 @@ import {
   useRating,
 } from "./ratings";
 
-export function RatingControls({ card }: { card: CardView }) {
-  const { t } = useI18n();
+/** Whether the controls would render for this card (rateable, finished, ratings on). */
+export function useCanRate(card: CardView): boolean {
   const feature = useFeature("card_ratings");
+  return card.done && isRateable(card) && feature.state === "available";
+}
+
+export function RatingControls({
+  card,
+  onFocus,
+  onBlur,
+}: {
+  card: CardView;
+  /** Focus entering or leaving the buttons (CardStack keeps a collapsed card lit meanwhile). */
+  onFocus?: () => void;
+  onBlur?: () => void;
+}) {
+  const { t } = useI18n();
+  const ct = useCallText();
+  const canRate = useCanRate(card);
   const current = useRating(card.callId, card.id);
-  if (!card.done || !isRateable(card) || feature.state !== "available") return null;
+  if (!canRate) return null;
   const choose = (r: Rating) => rateCard(card, current?.rating === r ? null : r, []);
   const toggle = (reason: RatingReason) => {
     if (!current) return;
@@ -37,34 +57,39 @@ export function RatingControls({ card }: { card: CardView }) {
       style={styles.wrap}
       testID={`rating-${card.id}`}
       accessibilityRole="toolbar"
-      accessibilityLabel={t("rating.prompt")}
+      accessibilityLabel={ct("rating.group")}
     >
       <View style={styles.row}>
-        <Pill
+        <IconButton
           testID={`rate-up-${card.id}`}
           icon="check"
           label={t("rating.up")}
-          on={current?.rating === "up"}
+          selected={current?.rating === "up"}
+          outlined
+          onFocus={onFocus}
+          onBlur={onBlur}
           onPress={() => choose("up")}
         />
-        <Pill
+        <IconButton
           testID={`rate-down-${card.id}`}
           icon="close"
           label={t("rating.down")}
-          on={current?.rating === "down"}
+          selected={current?.rating === "down"}
+          outlined
+          onFocus={onFocus}
+          onBlur={onBlur}
           onPress={() => choose("down")}
         />
       </View>
-      {current ? (
+      {current?.rating === "down" ? (
         <View style={styles.row} accessibilityLabel={t("rating.reasons")}>
-          {REASONS_FOR[current.rating].map((reason) => (
-            <Pill
+          {REASONS_FOR.down.map((reason) => (
+            <Chip
               key={reason}
               testID={`reason-${reason}-${card.id}`}
               label={t(`rating.reason.${reason}`)}
               on={current.reasons.includes(reason)}
               onPress={() => toggle(reason)}
-              small
             />
           ))}
         </View>
@@ -73,19 +98,15 @@ export function RatingControls({ card }: { card: CardView }) {
   );
 }
 
-function Pill({
+function Chip({
   label,
-  icon,
   on,
   onPress,
-  small = false,
   testID,
 }: {
   label: string;
-  icon?: "check" | "close";
   on: boolean;
   onPress: () => void;
-  small?: boolean;
   testID?: string;
 }) {
   const { color } = useTheme();
@@ -93,11 +114,11 @@ function Pill({
     <Pressable
       testID={testID}
       onPress={onPress}
-      accessibilityRole={small ? "checkbox" : "radio"}
-      accessibilityState={small ? { checked: on } : { selected: on }}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: on }}
       aria-checked={on}
       style={({ pressed }) => [
-        styles.pill,
+        styles.chip,
         {
           borderColor: on ? color.primary : color.border,
           backgroundColor: on ? color.surfaceSunken : "transparent",
@@ -105,7 +126,6 @@ function Pill({
         },
       ]}
     >
-      {icon ? <Icon name={icon} size={16} color={on ? color.primary : color.textMuted} /> : null}
       <Text variant="label" weight={on ? "semibold" : "medium"} tone={on ? "primary" : "muted"}>
         {label}
       </Text>
@@ -114,13 +134,12 @@ function Pill({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: space.sm, marginTop: -space.md },
+  wrap: { gap: space.sm },
   row: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  pill: {
+  chip: {
     minHeight: minTouchTarget,
     flexDirection: "row",
     alignItems: "center",
-    gap: space.xs,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
     borderWidth: 1,
