@@ -180,7 +180,7 @@ function Review({ review, callId }: { review: CallReview; callId: string | null 
               <Text variant="label" weight="semibold" tone="muted">
                 {rt("rv.talk")}
               </Text>
-              <TalkMeter lines={lines} />
+              <TalkMeter lines={lines} variant="full" />
             </View>
           ) : null}
           <View style={[styles.chip, styles.self, { backgroundColor: mood.fill }]}>
