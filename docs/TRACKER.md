@@ -211,7 +211,8 @@ Added 2026-11-13 (owner)
 Items, waves, owned files and owner questions: `docs/reviews/backlog-2026-11.md`. Wave-1 prompts: `docs/prompts/review-{ui-core,copy-brand,server-core}.md`. Branches `phase9/<stream>`.
 Wave 1
 - [ ] T-072 `review-ui-core` — UX-02, UX-11, UX-12, UX-13, UX-14, UX-15, UX-06a, UX-07, UX-40, UX-43a, UX-44a, W1-UI, W1-SPLIT
-- [ ] T-073 `review-copy-brand` (sonnet) — UX-06b, UX-42, UX-08, UX-09 (+B11), UX-33, UX-44b, UX-28, UX-34, UX-36, UX-37, UX-38
+- [x] T-073 `review-copy-brand` (sonnet) — UX-06b, UX-42, UX-08, UX-09 (+B11), UX-33, UX-44b, UX-28, UX-34, UX-36, UX-37, UX-38
+  - Evidence: app jest 339 pass, pytest 532 pass, `pnpm a11y` 49 checks / 0 serious (incl. `/owner` ×5 views, light+dark); screenshots `docs/evidence/phase9/review-copy-brand/`. Not deployed or published.
 - [ ] T-074 `review-server-core` — ZC-02, UX-35, W1-DESK, ZC-14s, UX-39s, ZC-11s, INT-01s, INT-03, INT-16
 Wave 2
 - [ ] T-075 `review-live-call` — UX-01, UX-03r, UX-16, UX-17, UX-18, UX-19 (+INT-11), UX-20, UX-21, ZC-08
@@ -351,6 +352,10 @@ _None yet._
 - **Evidence:** worker 137 cloud tests (39 Zoho), app 301, engine 63, desktop 17; replay ALL p50 576 / p95 978 ms, R4 0, R2 drill p95 1270; security-auditor on the writes: H1 ambiguous failure could double-write → `unknown` status keeps the key; M1 lead upsert overwrote → plain create; L1–L3 (brief squat, failed-write audit, granted scope) fixed. Screenshots `docs/evidence/phase9/zoho-actions/`.
 - **Outside the owned list:** `features/call/local.ts` (save brief at call end), `cloud/features.json` (`prep` built), `tests/cloud/test_features.py` (prep moved to built). Messaging: mount email/WhatsApp in `PostCallPanel`'s `slot` prop (or replace the placeholder View in `features/actions/PostCallPanel.tsx`).
 - **Owner:** after deploy, everyone who connected on 0.3.1 sees "Reconnect Zoho" (new write scopes). Verify Events search and a test write on the real org.
+
+### 2026-11-13 (c) · local · Sonnet 5.5 · phase9/review-copy-brand
+- T-073 done: product-voice strings (en+ar), Features page switches (disabled+reason, plumbing hidden), owner console rebrand + kill-switch status table with confirm dialog + sticky matrix, History "Your calls" + sample link, Settings web-admin row, landing (Zoho story, real screenshots, platform CTA, form skeleton + mailto), `pnpm a11y` covers `/owner`. No live-path change, no replay.
+- Open: `admin/keys.tsx` still passes `code="pnpm demo"` (not my file); landing mailto uses `sotto@agncompu.com` (unconfirmed address); Windows build is 0.3.0 while the page shows manifest version 0.3.1.
 
 ### 2026-11-13 (b) · local · Opus 5.5 · phase9/learning-admin
 - **Done:** T-058/T-059/T-060 and D-038. Server: `cloud/learning/{store,routes}.py` adds the tables `card_ratings`, `learned_versions`, `learning_state` and `learning_seen`, with company cascade. Ratings carry no call words. Instructions are versioned per org, with the review switch, revert, approve and badge. The bundle carries `learned`, and `/features` carries `learned_version`. The flags `card_ratings` and `learned_instructions` are now `built: true`. Prompts: `learned_extract` (summary stage, minimised packet) and `learned_instructions` (appended to the cacheable system part of the live suggestion, playbook wins). App: rating pills under the finished hero AI card; the after-call learning run on the device (≥ 3 ratings); Admin › Instructions editor and the tab badge. On desktop, Keys, models and prompts become a "Manage models in the web admin panel" link (D-038).
