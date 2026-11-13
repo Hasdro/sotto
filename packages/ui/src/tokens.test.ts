@@ -152,7 +152,7 @@ describe("design tokens", () => {
     });
   });
 
-  describe.each(["light", "dark"] as const)("%s Quiet Paper Glass rules (D-037)", (name) => {
+  describe.each(["light", "dark"] as const)("%s Quiet Paper Glass rules (D-041)", (name) => {
     const t = themes[name];
 
     it.each(["customer", "agent"] as const)(

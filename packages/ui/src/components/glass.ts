@@ -1,5 +1,5 @@
 /**
- * The glass layer (D-037): floating chrome only (top-bar pills, composer, toasts, sheets, search).
+ * The glass layer (D-041): floating chrome only (top-bar pills, composer, toasts, sheets, search).
  * On web: translucent fill, backdrop blur, a faint ring and the large soft float shadow. On native
  * (and wherever blur is missing) the opaque fallback, so text never sits on an unreadable mix.
  * Content cards, list rows and bubbles never use this.

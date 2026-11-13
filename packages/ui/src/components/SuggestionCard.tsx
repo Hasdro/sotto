@@ -1,7 +1,7 @@
 /**
  * The hero of the product (DESIGN-SYSTEM §5.3): one suggestion, read at arm's length in one second.
  *
- * Quiet Paper Glass (D-037): the hero is the reference's message bubble (22 px, one 6 px tail
+ * Quiet Paper Glass (D-041): the hero is the reference's message bubble (22 px, one 6 px tail
  * corner at the bottom of the reading-start side, flat, no border, no shadow) filled with the one
  * accent, because it is the single primary thing in the live view. Warning is red; holding is a
  * pale neutral with a dashed outline. Nothing is printed above the sentence but the type's icon

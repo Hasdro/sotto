@@ -1,7 +1,7 @@
 /**
  * Design tokens: the only source of colour, spacing, radius, type and motion for the apps (CLAUDE.md).
  *
- * Direction "Quiet Paper Glass" (D-037, docs/design/DESIGN-SYSTEM.md), from the owner's muse-ai
+ * Direction "Quiet Paper Glass" (D-041, docs/design/DESIGN-SYSTEM.md), from the owner's muse-ai
  * reference (docs/design/reference/muse-ai): a near-white canvas, flat cool-gray surfaces, pill
  * controls, translucent glass on floating chrome only, one blue accent, one sans family at
  * 400/500/600. The live suggestion card is the one place the accent is large (DESIGN-SYSTEM §5.3).
@@ -115,7 +115,7 @@ export type Theme = {
     /** Behind a drawer or dialog, drawn at `scrimOpacity` (D-023). */
     scrim: Hex;
     /**
-     * Small status marks in the accent family (D-037): the live dot, unread dots, "now" marks, the
+     * Small status marks in the accent family (D-041): the live dot, unread dots, "now" marks, the
      * active-state tick. `signal` is text-safe on background and surface; `signalFill` is its tint.
      */
     signal: Hex;

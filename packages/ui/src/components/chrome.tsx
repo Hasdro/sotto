@@ -1,5 +1,5 @@
 /**
- * Quiet Paper Glass building blocks for the redesign (D-037, DESIGN-SYSTEM §4): the glass surface
+ * Quiet Paper Glass building blocks for the redesign (D-041, DESIGN-SYSTEM §4): the glass surface
  * for floating chrome, the page header, the sidebar nav row, the list row with a round icon, and
  * the skeleton block. Small and token-only, so app screens compose them instead of styling Views.
  */
@@ -140,6 +140,7 @@ export function ListRow({
   icon?: IconName | undefined;
   /** Replaces the round icon, e.g. an avatar. */
   leading?: ReactNode;
+  /** With `onPress`, keep this non-interactive (a button inside a button is invalid HTML). */
   trailing?: ReactNode;
   onPress?: (() => void) | undefined;
   testID?: string | undefined;

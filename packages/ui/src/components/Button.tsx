@@ -47,7 +47,7 @@ export function Button({
     ButtonVariant,
     { fill: Hex | "transparent"; text: Hex; border: Hex | "transparent" }
   > = {
-    // One primary per view (D-037). Secondary is the reference's neutral chip: flat gray, no border.
+    // One primary per view (D-041). Secondary is the reference's neutral chip: flat gray, no border.
     primary: { fill: color.primary, text: color.onPrimary, border: color.primary },
     secondary: { fill: color.surfaceSunken, text: color.text, border: color.surfaceSunken },
     ghost: { fill: "transparent", text: color.primary, border: "transparent" },

@@ -1,6 +1,9 @@
-import { ReadexPro_400Regular } from "@expo-google-fonts/readex-pro/400Regular";
-import { ReadexPro_500Medium } from "@expo-google-fonts/readex-pro/500Medium";
-import { ReadexPro_600SemiBold } from "@expo-google-fonts/readex-pro/600SemiBold";
+import { IBMPlexSansArabic_400Regular } from "@expo-google-fonts/ibm-plex-sans-arabic/400Regular";
+import { IBMPlexSansArabic_500Medium } from "@expo-google-fonts/ibm-plex-sans-arabic/500Medium";
+import { IBMPlexSansArabic_600SemiBold } from "@expo-google-fonts/ibm-plex-sans-arabic/600SemiBold";
+import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
+import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
+import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { UIProvider, useTheme } from "@sotto/ui";
 import { useFonts } from "expo-font";
 import { Slot, usePathname } from "expo-router";
@@ -15,11 +18,14 @@ import { usePrefs } from "../lib/prefs";
 import { RoleProvider } from "../lib/role";
 
 export default function RootLayout() {
-  // Font keys must match packages/ui fontFamily (DESIGN.md §4).
+  // Font keys must match packages/ui fontFamily + arabicFontFamily (DESIGN-SYSTEM §3.3, D-041).
   const [loaded, error] = useFonts({
-    ReadexPro_400Regular,
-    ReadexPro_500Medium,
-    ReadexPro_600SemiBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    IBMPlexSansArabic_400Regular,
+    IBMPlexSansArabic_500Medium,
+    IBMPlexSansArabic_600SemiBold,
   });
   if (!loaded && !error) return null;
   return (

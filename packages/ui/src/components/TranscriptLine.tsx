@@ -19,7 +19,7 @@ export type TranscriptLineProps = {
 /**
  * One line of the live transcript, as a chat bubble: the customer in the reference's bubble gray on
  * the start side with a blue label (their words trigger cards, R4), the agent in the lighter gray
- * on the end side (owner, 22 Oct; restyled D-037); system lines
+ * on the end side (owner, 22 Oct; restyled D-041); system lines
  * (escalations) use the notice style.
  */
 export function TranscriptLine({ speaker, speakerLabel, text, time, testID }: TranscriptLineProps) {

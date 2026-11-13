@@ -1,4 +1,4 @@
-/** D-037 building blocks: glass only on floating chrome, nav rows, list rows, page header. */
+/** D-041 building blocks: glass only on floating chrome, nav rows, list rows, page header. */
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { StyleSheet } from "react-native";
@@ -18,7 +18,7 @@ const strings = {
   streaming: "still arriving",
 };
 
-describe("Quiet Paper Glass primitives (D-037)", () => {
+describe("Quiet Paper Glass primitives (D-041)", () => {
   it("GlassSurface uses the opaque fallback on native, with the shape's radius", async () => {
     await ui(<GlassSurface testID="g" shape="composer" />, "dark");
     expect(screen.getByTestId("g")).toHaveStyle({

@@ -79,7 +79,7 @@ export function Sheet({
             styles.panel,
             bottom ? styles.panelBottom : styles.panelCentre,
             { backgroundColor: color.surfaceRaised, borderColor: color.border },
-            // The reference's overlay sheet: glass + the elevated shadow on web (D-037).
+            // The reference's overlay sheet: glass + the elevated shadow on web (D-041).
             Platform.OS === "web" ? [glass, styles.noBorder] : null,
           ]}
         >

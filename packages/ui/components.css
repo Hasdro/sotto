@@ -1,5 +1,5 @@
 /* AGN Sales Shield components for HTML surfaces (owner console, Zoho pages, landing).
- * Quiet Paper Glass (D-037, docs/design/DESIGN-SYSTEM.md). Requires tokens.css first.
+ * Quiet Paper Glass (D-041, docs/design/DESIGN-SYSTEM.md). Requires tokens.css first.
  * Colours come only from --ss-* variables (a test enforces it). Logical properties throughout,
  * so dir="rtl" mirrors everything. Handwritten; mirrors the React Native components. */
 

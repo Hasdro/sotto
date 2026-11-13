@@ -79,7 +79,7 @@ const block = (selector: string, lines: string[], indent = "") =>
 export function tokensCss(): string {
   const dark = themeVars(themes.dark);
   return [
-    "/* AGN Sales Shield design tokens (Quiet Paper Glass, D-037).",
+    "/* AGN Sales Shield design tokens (Quiet Paper Glass, D-041).",
     " * GENERATED from packages/ui/src/tokens.ts by `pnpm --filter @sotto/ui gen:css`. Do not edit.",
     " * Light is the default; dark follows the OS unless data-theme is set on <html>. */",
     block(":root", ["color-scheme: light;", ...staticVars(), ...themeVars(themes.light)]),

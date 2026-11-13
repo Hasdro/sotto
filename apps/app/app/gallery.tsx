@@ -10,14 +10,19 @@ import {
   ChecklistRow,
   Disclosure,
   EmptyState,
+  GlassSurface,
   IconButton,
+  ListRow,
   LtrRun,
   Mascot,
   moodFor,
+  NavRow,
+  PageHeader,
   Panel,
   radius,
   SegmentedControl,
   Sheet,
+  Skeleton,
   Stack,
   StatTile,
   SuggestionCard,
@@ -74,6 +79,7 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
   return (
     <UIProvider scheme={scheme} direction={dir}>
       <View
+        testID={id("variant")}
         {...(Platform.OS === "web" ? { dir } : {})}
         style={[
           styles.variant,
@@ -81,7 +87,30 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
         ]}
       >
         <Stack gap="lg">
-          <Wordmark name={t("app.name")} />
+          {/* D-041 Quiet Paper Glass: floating glass pill, page header, nav rows, list rows. */}
+          <GlassSurface style={styles.glassBar}>
+            <Wordmark name={t("app.name")} />
+            <Badge tone="signal" dot label={t("call.status.live")} />
+          </GlassSurface>
+          <PageHeader
+            title={t("admin.team")}
+            lead={t("inbox.subtitle")}
+            actions={<Button label={t("call.pick.start")} />}
+          />
+          <View>
+            <NavRow icon="home" label={t("role.agent")} current />
+            <NavRow icon="history" label={t("call.rail.title")} />
+          </View>
+          <ListRow
+            icon="users"
+            title={personaFor("agent").name}
+            description={t("call.listeningBody")}
+            trailing={<IconButton icon="list" label={ct("ui.edit")} />}
+          />
+          <Stack gap="sm">
+            <Skeleton width="60%" />
+            <Skeleton />
+          </Stack>
           <View style={styles.mascots}>
             {(["idle", "listening", "thinking", "suggesting", "reviewing", "offline"] as const).map(
               (m) => (
@@ -279,7 +308,15 @@ const styles = StyleSheet.create({
     flexBasis: 360,
     maxWidth: 560,
     padding: space.lg,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
   },
   lines: { gap: space.sm },
+  glassBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.sm,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.md,
+  },
 });

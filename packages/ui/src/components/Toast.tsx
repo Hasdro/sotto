@@ -17,7 +17,7 @@ export type ToastProps = {
 
 /**
  * A short confirmation (e.g. "Sent to your manager"). The app positions it and times it out.
- * Floating chrome, so it wears the glass layer on web (D-037): a paper slab with the float shadow
+ * Floating chrome, so it wears the glass layer on web (D-041): a paper slab with the float shadow
  * in light; a raised dark surface with a visible border in dark, so it never outshines the card
  * (UX-40).
  */
