@@ -7,6 +7,7 @@ salesshield.agncompu.com {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-src https://forms.zohopublic.com; frame-ancestors 'none'; base-uri 'self'"
 		-Server
 	}
 	# Installers: no directory listing (no `browse`); the file names come from downloads.json.
