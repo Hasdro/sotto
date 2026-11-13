@@ -92,6 +92,14 @@ export async function startCapture(
   if (!media || !api || !Ctx || g.isSecureContext === false) {
     throw new MicUnavailable("unsupported");
   }
+  // ZC-08: the OS default microphone, unless the one chosen in Settings is still plugged in.
+  const micId =
+    source === "mic" && prefs().micId
+      ? await media
+          .enumerateDevices?.()
+          .then((list) => chosenMic(list, prefs().micId))
+          .catch(() => null)
+      : null;
   let stream: MediaStream;
   try {
     stream =
@@ -103,7 +111,7 @@ export async function startCapture(
           })
         : await media.getUserMedia({
             audio: {
-              ...(prefs().micId ? { deviceId: { exact: prefs().micId as string } } : {}),
+              ...(micId ? { deviceId: { exact: micId } } : {}),
               channelCount: 1,
               echoCancellation: true,
               noiseSuppression: true,
@@ -145,6 +153,17 @@ export async function startCapture(
       void ctx.close();
     },
   };
+}
+
+/** The chosen input if it is in the device list, else null (the OS default). Pure. */
+export function chosenMic(
+  devices: readonly { kind: string; deviceId: string }[],
+  preferred: string | null,
+): string | null {
+  if (!preferred) return null;
+  return devices.some((d) => d.kind === "audioinput" && d.deviceId === preferred)
+    ? preferred
+    : null;
 }
 
 export class MicUnavailable extends Error {

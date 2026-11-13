@@ -11,6 +11,8 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useSharedCall } from "../features/call/CallSessionProvider";
+import { useCallApp } from "../features/call/callApp";
+import { AudioCheck } from "../features/call/components/AudioCheck";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CallNotes } from "../features/call/components/CallNotes";
 import { CardStack } from "../features/call/components/CardStack";
@@ -39,15 +41,17 @@ export default function CallScreen() {
 }
 
 function DemoCallScreen() {
-  const params = useLocalSearchParams<{ mock?: string; prepare?: string }>();
+  const params = useLocalSearchParams<{ mock?: string; prepare?: string; check?: string }>();
   const mock = __DEV__ && params.mock === "1"; // never in a release build (D-024)
   // Home's "Prepare" (UX-03h): `/call?prepare=1` opens the rail on the brief editor.
-  const prepare = params.prepare === "1";
-  return mock ? <MockCallScreen prepare={prepare} /> : <SharedCallScreen prepare={prepare} />;
+  // Home's "Test audio" (UX-10, ZC-08): `/call?check=audio` opens the level check.
+  const opts = { prepare: params.prepare === "1", check: params.check === "audio" };
+  return mock ? <MockCallScreen {...opts} /> : <SharedCallScreen {...opts} />;
 }
+type Opts = { prepare: boolean; check: boolean };
 
 /** The real call: held by CallSessionProvider, so leaving this screen keeps it live (T-025). */
-function SharedCallScreen({ prepare }: { prepare: boolean }) {
+function SharedCallScreen(opts: Opts) {
   const { session, activate } = useSharedCall();
   useEffect(activate, [activate]);
   // An escalated question is now in the manager's inbox on the server: refresh the badge.
@@ -56,14 +60,14 @@ function SharedCallScreen({ prepare }: { prepare: boolean }) {
   useEffect(() => {
     if (escalated > 0) reload();
   }, [escalated, reload]);
-  return <CallView session={session} mock={false} prepare={prepare} />;
+  return <CallView session={session} mock={false} {...opts} />;
 }
 
 /** `?mock=1` (development only): a canned call owned by this screen alone. */
-function MockCallScreen({ prepare }: { prepare: boolean }) {
+function MockCallScreen(opts: Opts) {
   const { locale } = useI18n();
   const session = useCallSession({ mock: true, locale });
-  return <CallView session={session} mock prepare={prepare} />;
+  return <CallView session={session} mock {...opts} />;
 }
 
 /** Production builds: no local demo bridge and no mock calls (D-013). Exported for tests. */
@@ -85,11 +89,14 @@ export function CallView({
   session,
   mock,
   prepare = false,
+  check = false,
 }: {
   session: CallSession;
   mock: boolean;
   /** `/call?prepare=1`: open the rail on the brief editor before the call. */
   prepare?: boolean;
+  /** `/call?check=audio`: open the 5-second audio check (ZC-08). */
+  check?: boolean;
 }) {
   const { t } = useI18n();
   const tc = useCallText();
@@ -102,6 +109,11 @@ export function CallView({
   // Density rule (T-050): the live call shows the card, the status and one collapsed rail toggle.
   // Before the call the same toggle opens the brief editor (UX-01); Home's Prepare opens it.
   const [railOpen, setRailOpen] = useState(prepare);
+  const [checking, setChecking] = useState(check);
+  useEffect(() => {
+    if (check) setChecking(true);
+  }, [check]);
+  const callApp = useCallApp();
   useEffect(() => {
     if (prepare) setRailOpen(true);
   }, [prepare]);
@@ -213,7 +225,16 @@ export function CallView({
       ) : null}
       {state.phase === "idle" && !practice ? (
         Platform.OS === "web" ? (
-          <ListenStart computer={computerAudioAvailable()} onStart={session.startListening} />
+          checking ? (
+            <AudioCheck computer={computerAudioAvailable()} onDone={() => setChecking(false)} />
+          ) : (
+            <ListenStart
+              computer={computerAudioAvailable()}
+              callApp={callApp}
+              onStart={session.startListening}
+              onCheck={() => setChecking(true)}
+            />
+          )
         ) : (
           <PhoneCallsLater />
         )

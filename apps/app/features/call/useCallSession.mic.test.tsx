@@ -1,12 +1,13 @@
 import { act, renderHook } from "@testing-library/react-native";
 import type { SocketFactory } from "./bridge";
-import { type MicHandle, startMic } from "./mic";
+import { type MicHandle, startCapture, startMic } from "./mic";
 import { useCallSession } from "./useCallSession";
 
 jest.mock("./devGate", () => ({ demoEnabled: jest.fn(() => true) }));
 jest.mock("./mic", () => ({
   ...jest.requireActual("./mic"),
   startMic: jest.fn(),
+  startCapture: jest.fn(),
 }));
 
 const CALL = "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c";
@@ -90,5 +91,34 @@ describe("microphone (D-020)", () => {
     await act(async () => emit({ type: "call_ended", call_id: CALL }));
     expect(handle.stop).toHaveBeenCalled();
     expect(result.current.mic).toBe("off");
+  });
+});
+
+describe("R4: never a mixed track (ZC-08)", () => {
+  beforeEach(() => jest.clearAllMocks());
+  it("on the computer's sound, only the customer's frames reach the call; the microphone never does", async () => {
+    let customer: (pcm: ArrayBuffer) => void = () => {};
+    let agent: (pcm: ArrayBuffer) => void = () => {};
+    jest.mocked(startCapture).mockImplementation(async (source, cb) => {
+      expect(source).toBe("computer");
+      customer = cb;
+      return { stop: jest.fn() };
+    });
+    jest.mocked(startMic).mockImplementation(async (cb) => {
+      agent = cb;
+      return { stop: jest.fn() };
+    });
+    const { result, sent } = await liveCall();
+    await act(async () => result.current.toggleMic("computer"));
+    expect(result.current.mic).toBe("on");
+    expect(startCapture).toHaveBeenCalledTimes(1);
+    expect(startMic).toHaveBeenCalledTimes(1); // the agent side, as context only
+    const fromCustomer = new ArrayBuffer(640);
+    const fromAgent = new ArrayBuffer(640);
+    customer(fromCustomer);
+    agent(fromAgent);
+    const frames = sent.filter((m) => m instanceof ArrayBuffer);
+    expect(frames).toContain(fromCustomer);
+    expect(frames).not.toContain(fromAgent);
   });
 });

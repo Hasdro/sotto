@@ -477,6 +477,17 @@ describe("in-call screen", () => {
       expect(screen.getByText("Note for after the call")).toBeOnTheScreen();
     });
 
+    it("`check=audio` opens the audio check; Done returns to the start screen (ZC-08)", async () => {
+      jest.replaceProperty(RN.Platform, "OS", "web");
+      await render(<CallView session={session(stateFrom([real]))} mock={false} check />);
+      expect(screen.getByTestId("audio-check")).toBeOnTheScreen();
+      expect(screen.queryByTestId("listen-start")).toBeNull();
+      await fireEvent.press(screen.getByTestId("check-done"));
+      expect(screen.getByTestId("listen-start")).toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId("check-audio-open"));
+      expect(screen.getByTestId("audio-check")).toBeOnTheScreen();
+    });
+
     it("at 390 px the rail is a bottom sheet over the card, not instead of it", async () => {
       jest.mocked(useIsWide).mockReturnValue(false);
       const st = stateFrom([real, { type: "call_started", call_id: CALL }, card({ done: true })]);
