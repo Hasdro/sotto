@@ -212,7 +212,8 @@ Items, waves, owned files and owner questions: `docs/reviews/backlog-2026-11.md`
 Wave 1
 - [ ] T-072 `review-ui-core` — UX-02, UX-11, UX-12, UX-13, UX-14, UX-15, UX-06a, UX-07, UX-40, UX-43a, UX-44a, W1-UI, W1-SPLIT
 - [ ] T-073 `review-copy-brand` (sonnet) — UX-06b, UX-42, UX-08, UX-09 (+B11), UX-33, UX-44b, UX-28, UX-34, UX-36, UX-37, UX-38
-- [ ] T-074 `review-server-core` — ZC-02, UX-35, W1-DESK, ZC-14s, UX-39s, ZC-11s, INT-01s, INT-03, INT-16
+- [x] T-074 `review-server-core` — ZC-02, UX-35, W1-DESK, ZC-14s, UX-39s, ZC-11s, INT-01s, INT-03, INT-16
+  - Evidence (13 Nov, `phase9/review-server-core`): worker 588 passed (new: test_zoho_dc, test_call_log, test_brief_stage, test_reset, test_health, test_company_defaults), desktop 25, app jest 334 (6 load timeouts re-run green), lint/typecheck/boundaries green, replay ALL p50 576 / p95 978 ms, R4 0; security-auditor 0 C/H, M1+L1–L3 fixed; screenshots `docs/evidence/phase9/review-server-core/`.
 Wave 2
 - [ ] T-075 `review-live-call` — UX-01, UX-03r, UX-16, UX-17, UX-18, UX-19 (+INT-11), UX-20, UX-21, ZC-08
 - [ ] T-076 `review-post-call` — UX-04, UX-05, UX-22, UX-23, UX-24, UX-27, UX-41, INT-01c, INT-02m, INT-07, INT-14a, W2-REPLAY
@@ -339,6 +340,11 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 (c) · local · Opus 5.5 · phase9/review-server-core
+- **Done (T-074):** ZC-02 OAuth starts on the global accounts host; the callback's `accounts-server`/`location` sets the DC (per person + org default), manual "Change" kept, probe only when Zoho names none. UX-35 connect page (reads/writes, DC + Change, Cancel → `/auth/zoho/cancel`), done page "Zoho is connected. You can close this tab." + `agn-sales-shield://zoho/connected`. W1-DESK `apps/desktop/deep-link.cjs`: scheme registered by the installed app only (never dev runs), single instance, `onDeepLink`, `openPrivacySettings(mic|system-audio)`. ZC-14s `health` in `/api/v1/features`. UX-39s `POST /api/v1/auth/reset/request|confirm`. ZC-11s `GET/PUT /api/v1/company/defaults`. INT-01s Zoho action `call_log`. INT-03 stage guidance as data in `crm_brief` v3; INT-16 Lead_Source + Campaign_Source in the brief.
+- **Outside the owned list:** `packages/engine/src/__tests__/bundle.json` regenerated (`pnpm gen`, seed change); `tests/cloud/test_zoho.py` and `test_zoho_actions.py` (helper picks the Continue button; "Zoho is connected" copy).
+- **Needed by waves 2–3:** `apps/app/lib/desktop.ts` types for `openPrivacySettings` / `onDeepLink`; a `/reset-password` web page (read `#token`, then `history.replaceState`; `Referrer-Policy: no-referrer`). OAuth pages are English only.
 
 ### 2026-11-14 (b) · local · Opus 5.5 · phase9/zoho-meetings
 - **Done (owner request 14 Nov):** meetings are the main way to get call context. Server: `GET /zoho/meetings?page=` lists only Events owned by the connected Zoho user (`users?type=CurrentUser`, new scope `ZohoCRM.users.READ` → older connections are asked to reconnect, nothing listed until they do), not yet over, next 14 days, soonest first, 20/page; `GET /zoho/meetings/{id}/detail` view-only (someone else's → 404); meeting brief pulls Who_Id contact (else related/participant contact or lead), related Deal + its Account, notes. App: Home "Your upcoming meetings" (when connected) with expandable view-only detail and "Use for my next call" (brief carried into the next call via `bindCall`); rail lists the same meetings first, name/email/phone search under it.
