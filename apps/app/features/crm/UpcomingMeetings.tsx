@@ -6,7 +6,7 @@
  * Nothing is attached until that button is pressed.
  */
 import { Badge, Button, radius, Stack, space, Text, useTheme } from "@sotto/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import { CloudError } from "../../lib/cloud";
 import type { StringKey } from "../../lib/i18n";
@@ -19,6 +19,15 @@ import {
   zohoMeetings,
 } from "./api";
 import { onReturn } from "./useZoho";
+
+export type MeetingAction = {
+  /** Suffix of the button's test id (`meeting-<id>-<id>`); the rail's single action is "use". */
+  id: string;
+  label: string;
+  onPress: (m: MeetingCandidate) => void;
+  busy?: boolean;
+  variant?: "primary" | "secondary";
+};
 
 export type MeetingSource = {
   meetings: (page?: number) => Promise<MeetingPage>;
@@ -53,14 +62,20 @@ export function whenText(startIso: string, endIso: string, locale: string): stri
 export function UpcomingMeetings({
   source = LIVE,
   action,
+  actions,
   limit,
+  onLoaded,
   testID = "upcoming-meetings",
 }: {
   source?: MeetingSource;
   /** The button under an opened meeting; omitted = view only. */
   action?: { label: string; onPress: (m: MeetingCandidate) => void; busy?: boolean };
+  /** Home (UX-03h): buttons shown on every row, open or not ("Prepare", "Start call…"). */
+  actions?: readonly MeetingAction[];
   /** Show at most this many before "Show more" (the rail keeps it short). */
   limit?: number;
+  /** The first page, soonest first, once it arrives (Home's "Next: … at …" line). */
+  onLoaded?: (meetings: MeetingCandidate[]) => void;
   testID?: string;
 }) {
   const { t, locale } = useI18n();
@@ -71,6 +86,8 @@ export function UpcomingMeetings({
   const [problem, setProblem] = useState<StringKey | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const loaded = useRef(onLoaded);
+  loaded.current = onLoaded;
 
   const load = useCallback(
     (p: number) => {
@@ -80,6 +97,7 @@ export function UpcomingMeetings({
         .meetings(p)
         .then((r) => {
           setItems((old) => (p === 1 || !old ? r.meetings : [...old, ...r.meetings]));
+          if (p === 1) loaded.current?.(r.meetings);
           setMore(r.more);
           setPage(r.page);
         })
@@ -128,6 +146,7 @@ export function UpcomingMeetings({
           onToggle={() => setOpen((o) => (o === m.id ? null : m.id))}
           source={source}
           action={action}
+          actions={actions}
           locale={locale}
         />
       ))}
@@ -153,6 +172,7 @@ function MeetingRow({
   onToggle,
   source,
   action,
+  actions,
   locale,
 }: {
   meeting: MeetingCandidate;
@@ -160,6 +180,7 @@ function MeetingRow({
   onToggle: () => void;
   source: MeetingSource;
   action?: { label: string; onPress: (m: MeetingCandidate) => void; busy?: boolean } | undefined;
+  actions?: readonly MeetingAction[] | undefined;
   locale: string;
 }) {
   const { t } = useI18n();
@@ -194,6 +215,21 @@ function MeetingRow({
           disabled={action.busy}
           testID={`meeting-${m.id}-use`}
         />
+      ) : null}
+      {actions?.length ? (
+        <View style={styles.actions}>
+          {actions.map((a) => (
+            <Button
+              key={a.id}
+              variant={a.variant ?? "secondary"}
+              label={a.label}
+              accessibilityHint={m.title || t("meetings.untitled")}
+              onPress={() => a.onPress(m)}
+              disabled={a.busy}
+              testID={`meeting-${m.id}-${a.id}`}
+            />
+          ))}
+        </View>
       ) : null}
     </View>
   );
@@ -281,4 +317,5 @@ function Fact({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   row: { borderWidth: 1, borderRadius: radius.md, padding: space.md, gap: space.sm },
   head: { gap: 2 },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
 });

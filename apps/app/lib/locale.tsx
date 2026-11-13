@@ -40,8 +40,31 @@ function storedLocale(): Locale | null {
   }
 }
 
+/**
+ * ZC A1: the first start follows the computer's language (Arabic when the OS asks for it,
+ * otherwise English); the switch in Settings wins from then on.
+ */
+export function osLocale(): Locale {
+  const nav = (globalThis as { navigator?: { languages?: readonly string[]; language?: string } })
+    .navigator;
+  let tags: readonly string[] = nav?.languages?.length
+    ? nav.languages
+    : nav?.language
+      ? [nav.language]
+      : [];
+  if (tags.length === 0) {
+    try {
+      tags = [Intl.DateTimeFormat().resolvedOptions().locale];
+    } catch {
+      tags = [];
+    }
+  }
+  const first = (tags[0] ?? "").toLowerCase();
+  return LOCALES.find((l) => first === l || first.startsWith(`${l}-`)) ?? "en";
+}
+
 export function LocaleProvider({ initial, children }: { initial?: Locale; children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => initial ?? storedLocale() ?? "en");
+  const [locale, setLocaleState] = useState<Locale>(() => initial ?? storedLocale() ?? osLocale());
   const dir = directionOf(locale);
 
   const setLocale = useCallback((next: Locale) => {

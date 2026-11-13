@@ -46,7 +46,9 @@ function Root() {
 function Themed({ dir }: { dir: "ltr" | "rtl" }) {
   const { color } = useTheme();
   // The desktop mini window shows the main window's card: no menu, no sign-in, no call of its own.
-  const mini = usePathname() === "/mini";
+  // The password-reset page (UX-39r) is opened signed out, from the reset email.
+  const pathname = usePathname();
+  const bare = pathname === "/mini" || pathname === "/reset-password";
   return (
     <View
       // react-native-web reads `dir` to resolve start/end in inline styles; native uses `direction`.
@@ -54,7 +56,7 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
       style={[styles.root, { direction: dir, backgroundColor: color.background }]}
     >
       <StatusBar style="auto" />
-      {mini ? (
+      {bare ? (
         <Slot />
       ) : (
         <AccessGate>

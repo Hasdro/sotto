@@ -69,7 +69,6 @@ function KeysScreenBody() {
       <EmptyState
         title={t("admin.keys.offline.title")}
         body={t("admin.keys.offline.body")}
-        code="pnpm demo"
         action={{ label: t("call.offline.retry"), onPress: refresh }}
       />
     );

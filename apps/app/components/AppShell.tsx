@@ -37,12 +37,14 @@ import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
-import { personaFor, ROLE_AREAS, useRole } from "../lib/role";
+import { canOpen, personaFor, ROLE_AREAS, useRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
 import { AppLink } from "./AppLink";
 import { CommandPalette } from "./CommandPalette";
-import { PlanBanner } from "./PlanBanner";
+import { useHealthBanner } from "./HealthBanner";
+import { usePlanBanner } from "./PlanBanner";
 import { ProfilePopup } from "./ProfilePopup";
+import { NoAccess } from "./RoleGate";
 import { RoleSwitch } from "./RoleSwitch";
 import { Tutorial } from "./Tutorial";
 
@@ -89,10 +91,25 @@ function useNav(): readonly NavItem[] {
   return cloudOrigin() ? [...items, ACCOUNT] : items;
 }
 
+/**
+ * One banner at most (ZC-14c): "calls paused" first (it is why a call fails), then the config
+ * health line with its fix, then the plan/trial line.
+ */
+export function ShellBanner() {
+  const { role } = useRole();
+  const plan = usePlanBanner();
+  const health = useHealthBanner(role);
+  if (plan?.kind === "paused") return plan.node;
+  return health ?? plan?.node ?? null;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const wide = useIsWide();
   const { color } = useTheme();
+  const { role } = useRole();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const allowed = canOpen(role, pathname);
   return (
     <View
       style={[
@@ -102,8 +119,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     >
       {wide ? <Sidebar /> : <TopBar open={menuOpen} onOpen={() => setMenuOpen(true)} />}
       <View style={styles.main}>
-        <PlanBanner />
-        {children}
+        <ShellBanner />
+        {/* R3, D-050: a page outside this role's areas says why, whatever the URL. The page
+            stays mounted (hidden) so the router's navigator keeps its state. */}
+        <View style={allowed ? styles.main : styles.hidden}>{children}</View>
+        {allowed ? null : <NoAccess />}
       </View>
       {wide ? null : <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
       <Tutorial />
@@ -440,6 +460,7 @@ const styles = StyleSheet.create({
   navIcon: { width: 24, alignItems: "center" },
   root: { flex: 1 },
   main: { flex: 1, minWidth: 0 },
+  hidden: { display: "none" },
   grow: { flex: 1 },
   pressed: { opacity: 0.8 },
   sidebar: {

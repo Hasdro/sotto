@@ -6,7 +6,7 @@
  */
 import { space, Text, useTheme } from "@sotto/ui";
 import { usePathname } from "expo-router";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { bannerFor, type Plan, samplePlan } from "../features/admin/plan";
 import type { StringKey } from "../lib/i18n";
@@ -15,6 +15,12 @@ import { useRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
 
 export function PlanBanner() {
+  return usePlanBanner()?.node ?? null;
+}
+
+/** The plan line for this person and page, and whether it is the "calls paused" alert (which
+ * outranks every other banner, ZC-14c). */
+export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | null {
   const { t } = useI18n();
   const { color } = useTheme();
   const { role } = useRole();
@@ -38,20 +44,23 @@ export function PlanBanner() {
   const onCall = pathname === "/" || pathname.startsWith("/call");
   const paused = pausedReason(company, banner);
   if (paused && (role === "agent" || onCall)) {
-    return (
-      <View
-        testID="calls-paused"
-        accessibilityRole="alert"
-        style={[
-          styles.bar,
-          { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
-        ]}
-      >
-        <Text variant="label" weight="medium" color={color.noticeText}>
-          {t("plan.paused", { reason: t(paused) })}
-        </Text>
-      </View>
-    );
+    return {
+      kind: "paused",
+      node: (
+        <View
+          testID="calls-paused"
+          accessibilityRole="alert"
+          style={[
+            styles.bar,
+            { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
+          ]}
+        >
+          <Text variant="label" weight="medium" color={color.noticeText}>
+            {t("plan.paused", { reason: t(paused) })}
+          </Text>
+        </View>
+      ),
+    };
   }
   if (!banner || role === "agent" || onCall) return null;
   const blocked = banner.kind === "blocked";
@@ -65,23 +74,26 @@ export function PlanBanner() {
         minutes: plan.minutes.used.toLocaleString("en-US"),
         minuteLimit: plan.minutes.limit.toLocaleString("en-US"),
       });
-  return (
-    <View
-      testID="plan-banner"
-      accessibilityRole="summary"
-      style={[
-        styles.bar,
-        {
-          backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
-          borderBottomColor: notice ? color.noticeBorder : color.border,
-        },
-      ]}
-    >
-      <Text variant="label" weight="medium" color={notice ? color.noticeText : undefined}>
-        {text}
-      </Text>
-    </View>
-  );
+  return {
+    kind: "plan",
+    node: (
+      <View
+        testID="plan-banner"
+        accessibilityRole="summary"
+        style={[
+          styles.bar,
+          {
+            backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
+            borderBottomColor: notice ? color.noticeBorder : color.border,
+          },
+        ]}
+      >
+        <Text variant="label" weight="medium" color={notice ? color.noticeText : undefined}>
+          {text}
+        </Text>
+      </View>
+    ),
+  };
 }
 
 /** Why calls are blocked, or null when they are allowed. */

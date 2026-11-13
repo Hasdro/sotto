@@ -4,7 +4,9 @@
 // Needs `pnpm --filter @sotto/app export:web` and a Playwright Chromium. Each page is shot in
 // light and dark (English) and light Arabic (RTL); `#menu` after a path also opens the drawer.
 // For a build that names a server (D-022), SOTTO_SHOT_TOKEN signs the pages in with a test
-// account's app token; SOTTO_SHOT_TAG is added to file names.
+// account's app token; SOTTO_SHOT_TAG is added to file names. SOTTO_SHOT_BASE (e.g. a local
+// `python -m sotto_worker.cloud serve --static <export>`) shoots that origin instead of serving
+// the export here, so signed-in pages show real server data. SOTTO_SHOT_ROLE sets the demo role.
 import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve } from "node:path";
@@ -52,8 +54,8 @@ function serve() {
 }
 
 mkdirSync(out, { recursive: true });
-const server = await serve();
-const base = `http://127.0.0.1:${server.address().port}`;
+const server = process.env.SOTTO_SHOT_BASE ? null : await serve();
+const base = process.env.SOTTO_SHOT_BASE ?? `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch();
 try {
   for (const mode of MODES) {
@@ -63,12 +65,19 @@ try {
       deviceScaleFactor: 2,
     });
     await context.addInitScript(
-      ([locale, token]) => {
+      ([locale, token, role]) => {
         localStorage.setItem("sotto.locale", locale);
-        localStorage.setItem("sotto.viewRole", "admin");
-        if (token) localStorage.setItem("sotto.token", token);
+        localStorage.setItem("sotto.viewRole", role);
+        if (token) {
+          localStorage.setItem("sotto.token", token);
+          // The refresh-token session (D-029) that a sign-in on the web would keep.
+          localStorage.setItem(
+            "sotto.session",
+            JSON.stringify({ access: token, refresh: null, access_expires_at: null }),
+          );
+        }
       },
-      [mode.locale, process.env.SOTTO_SHOT_TOKEN ?? ""],
+      [mode.locale, process.env.SOTTO_SHOT_TOKEN ?? "", process.env.SOTTO_SHOT_ROLE ?? "admin"],
     );
     const page = await context.newPage();
     for (const entry of PAGES) {
@@ -89,5 +98,5 @@ try {
   }
 } finally {
   await browser.close();
-  server.close();
+  server?.close();
 }

@@ -37,27 +37,17 @@ const STEPS: readonly Step[] = [
   { mascot: "reviewing", title: "tutorial.5.title", body: "tutorial.5.body" },
 ];
 
-// Shown once per app start unless the person ticks "Don't show this again".
-let closedThisVisit = false;
-
+/** ZC A15 (UX-10): the first-run checklist on Home guides a new person; the tutorial opens only
+ * when asked for (Settings › Advanced › Play the tutorial). */
 export function Tutorial() {
   const cloud = useCloud();
-  const { tutorialDone } = usePrefs();
-  const [open, setOpen] = useState(!closedThisVisit);
-  useEffect(() => {
-    if (!tutorialDone) {
-      closedThisVisit = false;
-      setOpen(true);
-    }
-  }, [tutorialDone]);
-  if (cloud.status !== "signed_in" || tutorialDone || !open) return null;
+  const { tutorialRequested } = usePrefs();
+  if (cloud.status !== "signed_in" || !tutorialRequested) return null;
   return (
     <TutorialDialog
-      onClose={(never) => {
-        closedThisVisit = true;
-        setOpen(false);
-        if (never) setPrefs({ tutorialDone: true });
-      }}
+      onClose={(never) =>
+        setPrefs({ tutorialRequested: false, ...(never ? { tutorialDone: true } : {}) })
+      }
     />
   );
 }
