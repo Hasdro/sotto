@@ -1,58 +1,15 @@
 /**
- * The Zoho action cards built from what is attached to the call (R12): a follow-up Meeting, a
- * Lead, a Contact update and a Note on the open Deal. No Deal field other than its note exists.
+ * The during-call Zoho cards (R12): a Lead and a Contact update. After the call the checklist
+ * (`checklist.ts`) offers the call log, meeting, contact and deal note instead.
  */
 import type { ReactNode } from "react";
 import type { StringKey } from "../../lib/i18n";
 import type { Brief } from "../crm/api";
-import { ActionCard, isoWithOffset, localText, localToIso, type Perform } from "./ActionCard";
+import { ActionCard, type Perform } from "./ActionCard";
 
 type T = (key: StringKey, vars?: Record<string, string | number>) => string;
 const trimmed = (v: Record<string, string>, names: string[]) =>
   Object.fromEntries(names.map((n) => [n, (v[n] ?? "").trim()]).filter(([, x]) => x));
-
-export function meetingCard(t: T, brief: Brief | null, perform?: Perform): ReactNode {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(10, 0, 0, 0);
-  const contactId = brief?.person?.module === "Contacts" ? brief.person.id : "";
-  const dealId = brief?.deals.find((d) => d.id)?.id ?? "";
-  const who = brief?.person?.name;
-  return (
-    <ActionCard
-      key="meeting"
-      kind="meeting"
-      title={t("actions.meeting")}
-      perform={perform}
-      specs={[
-        { name: "title", label: "actions.field.title" },
-        { name: "start", label: "actions.field.start" },
-        { name: "minutes", label: "actions.field.minutes" },
-        { name: "description", label: "actions.field.description", multiline: true },
-      ]}
-      initial={{
-        title: who ? `Follow-up: ${who}` : "",
-        start: localText(tomorrow),
-        minutes: "30",
-        description: "",
-      }}
-      build={(v) => {
-        const start = localToIso(v.start ?? "");
-        const minutes = Number(v.minutes);
-        if (!start || !Number.isFinite(minutes) || minutes <= 0 || minutes > 480)
-          return "actions.badTime";
-        const end = new Date(new Date(start).getTime() + minutes * 60_000);
-        return {
-          ...trimmed(v, ["title", "description"]),
-          start,
-          end: isoWithOffset(end),
-          ...(contactId ? { contact_id: contactId } : {}),
-          ...(dealId ? { deal_id: dealId } : {}),
-        };
-      }}
-    />
-  );
-}
 
 export function leadCard(t: T, perform?: Perform): ReactNode {
   return (
@@ -100,25 +57,6 @@ export function contactCard(t: T, brief: Brief, perform?: Perform): ReactNode {
         if (description) out.description = description;
         return out;
       }}
-    />
-  );
-}
-
-export function dealNoteCard(t: T, brief: Brief, notes: string, perform?: Perform): ReactNode {
-  const deal = brief.deals.find((d) => d.id);
-  if (!deal) return null;
-  return (
-    <ActionCard
-      key="deal_note"
-      kind="deal_note"
-      title={`${t("actions.deal_note")} · ${t("actions.field.deal", { name: deal.name })}`}
-      perform={perform}
-      specs={[
-        { name: "title", label: "actions.field.title" },
-        { name: "content", label: "actions.field.content", multiline: true },
-      ]}
-      initial={{ title: "", content: notes }}
-      build={(v) => ({ deal_id: deal.id, ...trimmed(v, ["title", "content"]) })}
     />
   );
 }

@@ -1,14 +1,18 @@
 /**
- * The after-call review (owner, 21 Oct): chance to close, six skill scores as sliders, the
- * customer's mood, one coaching tip, strengths and what to improve. No emoji: colour and shape.
+ * The after-call review (owner, 21 Oct; UX-27): one line first — the mascot's mood, the coach's
+ * tip and the chance to close as Likely / Unclear / Unlikely — then deal-risk signals labelled
+ * AI-estimated (INT-07), and everything else (scores, talk time, mood, strengths) under Details.
+ * No emoji: colour and shape.
  */
 import type { CallReview, ReviewDimension } from "@sotto/engine";
-import { REVIEW_DIMENSIONS } from "@sotto/engine";
-import { type Hex, Mascot, moodFor, radius, space, Text, useTheme } from "@sotto/ui";
+import { chanceBand, REVIEW_DIMENSIONS } from "@sotto/engine";
+import { Disclosure, type Hex, Mascot, moodFor, radius, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
-import { useReview } from "../../lib/deviceHistory";
+import { deviceCall, useReview } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
+import { TalkMeter } from "../call/components/TalkMeter";
+import { useReviewText } from "./strings";
 
 export function CallReviewPanel({ callId }: { callId: string | null }) {
   const { t } = useI18n();
@@ -45,99 +49,163 @@ export function CallReviewPanel({ callId }: { callId: string | null }) {
       </View>,
     );
   }
-  return shell(<Review review={state.review} />);
+  return shell(<Review review={state.review} callId={callId} />);
 }
 
-function Review({ review }: { review: CallReview }) {
+function Review({ review, callId }: { review: CallReview; callId: string | null }) {
   const { t } = useI18n();
+  const rt = useReviewText();
   const { card, color } = useTheme();
   const tone = (v: number): Hex =>
     v >= 7 ? card.answer.accent : v >= 4 ? card.objection.accent : card.warning.accent;
   const resultMood = moodFor(review.success, review.sentiment);
+  const band = chanceBand(review.success);
+  const bandTone = { high: card.answer, medium: card.holding, low: card.warning }[band];
   const mood = {
     positive: card.answer,
     neutral: card.holding,
     negative: card.warning,
   }[review.sentiment];
+  const lines = (callId ? (deviceCall(callId)?.transcript ?? []) : []).flatMap((e, i) =>
+    e.kind === "line" ? [{ id: i, speaker: e.speaker, text: e.text, atMs: e.at_ms }] : [],
+  );
+  const risks = review.risks ?? [];
   return (
     <View style={styles.body}>
-      <View style={styles.row}>
+      {/* UX-27: the one line first — the mascot's mood, the coach's tip, the chance band. */}
+      <View style={styles.row} testID="review-line">
         <Mascot
           mood={resultMood}
           sentiment={review.sentiment}
           size={44}
           label={t(`review.mood.${resultMood}`)}
         />
-        <View style={styles.flex}>
-          <Text variant="heading" weight="semibold" accessibilityRole="header">
-            {t("review.title")}
+        <View style={styles.flex} testID="review-tip">
+          <Text variant="label" weight="semibold" tone="muted">
+            {t("review.tip")}
           </Text>
-          {review.summary ? (
-            <Text variant="label" tone="muted">
-              {review.summary}
+          <Text weight="semibold" accessibilityRole="header">
+            {review.tip}
+          </Text>
+        </View>
+        <View
+          style={[styles.chip, { backgroundColor: bandTone.fill }]}
+          testID="review-chance"
+          accessible
+          accessibilityLabel={rt("rv.chance.a11y", {
+            band: rt(`rv.chance.${band}`),
+            n: review.success,
+          })}
+        >
+          <View style={[styles.dot, { backgroundColor: bandTone.accent }]} />
+          <Text variant="label" weight="medium" color={bandTone.text}>
+            {rt(`rv.chance.${band}`)}
+          </Text>
+        </View>
+      </View>
+
+      {risks.length > 0 ? (
+        <View style={styles.gap} testID="review-risks">
+          <View style={styles.row}>
+            <Text variant="label" weight="semibold">
+              {rt("rv.risks")}
             </Text>
-          ) : null}
-        </View>
-        <View style={[styles.chip, { backgroundColor: mood.fill }]}>
-          <View style={[styles.dot, { backgroundColor: mood.accent }]} />
-          <Text variant="label" weight="medium" color={mood.text}>
-            {t(`review.mood.${review.sentiment}`)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.gap}>
-        <View style={styles.between}>
-          <Text weight="semibold">{t("review.success")}</Text>
-          <Text
-            variant="heading"
-            weight="semibold"
-            color={tone(review.success / 10)}
-            style={styles.num}
-          >
-            {`${review.success}%`}
-          </Text>
-        </View>
-        <Slider
-          value={review.success / 100}
-          fill={tone(review.success / 10)}
-          big
-          testID="review-success"
-        />
-      </View>
-
-      <View style={styles.grid}>
-        {REVIEW_DIMENSIONS.map((d: ReviewDimension) => (
-          <View key={d} style={styles.cell}>
-            <View style={styles.between}>
-              <Text variant="label" weight="medium">
-                {t(`review.dim.${d}`)}
-              </Text>
-              <Text variant="label" weight="semibold" style={styles.num}>
-                {`${review.scores[d]}/10`}
+            <View style={[styles.tag, { borderColor: color.border }]}>
+              <Text variant="label" tone="muted">
+                {rt("rv.aiEstimated")}
               </Text>
             </View>
-            <Slider value={review.scores[d] / 10} fill={tone(review.scores[d])} />
           </View>
-        ))}
-      </View>
+          {risks.map((r) => (
+            <View key={r.reason} style={styles.point}>
+              <View style={[styles.dot, { backgroundColor: card.warning.accent }]} />
+              <Text variant="label" style={styles.flex}>
+                {r.quote ? `${r.reason} · “${r.quote}”` : r.reason}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
 
-      <View testID="review-tip" style={[styles.tip, { backgroundColor: card.signal.fill }]}>
-        <Text variant="label" weight="semibold" color={card.signal.muted}>
-          {t("review.tip")}
-        </Text>
-        <Text weight="medium" color={card.signal.text}>
-          {review.tip}
-        </Text>
-      </View>
-
-      <View style={styles.lists}>
-        <Points title={t("review.strengths")} items={review.strengths} dot={card.answer.accent} />
-        <Points title={t("review.improve")} items={review.improve} dot={card.objection.accent} />
-      </View>
-      <Text variant="label" tone="muted" style={{ color: color.textMuted }}>
-        {t("review.disclaimer")}
-      </Text>
+      <Disclosure
+        title={rt("rv.details")}
+        summary={rt("rv.detailsSummary")}
+        testID="review-details"
+      >
+        <View style={styles.body}>
+          {review.summary ? (
+            <View style={styles.gap}>
+              <Text variant="label" weight="semibold" tone="muted">
+                {rt("rv.summary")}
+              </Text>
+              <Text variant="label">{review.summary}</Text>
+            </View>
+          ) : null}
+          <View style={styles.gap}>
+            <View style={styles.between}>
+              <Text weight="semibold">{t("review.success")}</Text>
+              <Text
+                variant="heading"
+                weight="semibold"
+                color={tone(review.success / 10)}
+                style={styles.num}
+              >
+                {`${review.success}%`}
+              </Text>
+            </View>
+            <Slider
+              value={review.success / 100}
+              fill={tone(review.success / 10)}
+              big
+              testID="review-success"
+            />
+          </View>
+          <View style={styles.grid}>
+            {REVIEW_DIMENSIONS.map((d: ReviewDimension) => (
+              <View key={d} style={styles.cell}>
+                <View style={styles.between}>
+                  <Text variant="label" weight="medium">
+                    {t(`review.dim.${d}`)}
+                  </Text>
+                  <Text variant="label" weight="semibold" style={styles.num}>
+                    {`${review.scores[d]}/10`}
+                  </Text>
+                </View>
+                <Slider value={review.scores[d] / 10} fill={tone(review.scores[d])} />
+              </View>
+            ))}
+          </View>
+          {lines.length > 0 ? (
+            <View style={styles.gap} testID="review-talk">
+              <Text variant="label" weight="semibold" tone="muted">
+                {rt("rv.talk")}
+              </Text>
+              <TalkMeter lines={lines} />
+            </View>
+          ) : null}
+          <View style={[styles.chip, styles.self, { backgroundColor: mood.fill }]}>
+            <View style={[styles.dot, { backgroundColor: mood.accent }]} />
+            <Text variant="label" weight="medium" color={mood.text}>
+              {t(`review.mood.${review.sentiment}`)}
+            </Text>
+          </View>
+          <View style={styles.lists}>
+            <Points
+              title={t("review.strengths")}
+              items={review.strengths}
+              dot={card.answer.accent}
+            />
+            <Points
+              title={t("review.improve")}
+              items={review.improve}
+              dot={card.objection.accent}
+            />
+          </View>
+          <Text variant="label" tone="muted" style={{ color: color.textMuted }}>
+            {t("review.disclaimer")}
+          </Text>
+        </View>
+      </Disclosure>
     </View>
   );
 }
@@ -247,6 +315,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  self: { alignSelf: "flex-start" },
+  tag: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.sm,
+  },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: space.lg },
   cell: { flexGrow: 1, flexBasis: 220, gap: space.xs },
   track: { position: "relative" },

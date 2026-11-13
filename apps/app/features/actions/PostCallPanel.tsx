@@ -1,22 +1,20 @@
 /**
- * After the call (R12, T-061): one card per suggested Zoho write, each approved on its own, and
- * the follow-up slot for email and WhatsApp (built by the `messaging` stream in
- * `features/{email,whatsapp}`; until they land the slot shows a placeholder).
- *
- * Also `QuickActions`, the during-call side panel: only a Lead and a Contact update (phase 9
- * § 6), collapsed by default so it never takes the agent's eyes off the card.
+ * `ZohoGate` (Zoho writes available, or what is missing) and `QuickActions`, the during-call
+ * side panel: only a Lead and a Contact update (phase 9 § 6), collapsed by default so it never
+ * takes the agent's eyes off the card. After the call the checklist takes over
+ * (`AfterCallChecklist`, UX-04).
  */
-import { Button, Panel, Stack, Text } from "@sotto/ui";
+import { Button, Stack, Text } from "@sotto/ui";
 import { type ReactNode, useState } from "react";
-import { View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
 import { useI18n } from "../../lib/locale";
-import { PREP_FIELDS, useAttachedState } from "../crm/attached";
+import { useAttachedState } from "../crm/attached";
 import { useZoho } from "../crm/useZoho";
 import type { Perform } from "./ActionCard";
-import { contactCard, dealNoteCard, leadCard, meetingCard } from "./cards";
+import { contactCard, leadCard } from "./cards";
 
-function ZohoGate({ children }: { children: ReactNode }) {
+/** Shows its children only when Zoho writes can work for this person (or says what is missing). */
+export function ZohoGate({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const zoho = useFeature("zoho");
   const conn = useZoho();
@@ -44,47 +42,6 @@ function ZohoGate({ children }: { children: ReactNode }) {
     );
   }
   return children;
-}
-
-export function PostCallPanel({ perform, slot }: { perform?: Perform; slot?: ReactNode }) {
-  const { t } = useI18n();
-  const { crm, prep } = useAttachedState();
-  const brief = crm.kind === "attached" ? crm.brief : null;
-  const noteText = PREP_FIELDS.filter((f) => f !== "attendees" && prep[f].trim())
-    .map((f) => `${t(`prep.${f}`)}: ${prep[f].trim()}`)
-    .join("\n");
-  return (
-    <Panel testID="post-call-panel">
-      <Stack gap="md">
-        <View>
-          <Text variant="heading" weight="semibold" accessibilityRole="header">
-            {t("actions.title")}
-          </Text>
-          <Text variant="label" tone="muted">
-            {t("actions.subtitle")}
-          </Text>
-        </View>
-        <ZohoGate>
-          <Stack gap="md">
-            {meetingCard(t, brief, perform)}
-            {brief?.person?.module === "Contacts"
-              ? contactCard(t, brief, perform)
-              : leadCard(t, perform)}
-            {brief ? dealNoteCard(t, brief, noteText, perform) : null}
-          </Stack>
-        </ZohoGate>
-        {/* Follow-up slot (T-063/T-064, `messaging` stream): the email and WhatsApp action
-            components from features/email and features/whatsapp mount here. */}
-        <View testID="actions-slot">
-          {slot ?? (
-            <Text variant="label" tone="muted">
-              {t("actions.slot")}
-            </Text>
-          )}
-        </View>
-      </Stack>
-    </Panel>
-  );
 }
 
 export function QuickActions({ perform }: { perform?: Perform }) {

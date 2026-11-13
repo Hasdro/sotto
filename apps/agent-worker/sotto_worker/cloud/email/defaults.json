@@ -1,5 +1,5 @@
 {
-  "about": "Default email formats an organisation starts with (D-032). The model or the agent writes only the body; opening and signature are static blocks merged verbatim, with {{placeholders}} filled from the call.",
+  "about": "Default email formats an organisation starts with (D-032, INT-14a). One per after-call action. The model or the agent writes only the body; opening and signature are static blocks merged verbatim, with {{placeholders}} filled from the call. Links (proposal, booking page) live in the static blocks so they are sent exactly as the admin wrote them; a [square-bracket] line is a link the admin still has to paste, and the app warns before sending it.",
   "formats": [
     {
       "id": "follow_up",
@@ -7,17 +7,35 @@
       "kind": "follow_up",
       "subject": "Following up on our call",
       "opening": "Hi {{customer.name}},",
-      "body": "Thank you for your time today. As promised, here is a short summary and the next step we agreed on.",
+      "body": "Thank you for your time today. Here is a short recap of what we discussed and the next step we agreed on.",
       "signature": "Best regards,\n{{agent.name}}\n{{company.name}}"
     },
     {
       "id": "meeting_confirmation",
       "name": "Meeting confirmation",
       "kind": "meeting_confirmation",
-      "subject": "Confirming our meeting",
+      "subject": "Confirming our next meeting",
       "opening": "Hi {{customer.name}},",
       "body": "This confirms our next meeting. Reply to this email if the time no longer works for you.",
       "signature": "Best regards,\n{{agent.name}}\n{{company.name}}"
+    },
+    {
+      "id": "proposal",
+      "name": "Proposal",
+      "kind": "custom",
+      "subject": "Your proposal from {{company.name}}",
+      "opening": "Hi {{customer.name}},",
+      "body": "As promised, here is the proposal we talked about. I am happy to walk you through it.",
+      "signature": "Proposal: [paste your proposal link in Admin › Integrations › Email formats]\n\nBest regards,\n{{agent.name}}\n{{company.name}}"
+    },
+    {
+      "id": "booking",
+      "name": "Book a time",
+      "kind": "custom",
+      "subject": "Pick a time that suits you",
+      "opening": "Hi {{customer.name}},",
+      "body": "Thank you for your time today. Choose a slot for our next conversation with the link below.",
+      "signature": "Book a time: [paste your booking link in Admin › Integrations › Email formats]\n\nBest regards,\n{{agent.name}}\n{{company.name}}"
     }
   ]
 }

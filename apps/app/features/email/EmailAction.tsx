@@ -4,8 +4,19 @@
  * agent has seen the server's exact preview and pressed Confirm; a retry reuses the same
  * idempotency key, so the customer never gets the email twice.
  */
-import { Button, Panel, SegmentedControl, Stack, Text, TextField } from "@sotto/ui";
+import {
+  Button,
+  LtrRun,
+  Panel,
+  SegmentedControl,
+  Stack,
+  space,
+  Text,
+  TextField,
+  useTheme,
+} from "@sotto/ui";
 import { useEffect, useMemo, useState } from "react";
+import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
 import { useAttached } from "../crm/attached";
 import {
@@ -21,6 +32,7 @@ import {
   sendEmail,
 } from "./api";
 import { useEmailText } from "./strings";
+import { type FollowUpWarnings, followUpWarnings } from "./warnings";
 
 export type EmailActionProps = {
   callId: string | null;
@@ -284,32 +296,89 @@ function Problem({ text }: { text: string }) {
   );
 }
 
+/** UX-22: the preview reads like a mail client — From, To, Cc and Subject rows, then the body. */
 function PreviewBox({ preview, title }: { preview: Preview; title: string }) {
   const t = useEmailText();
+  const { color } = useTheme();
+  const warn = followUpWarnings(`${preview.subject}\n${preview.text}`);
+  const rows: [string, string, string][] = [
+    [t("email.from"), `${preview.from.name} <${preview.from.address}>`, "from"],
+    [t("email.to"), preview.to.join(", "), "to"],
+    ...(preview.cc.length
+      ? [[t("email.cc"), preview.cc.join(", "), "cc"] as [string, string, string]]
+      : []),
+    [t("email.subject"), preview.subject, "subject"],
+  ];
   return (
-    <Panel sunken testID="email-preview-box">
-      <Stack gap="sm">
-        <Text variant="label" weight="semibold" aria-live="polite" accessibilityLiveRegion="polite">
-          {title}
-        </Text>
-        <Text variant="label" tone="muted" selectable>
-          {`${t("email.from")}: ${preview.from.name} · ${preview.from.address}`}
-        </Text>
-        <Text variant="label" tone="muted" selectable>
-          {`${t("email.to")}: ${preview.to.join(", ")}`}
-        </Text>
-        {preview.cc.length ? (
-          <Text variant="label" tone="muted" selectable>
-            {`${t("email.cc")}: ${preview.cc.join(", ")}`}
+    <Stack gap="sm">
+      <Text variant="label" weight="semibold" aria-live="polite" accessibilityLiveRegion="polite">
+        {title}
+      </Text>
+      <Panel sunken testID="email-preview-box">
+        <Stack gap="xs">
+          {rows.map(([label, value, id]) => (
+            <View
+              key={id}
+              style={[styles.mailRow, { borderBottomColor: color.border }]}
+              testID={`email-preview-${id}-row`}
+            >
+              <Text variant="label" tone="muted" style={styles.mailLabel}>
+                {label}
+              </Text>
+              {id === "subject" ? (
+                <Text
+                  variant="body"
+                  weight="semibold"
+                  selectable
+                  style={styles.mailValue}
+                  testID="email-preview-subject"
+                >
+                  {value}
+                </Text>
+              ) : (
+                <LtrRun variant="label" selectable style={styles.mailValue}>
+                  {value}
+                </LtrRun>
+              )}
+            </View>
+          ))}
+          <Text variant="body" selectable testID="email-preview-text" style={styles.mailBody}>
+            {preview.text}
           </Text>
-        ) : null}
-        <Text variant="body" weight="semibold" selectable testID="email-preview-subject">
-          {preview.subject}
-        </Text>
-        <Text variant="body" selectable testID="email-preview-text">
-          {preview.text}
-        </Text>
-      </Stack>
-    </Panel>
+        </Stack>
+      </Panel>
+      <SendWarnings warnings={warn} />
+    </Stack>
   );
 }
+
+/** The attachment and placeholder warnings (UX-22); shown under the preview and the copy box. */
+export function SendWarnings({ warnings }: { warnings: FollowUpWarnings }) {
+  const t = useEmailText();
+  return (
+    <>
+      {warnings.attached ? (
+        <Text variant="label" tone="danger" testID="email-warn-attached">
+          {t("email.warnAttached")}
+        </Text>
+      ) : null}
+      {warnings.placeholders.length ? (
+        <Text variant="label" tone="danger" testID="email-warn-placeholder">
+          {t("email.warnPlaceholder", { items: warnings.placeholders.join(", ") })}
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  mailRow: {
+    flexDirection: "row",
+    gap: space.md,
+    paddingBottom: space.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  mailLabel: { width: 64 },
+  mailValue: { flex: 1, minWidth: 0 },
+  mailBody: { paddingTop: space.sm },
+});

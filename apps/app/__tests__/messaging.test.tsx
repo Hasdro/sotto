@@ -1,15 +1,27 @@
 /** Email and WhatsApp (R12, D-032, D-033, D-039): write-only Integrations forms, the template
  * picker, and post-call actions that send nothing before the agent confirms the exact preview. */
 import { UIProvider } from "@sotto/ui";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { ACTIONS_TEXT } from "../features/actions/strings";
+import { attachBrief, resetCall } from "../features/crm/attached";
 import { EmailAction } from "../features/email";
 import { SmtpSettings } from "../features/email/SmtpSettings";
 import { EMAIL_TEXT } from "../features/email/strings";
+import { followUpWarnings } from "../features/email/warnings";
+import { FollowUp } from "../features/review/FollowUp";
+import { REVIEW_TEXT } from "../features/review/strings";
 import { WhatsAppAction } from "../features/whatsapp";
 import { GallaboxSettings } from "../features/whatsapp/GallaboxSettings";
 import { WHATSAPP_TEXT } from "../features/whatsapp/strings";
+import { deviceCall, saveDeviceCall } from "../lib/deviceHistory";
 import type { Locale } from "../lib/i18n";
 import { LocaleProvider } from "../lib/locale";
+
+jest.mock("@sotto/engine", () => ({
+  ...jest.requireActual("@sotto/engine"),
+  buildRuntime: () => ({ router: {}, company: {} }),
+  draftFollowUp: jest.fn(async () => ({ subject: "Your demo", body: "Thanks for today." })),
+}));
 
 let mockCloud: unknown = { status: "off" };
 jest.mock("../lib/useCloud", () => ({ useCloud: () => mockCloud }));
@@ -77,7 +89,7 @@ beforeEach(() => {
 
 describe("strings", () => {
   it("has English and Arabic in step", () => {
-    for (const table of [EMAIL_TEXT, WHATSAPP_TEXT]) {
+    for (const table of [EMAIL_TEXT, WHATSAPP_TEXT, ACTIONS_TEXT, REVIEW_TEXT]) {
       expect(Object.keys(table.ar).sort()).toEqual(Object.keys(table.en).sort());
       for (const v of Object.values(table.ar)) expect(v.trim()).not.toBe("");
     }
@@ -250,6 +262,51 @@ describe("EmailAction", () => {
     expect(sent("/api/v1/email/send")[0]?.body).toMatchObject({ confirm: true });
   });
 
+  it("previews like a mail client and warns about a missing attachment or placeholder (UX-22)", async () => {
+    signedIn("agent", { email_send: { state: "available" } });
+    mockRoutes = {
+      "GET /api/v1/email/senders": () => ({
+        senders: [{ id: "org", from_name: "Acme Sales", from_address: "sales@acme.test" }],
+      }),
+      "GET /api/v1/email/formats": () => ({ formats: FORMATS }),
+      "POST /api/v1/email/preview": () => ({
+        ...PREVIEW,
+        text: "Hi Jane,\n\nThe price list is attached. See you on [date].\n\nBest,\nSam",
+      }),
+    };
+    await wrap(
+      <EmailAction
+        callId="c1"
+        customer={{ name: "Jane", email: "jane@acme.test" }}
+        draft={{ subject: "Pricing", body: "x" }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("email-sender")).toBeTruthy());
+    await fireEvent.press(screen.getByTestId("email-preview"));
+    await waitFor(() => expect(screen.getByTestId("email-preview-from-row")).toBeTruthy());
+    expect(screen.getByTestId("email-preview-from-row")).toHaveTextContent(
+      /From.*Acme Sales <sales@acme.test>/,
+    );
+    expect(screen.getByTestId("email-preview-to-row")).toHaveTextContent(/To.*jane@acme.test/);
+    expect(screen.getByTestId("email-preview-subject-row")).toHaveTextContent(/Subject.*Pricing/);
+    expect(screen.queryByTestId("email-preview-cc-row")).toBeNull();
+    expect(screen.getByTestId("email-warn-attached")).toBeTruthy();
+    expect(screen.getByTestId("email-warn-placeholder")).toHaveTextContent(/\[date\]/);
+  });
+
+  it("finds attachment promises and placeholders, and nothing in a clean email", () => {
+    expect(followUpWarnings("Please find enclosed the quote.").attached).toBe(true);
+    expect(followUpWarnings("ستجد العرض مرفقًا").attached).toBe(true);
+    expect(followUpWarnings("Proposal: [paste your link] and [date] [date]").placeholders).toEqual([
+      "[paste your link]",
+      "[date]",
+    ]);
+    expect(followUpWarnings("Thanks for your time. See you Tuesday.")).toEqual({
+      attached: false,
+      placeholders: [],
+    });
+  });
+
   it("renders in Arabic", async () => {
     signedIn("agent", { email_send: { state: "available" } });
     mockRoutes = {
@@ -310,5 +367,88 @@ describe("WhatsAppAction", () => {
     signedIn("agent", { whatsapp: { state: "no_permission" } });
     await wrap(<WhatsAppAction callId="c9" />);
     expect(screen.queryByTestId("whatsapp-action")).toBeNull();
+  });
+});
+
+describe("FollowUp card (UX-05, D-045)", () => {
+  const BRIEF = {
+    person: {
+      module: "Contacts" as const,
+      id: "4150868000000224005",
+      name: "Jane Doe",
+      title: "",
+      email: "jane@acme.test",
+      phone: "+971501234567",
+    },
+    account: null,
+    deals: [],
+    notes: [],
+    text: "",
+  };
+  const call = (id: string) =>
+    saveDeviceCall({
+      id,
+      started_at: 1,
+      ended_at: 2,
+      title: "Jane",
+      mode: "live",
+      cards: 0,
+      p50_ms: null,
+      p95_ms: null,
+      transcript: [{ kind: "line", speaker: "customer", text: "Send me the demo.", at_ms: 1 }],
+    });
+  beforeEach(() => {
+    resetCall();
+    attachBrief(BRIEF);
+    mockCloud = {
+      status: "signed_in",
+      bundle: { prompts: { followup: { key: "followup", body: "x" } } },
+      me: {
+        user: { id: "u", role: "agent" },
+        features: { email_send: { state: "available" }, whatsapp: { state: "available" } },
+      },
+    };
+    mockRoutes = {
+      "GET /api/v1/email/senders": () => ({
+        senders: [{ id: "org", from_name: "Acme Sales", from_address: "sales@acme.test" }],
+      }),
+      "GET /api/v1/email/formats": () => ({ formats: FORMATS }),
+      "GET /api/v1/whatsapp/templates": () => ({ templates: [TEMPLATE], freeform: false }),
+    };
+  });
+
+  it("is one card: the draft is the email body, WhatsApp is the second tab", async () => {
+    call("f1");
+    await wrap(<FollowUp callId="f1" auto />);
+    expect(screen.getByText("Follow up with \u2066Jane Doe\u2069")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.getByTestId("email-body").props.value).toBe("Thanks for today."),
+    );
+    expect(screen.getByTestId("email-subject").props.value).toBe("Your demo");
+    expect(screen.getAllByTestId("followup")).toHaveLength(1);
+    expect(screen.queryByTestId("whatsapp-action")).toBeNull();
+    await fireEvent.press(screen.getByTestId("followup-channel-whatsapp"));
+    await waitFor(() => expect(screen.getByTestId("whatsapp-param-name")).toBeTruthy());
+    expect(screen.queryByTestId("email-action")).toBeNull();
+    expect(sent("/api/v1/email/send")).toEqual([]);
+  });
+
+  it("Skip follow-up has a 5 s Undo, then it is kept with the call as skipped", async () => {
+    call("f2");
+    jest.useFakeTimers();
+    try {
+      const onOpen = jest.fn();
+      await wrap(<FollowUp callId="f2" onOpenChange={onOpen} />);
+      await fireEvent.press(screen.getByTestId("followup-skip"));
+      await fireEvent.press(screen.getByTestId("followup-skip-toast-action"));
+      expect(screen.getByTestId("followup")).toBeTruthy();
+      await fireEvent.press(screen.getByTestId("followup-skip"));
+      await act(() => jest.advanceTimersByTime(5000));
+      expect(screen.queryByTestId("followup")).toBeNull();
+      expect(onOpen).toHaveBeenLastCalledWith(0);
+      expect(deviceCall("f2")?.after_call?.skipped.map((i) => i.id)).toEqual(["followup"]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

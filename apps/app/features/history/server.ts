@@ -24,7 +24,14 @@ export type ServerCallSummary = {
 
 type Entry =
   | { kind: "line"; speaker: "customer" | "agent"; text: string; at_ms?: number }
-  | { kind: "card"; type: CardType; source: CardSource; text: string; at_ms?: number }
+  | {
+      kind: "card";
+      type: CardType;
+      source: CardSource;
+      text: string;
+      at_ms?: number;
+      id?: string;
+    }
   | { kind: "escalation"; text: string; at_ms?: number };
 
 export type ServerCallDetail = ServerCallSummary & { transcript: Entry[] };
@@ -40,7 +47,13 @@ export function toPastCall(call: ServerCallSummary | ServerCallDetail): PastCall
     if (e.kind === "line")
       transcript.push({ speaker: e.speaker, text: e.text, atMs: e.at_ms ?? 0 });
     if (e.kind === "card" && CARD_TYPES.has(e.type) && SOURCES.has(e.source)) {
-      cards.push({ type: e.type, source: e.source, text: e.text, atMs: e.at_ms ?? 0 });
+      cards.push({
+        type: e.type,
+        source: e.source,
+        text: e.text,
+        atMs: e.at_ms ?? 0,
+        ...(typeof e.id === "string" && e.id ? { id: e.id } : {}),
+      });
     }
   }
   return {

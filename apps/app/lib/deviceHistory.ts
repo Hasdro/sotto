@@ -10,7 +10,15 @@ import { Platform } from "react-native";
 
 export type DeviceEntry =
   | { kind: "line"; speaker: "customer" | "agent"; text: string; at_ms: number }
-  | { kind: "card"; type: string; source: string; text: string; at_ms: number }
+  | {
+      kind: "card";
+      type: string;
+      source: string;
+      text: string;
+      at_ms: number;
+      /** The live card's id, so a rating in History matches one given during the call. */
+      id?: string;
+    }
   | { kind: "escalation"; text: string; at_ms: number };
 
 import type { CallReview } from "@sotto/engine";
@@ -33,7 +41,12 @@ export type DeviceCall = {
   notes?: string;
   /** The after-call review (owner, 21 Oct); null when it could not be made. */
   review?: CallReview | null;
+  /** What happened to the after-call items (UX-23): saved to Zoho, sent, or skipped. */
+  after_call?: AfterCall;
 };
+
+export type AfterCallItem = { id: string; label: string };
+export type AfterCall = { saved: AfterCallItem[]; skipped: AfterCallItem[] };
 
 const PREFIX = "sotto.calls";
 const LOCAL_OWNER = "local"; // no Sotto server (local demo, dev)
@@ -143,14 +156,44 @@ export function reviewState(id: string): ReviewState {
 }
 
 /** The review of one call, for React; re-renders when it arrives. */
+function subscribe(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
 export function useReview(id: string | null): ReviewState {
   useSyncExternalStore(
-    (fn) => {
-      listeners.add(fn);
-      return () => listeners.delete(fn);
-    },
+    subscribe,
     () => version,
     () => version,
   );
   return id ? reviewState(id) : { status: "none" };
+}
+
+/** Records one after-call item as saved or skipped (UX-23); the other list loses it. */
+export function setAfterCallItem(
+  callId: string,
+  item: AfterCallItem,
+  state: "saved" | "skipped" | "open",
+): void {
+  const call = deviceCall(callId);
+  if (!call) return;
+  const prev = call.after_call ?? { saved: [], skipped: [] };
+  const drop = (list: AfterCallItem[]) => list.filter((i) => i.id !== item.id);
+  const next: AfterCall = {
+    saved: state === "saved" ? [...drop(prev.saved), item] : drop(prev.saved),
+    skipped: state === "skipped" ? [...drop(prev.skipped), item] : drop(prev.skipped),
+  };
+  saveDeviceCall({ ...call, after_call: next });
+  changed();
+}
+
+/** The saved/skipped lists of one call, for React (History detail). */
+export function useAfterCall(id: string | null): AfterCall | null {
+  useSyncExternalStore(
+    subscribe,
+    () => version,
+    () => version,
+  );
+  return id ? (deviceCall(id)?.after_call ?? null) : null;
 }

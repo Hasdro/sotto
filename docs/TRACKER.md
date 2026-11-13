@@ -218,7 +218,8 @@ Wave 1
   - Evidence (13 Nov, `phase9/review-server-core`): worker 588 passed (new: test_zoho_dc, test_call_log, test_brief_stage, test_reset, test_health, test_company_defaults), desktop 25, app jest 334 (6 load timeouts re-run green), lint/typecheck/boundaries green, replay ALL p50 576 / p95 978 ms, R4 0; security-auditor 0 C/H, M1+L1–L3 fixed; screenshots `docs/evidence/phase9/review-server-core/`.
 Wave 2
 - [ ] T-075 `review-live-call` — UX-01, UX-03r, UX-16, UX-17, UX-18, UX-19 (+INT-11), UX-20, UX-21, ZC-08
-- [ ] T-076 `review-post-call` — UX-04, UX-05, UX-22, UX-23, UX-24, UX-27, UX-41, INT-01c, INT-02m, INT-07, INT-14a, W2-REPLAY
+- [x] T-076 `review-post-call` — UX-04, UX-05, UX-22, UX-23, UX-24, UX-27, UX-41, INT-01c, INT-02m, INT-07, INT-14a, W2-REPLAY + UX-02h
+  - Evidence: app jest 379, engine 68, worker 593, desktop 25; typecheck, boundaries, biome (changed files) green; a11y 49 checks 0 serious; replay ALL p50 576 / p95 978 ms, R4 0, R2 drill p95 1270; screenshots `docs/evidence/phase9/review-post-call/` (checklist, edit, skip/undo, done; light/dark/ar; 390/1280). Branch `phase9/review-post-call`.
 - [ ] T-077 `review-home-shell` — UX-10 (+ZC-09, DD-8), UX-03h, UX-25, UX-26, UX-43b, UX-29, UX-39, ZC-14c, ZC-map-agent, W2-A11Y
 Wave 3
 - [ ] T-078 `review-integrations` — UX-30, UX-32 (+ZC-03), ZC-07, ZC-13, UX-44c, W3-INT-EVID
@@ -342,6 +343,11 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 · local · Opus 5.5 · phase9/review-post-call
+- **Done (T-076):** after the call: review line (tip + mascot mood + Likely/Unclear/Unlikely, risk signals "AI-estimated", scores/talk time/strengths under Details) → "Suggested updates (n)" checklist (`features/actions/{checklist.ts,AfterCallChecklist.tsx}`: nothing pre-ticked, Edit per row, one "Save n to Zoho", own key per row, call log via `saveCallLog`, meeting prefilled from the review's agreed date and tickable only after date/time/time zone are confirmed, "Note on <deal>" in an LTR run, Skip + 5 s Undo) → one "Follow up with <name>" card (draft = email body, WhatsApp tab, copy fallback without SMTP) → done state + "Open in Zoho"; "Start another call" secondary until all are saved/skipped. Email preview as From/To/Subject rows with attachment and [placeholder] warnings. History detail: AI cards rateable (R11), saved/skipped list. Engine review v3 (objections, commitments, next_step, risks, `chanceBand`); prompts review v3, followup v2 (body only). Default email formats per action incl. proposal/booking links as static blocks.
+- **Outside the owned list:** `tests/cloud/test_email.py` line 346 (default format ids now 4).
+- **For the master:** `features/call/local.ts` should save the live card `id` in device card entries (History ratings then match live ones; synthetic ids until then); `app/call.tsx` still renders the CardStack under the ended view (UX-04 moves cards to History); `cloud/zoho/actions.py` could take `agent_note` + `risks` fields (today they ride in `summary`, ≤ 800 chars).
 
 ### 2026-11-13 (c) · local · Opus 5.5 · phase9/review-server-core
 - **Done (T-074):** ZC-02 OAuth starts on the global accounts host; the callback's `accounts-server`/`location` sets the DC (per person + org default), manual "Change" kept, probe only when Zoho names none. UX-35 connect page (reads/writes, DC + Change, Cancel → `/auth/zoho/cancel`), done page "Zoho is connected. You can close this tab." + `agn-sales-shield://zoho/connected`. W1-DESK `apps/desktop/deep-link.cjs`: scheme registered by the installed app only (never dev runs), single instance, `onDeepLink`, `openPrivacySettings(mic|system-audio)`. ZC-14s `health` in `/api/v1/features`. UX-39s `POST /api/v1/auth/reset/request|confirm`. ZC-11s `GET/PUT /api/v1/company/defaults`. INT-01s Zoho action `call_log`. INT-03 stage guidance as data in `crm_brief` v3; INT-16 Lead_Source + Campaign_Source in the brief.

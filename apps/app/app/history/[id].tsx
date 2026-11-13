@@ -1,4 +1,5 @@
-/** One past call: transcript and the cards shown (R1, R3). Mock data until Phase 5. */
+/** One past call: review, after-call items, transcript and the cards shown (R1, R3, UX-04);
+ * AI cards can be rated here (UX-02h). */
 import {
   Badge,
   Button,
@@ -18,10 +19,13 @@ import { StyleSheet, View } from "react-native";
 import { FeatureGate } from "../../components/FeatureGate";
 import { SourceChip } from "../../components/SourceChip";
 import { cardStrings, clock } from "../../features/call/components/strings";
+import { AfterCallList } from "../../features/history/AfterCallList";
 import { findCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
+import { pastCardView } from "../../features/history/rating";
 import { useServerCall } from "../../features/history/server";
+import { RatingControls } from "../../features/rating/RatingControls";
 import { CallReviewPanel } from "../../features/review/CallReviewPanel";
 import { FollowUp } from "../../features/review/FollowUp";
 import { formatDate, formatTime } from "../../lib/format";
@@ -82,7 +86,7 @@ export default function CallDetailScreen() {
           <Text variant="label" tone="muted" style={styles.time}>
             {clock(c.atMs)}
           </Text>
-          <View style={styles.grow}>
+          <View style={[styles.grow, styles.cardCol]}>
             <SuggestionCard
               variant="compact"
               type={c.type}
@@ -91,6 +95,8 @@ export default function CallDetailScreen() {
               done
               strings={cardStrings(t, c.type, c.source)}
             />
+            {/* UX-02h, R11: AI advice cards are rateable here too; playbook and holding never. */}
+            {sample ? null : <RatingControls card={pastCardView(call.id, c)} />}
           </View>
         </View>
       ))}
@@ -131,6 +137,7 @@ export default function CallDetailScreen() {
           <RecordingPlayer callId={String(id)} />
         </FeatureGate>
       )}
+      {sample ? null : <AfterCallList callId={String(id)} />}
       {call.notes ? (
         <Panel style={styles.notes} testID="call-detail-notes">
           <View style={styles.notesTitle}>
@@ -185,4 +192,5 @@ const styles = StyleSheet.create({
   cardRow: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
   time: { width: 44, paddingTop: space.md },
   grow: { flex: 1 },
+  cardCol: { gap: space.xs },
 });

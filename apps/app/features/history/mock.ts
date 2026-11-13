@@ -6,7 +6,14 @@ import type { CallSource } from "../../lib/callSource";
  * whose result Sotto does not know (the agent records it in the CRM). */
 export type Outcome = "meeting" | "followUp" | "lost" | "practice" | "live";
 
-export type PastCard = { type: CardType; source: CardSource; text: string; atMs: number };
+export type PastCard = {
+  type: CardType;
+  source: CardSource;
+  text: string;
+  atMs: number;
+  /** The live card's id when the call saved it (ratings in History match the live ones). */
+  id?: string;
+};
 export type PastLine = { speaker: "customer" | "agent"; text: string; atMs: number };
 
 export type PastCall = {
