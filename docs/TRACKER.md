@@ -208,7 +208,7 @@ Added 2026-11-13 (owner)
 - [~] T-071 (Zoho part done in `zoho-slice`: Admin → Integrations org client + own connection; Gallabox part built in `phase9/messaging`, unverified on a real account) Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
 
 ### Review backlog (Nov 2026)
-Items, waves, owned files and owner questions: `docs/reviews/backlog-2026-11.md`. Wave-1 prompts: `docs/prompts/review-{ui-core,copy-brand,server-core}.md`. Branches `phase9/<stream>`.
+Items, waves, owned files and owner questions: `docs/reviews/backlog-2026-11.md`. Wave-1 prompts: `docs/prompts/review-{ui-core,copy-brand,server-core}.md`; wave-2: `docs/prompts/review-{live-call,post-call,home-shell}.md`. Branches `phase9/<stream>`.
 Wave 1
 - [x] T-072 `review-ui-core` — UX-02, UX-11, UX-12, UX-13, UX-14, UX-15, UX-06a, UX-07, UX-40, UX-43a, UX-44a, W1-UI, W1-SPLIT
   - Evidence: branch `phase9/review-ui-core`; app jest 352/352, ui 167 vitest + 89 jest, desktop 17; typecheck, boundaries, biome (explicit paths) green; a11y 39 checks 0 serious; replay ALL p50 576 / p95 978 ms, R4 0, R2 drill p95 1270; shots `docs/evidence/phase9/review-ui-core/`.

@@ -4,7 +4,7 @@
 
 The owner asked for **every** item. Each item below has one home stream. Overlaps are merged (the "Merged" column lists every source id folded into the row). Items that need the owner are built only after the answer; until then the stream builds the default marked *(rec)* in "Needs the owner" or skips the gated part and says so in its report.
 
-Size: **S** ≤ 1–2 days · **M** ≈ 3–7 days · **L** > 1 week. Status: all `todo`. Tracker ids: T-072…T-083 (one per stream).
+Size: **S** ≤ 1–2 days · **M** ≈ 3–7 days · **L** > 1 week. Status: wave 1 (T-072…T-074) `done` 2026-11-13; the rest `todo`. Tracker ids: T-072…T-083 (one per stream).
 
 ---
 
@@ -17,9 +17,9 @@ At most 3 streams run in parallel (D-035). Streams in one wave own disjoint file
 | 1 | `review-ui-core` — shared UI primitives, live card, toast | T-072 | 13 | main | – |
 | 1 | `review-copy-brand` — product voice, brand, flags page, owner console polish, landing | T-073 | 11 | **sonnet** | – |
 | 1 | `review-server-core` — endpoints and data the later waves need | T-074 | 9 | main | – |
-| 2 | `review-live-call` — rail, start screen, audio auto-setup | T-075 | 9 | main | W1 (primitives, deep links, ZC-02) |
-| 2 | `review-post-call` — after-call checklist, one follow-up, review | T-076 | 12 | main | W1 (primitives, `EndedView` split, INT-01 route) |
-| 2 | `review-home-shell` — first run, Home, navigation, admin grouping, sign-in | T-077 | 10 | main | W1 (health, reset route, defaults data) |
+| 2 | `review-live-call` — rail, start screen, audio auto-setup | T-075 | 9 + W1-L1 | main | W1 (primitives, deep links, ZC-02) |
+| 2 | `review-post-call` — after-call checklist, one follow-up, review | T-076 | 12 + UX-02h | main | W1 (primitives, `EndedView` split, INT-01 route) |
+| 2 | `review-home-shell` — first run, Home, navigation, admin grouping, sign-in | T-077 | 10 + UX-39r | main | W1 (health, reset route, defaults data) |
 | 3 | `review-integrations` — Integrations page, presets, Gallabox auto-import, Zoho invites | T-078 | 6 | main | W2 (admin grouping) |
 | 3 | `review-owner-platform` — owner console: Zoho multi-DC, providers/routing/prompts, health, sign-up queue | T-079 | 6 | main | owner Q1, Q6, Q10 |
 | 3 | `review-company-coaching` — Company defaults page, consent, learning, manager coaching | T-080 | 8 | main | W1 defaults data; owner Q4, Q5 |
@@ -36,10 +36,11 @@ Only `review-copy-brand` is mechanical enough for sonnet. `review-company-coachi
 - `review-copy-brand`: `apps/app/lib/i18n.ts` (values of existing keys; en + ar), `apps/app/features/flags/**`, `apps/app/app/admin/features.tsx`, `apps/app/app/admin/settings.tsx`, `apps/app/app/history/index.tsx`, `apps/agent-worker/sotto_worker/cloud/owner/**`, `cloud/features.json`, `cloud/features.py`, `packages/ui/src/brand/**`, `scripts/a11y.mjs`, `apps/landing/**`, tests `__tests__/{feature-gate,no-samples,history-server,i18n}.test.*`, `tests/cloud/{test_owner,test_features}.py`.
 - `review-server-core`: `cloud/{app,store,auth,bundle,mail,passwords}.py`, `cloud/zoho/**`, `apps/agent-worker/sotto_worker/adapters/crm/**`, `seed/prompts/crm_brief.md`, `seed/company/**`, `apps/desktop/**`, `apps/app/lib/{cloud,cloudCompat}.ts`, new tests under `apps/agent-worker/tests/cloud/` and `apps/desktop/test/`.
 
-**Wave 2**
-- `review-live-call`: `apps/app/app/call.tsx`, `apps/app/features/call/**` (except `components/EndedView.tsx`), `apps/app/features/crm/{api,useZoho,attached,mock,ZohoConnect}.ts*`, `apps/app/lib/format.ts`, `apps/desktop/**`, `__tests__/{crm-rail,call*,card-stack}.test.tsx`.
-- `review-post-call`: `apps/app/features/call/components/EndedView.tsx`, `apps/app/features/{actions,email,whatsapp,review}/**` (not `SmtpSettings`/`GallaboxSettings`), `apps/app/app/history/**`, `seed/prompts/{review,followup,summary}.md`, `cloud/email/defaults.json`, hubs `cloud/{app,store}.py` this wave, `__tests__/{zoho-actions,messaging,history-server}.test.tsx`.
-- `review-home-shell`: `apps/app/lib/i18n.ts` this wave, `apps/app/features/home/**`, `apps/app/features/crm/{HomeMeetings,UpcomingMeetings}.tsx`, `apps/app/app/{home,index,account,settings,_layout}.tsx`, `apps/app/components/**`, `apps/app/app/admin/{_layout,index}.tsx`, `apps/app/features/account/**`, `apps/app/features/settings/**`, `__tests__/{home-meetings,admin-desktop-tabs,tutorial,screens,plan-paused,persistent-login}.test.*`.
+**Wave 2** (exact lists, refined 2026-11-13 with the wave-1 handover, are in `docs/prompts/review-{live-call,post-call,home-shell}.md`; those win)
+- `review-live-call`: `apps/app/app/call.tsx`, `apps/app/features/call/**` (except `components/EndedView.tsx`), `apps/app/features/crm/{api,useZoho,attached,mock,ZohoConnect}.ts*`, `apps/app/lib/{format,desktop,callNotes}.ts`, `apps/app/components/CallPeek.tsx`, `apps/desktop/**`, `__tests__/{crm-rail,call*,card-stack}.test.tsx`. Also W1-L1 (`desktop.ts` types for `openPrivacySettings`/`onDeepLink`, deep link → Zoho status re-read).
+- `review-post-call`: `apps/app/features/call/components/EndedView.tsx`, `apps/app/features/{actions,email,whatsapp,review,rating,history}/**` (not `SmtpSettings`/`GallaboxSettings`), `apps/app/app/history/**`, `apps/app/lib/{cloud,deviceHistory}.ts`, `packages/engine/src/{review,types}.ts`, `seed/prompts/{review,followup,summary}.md`, `cloud/email/defaults.json`, hubs `cloud/{app,store,bundle}.py` this wave, `__tests__/{zoho-actions,messaging,history-server}.test.tsx`. Also UX-02h (rating in History).
+- `review-home-shell`: `apps/app/lib/i18n.ts` this wave, `apps/app/lib/{locale,role,prefs}.ts*`, `apps/app/features/home/**`, `apps/app/features/crm/{HomeMeetings,UpcomingMeetings}.tsx`, `apps/app/app/{home,index,account,settings,_layout,reset-password}.tsx`, `apps/app/components/**` (except `CallPeek.tsx`), `apps/app/app/admin/{_layout,index,recordings,devices,activity}.tsx` (+ the `code=` line in `keys.tsx`), `apps/app/features/{account,settings}/**`, `scripts/{a11y,screenshots}.mjs`, `__tests__/{home-meetings,admin-desktop-tabs,admin-tools,admin-team,tutorial,screens,plan-paused,persistent-login,i18n,settings-server,settings-web-admin,app-link,feature-gate}.test.*`. Also UX-39r (`/reset-password` page).
+- `packages/ui/**` is read-only in wave 2 (changes go through the master).
 
 **Wave 3**
 - `review-integrations`: `apps/app/app/admin/integrations.tsx`, `apps/app/features/email/SmtpSettings.tsx`, `apps/app/features/whatsapp/GallaboxSettings.tsx`, `apps/app/features/team/**`, `cloud/email/**`, `cloud/gallabox/**`, `cloud/zoho/{routes,lookup}.py`, `adapters/{email,whatsapp}/**`, their tests.
@@ -58,47 +59,47 @@ Only `review-copy-brand` is mechanical enough for sonnet. `review-company-coachi
 ### Wave 1 · `review-ui-core` (T-072)
 | Key | Merged | Summary | Size | Status |
 |---|---|---|---|---|
-| UX-02 | – | No rating controls on the live hero card; thumbs (two 44 px icon buttons, no visible question) on collapsed cards on hover/focus, after the call and in History | S | todo |
-| UX-11 | – | Remove "On screen x s after…" from the card; timing stays in logs, History detail, Reports | S | todo |
-| UX-12 | – | Card type = voice-bar colour + icon only; source + R2 notice merged into one line under the sentence | S | todo |
-| UX-13 | – | At most 2 earlier cards + "Show earlier (n)"; background-tone fill so they recede | S | todo |
-| UX-14 | – | Compact holding cards keep the dashed edge, or drop once a real card for that turn exists | S | todo |
-| UX-15 | – | Rail toggle gets a visible "Context" label and moves to the start side; End call alone on the end side | S | todo |
-| UX-06a | UX-06 (header) | Header: "Practice" only for practice calls; model/mode in the live-dot tooltip; mock badge never in release | S | todo |
-| UX-07 | – | Escalation toast: top-end on wide, above the composer on narrow, short text "Sent to your manager" | S | todo |
-| UX-40 | – | Dark-mode toast is a raised dark surface with border, not an inverted light slab | S | todo |
-| UX-43a | UX-43 (live) | Live call shows a small live dot, not the mascot, beside "Listening to the customer" | S | todo |
-| UX-44a | UX-44 (components) | Visible focus rings and 44 px targets on every icon-only button in `packages/ui`; disabled controls can carry helper text | S | todo |
-| W1-UI | UX-01, UX-04, UX-23, UX-26, UX-41 (enablers) | New `packages/ui` primitives: `Disclosure`, `Sheet` (bottom sheet < 768 px), `ChecklistRow`, `Toast` with an action (Undo), neutral `StatTile`, `LtrRun` (bidi-isolated run); gallery entries + tests | M | todo |
-| W1-SPLIT | – | Extract the ended/after-call composition from `app/call.tsx` into `EndedView.tsx`, no behaviour change, so wave 2 can split call.tsx ownership | S | todo |
+| UX-02 | – | No rating controls on the live hero card; thumbs (two 44 px icon buttons, no visible question) on collapsed cards on hover/focus, after the call and in History | S | done |
+| UX-11 | – | Remove "On screen x s after…" from the card; timing stays in logs, History detail, Reports | S | done |
+| UX-12 | – | Card type = voice-bar colour + icon only; source + R2 notice merged into one line under the sentence | S | done |
+| UX-13 | – | At most 2 earlier cards + "Show earlier (n)"; background-tone fill so they recede | S | done |
+| UX-14 | – | Compact holding cards keep the dashed edge, or drop once a real card for that turn exists | S | done |
+| UX-15 | – | Rail toggle gets a visible "Context" label and moves to the start side; End call alone on the end side | S | done |
+| UX-06a | UX-06 (header) | Header: "Practice" only for practice calls; model/mode in the live-dot tooltip; mock badge never in release | S | done |
+| UX-07 | – | Escalation toast: top-end on wide, above the composer on narrow, short text "Sent to your manager" | S | done |
+| UX-40 | – | Dark-mode toast is a raised dark surface with border, not an inverted light slab | S | done |
+| UX-43a | UX-43 (live) | Live call shows a small live dot, not the mascot, beside "Listening to the customer" | S | done |
+| UX-44a | UX-44 (components) | Visible focus rings and 44 px targets on every icon-only button in `packages/ui`; disabled controls can carry helper text | S | done |
+| W1-UI | UX-01, UX-04, UX-23, UX-26, UX-41 (enablers) | New `packages/ui` primitives: `Disclosure`, `Sheet` (bottom sheet < 768 px), `ChecklistRow`, `Toast` with an action (Undo), neutral `StatTile`, `LtrRun` (bidi-isolated run); gallery entries + tests | M | done |
+| W1-SPLIT | – | Extract the ended/after-call composition from `app/call.tsx` into `EndedView.tsx`, no behaviour change, so wave 2 can split call.tsx ownership | S | done |
 
 ### Wave 1 · `review-copy-brand` (T-073)
 | Key | Merged | Summary | Size | Status |
 |---|---|---|---|---|
-| UX-06b | UX-06 (copy) | Remove "Phase 4", `pnpm demo`, "Fake AI" wording from user-facing strings (en + ar), incl. offline and not-in-build states | S | todo |
-| UX-42 | – | Product voice for connecting/error/empty states; never "demo", "server" or "log" to an agent | S | todo |
-| UX-08 | – | Owner console header and `<title>` "AGN Sales Shield · Owner"; owner console inside the R8 grep test; re-shoot Features evidence | S | todo |
-| UX-09 | ZC B11 | Features page: off-by-platform/plan = disabled switch with the reason; shipped features `built: true` (no "later version"); page copy matches; plumbing rows hidden, plain names | S | todo |
-| UX-33 | – | Owner kill switch as a status table ("Live / Killed since …") with a confirmed destructive action; sticky first column; sentence-case headers | S | todo |
-| UX-44b | UX-44 (owner) | `pnpm a11y` also checks `/owner` pages | S | todo |
-| UX-28 | – | History: "Your calls"; samples only as an empty-state link | S | todo |
-| UX-34 | – | Desktop Admin › Settings: "AI models are managed in the web admin" + Open web admin | S | todo |
-| UX-36 | – | Landing: real screenshots, versions read from `downloads.json`, form skeleton + mailto fallback, "First open on Mac and Windows" | S | todo |
-| UX-37 | – | Landing: "Works with Zoho CRM" feature card + text badge near the CTA (no Zoho logo) | S | todo |
-| UX-38 | – | Landing CTA: detect platform, "Download for Mac", small line with the other builds | S | todo |
+| UX-06b | UX-06 (copy) | Remove "Phase 4", `pnpm demo`, "Fake AI" wording from user-facing strings (en + ar), incl. offline and not-in-build states | S | done |
+| UX-42 | – | Product voice for connecting/error/empty states; never "demo", "server" or "log" to an agent | S | done |
+| UX-08 | – | Owner console header and `<title>` "AGN Sales Shield · Owner"; owner console inside the R8 grep test; re-shoot Features evidence | S | done |
+| UX-09 | ZC B11 | Features page: off-by-platform/plan = disabled switch with the reason; shipped features `built: true` (no "later version"); page copy matches; plumbing rows hidden, plain names | S | done |
+| UX-33 | – | Owner kill switch as a status table ("Live / Killed since …") with a confirmed destructive action; sticky first column; sentence-case headers | S | done |
+| UX-44b | UX-44 (owner) | `pnpm a11y` also checks `/owner` pages | S | done |
+| UX-28 | – | History: "Your calls"; samples only as an empty-state link | S | done |
+| UX-34 | – | Desktop Admin › Settings: "AI models are managed in the web admin" + Open web admin | S | done |
+| UX-36 | – | Landing: real screenshots, versions read from `downloads.json`, form skeleton + mailto fallback, "First open on Mac and Windows" | S | done |
+| UX-37 | – | Landing: "Works with Zoho CRM" feature card + text badge near the CTA (no Zoho logo) | S | done |
+| UX-38 | – | Landing CTA: detect platform, "Download for Mac", small line with the other builds | S | done |
 
 ### Wave 1 · `review-server-core` (T-074)
 | Key | Merged | Summary | Size | Status |
 |---|---|---|---|---|
-| ZC-02 | ZC A9 (DC part) | Zoho data centre detected from the OAuth callback (`location`, `accounts-server`), stored per user; "Change" stays (R10) | S | todo |
-| UX-35 | – | Zoho connect page lists what is read/written, shows DC with Change, has Cancel; done page says "You can close this tab" + deep link to the app | S | todo |
-| W1-DESK | UX-21, UX-35 (enablers) | Desktop registers `agn-sales-shield://`; preload exposes "open the OS privacy pane" (Mac screen/system audio, mic; Windows mic) | S | todo |
-| ZC-14s | ZC-14 (server) | Server computes one config health per org (`ok` / `needs_attention` + reason: Zoho token expired, SMTP failing, quota near) in the session config | S | todo |
-| UX-39s | UX-39 (server) | Password reset by email: single-use, 30-minute token, rate-limited, audited | M | todo |
-| ZC-11s | ZC-11, ZC A4, B4, B9, DD-4 (data), DD-5 (data) | Company defaults data: `record_calls` org policy, manager auto-derived from roles, consent record (choice + timestamp, audited), `vendor_allow_list`; no legal text | M | todo |
-| INT-01s | INT-01 (server) | `call_log` action: structured Note on Deal, else Contact, else Lead; idempotent per call; audited | S | todo |
-| INT-03 | – | Stage → guidance block in the `crm_brief` seed prompt (data, ≤ 150 tokens, "stage as of prep"); replay | S | todo |
-| INT-16 | INT-16 (fields part) | `Lead_Source` and campaign name already on the record go into the brief; replay | S | todo |
+| ZC-02 | ZC A9 (DC part) | Zoho data centre detected from the OAuth callback (`location`, `accounts-server`), stored per user; "Change" stays (R10) | S | done |
+| UX-35 | – | Zoho connect page lists what is read/written, shows DC with Change, has Cancel; done page says "You can close this tab" + deep link to the app | S | done |
+| W1-DESK | UX-21, UX-35 (enablers) | Desktop registers `agn-sales-shield://`; preload exposes "open the OS privacy pane" (Mac screen/system audio, mic; Windows mic) | S | done |
+| ZC-14s | ZC-14 (server) | Server computes one config health per org (`ok` / `needs_attention` + reason: Zoho token expired, SMTP failing, quota near) in the session config | S | done |
+| UX-39s | UX-39 (server) | Password reset by email: single-use, 30-minute token, rate-limited, audited | M | done |
+| ZC-11s | ZC-11, ZC A4, B4, B9, DD-4 (data), DD-5 (data) | Company defaults data: `record_calls` org policy, manager auto-derived from roles, consent record (choice + timestamp, audited), `vendor_allow_list`; no legal text | M | done |
+| INT-01s | INT-01 (server) | `call_log` action: structured Note on Deal, else Contact, else Lead; idempotent per call; audited | S | done |
+| INT-03 | – | Stage → guidance block in the `crm_brief` seed prompt (data, ≤ 150 tokens, "stage as of prep"); replay | S | done |
+| INT-16 | INT-16 (fields part) | `Lead_Source` and campaign name already on the record go into the brief; replay | S | done |
 
 ### Wave 2 · `review-live-call` (T-075)
 | Key | Merged | Summary | Size | Status |
