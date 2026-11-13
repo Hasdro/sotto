@@ -210,7 +210,8 @@ Added 2026-11-13 (owner)
 ### Review backlog (Nov 2026)
 Items, waves, owned files and owner questions: `docs/reviews/backlog-2026-11.md`. Wave-1 prompts: `docs/prompts/review-{ui-core,copy-brand,server-core}.md`. Branches `phase9/<stream>`.
 Wave 1
-- [ ] T-072 `review-ui-core` — UX-02, UX-11, UX-12, UX-13, UX-14, UX-15, UX-06a, UX-07, UX-40, UX-43a, UX-44a, W1-UI, W1-SPLIT
+- [x] T-072 `review-ui-core` — UX-02, UX-11, UX-12, UX-13, UX-14, UX-15, UX-06a, UX-07, UX-40, UX-43a, UX-44a, W1-UI, W1-SPLIT
+  - Evidence: branch `phase9/review-ui-core`; app jest 352/352, ui 167 vitest + 89 jest, desktop 17; typecheck, boundaries, biome (explicit paths) green; a11y 39 checks 0 serious; replay ALL p50 576 / p95 978 ms, R4 0, R2 drill p95 1270; shots `docs/evidence/phase9/review-ui-core/`.
 - [ ] T-073 `review-copy-brand` (sonnet) — UX-06b, UX-42, UX-08, UX-09 (+B11), UX-33, UX-44b, UX-28, UX-34, UX-36, UX-37, UX-38
 - [ ] T-074 `review-server-core` — ZC-02, UX-35, W1-DESK, ZC-14s, UX-39s, ZC-11s, INT-01s, INT-03, INT-16
 Wave 2
@@ -339,6 +340,11 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 (c) · local · Opus 5.5 · phase9/review-ui-core
+- **Done (T-072):** live card: no rating under the live hero; thumbs = two 44 pt icon buttons ("Helpful"/"Not helpful", no visible question) on collapsed cards on hover/focus and on every AI card after the call; reason chips only after thumbs-down (UX-02). No timing line (UX-11). Header icon only; R2 line under the sentence ("Not in playbook — check first"; the worker label still wins; full text for screen readers) (UX-12). 2 earlier cards + "Show earlier (n)", background-tone fill (UX-13). Holding dropped once its turn has a real card, dashed edge kept otherwise (UX-14). "Context" toggle on the start side, End call alone at the end (UX-15). "Practice" only on practice calls, mode in the live-dot tooltip, mock badge behind `demoEnabled()` (UX-06a). Escalation toast top-end/above composer, title only (UX-07). Dark toast = `surfaceRaised` + border (UX-40). Live dot instead of the mascot (UX-43a). `IconButton`, focus rings, `Button.helper` (UX-44a). New `Disclosure`, `Sheet`, `ChecklistRow`, `Toast.action`, `StatTile`, `LtrRun` + gallery (W1-UI). `EndedView.tsx` split (W1-SPLIT).
+- **Evidence:** see T-072. One a11y run flagged `aria-modal` on /playbook (untouched page, timing flake); the re-run was clean.
+- **Notes:** new strings in `features/call/strings.ts`; `card.shownAfter` no longer used (copy-brand may delete it). History rating (UX-02 "in History") is left to wave 2 (`app/history/**`, using `RatingControls`). `pnpm lint`'s `biome check .` processes no files inside a worktree.
 
 ### 2026-11-14 (b) · local · Opus 5.5 · phase9/zoho-meetings
 - **Done (owner request 14 Nov):** meetings are the main way to get call context. Server: `GET /zoho/meetings?page=` lists only Events owned by the connected Zoho user (`users?type=CurrentUser`, new scope `ZohoCRM.users.READ` → older connections are asked to reconnect, nothing listed until they do), not yet over, next 14 days, soonest first, 20/page; `GET /zoho/meetings/{id}/detail` view-only (someone else's → 404); meeting brief pulls Who_Id contact (else related/participant contact or lead), related Deal + its Account, notes. App: Home "Your upcoming meetings" (when connected) with expandable view-only detail and "Use for my next call" (brief carried into the next call via `bindCall`); rail lists the same meetings first, name/email/phone search under it.
