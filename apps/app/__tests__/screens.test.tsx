@@ -124,19 +124,32 @@ describe("mock screens", () => {
     expect(screen.getByRole("link", { name: /^السجل/ })).toBeOnTheScreen();
   });
 
-  it("the demo role switch hides areas an agent may not open (R3)", async () => {
+  it("the demo role switch hides areas an agent may not open (R3, D-050)", async () => {
     await open("/history");
     await openMenu();
     await fireEvent.press(screen.getByTestId("role-switch-agent"));
-    for (const name of ["Call", "History", "Playbook"]) {
+    for (const name of ["Call", "History"]) {
       expect(screen.getByRole("link", { name: new RegExp(`^${name}`) })).toBeOnTheScreen();
     }
+    expect(screen.queryByRole("link", { name: /^Playbook/ })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Inbox/ })).toBeNull();
     expect(screen.queryByRole("link", { name: /^Admin/ })).toBeNull();
     await fireEvent.press(screen.getByTestId("role-switch-manager"));
     expect(screen.getByRole("link", { name: /^Inbox/ })).toBeOnTheScreen();
     expect(screen.queryByRole("link", { name: /^Admin/ })).toBeNull();
   });
+
+  it.each(["/playbook", "/inbox"])(
+    "an agent who opens %s by URL gets the no-access page (D-050)",
+    async (path) => {
+      await open(path);
+      await openMenu();
+      await fireEvent.press(screen.getByTestId("role-switch-agent"));
+      expect(screen.getByTestId("no-access")).toBeOnTheScreen();
+      expect(screen.queryByTestId("playbook-search")).toBeNull();
+      await fireEvent.press(screen.getByTestId("role-switch-admin")); // the choice is remembered
+    },
+  );
 
   it("a page outside the role's areas shows why instead of the page", async () => {
     await open("/admin/settings");

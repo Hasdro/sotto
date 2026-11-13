@@ -1,19 +1,24 @@
-/** D-038 + D-039: on the desktop app the model/keys tab moves to the web admin panel, while
- * Integrations (Zoho, SMTP, Gallabox) stays in the app. */
+/** UX-29, D-051 (+ D-038, D-039): the admin area in four groups; on the desktop app Keys &
+ * providers moves to the web admin panel, while Integrations (Zoho, SMTP, Gallabox) stays. */
 import { UIProvider } from "@sotto/ui";
 import { render, screen } from "@testing-library/react-native";
 import AdminLayout from "../app/admin/_layout";
 import { LocaleProvider } from "../lib/locale";
 
 let mockDesktop: unknown = null;
+let mockPath = "/admin";
 jest.mock("../lib/desktop", () => ({ desktop: () => mockDesktop }));
 jest.mock("../components/RoleGate", () => ({
   RoleGate: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock("../features/learning/badge", () => ({ useLearningBadge: () => 0 }));
+jest.mock("../features/webadmin/webAdmin", () => ({
+  ...jest.requireActual("../features/webadmin/webAdmin"),
+  webAdminUrl: () => "https://sales.example.com/admin",
+}));
 jest.mock("expo-router", () => ({
   Slot: () => null,
-  usePathname: () => "/admin",
+  usePathname: () => mockPath,
   router: { push: jest.fn() },
   useRouter: () => ({ push: jest.fn() }),
   Link: ({ children }: { children: React.ReactNode }) => children,
@@ -28,18 +33,54 @@ const wrap = () =>
     </LocaleProvider>,
   );
 
-describe("admin tabs", () => {
-  it("web shows Keys and Integrations", async () => {
-    mockDesktop = null;
-    await wrap();
-    expect(screen.getByText("Integrations")).toBeTruthy();
-    expect(screen.queryByText("Keys & providers")).toBeTruthy();
+describe("admin groups", () => {
+  beforeEach(() => {
+    mockPath = "/admin";
   });
 
-  it("desktop hides Keys (models) but keeps Integrations", async () => {
-    mockDesktop = { platform: "darwin" };
+  it("shows four groups: People, Connections, AI, Company", async () => {
+    mockDesktop = null;
     await wrap();
-    expect(screen.getByText("Integrations")).toBeTruthy();
-    expect(screen.queryByText("Keys & providers")).toBeNull();
+    for (const id of ["people", "connections", "ai", "company"])
+      expect(screen.getByTestId(`admin-group-${id}`)).toBeOnTheScreen();
+    expect(screen.getByTestId("admin-group-people")).toHaveTextContent("People");
+    expect(screen.getByTestId("admin-group-people")).toBeSelected();
   });
+
+  it("web shows Keys and Integrations under Connections", async () => {
+    mockDesktop = null;
+    mockPath = "/admin/integrations";
+    await wrap();
+    expect(screen.getByTestId("admin-group-connections")).toBeSelected();
+    expect(screen.getByText("Integrations")).toBeTruthy();
+    expect(screen.getByText("Keys & providers")).toBeTruthy();
+  });
+
+  it("desktop has no Keys & providers entry but keeps Integrations (D-038)", async () => {
+    mockDesktop = { platform: "darwin" };
+    mockPath = "/admin/integrations";
+    await wrap();
+    expect(screen.queryByText("Keys & providers")).toBeNull();
+    // Connections now has a single page, so there is no second row at all.
+    expect(screen.queryByTestId("admin-pages")).toBeNull();
+    expect(screen.getByTestId("admin-group-connections")).toBeSelected();
+  });
+
+  it("desktop AI group links to the web admin for models", async () => {
+    mockDesktop = { platform: "darwin" };
+    mockPath = "/admin/instructions";
+    await wrap();
+    expect(screen.getByTestId("admin-web-models")).toBeOnTheScreen();
+  });
+
+  it.each(["/admin/company", "/admin/recordings", "/admin/devices", "/admin/activity"])(
+    "%s sits under Company › Company activity",
+    async (path) => {
+      mockDesktop = { platform: "darwin" };
+      mockPath = path;
+      await wrap();
+      expect(screen.getByTestId("admin-group-company")).toBeSelected();
+      expect(screen.getByTestId("admin-page-company")).toBeSelected();
+    },
+  );
 });
