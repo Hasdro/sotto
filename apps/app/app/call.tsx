@@ -13,6 +13,7 @@ import {
   motion,
   Panel,
   Screen,
+  Stack,
   space,
   Text,
   Toast,
@@ -38,10 +39,13 @@ import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
+import { useAttached } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
+import { EmailAction } from "../features/email";
 import { useEscalations } from "../features/escalations/store";
 import { CallReviewPanel } from "../features/review/CallReviewPanel";
 import { FollowUp } from "../features/review/FollowUp";
+import { WhatsAppAction } from "../features/whatsapp";
 import { useI18n } from "../lib/locale";
 import { useIsWide } from "../lib/responsive";
 
@@ -230,7 +234,10 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
       ) : null}
       {state.phase === "ended" && (!practice || mock) ? (
         // R12 (T-061): Zoho writes, each approved on its own card, and the follow-up slot.
-        <PostCallPanel perform={mock ? mockPerform : undefined} />
+        <PostCallPanel
+          perform={mock ? mockPerform : undefined}
+          slot={<MessagingSlot callId={state.callId ?? null} />}
+        />
       ) : null}
       {state.phase === "ended" && !practice ? (
         <FeatureGate feature="call_review">
@@ -349,3 +356,16 @@ const styles = StyleSheet.create({
   toast: { position: "absolute", bottom: space.md, start: space.md, end: space.md },
   toastWide: { bottom: space.xl, start: space.xxl, end: undefined, maxWidth: layout.toastMaxWidth },
 });
+
+/** R12 (T-063/T-065): email and WhatsApp after the call, prefilled from the attached Zoho record.
+ * Each action greys or hides itself from the feature map and sends only after its own confirm. */
+function MessagingSlot({ callId }: { callId: string | null }) {
+  const crm = useAttached();
+  const person = crm.kind === "attached" ? crm.brief.person : null;
+  return (
+    <Stack gap="md">
+      <EmailAction callId={callId} customer={{ name: person?.name, email: person?.email }} />
+      <WhatsAppAction callId={callId} customer={{ name: person?.name, phone: person?.phone }} />
+    </Stack>
+  );
+}
