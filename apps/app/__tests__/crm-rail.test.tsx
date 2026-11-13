@@ -207,8 +207,7 @@ describe("CrmRail", () => {
 
 describe("CrmRail stages (UX-01, UX-03r, UX-16, UX-17, UX-19)", () => {
   // Every editable text field on screen (host TextInputs carry `editable`/`onChangeText`).
-  const inputs = () =>
-    (screen.root?.queryAll((n) => n.type === "TextInput") ?? []) as unknown[];
+  const inputs = () => (screen.root?.queryAll((n) => n.type === "TextInput") ?? []) as unknown[];
 
   it("before the call: the full brief editor, with the timing note as help text (UX-16)", async () => {
     signedIn({ state: "available" });
@@ -269,7 +268,15 @@ describe("CrmRail stages (UX-01, UX-03r, UX-16, UX-17, UX-19)", () => {
   });
 
   it("a deal line in Arabic keeps Western digits", () => {
-    const d = { id: "1", name: "Acme", stage: "Won", amount: "12000", close_date: "2026-12-01", owner: "", currency: "AED" };
+    const d = {
+      id: "1",
+      name: "Acme",
+      stage: "Won",
+      amount: "12000",
+      close_date: "2026-12-01",
+      owner: "",
+      currency: "AED",
+    };
     const line = dealLine(d, "ar", (date) => `الإغلاق ${date}`, new Date("2026-11-13T06:00:00Z"));
     expect(line).toMatch(/12[,٬]000/);
     expect(line).not.toMatch(/[٠-٩]/);
@@ -296,9 +303,7 @@ describe("CrmRail stages (UX-01, UX-03r, UX-16, UX-17, UX-19)", () => {
     signedIn({ state: "available" });
     const perform = jest.fn(mockPerform);
     const search = jest.fn(async () => ({ candidates: [] }));
-    await wrap(
-      <CrmRail lookup={{ ...mockLookup, search }} perform={perform} stage="prepare" />,
-    );
+    await wrap(<CrmRail lookup={{ ...mockLookup, search }} perform={perform} stage="prepare" />);
     await fireEvent.changeText(screen.getByTestId("crm-query"), "new@caller.test");
     await fireEvent.press(screen.getByTestId("crm-find"));
     await waitFor(() => expect(screen.getByTestId("lead-offer")).toBeOnTheScreen());

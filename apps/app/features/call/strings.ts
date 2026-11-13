@@ -58,7 +58,8 @@ const en = {
     "Allow Sales Shield to use the microphone: System Settings › Privacy & Security › Microphone. Then press Resume.",
   "perm.micWindows":
     "Allow Sales Shield to use the microphone: Settings › Privacy & security › Microphone, and turn on access for desktop apps. Then press Resume.",
-  "perm.noMicDesktop": "Sales Shield cannot find a microphone on this computer. Plug one in, then press Resume.",
+  "perm.noMicDesktop":
+    "Sales Shield cannot find a microphone on this computer. Plug one in, then press Resume.",
   "perm.openMac": "Open System Settings",
   "perm.openWindows": "Open Windows Settings",
   /** ZC-08: the 5-second audio check. */
@@ -144,7 +145,8 @@ const ar: Record<CallTextKey, string> = {
     "اسمح لـ Sales Shield باستخدام الميكروفون: إعدادات النظام › الخصوصية والأمن › الميكروفون. ثم اضغط «استئناف».",
   "perm.micWindows":
     "اسمح لـ Sales Shield باستخدام الميكروفون: الإعدادات › الخصوصية والأمان › الميكروفون، وفعّل الوصول لتطبيقات سطح المكتب. ثم اضغط «استئناف».",
-  "perm.noMicDesktop": "لا يجد Sales Shield ميكروفوناً على هذا الكمبيوتر. وصّل ميكروفوناً ثم اضغط «استئناف».",
+  "perm.noMicDesktop":
+    "لا يجد Sales Shield ميكروفوناً على هذا الكمبيوتر. وصّل ميكروفوناً ثم اضغط «استئناف».",
   "perm.openMac": "افتح إعدادات النظام",
   "perm.openWindows": "افتح إعدادات Windows",
   "check.open": "اختبر الصوت",
@@ -164,9 +166,11 @@ const ar: Record<CallTextKey, string> = {
     "لا يوجد صوت من هذا الكمبيوتر. شغّل فيديو أو أغنية وارفع الصوت، ثم اختبر مرة أخرى.",
   "check.fix.systemDenied":
     "لا يستطيع Sales Shield سماع صوت هذا الكمبيوتر بعد. اسمح له بتسجيل صوت النظام، ثم اختبر مرة أخرى.",
-  "check.fix.micDenied": "لا يستطيع Sales Shield استخدام الميكروفون بعد. اسمح له بذلك، ثم اختبر مرة أخرى.",
+  "check.fix.micDenied":
+    "لا يستطيع Sales Shield استخدام الميكروفون بعد. اسمح له بذلك، ثم اختبر مرة أخرى.",
   "check.fix.micMissing": "لم يُعثر على ميكروفون. وصّل ميكروفوناً ثم اختبر مرة أخرى.",
-  "check.fix.micSilent": "لم نسمع شيئاً من الميكروفون. تأكد أنه غير مكتوم، أو اختر غيره من الإعدادات.",
+  "check.fix.micSilent":
+    "لم نسمع شيئاً من الميكروفون. تأكد أنه غير مكتوم، أو اختر غيره من الإعدادات.",
   "ui.undo": "تراجع",
   "ui.close": "إغلاق",
   "ui.edit": "تعديل",

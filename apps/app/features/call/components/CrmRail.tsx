@@ -15,7 +15,17 @@
  * The attached record and the brief reach the live prompt through the `crm_brief` prompt
  * (features/crm/attached.ts) in both states.
  */
-import { Badge, Button, Disclosure, Panel, Stack, space, Text, TextField, useTheme } from "@sotto/ui";
+import {
+  Badge,
+  Button,
+  Disclosure,
+  Panel,
+  Stack,
+  space,
+  Text,
+  TextField,
+  useTheme,
+} from "@sotto/ui";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../../components/FeatureGate";

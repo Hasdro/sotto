@@ -445,7 +445,9 @@ describe("in-call screen", () => {
   describe("context rail (UX-01, T-075)", () => {
     const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
     const inputs = () =>
-      (screen.root?.queryAll((n) => n.type === "TextInput") ?? []) as { props: { testID?: string } }[];
+      (screen.root?.queryAll((n) => n.type === "TextInput") ?? []) as {
+        props: { testID?: string };
+      }[];
 
     it("`prepare=1` opens the rail on the brief editor before the call", async () => {
       jest.replaceProperty(RN.Platform, "OS", "web");

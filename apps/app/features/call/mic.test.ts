@@ -102,10 +102,17 @@ describe("microphone device (ZC-08)", () => {
 
   function fakeMic(devices: { kind: string; deviceId: string }[]) {
     const track = { stop: jest.fn() };
-    const stream = { getVideoTracks: () => [], getAudioTracks: () => [track], getTracks: () => [track] };
+    const stream = {
+      getVideoTracks: () => [],
+      getAudioTracks: () => [track],
+      getTracks: () => [track],
+    };
     const getUserMedia = jest.fn(async (_c: MediaStreamConstraints) => stream);
     Object.defineProperty(globalThis, "navigator", {
-      value: { userAgent: "Electron/44", mediaDevices: { getUserMedia, enumerateDevices: async () => devices } },
+      value: {
+        userAgent: "Electron/44",
+        mediaDevices: { getUserMedia, enumerateDevices: async () => devices },
+      },
       configurable: true,
     });
     const node = () => ({ connect: jest.fn(), disconnect: jest.fn() });
@@ -120,7 +127,8 @@ describe("microphone device (ZC-08)", () => {
     };
     return getUserMedia;
   }
-  const audioOf = (m: jest.Mock) => (m.mock.calls[0]?.[0] as { audio: Record<string, unknown> }).audio;
+  const audioOf = (m: jest.Mock) =>
+    (m.mock.calls[0]?.[0] as { audio: Record<string, unknown> } | undefined)?.audio ?? {};
 
   it("uses the chosen microphone while it is plugged in", async () => {
     setPrefs({ micId: "usb-1" });

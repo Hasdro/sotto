@@ -12,7 +12,8 @@ import {
 } from "./audioSetup";
 import { type MicHandle, MicUnavailable } from "./mic";
 
-const frame = (amp: number) => Int16Array.from({ length: 320 }, (_, i) => (i % 2 ? amp : -amp)).buffer;
+const frame = (amp: number) =>
+  Int16Array.from({ length: 320 }, (_, i) => (i % 2 ? amp : -amp)).buffer;
 
 describe("audio auto-setup (ZC-08)", () => {
   beforeEach(() => globalThis.localStorage?.clear());
@@ -42,13 +43,15 @@ describe("audio auto-setup (ZC-08)", () => {
     const opened: string[] = [];
     const sinks: Record<string, (pcm: ArrayBuffer) => void> = {};
     const stops: jest.Mock[] = [];
-    const capture = jest.fn(async (source: "computer" | "mic", onFrame: (p: ArrayBuffer) => void) => {
-      opened.push(source);
-      sinks[source] = onFrame;
-      const stop = jest.fn();
-      stops.push(stop);
-      return { stop } as MicHandle;
-    });
+    const capture = jest.fn(
+      async (source: "computer" | "mic", onFrame: (p: ArrayBuffer) => void) => {
+        opened.push(source);
+        sinks[source] = onFrame;
+        const stop = jest.fn();
+        stops.push(stop);
+        return { stop } as MicHandle;
+      },
+    );
     const levels: { customer: number; agent: number }[] = [];
     const result = await runLevelCheck({
       computer: true,
@@ -71,8 +74,16 @@ describe("audio auto-setup (ZC-08)", () => {
   });
 
   it("in the browser only the microphone is checked", async () => {
-    const capture = jest.fn(async (_s: "computer" | "mic", _f: (p: ArrayBuffer) => void) => ({ stop: jest.fn() }) as MicHandle);
-    const result = await runLevelCheck({ computer: false, capture, wait: async () => {}, now: () => 1 });
+    const capture = jest.fn(
+      async (_s: "computer" | "mic", _f: (p: ArrayBuffer) => void) =>
+        ({ stop: jest.fn() }) as MicHandle,
+    );
+    const result = await runLevelCheck({
+      computer: false,
+      capture,
+      wait: async () => {},
+      now: () => 1,
+    });
     expect(capture).toHaveBeenCalledTimes(1);
     expect(capture.mock.calls[0]?.[0]).toBe("mic");
     expect(result.customer).toBe("skipped");
@@ -83,14 +94,21 @@ describe("audio auto-setup (ZC-08)", () => {
       if (source === "computer") throw new MicUnavailable("denied");
       return { stop: jest.fn() } as MicHandle;
     });
-    const result = await runLevelCheck({ computer: true, capture, wait: async () => {}, now: () => 1 });
+    const result = await runLevelCheck({
+      computer: true,
+      capture,
+      wait: async () => {},
+      now: () => 1,
+    });
     expect(result.customer).toBe("denied");
     expect(checkFix(result)).toEqual({ text: "check.fix.systemDenied", pane: "system-audio" });
     expect(checkFix({ customer: "ok", agent: "denied", at: 1 })).toEqual({
       text: "check.fix.micDenied",
       pane: "mic",
     });
-    expect(checkFix({ customer: "silent", agent: "ok", at: 1 })?.text).toBe("check.fix.systemSilent");
+    expect(checkFix({ customer: "silent", agent: "ok", at: 1 })?.text).toBe(
+      "check.fix.systemSilent",
+    );
     expect(checkFix({ customer: "ok", agent: "silent", at: 1 })?.text).toBe("check.fix.micSilent");
     expect(checkFix({ customer: "ok", agent: "ok", at: 1 })).toBeNull();
     expect(checkFix({ customer: "skipped", agent: "ok", at: 1 })).toBeNull();

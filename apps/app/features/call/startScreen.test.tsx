@@ -2,10 +2,10 @@
 import { UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { LocaleProvider } from "../../lib/locale";
+import type { CheckResult } from "./audioSetup";
 import { AudioCheck } from "./components/AudioCheck";
 import { ListenBar, permissionHelp } from "./components/ListenBar";
 import { ListenStart, startPlan } from "./components/ListenStart";
-import type { CheckResult } from "./audioSetup";
 
 const g = globalThis as { sottoDesktop?: unknown; navigator?: unknown };
 const savedNavigator = g.navigator;
@@ -40,7 +40,11 @@ describe("start screen (UX-20)", () => {
       secondary: "mic",
       detected: true,
     });
-    expect(startPlan(true, null)).toEqual({ primary: "mic", secondary: "computer", detected: false });
+    expect(startPlan(true, null)).toEqual({
+      primary: "mic",
+      secondary: "computer",
+      detected: false,
+    });
     expect(startPlan(false, null)).toEqual({ primary: "mic", secondary: null, detected: false });
   });
 
@@ -89,7 +93,13 @@ describe("desktop permission help (UX-21)", () => {
     ua("Mozilla/5.0 (Macintosh) Electron/44");
     const open = fakeDesktop();
     await wrap(
-      <ListenBar state="denied" source="computer" vendor={null} partial={null} onToggle={() => {}} />,
+      <ListenBar
+        state="denied"
+        source="computer"
+        vendor={null}
+        partial={null}
+        onToggle={() => {}}
+      />,
     );
     expect(screen.getByText(/Allow Sales Shield to record system audio/)).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("open-privacy"));
@@ -133,7 +143,9 @@ describe("audio check screen (ZC-08)", () => {
     expect(screen.getByTestId("check-level-agent")).toBeOnTheScreen();
     expect(screen.getByTestId("check-level-customer")).toBeOnTheScreen();
     await act(async () => finish({ customer: "denied", agent: "ok", at: 1 }));
-    expect(screen.getByTestId("check-result")).toHaveTextContent(/cannot hear this computer's sound/);
+    expect(screen.getByTestId("check-result")).toHaveTextContent(
+      /cannot hear this computer's sound/,
+    );
     await fireEvent.press(screen.getByTestId("check-open-privacy"));
     expect(open).toHaveBeenCalledWith("system-audio");
     await view.unmount();

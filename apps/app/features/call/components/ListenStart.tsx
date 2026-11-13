@@ -19,7 +19,10 @@ type Props = {
 };
 
 /** What the start screen offers, given what the app can hear and sees. Pure (UX-20). */
-export function startPlan(computer: boolean, callApp: string | null): {
+export function startPlan(
+  computer: boolean,
+  callApp: string | null,
+): {
   primary: AudioSource;
   secondary: AudioSource | null;
   detected: boolean;
