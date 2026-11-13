@@ -155,4 +155,5 @@ def test_owner_kill_switch_is_a_status_table_with_a_confirmed_destructive_action
     js = client.get("/owner/owner.js").text
     for text in ("Turn off for everyone", "Turn back on", "Killed since", "Live"):
         assert text in js, text
-    assert "confirmKill" in js and "confirm(" not in js.replace("confirmKill(", "")
+    kill = js[js.index("async function setKill") :].split("async function setEntitled")[0]
+    assert "await confirmKill(f)" in kill  # turning off waits for the dialog
