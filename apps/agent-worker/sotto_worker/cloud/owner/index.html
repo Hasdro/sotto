@@ -100,6 +100,21 @@
         <button type="button" id="zohoRemove" class="ghost">Remove</button>
         <p id="zohoMsg" class="note" role="status"></p>
       </form>
+      <form id="smtpForm" class="panel narrow">
+        <h2>Email (SMTP) <small>the platform fallback; an organisation's own mailbox wins</small></h2>
+        <p id="smtpState" class="note">Loading…</p>
+        <label for="smtpHost">SMTP server</label><input id="smtpHost" autocomplete="off" spellcheck="false" placeholder="smtp.hostinger.com" required>
+        <label for="smtpPort">Port</label>
+        <select id="smtpPort"><option value="465" selected>465 · SSL</option><option value="587">587 · STARTTLS</option></select>
+        <label for="smtpUser">Username</label><input id="smtpUser" autocomplete="off" spellcheck="false" required>
+        <label for="smtpPass">Password <small>empty keeps the saved one</small></label><input id="smtpPass" type="password" autocomplete="new-password">
+        <label for="smtpFromName">From name</label><input id="smtpFromName" autocomplete="off" required>
+        <label for="smtpFrom">From address</label><input id="smtpFrom" type="email" autocomplete="off" required>
+        <button type="submit" class="primary">Save mailbox</button>
+        <button type="button" id="smtpTest" class="ghost">Send test email</button>
+        <button type="button" id="smtpRemove" class="ghost">Remove</button>
+        <p id="smtpMsg" class="note" role="status"></p>
+      </form>
     </section>
   </main>
 </div>

@@ -150,7 +150,7 @@ def test_org_smtp_is_write_only_and_encrypted(mclient: TestClient, store: CloudS
     assert ORG_PASS.encode() not in bytes(raw[0]["ciphertext"])
     assert any(a["action"] == "smtp.set" for a in store._q("SELECT action FROM audit"))
     # Editing without the password keeps the saved one.
-    r = set_org_smtp(mclient, h, password="", from_name="Acme Team")
+    r = set_org_smtp(mclient, h, username="", password="", from_name="Acme Team")
     assert r.json()["org"]["from_name"] == "Acme Team"
     assert mclient.post("/api/v1/company/smtp/test", headers=h).json()["ok"] is True
 
@@ -162,7 +162,8 @@ def test_bad_smtp_values_are_refused(mclient: TestClient) -> None:
         {"host": "not a host"},
         {"from_address": "nope"},
         {"from_name": "x\r\nBcc: evil@x.test"},
-        {"password": ""},  # first save needs one
+        {"password": ""},  # the first save needs a login
+        {"username": ""},
     ):
         r = set_org_smtp(mclient, h, **over)
         assert r.status_code == 400, over

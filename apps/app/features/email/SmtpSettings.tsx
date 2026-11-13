@@ -121,7 +121,7 @@ export function SmtpSettings() {
           label={t("integrations.smtp.username")}
           value={username}
           onChangeText={setUsername}
-          placeholder={saved ? t("integrations.smtp.passwordKept") : undefined}
+          placeholder={saved ? t("integrations.smtp.kept") : undefined}
           autoCapitalize="none"
           autoCorrect={false}
           testID="smtp-username"
@@ -130,7 +130,7 @@ export function SmtpSettings() {
           label={t("integrations.smtp.password")}
           value={password}
           onChangeText={setPassword}
-          placeholder={saved ? t("integrations.smtp.passwordKept") : undefined}
+          placeholder={saved ? t("integrations.smtp.kept") : undefined}
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}

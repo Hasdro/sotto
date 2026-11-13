@@ -142,7 +142,7 @@ function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
               </Labelled>
             ) : senders[0] ? (
               <Text variant="label" tone="muted" testID="email-sender">
-                {`${t("email.from")}: ${senders[0].from_name} <${senders[0].from_address}>`}
+                {`${t("email.from")}: ${senders[0].from_name} · ${senders[0].from_address}`}
               </Text>
             ) : null}
             {formats.length > 1 && formats.length <= 4 ? (
@@ -293,7 +293,7 @@ function PreviewBox({ preview, title }: { preview: Preview; title: string }) {
           {title}
         </Text>
         <Text variant="label" tone="muted" selectable>
-          {`${t("email.from")}: ${preview.from.name} <${preview.from.address}>`}
+          {`${t("email.from")}: ${preview.from.name} · ${preview.from.address}`}
         </Text>
         <Text variant="label" tone="muted" selectable>
           {`${t("email.to")}: ${preview.to.join(", ")}`}

@@ -105,15 +105,16 @@ def save_account(
         raise CloudError("invalid", "port must be 465 or 587") from None
     if port not in PORTS:
         raise CloudError("invalid", "port must be 465 (SSL) or 587 (STARTTLS)")
-    username = _one_line(data.get("username"), "username", 254)
+    username = _one_line(data.get("username"), "username", 254, required=False)
     password = str(data.get("password") or "")
     from_name = _one_line(data.get("from_name"), "from name", 100)
     from_address = clean_address(data.get("from_address"), "from address")
-    if not password:
+    if not password or not username:
+        # Editing the other fields keeps the saved login: it is never shown, so never retyped.
         old = account(store, scope)
         if old is None:
-            raise CloudError("invalid", "password is required")
-        password = old.password  # editing the other fields keeps the saved password
+            raise CloudError("invalid", "username and password are required")
+        username, password = username or old.username, password or old.password
     if len(password) > 500 or "\n" in password:
         raise CloudError("invalid", "that does not look like a password")
     blob = store._vault.encrypt(
