@@ -26,7 +26,25 @@ export type CallReview = {
   tip: string;
   strengths: string[];
   improve: string[];
+  /** v3 (UX-27, INT-01c): what the customer pushed back on, in a few words each. Optional so
+   * reviews saved before v3 still read. */
+  objections?: string[];
+  /** v3: what either side promised to do. */
+  commitments?: string[];
+  /** v3 (INT-02m): the agreed next step; date YYYY-MM-DD and time HH:MM only when said. */
+  next_step?: NextStep | null;
+  /** v3 (INT-07): deal-risk signals, each a reason and the customer's short quote. AI-estimated. */
+  risks?: RiskSignal[];
 };
+
+export type NextStep = { text: string; date: string | null; time: string | null };
+export type RiskSignal = { reason: string; quote: string };
+/** The chance to close as a band (UX-27): Likely / Unclear / Unlikely in the app. */
+export type ChanceBand = "high" | "medium" | "low";
+
+export function chanceBand(success: number): ChanceBand {
+  return success >= 65 ? "high" : success >= 35 ? "medium" : "low";
+}
 
 export type ReviewLine = { speaker: "customer" | "agent"; text: string };
 
@@ -36,13 +54,37 @@ const clamp = (v: unknown, lo: number, hi: number): number => {
 };
 const text = (v: unknown, max: number): string =>
   typeof v === "string" ? v.trim().slice(0, max) : "";
-const list = (v: unknown): string[] =>
+const list = (v: unknown, max = 80): string[] =>
   Array.isArray(v)
     ? v
-        .map((x) => text(x, 80))
+        .map((x) => text(x, max))
         .filter(Boolean)
         .slice(0, 3)
     : [];
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function nextStep(v: unknown): NextStep | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const t = text(o.text, 160);
+  if (!t) return null;
+  const date = typeof o.date === "string" && DATE.test(o.date.trim()) ? o.date.trim() : null;
+  const time = typeof o.time === "string" && TIME.test(o.time.trim()) ? o.time.trim() : null;
+  return { text: t, date, time };
+}
+
+function risks(v: unknown): RiskSignal[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .flatMap((x) => {
+      if (!x || typeof x !== "object") return [];
+      const o = x as Record<string, unknown>;
+      const reason = text(o.reason, 100);
+      return reason ? [{ reason, quote: text(o.quote, 120) }] : [];
+    })
+    .slice(0, 3);
+}
 
 /** Reads the model's JSON (also when wrapped in prose or a code fence); null when unusable. */
 export function parseReview(raw: string): CallReview | null {
@@ -71,6 +113,10 @@ export function parseReview(raw: string): CallReview | null {
     tip,
     strengths: list(data.strengths),
     improve: list(data.improve),
+    objections: list(data.objections, 120),
+    commitments: list(data.commitments, 120),
+    next_step: nextStep(data.next_step),
+    risks: risks(data.risks),
   };
 }
 

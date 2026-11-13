@@ -1,6 +1,6 @@
 /** After-call review (owner, 21 Oct): checked, clamped, and never throws. */
 import { describe, expect, it } from "vitest";
-import { parseFollowUp, parseReview, reviewCall } from "./review.ts";
+import { chanceBand, parseFollowUp, parseReview, reviewCall } from "./review.ts";
 import { ModelRouter } from "./router.ts";
 import { type LLMAdapter, realClock } from "./types.ts";
 
@@ -85,6 +85,54 @@ describe("call review", () => {
         now: 0,
       }),
     ).toBeNull();
+  });
+});
+
+describe("review v3 fields (UX-27, INT-01c, INT-02m, INT-07)", () => {
+  const V3 = {
+    ...GOOD,
+    objections: ["price too high", "", "needs board sign-off"],
+    commitments: ["send the proposal by Friday"],
+    next_step: { text: "Demo with the CFO", date: "2026-11-20", time: "15:30" },
+    risks: [
+      { reason: "Budget not confirmed", quote: "we have not set a budget yet" },
+      { reason: "", quote: "ignored" },
+      { reason: "Competitor named", quote: "x".repeat(300) },
+    ],
+  };
+
+  it("reads objections, commitments, the agreed next step and risk signals", () => {
+    const r = parseReview(JSON.stringify(V3));
+    expect(r?.objections).toEqual(["price too high", "needs board sign-off"]);
+    expect(r?.commitments).toEqual(["send the proposal by Friday"]);
+    expect(r?.next_step).toEqual({ text: "Demo with the CFO", date: "2026-11-20", time: "15:30" });
+    expect(r?.risks).toHaveLength(2);
+    expect(r?.risks?.[0]).toEqual({
+      reason: "Budget not confirmed",
+      quote: "we have not set a budget yet",
+    });
+    expect(r?.risks?.[1]?.quote.length).toBeLessThanOrEqual(120);
+  });
+
+  it("drops a malformed date or time instead of guessing, and keeps v2 replies working", () => {
+    const r = parseReview(
+      JSON.stringify({ ...V3, next_step: { text: "Call back", date: "next Tuesday", time: "3pm" } }),
+    );
+    expect(r?.next_step).toEqual({ text: "Call back", date: null, time: null });
+    const v2 = parseReview(JSON.stringify(GOOD));
+    expect(v2?.objections).toEqual([]);
+    expect(v2?.commitments).toEqual([]);
+    expect(v2?.next_step).toBeNull();
+    expect(v2?.risks).toEqual([]);
+  });
+
+  it("bands the chance to close: Likely / Unclear / Unlikely", () => {
+    expect(chanceBand(80)).toBe("high");
+    expect(chanceBand(65)).toBe("high");
+    expect(chanceBand(64)).toBe("medium");
+    expect(chanceBand(35)).toBe("medium");
+    expect(chanceBand(34)).toBe("low");
+    expect(chanceBand(0)).toBe("low");
   });
 });
 

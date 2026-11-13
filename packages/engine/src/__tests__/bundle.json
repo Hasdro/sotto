@@ -235,7 +235,7 @@
    },
    "followup": {
     "key": "followup",
-    "version": 1,
+    "version": 2,
     "stage": "summary",
     "variables": [
      "company.name",
@@ -243,7 +243,7 @@
      "company.context",
      "call.transcript"
     ],
-    "body": "You write the follow-up email a sales agent at {{company.name}} sends the customer right after a phone call. Tone: {{company.tone}}.\n\nWhat {{company.name}} wants you to know (trusted facts and rules):\n{{company.context}}\n\nWrite in the language the customer spoke. Keep it under 150 words:\n- a subject line;\n- thank them for their time, by name if the transcript gives it;\n- two or three short points that recap what they asked about and what was agreed;\n- the one next step and when it happens.\n\nOnly state prices, dates, discounts or promises that appear in the transcript or the company facts. Where a detail is missing, leave a placeholder in square brackets, like [date], for the agent to fill in.\n\nReply with exactly this form and nothing else:\nSUBJECT: <subject line>\n<email body>\n\nTranscript (Customer and Agent lines):\n{{call.transcript}}\n"
+    "body": "You write the follow-up email a sales agent at {{company.name}} sends the customer right after a phone call. Tone: {{company.tone}}.\n\nWhat {{company.name}} wants you to know (trusted facts and rules):\n{{company.context}}\n\nWrite in the language the customer spoke. Keep it under 150 words:\n- a subject line;\n- thank them for their time;\n- two or three short points that recap what they asked about and what was agreed;\n- the one next step and when it happens.\n\nOnly state prices, dates, discounts or promises that appear in the transcript or the company facts. Where a detail is missing, leave a placeholder in square brackets, like [date], for the agent to fill in.\n\nWrite only the body between the greeting and the signature: no \"Hi …\" line and no sign-off, because the company adds its own fixed opening and signature. Never say something is attached; links to proposals or booking pages are added by the company's email format.\n\nReply with exactly this form and nothing else:\nSUBJECT: <subject line>\n<email body>\n\nTranscript (Customer and Agent lines):\n{{call.transcript}}\n"
    },
    "learned_extract": {
     "key": "learned_extract",
@@ -268,7 +268,7 @@
    },
    "review": {
     "key": "review",
-    "version": 2,
+    "version": 3,
     "stage": "summary",
     "variables": [
      "company.name",
@@ -276,7 +276,7 @@
      "company.context",
      "call.transcript"
     ],
-    "body": "You are a senior sales coach reviewing one sales call made by an agent at {{company.name}}. The call goal was: {{company.call_goal}}.\n\nWhat {{company.name}} wants its agents to know and do:\n{{company.context}}\n\nScore the agent from 0 to 10 on each of these, judging only what is in the transcript:\n- opening: greeting, rapport, purpose of the call stated;\n- discovery: questions that uncover the customer's needs, budget and timing;\n- listening: responds to what the customer actually said, does not talk over them;\n- objections: acknowledges concerns and answers them with substance;\n- clarity: short, clear, confident sentences; no jargon;\n- next_step: ends with a concrete, agreed next step.\n\nThen estimate the chance (0 to 100) that this customer buys, from their own words.\n\nReply with ONLY this JSON object, no other text:\n{\"scores\":{\"opening\":0,\"discovery\":0,\"listening\":0,\"objections\":0,\"clarity\":0,\"next_step\":0},\"success\":0,\"sentiment\":\"positive|neutral|negative\",\"summary\":\"two sentences on what happened\",\"tip\":\"one specific thing the agent should do differently next time, at most 30 words\",\"strengths\":[\"up to 3 short phrases\"],\"improve\":[\"up to 3 short phrases\"]}\n\nIf the transcript has fewer than two customer sentences, still reply with the JSON, with low confidence scores of 5 and a tip about drawing the customer out.\n\nTranscript (Customer and Agent lines; the agent's side may be missing):\n{{call.transcript}}\n"
+    "body": "You are a senior sales coach reviewing one sales call made by an agent at {{company.name}}. The call goal was: {{company.call_goal}}.\n\nWhat {{company.name}} wants its agents to know and do:\n{{company.context}}\n\nScore the agent from 0 to 10 on each of these, judging only what is in the transcript:\n- opening: greeting, rapport, purpose of the call stated;\n- discovery: questions that uncover the customer's needs, budget and timing;\n- listening: responds to what the customer actually said, does not talk over them;\n- objections: acknowledges concerns and answers them with substance;\n- clarity: short, clear, confident sentences; no jargon;\n- next_step: ends with a concrete, agreed next step.\n\nThen estimate the chance (0 to 100) that this customer buys, from their own words.\n\nAlso list, from the transcript only:\n- objections: what the customer pushed back on, a few words each;\n- commitments: what either side promised to do;\n- next_step: the next step both sides agreed on; give its date as YYYY-MM-DD and time as HH:MM (24 h) only when they were said, otherwise null;\n- risks: up to 3 signals that this deal may stall or be lost (no budget, no decision maker, a competitor, no timeline, a delay), each with a reason and the customer's own words as a short quote of at most 15 words. Leave the list empty when there are none; never invent one.\n\nReply with ONLY this JSON object, no other text:\n{\"scores\":{\"opening\":0,\"discovery\":0,\"listening\":0,\"objections\":0,\"clarity\":0,\"next_step\":0},\"success\":0,\"sentiment\":\"positive|neutral|negative\",\"summary\":\"two sentences on what happened\",\"tip\":\"one specific thing the agent should do differently next time, at most 30 words\",\"strengths\":[\"up to 3 short phrases\"],\"improve\":[\"up to 3 short phrases\"],\"objections\":[\"up to 3 short phrases\"],\"commitments\":[\"up to 3 short phrases\"],\"next_step\":{\"text\":\"what was agreed\",\"date\":\"YYYY-MM-DD or null\",\"time\":\"HH:MM or null\"},\"risks\":[{\"reason\":\"short reason\",\"quote\":\"the customer's words\"}]}\n\nIf the transcript has fewer than two customer sentences, still reply with the JSON, with low confidence scores of 5 and a tip about drawing the customer out.\n\nTranscript (Customer and Agent lines; the agent's side may be missing):\n{{call.transcript}}\n"
    },
    "suggest": {
     "key": "suggest",
