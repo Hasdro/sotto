@@ -195,9 +195,12 @@ export function HomeScreen() {
 
       <View style={styles.tiles}>
         {tiles.map((tile) => (
-          <View key={tile.id} style={styles.tile}>
-            <StatTile label={tile.label} value={tile.value} testID={`home-stat-${tile.id}`} />
-          </View>
+          <StatTile
+            key={tile.id}
+            label={tile.label}
+            value={tile.value}
+            testID={`home-stat-${tile.id}`}
+          />
         ))}
       </View>
 
@@ -307,7 +310,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
-  tile: { flexGrow: 1, flexBasis: 180 },
   num: { fontVariant: ["tabular-nums"] },
   columns: { gap: space.lg },
   columnsWide: { flexDirection: "row", alignItems: "flex-start" },

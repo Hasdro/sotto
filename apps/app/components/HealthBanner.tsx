@@ -6,9 +6,9 @@
  */
 import { Button, space, Text, useTheme } from "@sotto/ui";
 import { router } from "expo-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
-import { type ConfigHealth, configHealth, type HealthReason } from "../lib/cloud";
+import { type ConfigHealth, configHealth, type HealthReason, refreshFeatures } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
 import { canOpen, type ViewRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
@@ -36,7 +36,13 @@ export function healthReasonFor(health: ConfigHealth, role: ViewRole): HealthRea
 
 export function useHealthBanner(role: ViewRole): ReactNode {
   const cloud = useCloud(); // re-renders when the feature map (and with it the health) changes
-  if (cloud.status !== "signed_in") return null;
+  const signedIn = cloud.status === "signed_in";
+  // The health comes with the feature map; read it once at sign-in instead of waiting for the
+  // first 10-minute refresh (D-036).
+  useEffect(() => {
+    if (signedIn) void refreshFeatures();
+  }, [signedIn]);
+  if (!signedIn) return null;
   const reason = healthReasonFor(configHealth(), role);
   return reason ? <HealthLine reason={reason} /> : null;
 }

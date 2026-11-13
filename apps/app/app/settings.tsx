@@ -124,6 +124,7 @@ export default function SettingsScreen() {
               key={m.id || "default"}
               accessibilityRole="radio"
               accessibilityState={{ checked: on }}
+              aria-checked={on}
               onPress={() => setPrefs({ micId: m.id || null })}
               style={[
                 styles.choice,
@@ -188,7 +189,7 @@ export default function SettingsScreen() {
                 variant="secondary"
                 label={t("settings.tutorial.play")}
                 onPress={() => {
-                  setPrefs({ tutorialDone: false });
+                  setPrefs({ tutorialDone: false, tutorialRequested: true });
                   router.push("/home");
                 }}
                 testID="settings-tutorial"

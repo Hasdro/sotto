@@ -17,7 +17,12 @@ const axeSource = readFileSync(
   "utf8",
 );
 
+// W2-A11Y (T-077): Home with its first-run steps, personal Settings, the four admin groups
+// (Company activity holds Recordings, Devices and Activity) and the signed-out reset page.
 const PAGES = [
+  "/home",
+  "/settings",
+  "/reset-password",
   "/call",
   "/history",
   "/history/c-1042",
@@ -30,6 +35,8 @@ const PAGES = [
   "/admin/settings",
   "/admin/features",
   "/admin/instructions",
+  "/admin/integrations",
+  "/admin/company",
   "/gallery",
 ];
 // The owner console (a static page the server serves at /owner, UX-44b). Its API is stubbed here

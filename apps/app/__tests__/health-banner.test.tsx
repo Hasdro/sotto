@@ -11,6 +11,7 @@ let mockHealth: ConfigHealth = { status: "ok", reasons: [] };
 let mockCompany: Record<string, unknown> = {};
 jest.mock("../lib/cloud", () => ({
   configHealth: () => mockHealth,
+  refreshFeatures: jest.fn(async () => {}),
   cloudOrigin: () => "https://sales.example.com",
 }));
 jest.mock("../lib/useCloud", () => ({

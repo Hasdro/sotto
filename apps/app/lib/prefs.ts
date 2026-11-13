@@ -14,6 +14,8 @@ export type Prefs = {
   record: boolean;
   micId: string | null;
   tutorialDone: boolean;
+  /** ZC A15: the tutorial opens only when the person asks for it in Settings. */
+  tutorialRequested: boolean;
   playbookHelpSeen: boolean;
   /** UX-10: the audio check passed once on this device (set by the call screen's check). */
   audioChecked: boolean;
@@ -29,6 +31,7 @@ export const DEFAULT_PREFS: Prefs = {
   record: true,
   micId: null,
   tutorialDone: false,
+  tutorialRequested: false,
   playbookHelpSeen: false,
   audioChecked: false,
   setupDone: [],
