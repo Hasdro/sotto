@@ -27,7 +27,7 @@ Tags:
 
 <!-- SessionStart hook prints this section. Keep it under 15 lines. -->
 - **Phase:** 9 — AGN Sales Shield product round (`docs/phases/phase-9-product-round.md`), version ladder 0.3.0 → 0.8.0 (D-030). Entry: desktop 0.2.0 published (owner's Windows test still open).
-- **Version now:** **0.3.0 released** (2026-11-13): server, web, Mac + Windows installers on /downloads/, tag v0.3.0. Owner tests on the Mac (installed) and a Windows PC. Next: **0.4.0 Pre-call** (T-053…T-057), blocked on the owner's Zoho OAuth client and the Saturday-demo choice (Zoho slice now vs plan).
+- **Version now:** **0.3.1 Mac** (2026-11-13): Zoho demo slice (T-053/T-057 partial: per-org/platform Zoho client, per-user connect, rail lookup ≤3 candidates, brief via `crm_brief`, D-037) merged, server deployed (backup `cloud.db.pre-2026-11-13-zoho`, 4 zoho tables), Mac DMGs on /downloads/, installed on the owner Mac. Gate: tests server 465 / app 290 / engine 63; replay p50 576 / p95 978 ms. Owner: paste Zoho client in owner console, connect in Admin › Integrations, test in a call. Open: meetings search, meeting in brief, writes (0.6.0); DNS after next round; Windows 0.3.1 not built.
 - **Research done (12 Nov):** Zoho v8 in `docs/REFERENCES.md` § Zoho CRM (Meetings = api_name `Events`, per-user OAuth, upsert for idempotency); Gallabox in § Gallabox.
 - **Next action (master):** collect the owner's 0.3.0 test results; once the Zoho OAuth client exists, T-053 starts with `GET /crm/v8/settings/modules` on the owner's org (REFERENCES § Zoho), as a child session `phase9/zoho`.
 - **Branch:** master `claude/friendly-gates-fbhqdv` (draft PR https://github.com/Hasdro/sotto/pull/1); children `phase9/brand-ui`, `phase9/flags-auth`, `phase9/landing-infra` in their own worktrees.
