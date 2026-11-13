@@ -612,7 +612,7 @@ td.num {
 }
 
 /* ---------- Company drawer: an overlay sheet on the end edge ---------- */
-.drawer {
+.drawer.ss-glass {
   position: fixed;
   inset-block: var(--ss-space-md);
   inset-inline-end: var(--ss-space-md);
@@ -621,10 +621,9 @@ td.num {
   display: flex;
   flex-direction: column;
   border-radius: var(--ss-radius-sheet);
-  /* biome-ignore lint/complexity/noImportantStyles: overlay level beats .ss-glass float shadow */
   box-shadow:
     0 0 0 1px var(--ss-glass-ring),
-    var(--ss-glass-shadow-elevated) !important;
+    var(--ss-glass-shadow-elevated);
   animation: ss-fade-in var(--ss-dur-medium) var(--ss-ease-out);
 }
 .drawer-head {
@@ -710,12 +709,11 @@ td.num {
 }
 
 /* ---------- Dialogs: dialog.ss-sheet.ss-glass (components.css) ---------- */
-dialog.ss-sheet {
+dialog.ss-sheet.ss-glass {
   padding: var(--ss-space-xl);
-  /* biome-ignore lint/complexity/noImportantStyles: overlay level beats .ss-glass float shadow */
   box-shadow:
     0 0 0 1px var(--ss-glass-ring),
-    var(--ss-glass-shadow-elevated) !important;
+    var(--ss-glass-shadow-elevated);
 }
 dialog h2 {
   margin: 0 0 var(--ss-space-sm);

@@ -60,9 +60,10 @@
         <span class="spacer"></span>
         <button type="button" id="newCompany" class="primary">New company</button>
       </div>
-      <div class="panel flush"><div class="table-wrap" tabindex="0" role="region" aria-label="Companies table"><table id="companies">
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Companies table"><table id="companies">
         <thead><tr><th>Company</th><th>Status</th><th>Seats</th><th>Minutes this month</th><th class="num">Calls 30d</th><th class="num">Speed p95</th><th>Last active</th></tr></thead>
-        <tbody></tbody></table></div></div>
+        <tbody></tbody></table></section></div>
     </section>
 
     <section id="v-features" class="view" hidden>
@@ -82,8 +83,9 @@
 
     <section id="v-audit" class="view" hidden>
       <header class="page-head"><h1 class="ss-page-title">Audit log</h1><p class="ss-lead ss-muted">Every owner and admin action, newest first.</p></header>
-      <div class="panel flush"><div class="table-wrap" tabindex="0" role="region" aria-label="Audit log table"><table id="audit">
-        <thead><tr><th>When</th><th>Company</th><th>Who</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Audit log table"><table id="audit">
+        <thead><tr><th>When</th><th>Company</th><th>Who</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead><tbody></tbody></table></section></div>
     </section>
 
     <section id="v-account" class="view" hidden>

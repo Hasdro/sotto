@@ -467,7 +467,7 @@ function Ratings({ summary }: { summary: RatingSummary | null }) {
 const styles = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  item: { borderWidth: 1, borderRadius: radius.md, padding: space.md, gap: space.sm },
+  item: { borderWidth: 1, borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   meta: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
   tools: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.xs },
   toggle: { flexDirection: "row", alignItems: "center", gap: space.xs, marginEnd: space.sm },

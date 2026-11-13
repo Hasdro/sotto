@@ -1,6 +1,8 @@
 /** Admin area (R3, R6), in four groups (UX-29, D-051): People, Connections, AI, Company. On the
  * desktop app keys, models and prompts live in the web admin panel only (D-038): Keys & providers
- * is not listed there and the AI group links to the web admin instead. */
+ * is not listed there and the AI group links to the web admin instead.
+ * Quiet Paper Glass (D-041, DESIGN-SYSTEM.md §5.4): the 34 px page title, the groups as neutral
+ * pill tabs (current = gray fill + w500, never a colour), the group's pages as smaller pills. */
 
 import {
   Badge,
@@ -8,16 +10,17 @@ import {
   type IconName,
   layout,
   minTouchTarget,
+  PageHeader,
   radius,
   space,
   Text,
+  useFocusRing,
   useTheme,
 } from "@sotto/ui";
 import { Slot, usePathname } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { useFeature } from "../../components/FeatureGate";
-import { PageHeader } from "../../components/PageHeader";
 import { RoleGate } from "../../components/RoleGate";
 import { useLearningBadge } from "../../features/learning/badge";
 import { configInWebOnly, openWebAdmin, webAdminUrl } from "../../features/webadmin/webAdmin";
@@ -103,6 +106,8 @@ function AdminLayout() {
   const { t } = useI18n();
   const { color } = useTheme();
   const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const webFocus = useFocusRing();
   const webOnly = configInWebOnly();
   const learning = useFeature("learned_instructions");
   const fresh = useLearningBadge(learning.state === "available");
@@ -123,61 +128,47 @@ function AdminLayout() {
   return (
     <ScrollView style={{ backgroundColor: color.background }} contentContainerStyle={styles.page}>
       <View style={styles.column}>
-        <PageHeader icon="admin" title={t("admin.title")} />
-        <View
-          role="navigation"
-          accessibilityLabel={t("admin.groups")}
-          style={[styles.tabsWrap, { borderBottomColor: color.border }]}
-        >
-          <View style={styles.tabs}>
-            {groups.map((g) => {
-              const active = g.id === current?.id;
-              const first = g.pages[0];
-              if (!first) return null;
-              return (
-                <AppLink
-                  key={g.id}
-                  href={first.href}
-                  accessibilityRole="link"
-                  accessibilityState={{ selected: active }}
-                  aria-current={active ? "page" : undefined}
-                  testID={`admin-group-${g.id}`}
-                  style={StyleSheet.flatten([
-                    styles.tab,
-                    { borderBottomColor: active ? color.primary : "transparent" },
-                  ])}
-                >
-                  <View style={styles.tabInner}>
-                    <Icon
-                      name={g.icon}
-                      size={18}
-                      color={active ? color.primary : color.textMuted}
+        <PageHeader title={t("admin.title")} compact={width < layout.wideBreakpoint} />
+        <View role="navigation" accessibilityLabel={t("admin.groups")} style={styles.tabs}>
+          {groups.map((g) => {
+            const active = g.id === current?.id;
+            const first = g.pages[0];
+            if (!first) return null;
+            return (
+              <AppLink
+                key={g.id}
+                href={first.href}
+                accessibilityRole="link"
+                accessibilityState={{ selected: active }}
+                aria-current={active ? "page" : undefined}
+                testID={`admin-group-${g.id}`}
+                style={StyleSheet.flatten([
+                  styles.tab,
+                  { backgroundColor: active ? color.surfaceSunken : "transparent" },
+                ])}
+              >
+                <View style={styles.tabInner}>
+                  <Icon name={g.icon} size={18} color={color.text} />
+                  <Text variant="body" weight={active ? "medium" : "regular"}>
+                    {t(g.label)}
+                  </Text>
+                  {g.id === "ai" && fresh > 0 ? (
+                    <Badge
+                      testID="instructions-tab-badge"
+                      label={t("learning.badge", { count: fresh })}
+                      tone="primary"
                     />
-                    <Text
-                      variant="body"
-                      weight={active ? "semibold" : "regular"}
-                      tone={active ? "primary" : "muted"}
-                    >
-                      {t(g.label)}
-                    </Text>
-                    {g.id === "ai" && fresh > 0 ? (
-                      <Badge
-                        testID="instructions-tab-badge"
-                        label={t("learning.badge", { count: fresh })}
-                        tone="primary"
-                      />
-                    ) : null}
-                  </View>
-                </AppLink>
-              );
-            })}
-          </View>
+                  ) : null}
+                </View>
+              </AppLink>
+            );
+          })}
         </View>
         {subpages.length > 1 || webLink ? (
           <View
             role="navigation"
             accessibilityLabel={t("admin.pages")}
-            style={styles.subTabs}
+            style={[styles.subTabs, { borderTopColor: color.border }]}
             testID="admin-pages"
           >
             {subpages.map((p) => {
@@ -193,16 +184,11 @@ function AdminLayout() {
                   style={StyleSheet.flatten([
                     styles.subTab,
                     {
-                      backgroundColor: active ? color.surface : "transparent",
-                      borderColor: active ? color.border : "transparent",
+                      backgroundColor: active ? color.bubble : "transparent",
                     },
                   ])}
                 >
-                  <Text
-                    variant="label"
-                    weight={active ? "semibold" : "regular"}
-                    tone={active ? "primary" : "muted"}
-                  >
+                  <Text variant="label" weight={active ? "medium" : "regular"}>
                     {t(p.label)}
                   </Text>
                 </AppLink>
@@ -214,7 +200,9 @@ function AdminLayout() {
                 accessibilityRole="link"
                 accessibilityLabel={t("admin.webPanel.link")}
                 onPress={openWebAdmin}
-                style={[styles.subTab, { borderColor: "transparent" }]}
+                onFocus={webFocus.onFocus}
+                onBlur={webFocus.onBlur}
+                style={[styles.subTab, webFocus.ring]}
               >
                 <Text variant="label" tone="muted">
                   {t("admin.webPanel.link")}
@@ -230,23 +218,33 @@ function AdminLayout() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: space.lg, paddingTop: space.xl, flexGrow: 1 },
-  column: { width: "100%", maxWidth: layout.contentMaxWidth - 120, alignSelf: "center" },
-  tabsWrap: { borderBottomWidth: 1, marginBottom: space.md },
-  tabs: { flexDirection: "row", flexWrap: "wrap", columnGap: space.lg },
-  subTabs: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginBottom: space.xl },
+  page: { paddingHorizontal: space.xl, paddingVertical: space.xxxl, flexGrow: 1 },
+  column: {
+    width: "100%",
+    maxWidth: layout.contentMaxWidth,
+    alignSelf: "center",
+    gap: space.lg,
+  },
+  tabs: { flexDirection: "row", flexWrap: "wrap", gap: space.xs },
+  tab: {
+    minHeight: minTouchTarget,
+    justifyContent: "center",
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
+  },
+  tabInner: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  subTabs: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: space.xs,
+    paddingTop: space.md,
+    marginBottom: space.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   subTab: {
     minHeight: minTouchTarget,
     justifyContent: "center",
     paddingHorizontal: space.md,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  tabInner: { flexDirection: "row", alignItems: "center", gap: space.xs },
-  tab: {
-    minHeight: minTouchTarget,
-    justifyContent: "center",
-    borderBottomWidth: 2,
-    marginBottom: -1,
+    borderRadius: radius.pill,
   },
 });

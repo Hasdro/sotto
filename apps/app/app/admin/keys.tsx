@@ -15,6 +15,7 @@ import {
   space,
   Text,
   TextField,
+  useGlassStyle,
   useTheme,
 } from "@sotto/ui";
 import { router } from "expo-router";
@@ -315,8 +316,8 @@ function Reveal({ children }: { children: React.ReactNode }) {
 /** "Add a provider": a pick list of the vendors not shown yet. */
 function AddProvider({ options, onPick }: { options: Provider[]; onPick: (id: string) => void }) {
   const { t } = useI18n();
-  const { color } = useTheme();
   const [open, setOpen] = useState(false);
+  const menuGlass = useGlassStyle({ elevated: true });
   if (options.length === 0) return null;
   return (
     <View style={styles.addWrap}>
@@ -331,7 +332,7 @@ function AddProvider({ options, onPick }: { options: Provider[]; onPick: (id: st
           accessibilityRole="menu"
           style={[
             styles.menu,
-            { backgroundColor: color.surface, borderColor: color.border, shadowColor: color.scrim },
+            menuGlass,
           ]}
           testID="keys-add-menu"
         >
@@ -662,15 +663,16 @@ function StageRow({
                 style={[
                   styles.chip,
                   {
-                    borderColor: active ? color.primary : color.borderStrong,
-                    backgroundColor: active ? color.surfaceSunken : color.surface,
+                    borderColor: active ? color.primary : "transparent",
+                    backgroundColor: active ? color.bubble : color.surfaceSunken,
+                    opacity: off ? 0.6 : 1,
                   },
                 ]}
               >
                 <Text
                   variant="label"
-                  weight={active ? "semibold" : "regular"}
-                  tone={active ? "primary" : off ? "muted" : "default"}
+                  weight="medium"
+                  tone={off ? "muted" : "default"}
                 >
                   {p.name}
                 </Text>
@@ -711,10 +713,13 @@ function StageRow({
                 onPress={() => setModel(m)}
                 style={[
                   styles.modelChip,
-                  { borderColor: m === model ? color.primary : color.border },
+                  {
+                    borderColor: m === model ? color.primary : "transparent",
+                    backgroundColor: m === model ? color.bubble : color.surfaceSunken,
+                  },
                 ]}
               >
-                <Text variant="label" tone={m === model ? "primary" : "muted"}>
+                <Text variant="label" weight={m === model ? "medium" : "regular"}>
                   {m}
                 </Text>
               </Pressable>
@@ -808,7 +813,7 @@ const styles = StyleSheet.create({
   count: {
     minWidth: 28,
     height: 24,
-    borderRadius: 12,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
@@ -820,15 +825,17 @@ const styles = StyleSheet.create({
     right: 0,
     width: 320,
     maxHeight: 360,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 6,
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
+    borderRadius: radius.lg,
+    paddingVertical: space.xs,
     overflow: "scroll",
   },
-  menuItem: { paddingHorizontal: 14, paddingVertical: 10, gap: 2 },
+  menuItem: {
+    minHeight: minTouchTarget,
+    justifyContent: "center",
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    gap: 2,
+  },
   step: { flexDirection: "row", alignItems: "flex-start", gap: space.md },
   stepMark: {
     width: 28,
@@ -855,8 +862,8 @@ const styles = StyleSheet.create({
   modelChip: {
     minHeight: 32,
     justifyContent: "center",
-    paddingHorizontal: space.sm,
+    paddingHorizontal: space.md,
     borderWidth: 1,
-    borderRadius: radius.sm,
+    borderRadius: radius.pill,
   },
 });
