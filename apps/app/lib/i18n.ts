@@ -48,7 +48,7 @@ const en = {
   "prompts.diff": "Changes from the live version",
   "prompts.diff.none": "The draft matches the live version.",
   "prompts.notFound": "There is no prompt with this name.",
-  "role.switch": "View as (demo)",
+  "role.switch": "View as",
   "role.short.agent": "Agent",
   "role.short.manager": "Manager",
   "role.short.admin": "Admin",
@@ -71,11 +71,11 @@ const en = {
   "card.shownAfter": "On screen {seconds} s after the customer stopped",
   "card.earlier": "Earlier in this call",
 
-  "call.connecting.title": "Connecting to the demo",
-  "call.connecting.body": "Looking for the local worker on this computer.",
-  "call.offline.title": "The demo is not running",
-  "call.offline.body": "Start it on this computer, then try again.",
-  "call.offline.command": "pnpm demo",
+  "call.connecting.title": "Connecting…",
+  "call.connecting.body": "Getting your call ready.",
+  "call.offline.title": "Sales Shield can't reach its call engine",
+  "call.offline.body": "Restart the app. If it keeps happening, contact your admin.",
+  "call.offline.command": "Restart AGN Sales Shield",
   "call.offline.retry": "Try again",
   "call.pick.title": "Start a practice call",
   "call.pick.body":
@@ -86,10 +86,10 @@ const en = {
   "call.pick.empty": "No scenarios yet. You can still start a call and type freely.",
   "call.status.live": "Live",
   "call.status.ended": "Ended",
-  "call.mode.fake": "Fake AI",
+  "call.mode.fake": "Practice mode",
   "call.mode.live": "Live AI",
   "call.mode.fakeHint":
-    "Suggestions come from scripted fakes. Add a model key to the worker for real ones.",
+    "Suggestions come from practice answers. Add a model key for real ones.",
   "call.mode.liveHint": "Suggestions come from the configured model.",
   "call.end": "End call",
   "call.confirmEnd.title": "End this call?",
@@ -111,15 +111,15 @@ const en = {
   "call.composer.agentPlaceholder": "You say…",
   "call.composer.send": "Send",
   "call.escalated.title": "Sent to your manager",
-  "call.error.title": "The demo reported a problem",
-  "call.error.body": "Details are in the server log.",
+  "call.error.title": "Something went wrong with this call",
+  "call.error.body": "Your notes are saved. Try again.",
   "call.connectionLost.title": "Connection lost",
   "call.connectionLost.body":
-    "The demo restarted, so this call ended. Start another call to go on.",
-  "call.notInThisBuild.title": "Live calls arrive in Phase 4",
+    "This call ended because the connection dropped. Your notes are saved. Start another call to go on.",
+  "call.notInThisBuild.title": "Live calls aren't available in this version",
   "call.notInThisBuild.body":
-    "This build does not include the local demo. Use the dev server (pnpm demo) to try the in-call screen.",
-  "call.mockBadge": "Mock stream (dev only)",
+    "Use the AGN Sales Shield app for Mac or Windows to take live calls.",
+  "call.mockBadge": "Sample call",
   "call.approximate": "Approximate: speaker matching",
 
   "plan.trial":
@@ -147,7 +147,7 @@ const en = {
   "history.outcome.lost": "Not interested",
   "history.outcome.practice": "Practice call",
   "history.outcome.live": "Live call",
-  "history.yours": "Calls on this server",
+  "history.yours": "Your calls",
   "history.samples": "Sample calls",
   "history.none.title": "No calls yet",
   "history.none.body":
@@ -197,7 +197,7 @@ const en = {
   "admin.team": "Team",
   "admin.prompts": "Prompts",
   "admin.models": "Models",
-  "admin.later.prompts.title": "Prompt editing comes in a later phase",
+  "admin.later.prompts.title": "Prompt editing comes in a later version",
   "admin.later.prompts.body":
     "Calls use Sales Shield's tested default prompts. Editing them here returns once edits are saved and reach your calls.",
   "admin.later.models.title": "Models are chosen in Keys & providers",
@@ -271,7 +271,7 @@ const en = {
   "call.hearing": "Hearing: {text}",
   "call.phone.title": "Live calls on the phone are coming",
   "call.phone.body":
-    "Live calls in the phone app arrive with phone calling (Phase 4). Use the Mac or Windows app today.",
+    "Live calls in the phone app are coming. Use the Mac or Windows app today.",
   "call.phone.download": "Get the Mac or Windows app",
   "call.listen.title": "Start listening to a call",
   "call.listen.body":
@@ -382,7 +382,7 @@ const en = {
   "admin.keys.default": "Default",
   "admin.keys.custom": "Your choice",
   "admin.keys.notInApp": "{names}: not available in the app yet.",
-  "admin.keys.noKey": "{name} has no key yet, so this job falls back to the default or to demo AI.",
+  "admin.keys.noKey": "{name} has no key yet, so this job uses the default.",
   "admin.keys.measure": "Measure speed",
   "admin.keys.measuring": "Measuring…",
   "admin.keys.speed": "First word: {p50} ms typical, {worst} ms slowest ({n} tries).",
@@ -390,7 +390,7 @@ const en = {
     "Slower than this job's {deadline} ms deadline, so the backup will often answer instead.",
   "admin.keys.speedFailed": "Speed check failed: {detail}",
   "admin.keys.speedNone": "Speed not measured yet.",
-  "admin.keys.speedStt": "Speech speed: run pnpm stt:live or pnpm spoken:live on the Mac.",
+  "admin.keys.speedStt": "Speech speed is measured on the Mac app.",
   "admin.keys.custom.title": "Your own endpoint",
   "admin.keys.custom.hint":
     "Any OpenAI-compatible server: Ollama, vLLM, LM Studio, a company proxy. A key is optional and only sent over https.",
@@ -402,7 +402,7 @@ const en = {
   "admin.keys.custom.badge": "Your endpoint",
   "admin.keys.offline.title": "The keys panel needs the Sales Shield server",
   "admin.keys.offline.body":
-    "Start it on this computer with pnpm demo, or open your hosted Sales Shield.",
+    "Sign in to your company's Sales Shield account to manage keys.",
   "gate.title": "Sign in to AGN Sales Shield",
   "gate.body": "Enter the access code for this Sales Shield server.",
   "gate.code": "Access code",
@@ -904,7 +904,7 @@ const ar: Record<StringKey, string> = {
   "prompts.diff": "التغييرات عن الإصدار المنشور",
   "prompts.diff.none": "المسودة مطابقة للإصدار المنشور.",
   "prompts.notFound": "لا توجد تعليمة بهذا الاسم.",
-  "role.switch": "العرض بصفة (تجريبي)",
+  "role.switch": "العرض بصفة",
   "role.short.agent": "مندوب",
   "role.short.manager": "مدير",
   "role.short.admin": "مسؤول",
@@ -927,11 +927,11 @@ const ar: Record<StringKey, string> = {
   "card.shownAfter": "ظهرت بعد {seconds} ث من توقف العميل",
   "card.earlier": "في وقت سابق من المكالمة",
 
-  "call.connecting.title": "جارٍ الاتصال بالعرض التجريبي",
-  "call.connecting.body": "نبحث عن الخادم المحلي على هذا الجهاز.",
-  "call.offline.title": "العرض التجريبي غير مشغّل",
-  "call.offline.body": "شغّله على هذا الجهاز ثم حاول مرة أخرى.",
-  "call.offline.command": "pnpm demo",
+  "call.connecting.title": "جارٍ الاتصال…",
+  "call.connecting.body": "نجهّز مكالمتك.",
+  "call.offline.title": "تعذّر على Sales Shield الوصول إلى محرك المكالمات",
+  "call.offline.body": "أعد تشغيل التطبيق. إذا تكرر ذلك فتواصل مع المسؤول.",
+  "call.offline.command": "أعد تشغيل AGN Sales Shield",
   "call.offline.retry": "حاول مرة أخرى",
   "call.pick.title": "ابدأ مكالمة تدريبية",
   "call.pick.body": "اختر سيناريو. تكتب ما يقوله العميل، ويقترح Sales Shield ما تقوله أنت.",
@@ -941,10 +941,10 @@ const ar: Record<StringKey, string> = {
   "call.pick.empty": "لا توجد سيناريوهات بعد. يمكنك بدء مكالمة والكتابة بحرية.",
   "call.status.live": "مباشر",
   "call.status.ended": "انتهت",
-  "call.mode.fake": "ذكاء تجريبي",
+  "call.mode.fake": "وضع التدريب",
   "call.mode.live": "ذكاء حقيقي",
   "call.mode.fakeHint":
-    "الاقتراحات من نماذج تجريبية مكتوبة. أضف مفتاح نموذج إلى الخادم لاقتراحات حقيقية.",
+    "الاقتراحات من إجابات تدريبية. أضف مفتاح نموذج لاقتراحات حقيقية.",
   "call.mode.liveHint": "الاقتراحات من النموذج المُعد.",
   "call.end": "إنهاء المكالمة",
   "call.confirmEnd.title": "إنهاء هذه المكالمة؟",
@@ -966,15 +966,15 @@ const ar: Record<StringKey, string> = {
   "call.composer.agentPlaceholder": "تقول أنت…",
   "call.composer.send": "إرسال",
   "call.escalated.title": "أُرسل إلى مديرك",
-  "call.error.title": "أبلغ العرض التجريبي عن مشكلة",
-  "call.error.body": "التفاصيل في سجل الخادم.",
+  "call.error.title": "حدث خطأ في هذه المكالمة",
+  "call.error.body": "ملاحظاتك محفوظة. حاول مرة أخرى.",
   "call.connectionLost.title": "انقطع الاتصال",
   "call.connectionLost.body":
-    "أُعيد تشغيل العرض التجريبي فانتهت هذه المكالمة. ابدأ مكالمة أخرى للمتابعة.",
-  "call.notInThisBuild.title": "المكالمات المباشرة تصل في المرحلة 4",
+    "انتهت هذه المكالمة لانقطاع الاتصال. ملاحظاتك محفوظة. ابدأ مكالمة أخرى للمتابعة.",
+  "call.notInThisBuild.title": "المكالمات المباشرة غير متاحة في هذا الإصدار",
   "call.notInThisBuild.body":
-    "هذا الإصدار لا يتضمن العرض التجريبي المحلي. استخدم خادم التطوير (pnpm demo) لتجربة شاشة المكالمة.",
-  "call.mockBadge": "بث تجريبي (للتطوير فقط)",
+    "استخدم تطبيق AGN Sales Shield لنظام Mac أو Windows لإجراء المكالمات المباشرة.",
+  "call.mockBadge": "مكالمة نموذجية",
   "call.approximate": "تقريبي: مطابقة الصوت",
 
   "plan.trial":
@@ -1002,7 +1002,7 @@ const ar: Record<StringKey, string> = {
   "history.outcome.lost": "غير مهتم",
   "history.outcome.practice": "مكالمة تدريبية",
   "history.outcome.live": "مكالمة مباشرة",
-  "history.yours": "المكالمات على هذا الخادم",
+  "history.yours": "مكالماتك",
   "history.samples": "مكالمات نموذجية",
   "history.none.title": "لا توجد مكالمات بعد",
   "history.none.body":
@@ -1123,7 +1123,7 @@ const ar: Record<StringKey, string> = {
   "call.hearing": "نسمع: {text}",
   "call.phone.title": "المكالمات المباشرة على الهاتف قادمة",
   "call.phone.body":
-    "تصل المكالمات المباشرة في تطبيق الهاتف مع ميزة الاتصال الهاتفي (المرحلة 4). استخدم تطبيق Mac أو Windows اليوم.",
+    "المكالمات المباشرة في تطبيق الهاتف قادمة قريبًا. استخدم تطبيق Mac أو Windows اليوم.",
   "call.phone.download": "احصل على تطبيق Mac أو Windows",
   "call.listen.title": "ابدأ الاستماع إلى مكالمة",
   "call.listen.body":
@@ -1241,7 +1241,7 @@ const ar: Record<StringKey, string> = {
     "أبطأ من مهلة هذه المهمة ({deadline} مللي ثانية)، لذلك سيجيب البديل غالباً.",
   "admin.keys.speedFailed": "فشل قياس السرعة: {detail}",
   "admin.keys.speedNone": "لم تُقَس السرعة بعد.",
-  "admin.keys.speedStt": "سرعة الكلام: شغّل pnpm stt:live أو pnpm spoken:live على الماك.",
+  "admin.keys.speedStt": "تُقاس سرعة الكلام في تطبيق Mac.",
   "admin.keys.custom.title": "خادمك الخاص",
   "admin.keys.custom.hint":
     "أي خادم متوافق مع OpenAI: ‏Ollama أو vLLM أو LM Studio أو وسيط الشركة. المفتاح اختياري ولا يُرسل إلا عبر https.",
@@ -1253,7 +1253,7 @@ const ar: Record<StringKey, string> = {
   "admin.keys.custom.badge": "خادمك",
   "admin.keys.offline.title": "لوحة المفاتيح تحتاج خادم Sales Shield",
   "admin.keys.offline.body":
-    "شغّله على هذا الجهاز بالأمر pnpm demo، أو افتح نسخة Sales Shield المستضافة.",
+    "سجّل الدخول إلى حساب شركتك في Sales Shield لإدارة المفاتيح.",
   "gate.title": "سجّل الدخول إلى AGN Sales Shield",
   "gate.body": "أدخل رمز الدخول لهذا الخادم.",
   "gate.code": "رمز الدخول",

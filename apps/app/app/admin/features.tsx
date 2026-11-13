@@ -7,15 +7,15 @@ import {
   Badge,
   type BadgeTone,
   EmptyState,
+  minTouchTarget,
   Panel,
   Stack,
   space,
   Text,
-  ToggleRow,
   useTheme,
 } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Switch, View } from "react-native";
 import type { Effective, FeatureId, FeatureState } from "../../features/flags/catalog";
 import { reasonFor, useFlagText } from "../../features/flags/strings";
 import { cloudApi, refreshFeatures } from "../../lib/cloud";
@@ -26,6 +26,15 @@ type Row = Effective & {
   enabled: boolean;
   roles: ("admin" | "manager" | "agent")[];
 };
+
+/** Plumbing rows an admin never decides on their own: they follow the visible feature that uses
+ * them (Zoho needs Integrations; WhatsApp needs Gallabox; ratings drive learned instructions). */
+export const HIDDEN_FEATURES: readonly FeatureId[] = [
+  "integrations",
+  "gallabox",
+  "learned_instructions",
+  "prep",
+];
 
 const TONE: Record<FeatureState, BadgeTone> = {
   available: "answer",
@@ -84,7 +93,12 @@ export default function FeaturesScreen() {
       ) : null}
       {rows ? (
         <Panel>
-          {rows.map((row, i) => (
+          {rows
+            .filter((r) => !HIDDEN_FEATURES.includes(r.id))
+            .map((row, i) => {
+              const locked = row.state === "off_by_platform";
+              const reason = row.state !== "available" ? reasonFor(text, row, true) : "";
+              return (
             <View
               key={row.id}
               style={[
@@ -92,24 +106,38 @@ export default function FeaturesScreen() {
                 i > 0 ? [styles.divided, { borderTopColor: color.border }] : null,
               ]}
             >
-              <ToggleRow
-                testID={`feature-toggle-${row.id}`}
-                label={text.name[row.id]}
-                description={text.about[row.id]}
-                value={row.enabled}
-                onValueChange={(v) => {
-                  if (busy === null) toggle(row.id, v);
-                }}
-              />
+              <View style={styles.toggle}>
+                <View style={styles.toggleText}>
+                  <Text variant="body" weight="medium">
+                    {text.name[row.id]}
+                  </Text>
+                  <Text variant="label" tone="muted">
+                    {text.about[row.id]}
+                  </Text>
+                </View>
+                <Switch
+                  testID={`feature-toggle-${row.id}`}
+                  accessibilityLabel={locked ? `${text.name[row.id]}: ${reason}` : text.name[row.id]}
+                  accessibilityHint={text.about[row.id]}
+                  disabled={locked}
+                  value={locked ? false : row.enabled}
+                  onValueChange={(v) => {
+                    if (busy === null) toggle(row.id, v);
+                  }}
+                  trackColor={{ false: color.borderStrong, true: color.primary }}
+                  thumbColor={color.surface}
+                  ios_backgroundColor={color.borderStrong}
+                />
+              </View>
               <View style={styles.facts}>
                 <Badge
                   label={text.state[row.state]}
                   tone={TONE[row.state]}
                   testID={`feature-state-${row.id}`}
                 />
-                {row.state !== "available" ? (
+                {reason ? (
                   <Text variant="label" tone="muted">
-                    {reasonFor(text, row, true)}
+                    {reason}
                   </Text>
                 ) : null}
                 <Text variant="label" tone="muted">
@@ -117,7 +145,8 @@ export default function FeaturesScreen() {
                 </Text>
               </View>
             </View>
-          ))}
+              );
+            })}
         </Panel>
       ) : null}
     </Stack>
@@ -127,5 +156,12 @@ export default function FeaturesScreen() {
 const styles = StyleSheet.create({
   row: { paddingVertical: space.sm, gap: space.xs },
   divided: { borderTopWidth: StyleSheet.hairlineWidth },
+  toggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.lg,
+    minHeight: minTouchTarget + space.md,
+  },
+  toggleText: { flex: 1, gap: 2 },
   facts: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm },
 });

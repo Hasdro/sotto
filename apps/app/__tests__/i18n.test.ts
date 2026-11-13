@@ -34,4 +34,20 @@ describe("string table", () => {
     expect(formatNumber(0.8432, "en", 2)).toBe("0.84");
     expect(formatNumber(0.8432, "ar", 2)).toBe("0.84");
   });
+
+  it("has no engineering words in anything an agent sees (UX-06b, UX-42)", () => {
+    const banned = /Phase \d|pnpm|Fake AI|dev only|\bdemo\b|server log|المرحلة \d|للتطوير فقط/i;
+    // Admin-only keys may say "server"; the words below must never appear anywhere.
+    const hits: string[] = [];
+    for (const locale of LOCALES) {
+      for (const key of STRING_KEYS) {
+        if (key.startsWith("tutorial.demo.")) continue; // the tutorial's fictional customer line
+        if (banned.test(t(key, locale))) hits.push(`${locale} ${key}: ${t(key, locale)}`);
+      }
+    }
+    expect(hits).toEqual([]);
+    for (const key of STRING_KEYS.filter((k) => /^call\.(connecting|error|offline)/.test(k))) {
+      for (const locale of LOCALES) expect(t(key, locale)).not.toMatch(/server|سجل|الخادم/i);
+    }
+  });
 });

@@ -132,4 +132,36 @@ describe("Admin → Features", () => {
     expect(await screen.findByText("Off for your organization")).toBeOnTheScreen();
     expect(screen.getByText("Saved.")).toBeOnTheScreen();
   });
+
+  it("shows a feature switched off by AGN as a disabled, off switch labelled with the reason", async () => {
+    jest.mocked(cloudApi).mockImplementation(async () => ({
+      features: [
+        { ...rows[0], enabled: true, state: "off_by_platform" },
+        { id: "integrations", enabled: true, roles: ["admin"], state: "available" },
+        { id: "gallabox", enabled: true, roles: ["admin"], state: "available" },
+      ],
+    }));
+    await wrap(<FeaturesScreen />);
+    const toggle = await screen.findByTestId("feature-toggle-reports");
+    expect(toggle.props.disabled ?? toggle.props.accessibilityState?.disabled).toBeTruthy();
+    expect(toggle.props.value).toBe(false);
+    expect(toggle.props.accessibilityLabel).toBe("Reports: Not included in your plan right now.");
+  });
+
+  it("hides plumbing rows that follow a visible feature", async () => {
+    jest.mocked(cloudApi).mockImplementation(async () => ({
+      features: [
+        rows[0],
+        { id: "integrations", enabled: true, roles: ["admin"], state: "available" },
+        { id: "gallabox", enabled: true, roles: ["admin"], state: "available" },
+        { id: "learned_instructions", enabled: true, roles: ["admin"], state: "available" },
+        { id: "prep", enabled: true, roles: ["admin"], state: "available" },
+      ],
+    }));
+    await wrap(<FeaturesScreen />);
+    expect(await screen.findByText("Reports")).toBeOnTheScreen();
+    for (const id of ["integrations", "gallabox", "learned_instructions", "prep"]) {
+      expect(screen.queryByTestId(`feature-toggle-${id}`)).toBeNull();
+    }
+  });
 });
