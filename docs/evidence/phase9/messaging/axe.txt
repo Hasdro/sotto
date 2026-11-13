@@ -1,0 +1,12 @@
+/admin/integrations 1280-light-en (templates loaded): 0 serious/critical
+email+whatsapp previews 1280-light-en: 0 serious/critical
+/admin/integrations 1280-dark-en (templates loaded): 0 serious/critical
+email+whatsapp previews 1280-dark-en: 0 serious/critical
+/admin/integrations 1280-light-ar (templates loaded): 0 serious/critical
+email+whatsapp previews 1280-light-ar: 0 serious/critical
+/admin/integrations 390-light-en (templates loaded): 0 serious/critical
+email+whatsapp previews 390-light-en: 0 serious/critical
+/admin/integrations 390-dark-en (templates loaded): 0 serious/critical
+email+whatsapp previews 390-dark-en: 0 serious/critical
+/admin/integrations 390-light-ar (templates loaded): 0 serious/critical
+email+whatsapp previews 390-light-ar: 0 serious/critical

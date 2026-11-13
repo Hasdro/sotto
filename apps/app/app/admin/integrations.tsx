@@ -22,6 +22,8 @@ import {
 } from "../../features/crm/api";
 import { useZoho } from "../../features/crm/useZoho";
 import { ZohoConnect } from "../../features/crm/ZohoConnect";
+import { SmtpSettings } from "../../features/email/SmtpSettings";
+import { GallaboxSettings } from "../../features/whatsapp/GallaboxSettings";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 
@@ -43,6 +45,8 @@ export default function IntegrationsScreen() {
     <Stack gap="xl" testID="admin-integrations">
       <ClientPanel />
       <ConnectionPanel />
+      <SmtpSettings />
+      <GallaboxSettings />
     </Stack>
   );
 }

@@ -1,0 +1,23 @@
+{
+  "about": "Default email formats an organisation starts with (D-032). The model or the agent writes only the body; opening and signature are static blocks merged verbatim, with {{placeholders}} filled from the call.",
+  "formats": [
+    {
+      "id": "follow_up",
+      "name": "Follow-up",
+      "kind": "follow_up",
+      "subject": "Following up on our call",
+      "opening": "Hi {{customer.name}},",
+      "body": "Thank you for your time today. As promised, here is a short summary and the next step we agreed on.",
+      "signature": "Best regards,\n{{agent.name}}\n{{company.name}}"
+    },
+    {
+      "id": "meeting_confirmation",
+      "name": "Meeting confirmation",
+      "kind": "meeting_confirmation",
+      "subject": "Confirming our meeting",
+      "opening": "Hi {{customer.name}},",
+      "body": "This confirms our next meeting. Reply to this email if the time no longer works for you.",
+      "signature": "Best regards,\n{{agent.name}}\n{{company.name}}"
+    }
+  ]
+}

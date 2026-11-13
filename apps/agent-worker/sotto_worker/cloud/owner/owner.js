@@ -110,7 +110,10 @@ function show(view) {
     companies: loadCompanies,
     features: loadFeatures,
     audit: loadAudit,
-    account: loadZoho,
+    account: () => {
+      loadZoho();
+      loadSmtp();
+    },
   })[view]();
 }
 
@@ -798,6 +801,72 @@ $("#zohoRemove").addEventListener("click", async () => {
     $("#zohoMsg").textContent = "Removed.";
   } catch (err) {
     $("#zohoMsg").textContent = err.message;
+  }
+});
+
+// --- platform SMTP (D-039): write-only; the server never sends the username or password back --
+function smtpState(c) {
+  $("#smtpState").textContent = c.configured
+    ? `Saved: ${c.host}:${c.port}, from ${c.from_name} <${c.from_address}>, on ${new Date(c.updated_at).toLocaleString()}.`
+    : "No platform mailbox yet.";
+  if (c.configured) {
+    $("#smtpHost").value = c.host;
+    $("#smtpPort").value = String(c.port);
+    $("#smtpFromName").value = c.from_name;
+    $("#smtpFrom").value = c.from_address;
+  }
+  $("#smtpRemove").hidden = !c.configured;
+  $("#smtpTest").hidden = !c.configured;
+}
+async function loadSmtp() {
+  try {
+    smtpState(await api("/api/owner/smtp"));
+  } catch (err) {
+    $("#smtpState").textContent = err.message;
+  }
+}
+$("#smtpForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    smtpState(
+      await api("/api/owner/smtp", {
+        method: "PUT",
+        body: {
+          host: $("#smtpHost").value,
+          port: Number($("#smtpPort").value),
+          username: $("#smtpUser").value,
+          password: $("#smtpPass").value,
+          from_name: $("#smtpFromName").value,
+          from_address: $("#smtpFrom").value,
+        },
+      }),
+    );
+    $("#smtpUser").value = "";
+    $("#smtpPass").value = "";
+    $("#smtpMsg").textContent = "Saved.";
+  } catch (err) {
+    $("#smtpMsg").textContent = err.message;
+  }
+});
+$("#smtpTest").addEventListener("click", async () => {
+  $("#smtpMsg").textContent = "Sending…";
+  try {
+    const r = await api("/api/owner/smtp/test", { method: "POST", body: {} });
+    $("#smtpMsg").textContent = r.ok
+      ? `Test email sent to ${r.to}.`
+      : `The mail server said: ${r.error}`;
+  } catch (err) {
+    $("#smtpMsg").textContent = err.message;
+  }
+});
+$("#smtpRemove").addEventListener("click", async () => {
+  if (!confirm("Remove the platform mailbox? Organisations without their own cannot send email."))
+    return;
+  try {
+    smtpState(await api("/api/owner/smtp", { method: "DELETE" }));
+    $("#smtpMsg").textContent = "Removed.";
+  } catch (err) {
+    $("#smtpMsg").textContent = err.message;
   }
 });
 

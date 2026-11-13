@@ -1,0 +1,315 @@
+/**
+ * Post-call email action (T-063, R12, D-032). Self-contained: the post-call panel (owned by the
+ * zoho-actions stream) renders it with what it knows about the call. Nothing is sent until the
+ * agent has seen the server's exact preview and pressed Confirm; a retry reuses the same
+ * idempotency key, so the customer never gets the email twice.
+ */
+import { Button, Panel, SegmentedControl, Stack, Text, TextField } from "@sotto/ui";
+import { useEffect, useMemo, useState } from "react";
+import { FeatureOff, useFeature } from "../../components/FeatureGate";
+import { useAttached } from "../crm/attached";
+import {
+  addressList,
+  type Draft,
+  type EmailFormat,
+  emailFormats,
+  emailSenders,
+  newIdempotencyKey,
+  type Preview,
+  previewEmail,
+  type Sender,
+  sendEmail,
+} from "./api";
+import { useEmailText } from "./strings";
+
+export type EmailActionProps = {
+  callId: string | null;
+  /** Prefills; the attached Zoho record fills whatever is not given. */
+  customer?: { name?: string; email?: string };
+  /** The follow-up draft written on this device (features/review/FollowUp), if any. */
+  draft?: { subject: string; body: string } | null;
+  onSent?: (preview: Preview) => void;
+};
+
+type Step =
+  | { kind: "compose"; error?: string }
+  | { kind: "preview"; preview: Preview; key: string; error?: string }
+  | { kind: "sending"; preview: Preview; key: string }
+  | { kind: "sent"; preview: Preview; duplicate: boolean };
+
+const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+export function EmailAction(props: EmailActionProps) {
+  const effective = useFeature("email_send");
+  if (effective.state === "no_permission") return null;
+  if (effective.state !== "available")
+    return <FeatureOff feature="email_send" effective={effective} />;
+  return <Composer {...props} />;
+}
+
+function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
+  const t = useEmailText();
+  const attached = useAttached();
+  const person = attached.kind === "attached" ? attached.brief.person : null;
+  const [senders, setSenders] = useState<Sender[]>([]);
+  const [formats, setFormats] = useState<EmailFormat[]>([]);
+  const [sender, setSender] = useState("");
+  const [format, setFormat] = useState("");
+  const [to, setTo] = useState(customer?.email ?? person?.email ?? "");
+  const [cc, setCc] = useState("");
+  const [name, setName] = useState(customer?.name ?? person?.name ?? "");
+  const [subject, setSubject] = useState(draft?.subject ?? "");
+  const [body, setBody] = useState(draft?.body ?? "");
+  const [touched, setTouched] = useState(Boolean(draft));
+  const [step, setStep] = useState<Step>({ kind: "compose" });
+
+  useEffect(() => {
+    emailSenders()
+      .then((r) => {
+        setSenders(r.senders);
+        setSender((s) => s || r.senders[0]?.id || "");
+      })
+      .catch((e) => setStep({ kind: "compose", error: errorOf(e) }));
+    emailFormats()
+      .then((r) => {
+        setFormats(r.formats);
+        setFormat((f) => f || r.formats[0]?.id || "");
+      })
+      .catch(() => {});
+  }, []);
+
+  const chosen = useMemo(() => formats.find((f) => f.id === format), [formats, format]);
+  useEffect(() => {
+    if (chosen && !touched) {
+      setSubject(chosen.subject);
+      setBody(chosen.body);
+    }
+  }, [chosen, touched]);
+
+  const current: Draft = {
+    sender,
+    format,
+    to: addressList(to),
+    cc: addressList(cc),
+    subject,
+    body,
+    customer_name: name.trim(),
+  };
+  const edit =
+    (set: (v: string) => void, marks = false) =>
+    (v: string) => {
+      set(v);
+      if (marks) setTouched(true);
+    };
+
+  const preview = () =>
+    previewEmail(current)
+      .then((p) =>
+        setStep({
+          kind: "preview",
+          preview: p,
+          key: newIdempotencyKey(`${callId ?? "call"}-email`),
+        }),
+      )
+      .catch((e) => setStep({ kind: "compose", error: errorOf(e) }));
+  const confirm = (p: Preview, key: string) => {
+    setStep({ kind: "sending", preview: p, key });
+    sendEmail(current, key)
+      .then((r) => {
+        setStep({ kind: "sent", preview: p, duplicate: r.duplicate });
+        onSent?.(p);
+      })
+      .catch((e) => setStep({ kind: "preview", preview: p, key, error: errorOf(e) }));
+  };
+
+  return (
+    <Panel testID="email-action">
+      <Stack gap="md">
+        <Text variant="body" weight="semibold" accessibilityRole="header">
+          {t("email.title")}
+        </Text>
+        {step.kind === "compose" ? (
+          <>
+            {senders.length > 1 ? (
+              <Labelled label={t("email.from")}>
+                <SegmentedControl
+                  options={senders.map((s) => ({ value: s.id, label: s.from_address }))}
+                  value={sender}
+                  onChange={setSender}
+                  accessibilityLabel={t("email.from")}
+                  testID="email-sender"
+                />
+              </Labelled>
+            ) : senders[0] ? (
+              <Text variant="label" tone="muted" testID="email-sender">
+                {`${t("email.from")}: ${senders[0].from_name} · ${senders[0].from_address}`}
+              </Text>
+            ) : null}
+            {formats.length > 1 && formats.length <= 4 ? (
+              <Labelled label={t("email.format")}>
+                <SegmentedControl
+                  options={formats.map((f) => ({ value: f.id, label: f.name }))}
+                  value={format}
+                  onChange={setFormat}
+                  accessibilityLabel={t("email.format")}
+                  testID="email-format"
+                />
+              </Labelled>
+            ) : null}
+            <TextField
+              label={t("email.to")}
+              value={to}
+              onChangeText={setTo}
+              placeholder={t("email.addresses")}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              testID="email-to"
+            />
+            <TextField
+              label={t("email.cc")}
+              value={cc}
+              onChangeText={setCc}
+              placeholder={t("email.addresses")}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              testID="email-cc"
+            />
+            <TextField
+              label={t("email.customer")}
+              value={name}
+              onChangeText={setName}
+              testID="email-customer"
+            />
+            <TextField
+              label={t("email.subject")}
+              value={subject}
+              onChangeText={edit(setSubject, true)}
+              testID="email-subject"
+            />
+            <TextField
+              label={t("email.body")}
+              value={body}
+              onChangeText={edit(setBody, true)}
+              multiline
+              height={160}
+              testID="email-body"
+            />
+            <Stack direction="row" gap="sm" wrap>
+              <Button
+                label={t("email.preview")}
+                disabled={!sender || !format || !to.trim() || !subject.trim() || !body.trim()}
+                onPress={preview}
+                testID="email-preview"
+              />
+            </Stack>
+            {step.error ? <Problem text={t("email.failed", { error: step.error })} /> : null}
+          </>
+        ) : (
+          <PreviewBox
+            preview={step.preview}
+            title={t(step.kind === "sent" ? "email.sent" : "email.previewTitle", {
+              to: step.preview.to.join(", "),
+            })}
+          />
+        )}
+        {step.kind === "preview" || step.kind === "sending" ? (
+          <>
+            <Stack direction="row" gap="sm" wrap>
+              <Button
+                label={t(step.kind === "sending" ? "email.sending" : "email.confirm")}
+                disabled={step.kind === "sending"}
+                onPress={() => confirm(step.preview, step.key)}
+                testID="email-confirm"
+              />
+              <Button
+                variant="ghost"
+                label={t("email.edit")}
+                disabled={step.kind === "sending"}
+                onPress={() => setStep({ kind: "compose" })}
+                testID="email-edit"
+              />
+            </Stack>
+            {step.kind === "preview" && step.error ? (
+              <Problem text={t("email.failed", { error: step.error })} />
+            ) : null}
+          </>
+        ) : null}
+        {step.kind === "sent" ? (
+          <Stack gap="sm">
+            {step.duplicate ? (
+              <Text variant="label" tone="muted">
+                {t("email.duplicate")}
+              </Text>
+            ) : null}
+            <Stack direction="row" gap="sm" wrap>
+              <Button
+                variant="secondary"
+                label={t("email.another")}
+                onPress={() => setStep({ kind: "compose" })}
+                testID="email-another"
+              />
+            </Stack>
+          </Stack>
+        ) : null}
+      </Stack>
+    </Panel>
+  );
+}
+
+function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Stack gap="xs">
+      <Text variant="label" weight="medium" tone="muted">
+        {label}
+      </Text>
+      {children}
+    </Stack>
+  );
+}
+
+function Problem({ text }: { text: string }) {
+  return (
+    <Text
+      variant="label"
+      tone="danger"
+      selectable
+      aria-live="polite"
+      accessibilityLiveRegion="polite"
+      testID="email-error"
+    >
+      {text}
+    </Text>
+  );
+}
+
+function PreviewBox({ preview, title }: { preview: Preview; title: string }) {
+  const t = useEmailText();
+  return (
+    <Panel sunken testID="email-preview-box">
+      <Stack gap="sm">
+        <Text variant="label" weight="semibold" aria-live="polite" accessibilityLiveRegion="polite">
+          {title}
+        </Text>
+        <Text variant="label" tone="muted" selectable>
+          {`${t("email.from")}: ${preview.from.name} · ${preview.from.address}`}
+        </Text>
+        <Text variant="label" tone="muted" selectable>
+          {`${t("email.to")}: ${preview.to.join(", ")}`}
+        </Text>
+        {preview.cc.length ? (
+          <Text variant="label" tone="muted" selectable>
+            {`${t("email.cc")}: ${preview.cc.join(", ")}`}
+          </Text>
+        ) : null}
+        <Text variant="body" weight="semibold" selectable testID="email-preview-subject">
+          {preview.subject}
+        </Text>
+        <Text variant="body" selectable testID="email-preview-text">
+          {preview.text}
+        </Text>
+      </Stack>
+    </Panel>
+  );
+}
