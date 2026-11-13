@@ -232,6 +232,7 @@ Wave 4
 - [ ] T-082 `review-zoho-scopes` `owner` — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
 - [ ] T-083 `review-ai-autoconfig` `owner` — ZC-04, ZC-05, ZC-12
 - [x] T-084 `design-system` — Quiet Paper Glass from the owner's muse-ai reference (D-041): `docs/design/DESIGN-SYSTEM.md`, tokens + primitives in `packages/ui`, `tokens.css`/`components.css` for HTML, Inter + IBM Plex Sans Arabic, gallery screens in `docs/design/screens/` (branch `phase9/design-system`, `docs/design/READY`)
+- [x] T-085 `redesign-app` — the desktop/web app on Quiet Paper Glass (D-041): shell (gray-fill nav rows, neutral unread count, glass phone top bar, inset banners), page header 34 px, Home, live-call chrome (Live pill, chip rail toggle, glass composer/listen capsules, glass End dialog), glass overlays (palette, profile, peek, tutorial), 22 px outlined cards, desktop window canvas; screens in `docs/design/screens/app/` (branch `phase9/redesign-app`)
 
 ## Waiting on owner
 
@@ -346,6 +347,11 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 (d) · local · Opus 5.5 · phase9/redesign-app
+- **Done (T-085):** merged `phase9/design-system`; restyled the app in `apps/app/components` (AppShell, PageHeader, Plan/Health banners, CommandPalette, ProfilePopup, CallPeek, Tutorial, FeatureGate), `features/home`, `features/call/components` (CallHeader, Composer, ListenBar, ConfirmEnd, ScenarioPicker), settings/reports/inbox/history, review, meetings; `apps/desktop/main.cjs` window background = canvas (light/dark). Behaviour, copy and test ids unchanged; card render code untouched (SuggestionCard from `@sotto/ui`). `scripts/screenshots.mjs`: `SOTTO_SHOT_ALL=1` adds dark Arabic, `SOTTO_SHOT_SCALE`.
+- **Evidence:** app jest 466 pass; `@sotto/ui` vitest 189 + jest 96; typecheck green; biome clean on changed files; a11y 64 checks 0 serious; replay p50 576 / p95 978 ms, R4 0; 88 screenshots (10 screens + menus × light/dark × en/ar × 390/1280) in `docs/design/screens/app/`.
+- **Note for master:** `pnpm lint` cannot run inside a `.claude/worktrees/*` checkout (biome `!**/.claude` include drops everything) — run it in the master checkout. Mock call screenshots need the dev server (`expo start --web`), since `?mock=1` is dev-only.
 
 ### 2026-11-14 (c) · local · Opus 5.5 · phase9/design-system
 - **Done (T-084, D-041):** reference copied to `docs/design/reference/muse-ai/`; `docs/design/DESIGN-SYSTEM.md` (principles, light/dark tokens, type, spacing, radius, elevation, motion, icons, component specs, page templates, a11y, screen-by-screen mapping in §7). `packages/ui`: new token values (canvas `#fcfcfc`, gray ramp, one `#005bbf` accent, glass, pill radii, 100–300 ms motion), new keys (`bubble`, `textTertiary`, `glass`, `gray`, `easing`, `radius.sheet/composer`, type roles `timestamp/secondary/pageTitle/display`); hero card = accent bubble (warning red, holding neutral); restyled Button/IconButton/TextField/Panel/Table/Sheet/Toast/TranscriptLine/SegmentedControl; new `GlassSurface`, `PageHeader`, `NavRow`, `ListRow`, `Skeleton`, `useGlassStyle`; `tokens.css` generated (`pnpm --filter @sotto/ui gen:css`, staleness test) + `components.css`. App loads Inter + IBM Plex Sans Arabic (Readex Pro removed); gallery updated.
