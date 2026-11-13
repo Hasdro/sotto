@@ -414,3 +414,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 ## D-039 — SMTP and Gallabox credentials per org in Admin → Integrations
 2026-11-13 · owner
 - **Decision:** SMTP (host, port, user, password, from) and Gallabox (API key, secret, channel, template allow-list) are entered per org in Admin → Integrations, write-only and encrypted, with a platform fallback in the owner console (org wins), the same pattern as the Zoho client (D-037). Credentials are never collected in chat or stored in git.
+
+## D-040 — Learned instructions go in the cacheable system part through their own prompt
+2026-11-13 · Claude (technical, learning-admin)
+- **Decision:** approved learned instructions reach the live model through a separate `learned_instructions` prompt appended to the cacheable system part (same pattern as D-037), from the next call only; the playbook wins on conflict. Older bundles skip the block, so 0.3.x clients keep working. Extraction uses `learned_extract` on a minimised packet (summary, brief, rated cards with the customer turn before and after), never the full transcript.
