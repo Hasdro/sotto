@@ -227,3 +227,18 @@ def test_the_owner_cannot_be_reset_by_email(
     assert r.status_code == 200
     time.sleep(0.1)
     assert outbox.sent == []
+
+
+def test_link_uses_the_configured_origin_not_the_host_header(
+    rc: TestClient, outbox: Outbox
+) -> None:
+    signup(rc)
+    r = rc.post(
+        "/api/v1/auth/reset/request",
+        json={"email": "admin@acme.test"},
+        headers={"host": "evil.example"},
+    )
+    assert r.status_code == 200
+    wait_for(lambda: len(outbox.sent) == 1)
+    assert f"{ORIGIN}/reset-password#token=" in outbox.sent[0].text
+    assert "evil.example" not in outbox.sent[0].text

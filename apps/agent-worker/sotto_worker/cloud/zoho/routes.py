@@ -291,14 +291,21 @@ def make_routes(
             return _page(
                 "Zoho is not set up", "Ask your admin to add the Zoho client.", 409, state="bad"
             )
+        # Bind the flow to the first browser that opens it (security review M1); that browser
+        # keeps its cookie for "Change". Say whose account it is for, so a forwarded link
+        # cannot quietly connect someone else's Zoho.
+        browser = request.cookies.get(BROWSER_COOKIE, "")[:100] or secrets.token_urlsafe(32)
+        if not store.zoho_bind_browser(state, browser):
+            return _page(
+                "Open it where you started",
+                "This link is already open in another browser. Start again from AGN Sales Shield.",
+                409,
+                state="bad",
+            )
         pick = request.query_params.get("dc")
         if pick is not None:  # "Change": a known DC, or "auto" to detect again
             store.zoho_choose_dc(state, pick if pick in ACCOUNTS else None)
             row = store.zoho_peek_state(state) or row
-        # Bind the flow to this browser (security review M1), and say whose account it is for,
-        # so a forwarded link cannot quietly connect someone else's Zoho.
-        browser = secrets.token_urlsafe(32)
-        store.zoho_bind_browser(state, browser)
         page = connect_page(state, row, client)
         page.set_cookie(
             BROWSER_COOKIE,

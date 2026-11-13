@@ -186,8 +186,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
     send_limit = RateLimit(per_key=10, total=600, window_s=60)  # email + WhatsApp sends
     # UX-39 (D-053): reset requests, per address and per client (counted on every request).
-    reset_limit = RateLimit(per_key=5, total=500, window_s=3600)  # per address; token guesses
-    reset_client_limit = RateLimit(per_key=20, total=2000, window_s=3600)  # per client
+    # No small global cap: it would let anyone switch resets off for everyone (security review).
+    reset_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # per address
+    reset_client_limit = RateLimit(per_key=20, total=1_000_000, window_s=3600)  # per client
+    reset_guess_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # failed confirms
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
@@ -412,6 +414,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         except Exception as err:  # the person can ask again; never leak why
             config.log(f"password reset email failed: {type(err).__name__}")
 
+    async def reset_in_background(email: str, ip: str) -> None:
+        found = await asyncio.to_thread(store.reset_request, email, ip=ip)
+        if found is not None:
+            # The link uses the configured public origin, never the request's Host header.
+            await send_reset(found[1], found[0], config.public_origin or "http://localhost:8788")
+
     @handle
     async def reset_request(request: Request) -> Response:
         data = await body(request)
@@ -419,10 +427,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         by_client = reset_client_limit.hit(ip_key(request))
         if not (reset_limit.hit("email:" + email) and by_client):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
-        found = store.reset_request(email, ip=ip_of(request)) if EMAIL_SHAPE.match(email) else None
-        if found is not None:
-            # In the background, so a known address answers as fast as an unknown one.
-            task = asyncio.create_task(send_reset(found[1], found[0], public_origin_of(request)))
+        if EMAIL_SHAPE.match(email):
+            # Look-up, token and mail all happen in the background, so a known address answers
+            # exactly like an unknown one (no timing difference; security review).
+            task = asyncio.create_task(reset_in_background(email, ip_of(request)))
             pending_resets.add(task)
             task.add_done_callback(pending_resets.discard)
         return JSONResponse(
@@ -432,7 +440,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @handle
     async def reset_confirm(request: Request) -> Response:
-        if reset_limit.blocked(ip_key(request)):
+        if reset_guess_limit.blocked(ip_key(request)):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
         data = await body(request)
         try:
@@ -441,7 +449,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             )
         except CloudError as e:
             if e.code == "reset_invalid":
-                reset_limit.record(ip_key(request))  # guessing tokens costs the client
+                reset_guess_limit.record(ip_key(request))  # guessing tokens costs the client
             raise
         return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
 

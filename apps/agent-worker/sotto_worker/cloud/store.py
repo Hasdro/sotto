@@ -2237,14 +2237,17 @@ class CloudStore:
         )
         return rows[0] if rows else None
 
-    def zoho_bind_browser(self, state: str, browser: str) -> None:
-        """/auth/zoho/start: the browser that opened the link gets a cookie; only that browser
-        may complete the flow (a forwarded link cannot connect someone else's Zoho)."""
+    def zoho_bind_browser(self, state: str, browser: str) -> bool:
+        """/auth/zoho/start: the first browser that opens the link gets a cookie; only that
+        browser may reopen it ("Change"), cancel or complete the flow. A leaked link opened
+        later in another browser is refused (security review, T-074)."""
         with self._tx() as db:
-            db.execute(
-                "UPDATE zoho_states SET browser_hash = ? WHERE state_hash = ? AND used_at IS NULL",
-                (_token_hash(browser), _token_hash(state)),
+            cur = db.execute(
+                "UPDATE zoho_states SET browser_hash = ? WHERE state_hash = ? AND used_at IS NULL"
+                " AND (browser_hash IS NULL OR browser_hash = ?)",
+                (_token_hash(browser), _token_hash(state), _token_hash(browser)),
             )
+            return cur.rowcount == 1
 
     def zoho_spend_state(self, state: str, browser: str) -> sqlite3.Row | None:
         """Spends a state once (the callback), from the browser bound at /start. A replay, an

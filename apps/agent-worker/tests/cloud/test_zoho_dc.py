@@ -231,3 +231,37 @@ def test_refused_refresh_shows_in_health_until_reconnect(zc: TestClient, eu: Mul
     zc.get("/auth/zoho/callback/", params={"code": "c", "state": state, "location": "eu"})
     reasons = zc.get("/api/v1/features", headers=auth).json()["health"]["reasons"]
     assert "zoho_token_expired" not in [x["code"] for x in reasons]
+
+
+def test_a_leaked_link_cannot_be_taken_over_by_another_browser(
+    zc: TestClient, store: CloudStore, seed: Seed, eu: MultiDC
+) -> None:
+    auth = signup(zc, "Acme", "admin@acme.test")
+    set_org_client(zc, auth)
+    state, _ = begin(zc, auth)  # the person's own browser
+    other = TestClient(
+        create_cloud_app(
+            CloudConfig(
+                public_origin=ORIGIN,
+                static_dir=None,
+                zoho_transport=httpx.MockTransport(eu.handler),
+            ),
+            store,
+            seed,
+        ),
+        base_url=ORIGIN,
+    )
+    r = other.get("/auth/zoho/start", params={"state": state, "dc": "in"})
+    assert r.status_code == 409
+    assert "sotto_zoho_flow" not in r.headers.get("set-cookie", "")
+    # The DC choice did not change and the first browser still completes the flow.
+    _, page = begin_again(zc, state)
+    assert "Detected automatically" in page.text
+    r = zc.get("/auth/zoho/callback/", params={"code": "c", "state": state, "location": "eu"})
+    assert r.status_code == 200
+
+
+def begin_again(zc: TestClient, state: str) -> tuple[str, Any]:
+    page = zc.get("/auth/zoho/start", params={"state": state})
+    assert page.status_code == 200, page.text
+    return state, page
