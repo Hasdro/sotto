@@ -406,3 +406,11 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 2026-11-13 · Claude (technical, zoho-slice)
 - **Decision:** (1) The attached Zoho brief reaches the live model through a separate `crm_brief` prompt in the registry (`seed/prompts/crm_brief.md`), not a new variable in `suggest`, because 0.3.0 clients break when `suggest` gets an unknown variable. (2) The `/auth/zoho/start` link only completes in the browser that opened it (state bound to that browser), so a forwarded link cannot attach someone else's Zoho account.
 - **Consequence:** older clients keep working without the brief; a user who starts the connect on one device must finish it there.
+
+## D-038 — Model and prompt configuration lives in the web admin panel only
+2026-11-13 · owner
+- **Decision:** models, providers, keys, router and prompt studio are configured in the web admin panel (company admin) and owner console (platform). The desktop client hides those screens and only fetches the effective config. Supersedes the in-app placement of D-019's panel; its write-only key rules stay.
+
+## D-039 — SMTP and Gallabox credentials per org in Admin → Integrations
+2026-11-13 · owner
+- **Decision:** SMTP (host, port, user, password, from) and Gallabox (API key, secret, channel, template allow-list) are entered per org in Admin → Integrations, write-only and encrypted, with a platform fallback in the owner console (org wins), the same pattern as the Zoho client (D-037). Credentials are never collected in chat or stored in git.
