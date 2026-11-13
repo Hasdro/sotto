@@ -1,9 +1,14 @@
 /**
  * Design tokens: the only source of colour, spacing, radius, type and motion for the apps (CLAUDE.md).
  *
- * Direction "Prompter's box" (docs/DESIGN.md, P3.1/P3.2): quiet cool surfaces, one ink-teal brand
- * colour, and the suggestion card as the only loud thing on screen. Every key here is documented
- * in DESIGN.md §3; every text/fill pair the app uses is contrast-tested in tokens.test.ts.
+ * Direction "Quiet Paper Glass" (D-037, docs/design/DESIGN-SYSTEM.md), from the owner's muse-ai
+ * reference (docs/design/reference/muse-ai): a near-white canvas, flat cool-gray surfaces, pill
+ * controls, translucent glass on floating chrome only, one blue accent, one sans family at
+ * 400/500/600. The live suggestion card is the one place the accent is large (DESIGN-SYSTEM §5.3).
+ * Every text/fill pair the app uses is contrast-tested in tokens.test.ts.
+ *
+ * `packages/ui/tokens.css` mirrors these values as CSS custom properties for the HTML surfaces
+ * (owner console, Zoho pages, landing); tokens.test.ts keeps the two in step.
  *
  * Pure data and maths only (no react-native import), so it runs under vitest and in any runtime.
  */
@@ -21,10 +26,39 @@ export const CARD_KINDS = [
 export type CardKind = (typeof CARD_KINDS)[number];
 
 /**
- * fill: compact-card and badge tint · text: sentence on fill · muted: meta line on fill ·
- * accent: compact bar and icon disc. heroFill / heroText / heroMuted: the live hero card, the one
- * loud thing on screen (T-050): a solid, saturated fill with near-white text (holding stays pale,
- * because it is provisional).
+ * The cool neutral ramp from the reference (muse `ai-gray`, 025–1100). Every neutral in both
+ * themes is a step of this ramp; dark mode is derived from it (the reference has no dark theme).
+ */
+export const gray = {
+  25: "#fafafa",
+  50: "#f3f4f5",
+  75: "#eeeff0",
+  100: "#e9eaeb",
+  150: "#e0e2e4",
+  200: "#d1d3d5",
+  250: "#c4c6c9",
+  300: "#b5b7bb",
+  400: "#a1a4a8",
+  500: "#8f9296",
+  550: "#818487",
+  600: "#717477",
+  650: "#686a6e",
+  700: "#5c5e61",
+  800: "#4b4d4f",
+  900: "#383b3d",
+  950: "#323435",
+  1000: "#28292b",
+  1050: "#1f1f20",
+  1075: "#181819",
+  1100: "#111112",
+} as const satisfies Record<number, Hex>;
+
+/**
+ * fill: compact-card and badge fill (neutral) · text: sentence on fill · muted: meta line on fill ·
+ * accent: the type's semantic hue, used only small (compact bar, icon disc, badge dot).
+ * heroFill / heroText / heroMuted: the live hero card. It is the one large use of the accent
+ * blue (the single primary thing in the live view); warning is the one semantic exception (red,
+ * for safety); holding stays a pale neutral because it is provisional.
  */
 export type CardColors = {
   fill: Hex;
@@ -42,10 +76,14 @@ export type Theme = {
     background: Hex;
     /** Panels, sidebars, list rows. */
     surface: Hex;
-    /** Inputs, the transcript pane, segmented-control tracks. */
+    /** Neutral fills: inputs, chips, hover rows, segmented-control tracks (muse `--fill-secondary`). */
     surfaceSunken: Hex;
+    /** The flat message-bubble gray: customer transcript lines, link cards (muse `bubbleAssistant`). */
+    bubble: Hex;
     text: Hex;
     textMuted: Hex;
+    /** Decorative only (placeholders in skeletons, disabled glyphs). Never carries meaning: < 4.5:1. */
+    textTertiary: Hex;
     /** Hairlines between rows and panels (decorative, no contrast floor). */
     border: Hex;
     /** Outlines of inputs and controls (WCAG 1.4.11: ≥ 3:1 on background and surface). */
@@ -77,233 +115,298 @@ export type Theme = {
     /** Behind a drawer or dialog, drawn at `scrimOpacity` (D-023). */
     scrim: Hex;
     /**
-     * The one warm signal accent (T-050): the live dot, "now" marks, the active-state tick.
-     * `signal` is text-safe on background and surface; `signalFill` is its tint for small fills.
+     * Small status marks in the accent family (D-037): the live dot, unread dots, "now" marks, the
+     * active-state tick. `signal` is text-safe on background and surface; `signalFill` is its tint.
      */
     signal: Hex;
     signalFill: Hex;
     onSignalFill: Hex;
   };
-  /** One colour per card type, so the agent recognises a card at a glance (RESEARCH §6). */
+  /** Per card type: a neutral fill plus one small semantic hue (icon disc, bar, badge dot). */
   card: Record<CardKind, CardColors>;
   /** Transcript bubbles: the customer and the agent at a glance (owner, 22 Oct). */
   speaker: Record<"customer" | "agent", { fill: Hex; text: Hex; label: Hex }>;
+  /**
+   * Floating chrome only (header pills, composer, toasts, sheets, the search field): translucent
+   * fill + backdrop blur + the float shadow. `fallback` is the opaque colour where blur is not
+   * supported (native, old browsers). Content cards, rows and bubbles never use glass.
+   */
+  glass: { fill: string; fallback: Hex; ring: string; shadow: string; shadowElevated: string };
 };
 
 const light: Theme = {
   color: {
-    background: "#eaeef2",
-    surface: "#f7f9fb",
-    surfaceSunken: "#dfe5eb",
-    text: "#132029",
-    textMuted: "#46535f",
-    border: "#d3dae2",
-    borderStrong: "#74828f",
-    primary: "#0b5f63",
+    background: "#fcfcfc",
+    surface: "#ffffff",
+    surfaceSunken: "#f3f4f5",
+    bubble: "#e9eaeb",
+    text: "#111112",
+    textMuted: "#5c5e61",
+    textTertiary: "#989b9e",
+    border: "#e0e2e4",
+    borderStrong: "#818487",
+    primary: "#005bbf",
     onPrimary: "#ffffff",
-    focus: "#0b5f63",
-    danger: "#ae2a1f",
+    focus: "#005bbf",
+    danger: "#cb0021",
     onDanger: "#ffffff",
-    positive: "#1a6537",
-    negative: "#9e2519",
-    inverseSurface: "#1b2630",
-    onInverseSurface: "#f2f5f8",
+    positive: "#1a7f37",
+    negative: "#cb0021",
+    inverseSurface: "#28292b",
+    onInverseSurface: "#f3f4f5",
     surfaceRaised: "#ffffff",
-    toastFill: "#1b2630",
-    onToast: "#f2f5f8",
-    toastBorder: "#1b2630",
-    noticeFill: "#fff1d6",
-    noticeText: "#5a3a00",
-    noticeBorder: "#a87418",
-    scrim: "#0b1218",
-    signal: "#8f4c00",
-    signalFill: "#fde3b8",
-    onSignalFill: "#4a2700",
+    toastFill: "#ffffff",
+    onToast: "#111112",
+    toastBorder: "#e0e2e4",
+    noticeFill: "#fdf1dc",
+    noticeText: "#6b3d00",
+    noticeBorder: "#8a5300",
+    scrim: "#111112",
+    signal: "#0064d4",
+    signalFill: "#e6f0fb",
+    onSignalFill: "#00408a",
   },
   card: {
     answer: {
-      fill: "#d9efea",
-      text: "#0a3a35",
-      muted: "#2d5c56",
-      accent: "#0e766b",
-      heroFill: "#0b5f63",
+      fill: "#f3f4f5",
+      text: "#111112",
+      muted: "#5c5e61",
+      accent: "#1a7f37",
+      heroFill: "#005bbf",
       heroText: "#ffffff",
-      heroMuted: "#c9ebe6",
+      heroMuted: "#d6e6fa",
     },
     question: {
-      fill: "#e2e6fa",
-      text: "#1c2766",
-      muted: "#3d4780",
-      accent: "#3a4bbf",
-      heroFill: "#2c3a94",
+      fill: "#f3f4f5",
+      text: "#111112",
+      muted: "#5c5e61",
+      accent: "#005bbf",
+      heroFill: "#005bbf",
       heroText: "#ffffff",
-      heroMuted: "#d6dbff",
+      heroMuted: "#d6e6fa",
     },
     objection: {
-      fill: "#fbead0",
-      text: "#4d2e00",
-      muted: "#6a4a17",
-      accent: "#9a5b00",
-      heroFill: "#7a4500",
-      heroText: "#fff6e8",
-      heroMuted: "#f7dcb4",
+      fill: "#f3f4f5",
+      text: "#111112",
+      muted: "#5c5e61",
+      accent: "#a15c00",
+      heroFill: "#005bbf",
+      heroText: "#ffffff",
+      heroMuted: "#d6e6fa",
     },
     signal: {
-      fill: "#efe4fb",
-      text: "#3a1766",
-      muted: "#55387d",
-      accent: "#7a3fc4",
-      heroFill: "#5a2d91",
+      fill: "#f3f4f5",
+      text: "#111112",
+      muted: "#5c5e61",
+      accent: "#6d3fc0",
+      heroFill: "#005bbf",
       heroText: "#ffffff",
-      heroMuted: "#e4d5fa",
+      heroMuted: "#d6e6fa",
     },
     warning: {
-      fill: "#fadfdb",
-      text: "#5c150f",
-      muted: "#7a3a33",
-      accent: "#b7352a",
-      heroFill: "#9e2219",
+      fill: "#f3f4f5",
+      text: "#111112",
+      muted: "#5c5e61",
+      accent: "#cb0021",
+      heroFill: "#cb0021",
       heroText: "#ffffff",
-      heroMuted: "#ffd6d0",
+      heroMuted: "#ffe4e6",
     },
     holding: {
-      fill: "#e6eaee",
-      text: "#24303b",
-      muted: "#46525d",
-      accent: "#56646f",
-      heroFill: "#dfe5eb",
-      heroText: "#24303b",
-      heroMuted: "#46525d",
+      fill: "#f3f4f5",
+      text: "#111112",
+      muted: "#5c5e61",
+      accent: "#5c5e61",
+      heroFill: "#f3f4f5",
+      heroText: "#111112",
+      heroMuted: "#5c5e61",
     },
   },
   speaker: {
-    customer: { fill: "#e4effa", text: "#102a43", label: "#1f5f99" },
-    agent: { fill: "#fbefe0", text: "#3d2810", label: "#9a5512" },
+    customer: { fill: "#e9eaeb", text: "#111112", label: "#005bbf" },
+    agent: { fill: "#f3f4f5", text: "#111112", label: "#5c5e61" },
+  },
+  glass: {
+    fill: "rgba(255, 255, 255, 0.76)",
+    fallback: "#ffffff",
+    ring: "rgba(17, 17, 18, 0.08)",
+    shadow: "0px 8px 40px 0px rgba(0, 0, 0, 0.12)",
+    shadowElevated: "0px 2px 8px 0px rgba(0, 0, 0, 0.06), 0px 20px 50px 0px rgba(0, 0, 0, 0.14)",
   },
 };
 
+/** Derived from the gray ramp (the reference has no dark theme): same radii, same glass logic. */
 const dark: Theme = {
   color: {
-    background: "#0c1218",
-    surface: "#121b23",
-    surfaceSunken: "#19242e",
-    text: "#e6ecf1",
-    textMuted: "#9aa8b5",
-    border: "#233039",
-    borderStrong: "#6a7a89",
-    primary: "#5fc4bb",
-    onPrimary: "#06221f",
-    focus: "#5fc4bb",
-    danger: "#f2766b",
-    onDanger: "#2a0603",
-    positive: "#6fd39a",
-    negative: "#ff8c80",
-    inverseSurface: "#e6ecf1",
-    onInverseSurface: "#132029",
-    surfaceRaised: "#1c2832",
-    toastFill: "#1c2832",
-    onToast: "#e6ecf1",
-    toastBorder: "#6a7a89",
+    background: "#111112",
+    surface: "#181819",
+    surfaceSunken: "#1f1f20",
+    bubble: "#323435",
+    text: "#f3f4f5",
+    textMuted: "#a1a4a8",
+    textTertiary: "#686a6e",
+    border: "#323435",
+    borderStrong: "#818487",
+    primary: "#6aa8f7",
+    onPrimary: "#0b1a2e",
+    focus: "#6aa8f7",
+    danger: "#ff7a85",
+    onDanger: "#2a0608",
+    positive: "#4cc38a",
+    negative: "#ff7a85",
+    inverseSurface: "#f3f4f5",
+    onInverseSurface: "#111112",
+    surfaceRaised: "#28292b",
+    toastFill: "#28292b",
+    onToast: "#f3f4f5",
+    toastBorder: "#818487",
     noticeFill: "#3a2a08",
     noticeText: "#fbe3b0",
     noticeBorder: "#f3c76a",
     scrim: "#000000",
-    signal: "#f2aa48",
-    signalFill: "#3d2a0c",
-    onSignalFill: "#fde3b8",
+    signal: "#6aa8f7",
+    signalFill: "#1c2d45",
+    onSignalFill: "#cfe2fb",
   },
   card: {
     answer: {
-      fill: "#0f302c",
-      text: "#d0f1ea",
-      muted: "#a6cfc8",
-      accent: "#56c7b8",
-      heroFill: "#11706a",
-      heroText: "#f4fffd",
-      heroMuted: "#cfeeea",
+      fill: "#28292b",
+      text: "#f3f4f5",
+      muted: "#a1a4a8",
+      accent: "#4cc38a",
+      heroFill: "#2a6ccb",
+      heroText: "#ffffff",
+      heroMuted: "#eef4fd",
     },
     question: {
-      fill: "#1a2150",
-      text: "#dce1ff",
-      muted: "#b6beec",
-      accent: "#8f9dff",
-      heroFill: "#4a59cc",
+      fill: "#28292b",
+      text: "#f3f4f5",
+      muted: "#a1a4a8",
+      accent: "#6aa8f7",
+      heroFill: "#2a6ccb",
       heroText: "#ffffff",
-      heroMuted: "#dde1ff",
+      heroMuted: "#eef4fd",
     },
     objection: {
-      fill: "#38280c",
-      text: "#fbe5c0",
-      muted: "#d9c29b",
-      accent: "#e7a53c",
-      heroFill: "#8f5800",
+      fill: "#28292b",
+      text: "#f3f4f5",
+      muted: "#a1a4a8",
+      accent: "#e5a54b",
+      heroFill: "#2a6ccb",
       heroText: "#ffffff",
-      heroMuted: "#fff1dc",
+      heroMuted: "#eef4fd",
     },
     signal: {
-      fill: "#2a1846",
-      text: "#ecdfff",
-      muted: "#cbb6ec",
-      accent: "#b88cff",
-      heroFill: "#7a4ac6",
+      fill: "#28292b",
+      text: "#f3f4f5",
+      muted: "#a1a4a8",
+      accent: "#b08cf5",
+      heroFill: "#2a6ccb",
       heroText: "#ffffff",
-      heroMuted: "#f4eeff",
+      heroMuted: "#eef4fd",
     },
     warning: {
-      fill: "#3d1915",
-      text: "#ffd9d3",
-      muted: "#e5b3ac",
-      accent: "#ff7c6e",
-      heroFill: "#c0362b",
+      fill: "#28292b",
+      text: "#f3f4f5",
+      muted: "#a1a4a8",
+      accent: "#ff7a85",
+      heroFill: "#c0303f",
       heroText: "#ffffff",
-      heroMuted: "#ffece9",
+      heroMuted: "#ffe4e6",
     },
     holding: {
-      fill: "#1d2832",
-      text: "#dde5ec",
-      muted: "#b3c0cb",
-      accent: "#93a3b1",
-      heroFill: "#1d2832",
-      heroText: "#dde5ec",
-      heroMuted: "#b3c0cb",
+      fill: "#28292b",
+      text: "#f3f4f5",
+      muted: "#a1a4a8",
+      accent: "#a1a4a8",
+      heroFill: "#28292b",
+      heroText: "#f3f4f5",
+      heroMuted: "#a1a4a8",
     },
   },
   speaker: {
-    customer: { fill: "#15283b", text: "#dbe9f7", label: "#8cc0f0" },
-    agent: { fill: "#33240f", text: "#f6e3c8", label: "#f0b46a" },
+    customer: { fill: "#323435", text: "#f3f4f5", label: "#6aa8f7" },
+    agent: { fill: "#1f1f20", text: "#f3f4f5", label: "#a1a4a8" },
+  },
+  glass: {
+    fill: "rgba(24, 24, 25, 0.76)",
+    fallback: "#181819",
+    ring: "rgba(255, 255, 255, 0.08)",
+    shadow: "0px 8px 40px 0px rgba(0, 0, 0, 0.48)",
+    shadowElevated: "0px 2px 8px 0px rgba(0, 0, 0, 0.32), 0px 20px 50px 0px rgba(0, 0, 0, 0.56)",
   },
 };
 
 export const themes = { light, dark } as const;
 export type ThemeName = keyof typeof themes;
 
-/** 4-pt scale. Agent screens use lg and up between blocks; admin screens may use sm/md. */
+/** 4-pt grid (reference: --spacing 4px). Agent screens use lg and up between blocks. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
 
-/** Radius grows with the size of the thing: controls < panels < the hero card. */
-export const radius = { sm: 6, md: 10, lg: 16, xl: 22, pill: 999 } as const;
+/**
+ * Reference radii: pill controls, 22 px bubbles with one 6 px tail corner, 10 px link cards,
+ * 12 px nav rows, 32 px composer capsule, 24 px overlay sheets.
+ */
+export const radius = {
+  /** The bubble's tail corner; small tags. */
+  sm: 6,
+  /** Link cards, table frames, inputs inside dense admin forms. */
+  md: 10,
+  /** Sidebar nav rows, list rows on hover, compact cards. */
+  lg: 12,
+  /** Message bubbles, the hero suggestion card, outlined content cards. */
+  xl: 22,
+  /** Overlay sheets and dialogs. */
+  sheet: 24,
+  /** The composer / large input capsule. */
+  composer: 32,
+  pill: 999,
+} as const;
 
 /**
- * Readex Pro (Google Fonts, OFL): one family for Latin and Arabic, built for reading speed.
- * The app loads these files (apps/app/app/_layout.tsx); the names must match expo-google-fonts.
+ * One family per script, both neutral grotesques at 400/500/600 (no 700): Inter for Latin (the
+ * reference's first-listed open stand-in) and IBM Plex Sans Arabic for Arabic, whose x-height and
+ * stroke weight sit well beside Inter. The app loads these files (apps/app/app/_layout.tsx); the
+ * names must match expo-google-fonts. On web the Arabic face follows the Latin one in the stack,
+ * so mixed Arabic/English lines pick the right face per glyph.
  */
 export const fontFamily = {
-  regular: "ReadexPro_400Regular",
-  medium: "ReadexPro_500Medium",
-  semibold: "ReadexPro_600SemiBold",
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
 } as const;
 export type FontWeightName = keyof typeof fontFamily;
 
-/** Used on web until the font has loaded, and if it never does. */
-export const webFontFallback = "system-ui, -apple-system, 'Segoe UI', Tahoma, Arial, sans-serif";
+export const arabicFontFamily = {
+  regular: "IBMPlexSansArabic_400Regular",
+  medium: "IBMPlexSansArabic_500Medium",
+  semibold: "IBMPlexSansArabic_600SemiBold",
+} as const satisfies Record<FontWeightName, string>;
 
-/** Card text is read at arm's length in one glance (ENGINEERING §11). */
+/** Used on web until the fonts have loaded, and if they never do. */
+export const webFontFallback =
+  "Inter, 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Tahoma, Arial, sans-serif";
+
+/**
+ * The reference scale (size / line height px). Line heights are kept where Arabic needs room
+ * (body 24, headings ≥ 26). Card roles are this product's addition: read at arm's length.
+ */
 export const type = {
-  /** Admin tables, meta lines. Never on the in-call card's main sentence. */
+  /** 12/16: timestamps, tiny meta. */
+  timestamp: { fontSize: 12, lineHeight: 16 },
+  /** 13/18 caption: meta lines, badges, table headers. Never the card sentence. */
   label: { fontSize: 13, lineHeight: 18 },
+  /** 14/20: secondary text, button labels, dense admin cells. */
+  secondary: { fontSize: 14, lineHeight: 20 },
   body: { fontSize: 16, lineHeight: 24 },
+  /** 18/26: section headings (w600) and lead paragraphs (w400). */
   heading: { fontSize: 18, lineHeight: 26 },
+  /** 24/32: sheet titles, stat values. */
   title: { fontSize: 24, lineHeight: 32 },
+  /** 34/40 w600: the one page title per screen. */
+  pageTitle: { fontSize: 34, lineHeight: 42 },
+  /** 48/56 w500, −0.01em: landing hero only. */
+  display: { fontSize: 48, lineHeight: 56 },
   /** Older (collapsed) suggestion cards. */
   cardCompact: { fontSize: 17, lineHeight: 25 },
   /** The hero suggestion at phone width. */
@@ -313,22 +416,45 @@ export const type = {
 } as const;
 export type TypeRole = keyof typeof type;
 
-/** Minimum touch target in points (ENGINEERING §11). */
+/** Minimum touch target in points (ENGINEERING §11). Pills draw 36 px inside a 44 px target. */
 export const minTouchTarget = 44;
 
-/** Opacity of the `scrim` colour behind a drawer or dialog. */
-export const scrimOpacity = 0.45;
+/** Visual height of a pill control (reference: 36 px); the hit area stays `minTouchTarget`. */
+export const controlHeight = 36;
 
-/** Motion never sits on the read path: card text appears with no animation (DESIGN.md §7). */
-export const motion = { fast: 120, base: 200, toastMs: 8000, undoMs: 5000 } as const;
+/** Opacity of the `scrim` colour behind a drawer or dialog: light, so the page reads through. */
+export const scrimOpacity = 0.24;
 
-/** Fixed sizes of small marks and strokes (DESIGN.md §3.4). */
+/** Backdrop blur of the glass layer, in px (reference: blur(36px)). */
+export const glassBlur = 36;
+
+/**
+ * Reference timings: 100 ms fine feedback, 150 ms colour/opacity/transform, 200 ms
+ * background/shadow, 300 ms layout. Motion never sits on the read path: card text appears with
+ * no animation (DESIGN-SYSTEM §6).
+ */
+export const motion = {
+  fast: 100,
+  base: 150,
+  medium: 200,
+  layout: 300,
+  toastMs: 8000,
+  undoMs: 5000,
+} as const;
+
+/** Easing curves (CSS cubic-bezier strings; RN Animated uses Easing.bezier with the same numbers). */
+export const easing = {
+  standard: "cubic-bezier(0.4, 0, 0.2, 1)",
+  out: "cubic-bezier(0, 0, 0.2, 1)",
+  in: "cubic-bezier(0.4, 0, 1, 1)",
+} as const;
+
 export const size = {
   /** Thick strokes: holding-card outline, listening outline, radio ring. */
   stroke: 2,
   /** Compact-card bar and the listening mark's bars. */
   bar: 4,
-  /** The hero card's voice bar. */
+  /** The hero card's voice bar (kept for API; the muse card has no bar, see SuggestionCard). */
   voiceBar: 8,
   /** Badge and speaker-chip dots. */
   dot: 8,
@@ -346,6 +472,11 @@ export const size = {
   focusOffset: 2,
   /** Checkbox square in ChecklistRow. */
   checkbox: 22,
+  /** Round list-row icon and the icon-button hover circle (reference: 44 px). */
+  rowIcon: 44,
+  /** Inline icon size (reference: 16 px) and rail icon size. */
+  iconInline: 16,
+  iconRail: 24,
 } as const;
 
 export const layout = {
@@ -358,14 +489,16 @@ export const layout = {
   sheetBreakpoint: 768,
   sheetMaxWidth: 560,
   sidebarWidth: 248,
+  /** Icon rail (reference: 72 px). */
+  railWidth: 72,
   /** Phone navigation drawer: this wide, or 85 % of the window if that is less (D-023). */
   drawerMaxWidth: 300,
   /** Top bar with the menu button below the wide breakpoint. */
   topBarHeight: 56,
   transcriptWidth: 380,
   contentMaxWidth: 1180,
-  /** Readable measure for prose and admin forms. */
-  readableMaxWidth: 760,
+  /** Readable measure for prose and admin forms (reference content column: 768). */
+  readableMaxWidth: 768,
 } as const;
 
 function luminance(hex: Hex): number {

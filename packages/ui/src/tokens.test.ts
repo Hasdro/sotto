@@ -12,6 +12,9 @@ const TEXT_PAIRS: [fg: ColorKey, bg: ColorKey][] = [
   ["textMuted", "surface"],
   ["text", "surfaceSunken"],
   ["textMuted", "surfaceSunken"],
+  ["text", "bubble"],
+  ["textMuted", "bubble"],
+  ["primary", "surfaceSunken"],
   ["primary", "background"],
   ["primary", "surface"],
   ["onPrimary", "primary"],
@@ -146,6 +149,45 @@ describe("design tokens", () => {
         contrastRatio(t.color.noticeBorder, fill),
       );
       expect(edge).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe.each(["light", "dark"] as const)("%s Quiet Paper Glass rules (D-037)", (name) => {
+    const t = themes[name];
+
+    it.each(["customer", "agent"] as const)(
+      "%s transcript text and label on its bubble ≥ 4.5:1",
+      (who) => {
+        const s = t.speaker[who];
+        expect(contrastRatio(s.text, s.fill)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(s.label, s.fill)).toBeGreaterThanOrEqual(4.5);
+      },
+    );
+
+    it("the opaque glass fallback keeps body text readable", () => {
+      expect(contrastRatio(t.color.text, t.glass.fallback)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t.color.textMuted, t.glass.fallback)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it("tertiary text is visibly weaker than muted text (decorative only)", () => {
+      expect(contrastRatio(t.color.textTertiary, t.color.background)).toBeLessThan(
+        contrastRatio(t.color.textMuted, t.color.background),
+      );
+    });
+
+    it("compact cards and badges are neutral: one fill for every type, colour only in the accent", () => {
+      const fills = new Set(CARD_KINDS.map((k) => t.card[k].fill));
+      expect(fills.size).toBe(1);
+      const accents = new Set(CARD_KINDS.map((k) => t.card[k].accent));
+      expect(accents.size).toBe(CARD_KINDS.length);
+    });
+
+    it("the hero card uses the accent family, warning red, holding neutral (one accent rule)", () => {
+      for (const k of ["answer", "question", "objection", "signal"] as const) {
+        expect(t.card[k].heroFill).toBe(t.card.answer.heroFill);
+      }
+      expect(t.card.warning.heroFill).not.toBe(t.card.answer.heroFill);
+      expect(t.card.holding.heroFill).not.toBe(t.card.answer.heroFill);
     });
   });
 
