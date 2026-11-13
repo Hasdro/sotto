@@ -49,11 +49,6 @@ const MODES = [
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
   fs.mkdirSync(out, { recursive: true });
-  const shot = async (page, name) => {
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(out, name), fullPage: true });
-    console.log(name);
-  };
   try {
     for (const width of [1280, 390])
       for (const [scheme, locale] of MODES) {

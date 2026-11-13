@@ -188,10 +188,10 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 0.6.0 Post-call actions
 - [ ] T-061 Post-call panel + during-call side panel (lead, contact only)
 - [ ] T-062 Zoho writes: Meeting, Lead, Contact, Deal note — approval, audit, idempotency
-- [ ] T-063 Email: senders, formats, static blocks, To/CC, preview, send, audit (D-032) `owner` (SMTP)
+- [~] T-063 Email: senders, formats, static blocks, To/CC, preview, send, audit (D-032) `owner` (SMTP) — built: org SMTP + platform fallback (write-only), test email with exact SMTP error, formats with verbatim opening/signature, preview == sent, confirm, audit, idempotency; `EmailAction` exported for the post-call panel; waits for owner SMTP + panel wiring; evidence `docs/evidence/phase9/messaging/` (branch `phase9/messaging`)
 0.7.0 WhatsApp
-- [ ] T-064 Gallabox adapter: template list + allow-list, `window_status()`, last 100 messages (D-033) `owner` (key)
-- [ ] T-065 Approved WhatsApp sends from the post-call panel
+- [~] T-064 Gallabox adapter: template list + allow-list, `window_status()`, last 100 messages (D-033) `owner` (key) — adapter + allow-list with cached params, `channel` never copied; `window_status()` always `unknown` (no documented signal) so template-only; last 100 messages NOT built (no history endpoint; storing webhooks forbidden by D-033) — owner decision; evidence `docs/evidence/phase9/messaging/` (branch `phase9/messaging`)
+- [~] T-065 Approved WhatsApp sends from the post-call panel — `WhatsAppAction` (allow-listed template, prefilled name, preview, confirm, audit masked phone, idempotency, stop codes block); waits for panel wiring + owner Gallabox keys; evidence `docs/evidence/phase9/messaging/` (branch `phase9/messaging`)
 0.8.0 Release
 - [~] T-066 Landing page, Privacy, Terms, Zoho Forms slot `owner` (form, legal review) — `apps/landing/` built with placeholders (logo, screenshots, Zoho form, DRAFT legal); axe 0 serious, evidence `docs/evidence/phase9/landing/`; waits for logo/tokens, 0.3.0 screenshots, owner form + legal text
 - [~] T-067 DNS + Caddy for salesshield.agncompu.com; clean `/downloads/` `owner` (DNS) — `deploy/caddy/salesshield.caddy`, `deploy/publish-landing.sh` (dry run), `scripts/release.sh` (dry run) written; nothing run on us3; `caddy validate` not run (Caddy not installed locally)
@@ -199,7 +199,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [ ] T-069 Local Mac cleanup + clean install keeping data `local-only`
 Added 2026-11-13 (owner)
 - [ ] T-070 Research: automate Zoho OAuth client creation, or one platform client for all orgs (multi-DC) — recommendation + decision
-- [~] T-071 (Zoho part done in `zoho-slice`: Admin → Integrations org client + own connection; Gallabox left) Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
+- [~] T-071 (Zoho part done in `zoho-slice`: Admin → Integrations org client + own connection; Gallabox part built in `phase9/messaging`, unverified on a real account) Admin → Integrations: per-org Zoho client (write-only, encrypted; platform client default) and Gallabox key/secret/channel; Gallabox template dropdown pulled from the API, selected templates' parameters cached
 
 ## Waiting on owner
 
@@ -314,6 +314,10 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 (b) · local · Opus 5.5 · phase9/messaging
+- **Done:** T-063/T-064/T-065 and the Gallabox part of T-071. Server: `cloud/email/{data,render,routes}.py`, `cloud/gallabox/{data,routes}.py`, `adapters/email/smtp.py` (`SmtpAccount`, `send_mail`, exact errors), `adapters/whatsapp/gallabox.py`; own tables (`smtp_accounts`, `email_formats`, `email_sends`, `company_gallabox`, `gallabox_templates`, `whatsapp_sends`) created on first use; flags `gallabox`, `email_send`, `whatsapp` built (needs_connection until configured). Owner console › Account: platform SMTP form. App: `features/email/**`, `features/whatsapp/**` (own strings files en/ar), Integrations sections. Evidence: worker 492, app 299, desktop 17 tests; axe 0 serious on the new states; `pnpm a11y` 0; screenshots in `docs/evidence/phase9/messaging/`. Live path untouched (no replay needed).
+- **Next:** zoho-actions imports `EmailAction`/`WhatsAppAction` into the post-call panel; owner enters SMTP + Gallabox after deploy; verify the Gallabox template shape and `language` field on the real account.
 
 ### 2026-11-13 · local · Opus 5.5 · phase9/zoho-slice
 - **Done:** Saturday Zoho demo slice (T-053/T-054/T-055 slice, T-057, Zoho part of T-071). Server: `cloud/zoho/{oauth,routes,lookup}.py`, `adapters/crm/zoho.py`, store tables `zoho_platform_client`, `company_zoho_client`, `zoho_connections`, `zoho_states`; `zoho` flag `built: true`, needs_connection until the person connects (per-person layer). Owner console › Account: platform client form. App: `features/crm/**`, `CrmRail`, `/admin/integrations`, `crm.*` strings (en/ar). Engine: `crmBrief` + `crm_brief` prompt appended to the per-turn message only.
