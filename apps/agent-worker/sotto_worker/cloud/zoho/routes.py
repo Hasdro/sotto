@@ -46,7 +46,7 @@ Handler = Callable[[Request, Principal], Awaitable[Response]]
 Wrap = Callable[..., Callable[[Request], Awaitable[Response]]]
 PAGE_CSP = (
     "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none';"
-    " frame-ancestors 'none'"
+    " frame-ancestors 'none'; font-src 'self'"
 )
 NO_STORE = {"Cache-Control": "no-store"}
 BROWSER_COOKIE = "sotto_zoho_flow"
@@ -58,9 +58,15 @@ WRITES = "meetings and notes after you approve them"
 
 # Quiet Paper Glass (D-041, DESIGN-SYSTEM.md §5.6): the design-system tokens (the owner console's
 # copy of packages/ui/tokens.css, kept current by a test) inlined, since PAGE_CSP allows only
-# inline styles. Fonts fall back to the system face (no font-src). Colours only from --ss-*.
+# inline styles. Fonts are self-hosted (font-src 'self', /assets/fonts/). Colours only from --ss-*.
 TOKENS_CSS = (Path(__file__).resolve().parent.parent / "owner" / "tokens.css").read_text()
-PAGE_STYLE = TOKENS_CSS + (
+FONTS_CSS = "".join(
+    f"@font-face{{font-family:{fam};font-weight:{w};font-style:normal;font-display:swap;"
+    f"src:url(/assets/fonts/{f}-{n}.woff) format('woff')}}"
+    for fam, f in (("Inter", "inter"), ("'IBM Plex Sans Arabic'", "plex-arabic"))
+    for w, n in ((400, "400Regular"), (500, "500Medium"), (600, "600SemiBold"))
+)
+PAGE_STYLE = TOKENS_CSS + FONTS_CSS + (
     "*{box-sizing:border-box}"
     "body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
     "background:var(--ss-background);color:var(--ss-text);font-family:var(--ss-font);"

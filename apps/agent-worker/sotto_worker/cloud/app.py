@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import mimetypes
+import re
 import time
 from collections import OrderedDict, deque
 from collections.abc import Awaitable, Callable
@@ -44,6 +45,7 @@ from sotto_worker.server.catalog import apply_overrides
 MAX_BODY = 16 * 1024
 OWNER_COOKIE = "sotto_owner"
 OWNER_DIR = Path(__file__).parent / "owner"
+FONT_DIR = OWNER_DIR / "fonts"
 STT_TOKEN_TTL_S = 300
 # The web app calls AI and speech vendors directly from the browser (D-022), so its pages may
 # connect to any https/wss host. The owner dashboard only talks to this server.
@@ -1011,11 +1013,24 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def healthz(_r: Request) -> Response:
         return JSONResponse({"ok": True, "service": "sotto-cloud"})
 
+    async def font_file(request: Request) -> Response:
+        # Self-hosted OFL fonts (Inter, IBM Plex Sans Arabic) for the server-rendered pages. Public,
+        # immutable, no host guard: the Zoho result pages load them too.
+        name = request.path_params["file"]
+        target = FONT_DIR / name
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+\.woff", name) or not target.is_file():
+            return PlainTextResponse("not found\n", status_code=404)
+        return FileResponse(
+            target,
+            media_type="font/woff",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
     async def owner_page(request: Request) -> Response:
         if not owner_host_ok(request):
             return PlainTextResponse("not found\n", status_code=404)
         name = request.path_params.get("file") or "index.html"
-        if name not in {"index.html", "owner.js", "owner.css", "tokens.css", "components.css"}:
+        if name not in {"index.html", "owner.js", "owner.css", "tokens.css", "components.css", "fonts.css"}:
             return PlainTextResponse("not found\n", status_code=404)
         return FileResponse(
             OWNER_DIR / name,
@@ -1175,6 +1190,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             send_limit=lambda key: send_limit.hit(key),
             log=config.log,
         ),
+        Route("/assets/fonts/{file}", font_file),
         Route("/owner", owner_page),
         Route("/owner/{file}", owner_page),
         Route("/{path:path}", static),
