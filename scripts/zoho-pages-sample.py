@@ -28,7 +28,10 @@ pages = {
         after="<br><a class='quiet' href='#'>Cancel</a>",
     ),
     "connected": _page(
-        "Zoho is connected", "You can close this tab.", state="ok", link=(APP_LINK, "Open Sales Shield")
+        "Zoho is connected",
+        "You can close this tab.",
+        state="ok",
+        link=(APP_LINK, "Open Sales Shield"),
     ),
     "expired": _page("Link expired", "Start again from AGN Sales Shield.", 400, state="bad"),
     "cancelled": _page(

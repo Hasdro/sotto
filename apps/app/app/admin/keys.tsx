@@ -171,6 +171,7 @@ function SetupChecklist({ data }: { data: ProvidersState }) {
                   borderColor: step.done ? color.positive : color.border,
                 },
               ]}
+              accessibilityRole="image"
               accessibilityLabel={t(step.done ? "admin.keys.setup.done" : "admin.keys.setup.todo")}
             >
               {step.done ? (
@@ -328,14 +329,7 @@ function AddProvider({ options, onPick }: { options: Provider[]; onPick: (id: st
         testID="keys-add"
       />
       {open ? (
-        <View
-          accessibilityRole="menu"
-          style={[
-            styles.menu,
-            menuGlass,
-          ]}
-          testID="keys-add-menu"
-        >
+        <View accessibilityRole="menu" style={[styles.menu, menuGlass]} testID="keys-add-menu">
           {options.map((p) => (
             <Pressable
               key={p.id}
@@ -669,11 +663,7 @@ function StageRow({
                   },
                 ]}
               >
-                <Text
-                  variant="label"
-                  weight="medium"
-                  tone={off ? "muted" : "default"}
-                >
+                <Text variant="label" weight="medium" tone={off ? "muted" : "default"}>
                   {p.name}
                 </Text>
               </Pressable>

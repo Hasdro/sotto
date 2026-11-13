@@ -232,6 +232,7 @@ Wave 4
 - [ ] T-082 `review-zoho-scopes` `owner` — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
 - [ ] T-083 `review-ai-autoconfig` `owner` — ZC-04, ZC-05, ZC-12
 - [x] T-084 `design-system` — Quiet Paper Glass from the owner's muse-ai reference (D-041): `docs/design/DESIGN-SYSTEM.md`, tokens + primitives in `packages/ui`, `tokens.css`/`components.css` for HTML, Inter + IBM Plex Sans Arabic, gallery screens in `docs/design/screens/` (branch `phase9/design-system`, `docs/design/READY`)
+- [x] T-086 `redesign-panels` — admin + web panels on Quiet Paper Glass (D-041): web admin shell/pages, owner console, Zoho connect pages, landing + legal (branch `phase9/redesign-panels`; evidence `docs/design/screens/panels/`)
 
 ## Waiting on owner
 
@@ -346,6 +347,12 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 (d) · local · Opus 5.5 · phase9/redesign-panels
+- **Done (T-086, D-041):** owner console rebuilt on copies of `packages/ui` `tokens.css` + `components.css` (248 px sidebar, 34 px page titles with leads, stat tiles, hairline tables, dot badges for plan states, glass drawer/sheets/toast, search pill; `owner.js` untouched). Zoho connect/cancel/done pages inline the same tokens (CSP is inline-only). Landing + privacy/terms: glass top bar, 48 px display hero with a static suggestion-card demo (new `demo.*` strings, en + ar), wells, pill buttons. Web admin: `@sotto/ui` `PageHeader`, groups as neutral pill tabs, pages as smaller pills; Keys: glass add-provider menu, neutral vendor/model chips, step marks get `role="img"` (axe fix).
+- **Copies:** `scripts/sync-ui-css.sh` copies the two CSS files to `cloud/owner/` and `apps/landing/`; `tests/cloud/test_ui_css_copies.py` fails when stale. Owner route serves `tokens.css`/`components.css` (whitelist only). `biome.json` ignores the two `tokens.css` copies.
+- **Evidence:** worker pytest 597; app jest 466 (72 suites); typecheck green; biome (explicit paths) + ruff + boundaries green. `scripts/panels-shots.mjs` (owner, Zoho, landing) and `scripts/admin-shots.mjs` (signed-in web admin against a local server): 156 pages × modes light/dark × LTR/RTL × 390/1280, axe 0 serious/critical, no horizontal overflow; logs + 154 screenshots in `docs/design/screens/panels/`.
+- **For the master:** (1) `pnpm lint` checks 0 files inside a `.claude/worktrees/*` checkout (`biome.json` ignores `**/.claude`); I ran biome on explicit paths. (2) HTML pages fall back to system fonts: the owner CSP (`font-src 'self'`), Zoho CSP and the landing Caddy CSP block Google Fonts; self-host Inter/Plex woff2 or widen `font-src` if Inter is wanted there. (3) Landing `shot-*.png` still show the old green UI; refresh after the app redesign merges. (4) The app shell sidebar (blue active bar) and `components/PageHeader.tsx` belong to the redesign-app session.
 
 ### 2026-11-14 (c) · local · Opus 5.5 · phase9/design-system
 - **Done (T-084, D-041):** reference copied to `docs/design/reference/muse-ai/`; `docs/design/DESIGN-SYSTEM.md` (principles, light/dark tokens, type, spacing, radius, elevation, motion, icons, component specs, page templates, a11y, screen-by-screen mapping in §7). `packages/ui`: new token values (canvas `#fcfcfc`, gray ramp, one `#005bbf` accent, glass, pill radii, 100–300 ms motion), new keys (`bubble`, `textTertiary`, `glass`, `gray`, `easing`, `radius.sheet/composer`, type roles `timestamp/secondary/pageTitle/display`); hero card = accent bubble (warning red, holding neutral); restyled Button/IconButton/TextField/Panel/Table/Sheet/Toast/TranscriptLine/SegmentedControl; new `GlassSurface`, `PageHeader`, `NavRow`, `ListRow`, `Skeleton`, `useGlassStyle`; `tokens.css` generated (`pnpm --filter @sotto/ui gen:css`, staleness test) + `components.css`. App loads Inter + IBM Plex Sans Arabic (Readex Pro removed); gallery updated.
