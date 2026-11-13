@@ -4,7 +4,8 @@
  * plan blocks calls, everyone sees a short line saying so — agents and the call screen included,
  * since that is where a block bites (T-026).
  */
-import { space, Text, useTheme } from "@sotto/ui";
+import {
+  radius, space, Text, useTheme } from "@sotto/ui";
 import { usePathname } from "expo-router";
 import { type ReactNode, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
@@ -52,7 +53,7 @@ export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | 
           accessibilityRole="alert"
           style={[
             styles.bar,
-            { backgroundColor: color.noticeFill, borderBottomColor: color.noticeBorder },
+            { backgroundColor: color.noticeFill, borderColor: color.noticeBorder },
           ]}
         >
           <Text variant="label" weight="medium" color={color.noticeText}>
@@ -84,7 +85,7 @@ export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | 
           styles.bar,
           {
             backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
-            borderBottomColor: notice ? color.noticeBorder : color.border,
+            borderColor: notice ? color.noticeBorder : color.surfaceSunken,
           },
         ]}
       >
@@ -113,5 +114,14 @@ function pausedReason(
 }
 
 const styles = StyleSheet.create({
-  bar: { paddingHorizontal: space.lg, paddingVertical: space.sm, borderBottomWidth: 1 },
+  // Quiet Paper Glass (D-041): a pill inset from the page edge, not a full-width strip.
+  bar: {
+    alignSelf: "flex-start",
+    marginHorizontal: space.lg,
+    marginTop: space.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+  },
 });

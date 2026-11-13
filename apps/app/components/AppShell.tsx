@@ -16,6 +16,7 @@ import {
   space,
   Text,
   useDirection,
+  useGlassStyle,
   useTheme,
   Wordmark,
 } from "@sotto/ui";
@@ -180,23 +181,16 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
               // Link asChild needs a plain style object (a style function is dropped on web).
               style={StyleSheet.flatten([
                 styles.sideItem,
-                active ? { backgroundColor: color.surface } : null,
+                // Quiet Paper Glass (D-041): the current page is a gray fill, never a colour.
+                active ? { backgroundColor: color.surfaceSunken } : null,
               ])}
             >
-              <View
-                style={[
-                  styles.sideBar,
-                  // The active page carries the one warm signal accent (T-050).
-                  { backgroundColor: active ? color.signal : "transparent" },
-                ]}
-              />
               <View style={styles.navIcon}>
-                <Icon name={item.icon} size={20} color={active ? color.primary : color.textMuted} />
+                <Icon name={item.icon} size={18} color={color.text} />
               </View>
               <Text
                 variant="body"
-                weight={active ? "semibold" : "regular"}
-                tone={active ? "primary" : "muted"}
+                weight={active ? "medium" : "regular"}
                 style={styles.grow}
                 numberOfLines={1}
               >
@@ -221,15 +215,18 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
         disabled={!signedIn}
         onPress={() => setProfile(true)}
         testID="profile-open"
-        style={[styles.user, { borderTopColor: color.border }]}
+        style={({ pressed }) => [
+          styles.user,
+          pressed ? { backgroundColor: color.surfaceSunken } : null,
+        ]}
       >
-        <View style={[styles.avatar, { backgroundColor: color.surfaceSunken }]}>
+        <View style={[styles.avatar, { backgroundColor: color.bubble }]}>
           <Text variant="label" weight="semibold">
             {persona.name.slice(0, 1)}
           </Text>
         </View>
         <View style={styles.userText}>
-          <Text variant="label" weight="semibold" numberOfLines={1}>
+          <Text variant="secondary" weight="medium" numberOfLines={1}>
             {persona.name}
           </Text>
           <Text variant="label" tone="muted" numberOfLines={1}>
@@ -270,13 +267,14 @@ function TopBar({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   const nav = useNav();
   const openCount = useOpenCount();
   const dot = openCount > 0 && nav.some((item) => item.href === "/inbox");
+  // Phone top bar: floating glass chrome (D-041) over the canvas, no hairline.
+  const glass = useGlassStyle();
   return (
     <View
       style={[
         styles.topBar,
+        glass,
         {
-          backgroundColor: color.surface,
-          borderBottomColor: color.border,
           paddingTop: insets.top,
           height: layout.topBarHeight + insets.top,
         },
@@ -301,7 +299,7 @@ function TopBar({ open, onOpen }: { open: boolean; onOpen: () => void }) {
         {dot ? (
           <View
             testID="menu-dot"
-            style={[styles.menuDot, { backgroundColor: color.primary, borderColor: color.surface }]}
+            style={[styles.menuDot, { backgroundColor: color.signal, borderColor: color.surface }]}
           />
         ) : null}
       </Pressable>
@@ -398,7 +396,7 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             dir === "rtl" ? { right: 0, borderLeftWidth: 1 } : { left: 0, borderRightWidth: 1 },
             {
               width,
-              backgroundColor: color.surface,
+              backgroundColor: color.surfaceRaised,
               borderColor: color.border,
               paddingTop: insets.top + space.lg,
               paddingBottom: insets.bottom + space.lg,
@@ -448,8 +446,9 @@ function CloseButton({ label, onPress }: { label: string; onPress: () => void })
 function Count({ n }: { n: number }) {
   const { color } = useTheme();
   return (
-    <View style={[styles.count, { backgroundColor: color.primary }]}>
-      <Text variant="label" weight="semibold" tone="onPrimary">
+    <View style={[styles.count, { backgroundColor: color.bubble }]}>
+      <View style={[styles.unreadDot, { backgroundColor: color.signal }]} />
+      <Text variant="label" weight="medium">
         {n}
       </Text>
     </View>
@@ -457,7 +456,7 @@ function Count({ n }: { n: number }) {
 }
 
 const styles = StyleSheet.create({
-  navIcon: { width: 24, alignItems: "center" },
+  navIcon: { width: 20, alignItems: "center" },
   root: { flex: 1 },
   main: { flex: 1, minWidth: 0 },
   hidden: { display: "none" },
@@ -483,27 +482,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.md,
     minHeight: minTouchTarget,
-    paddingEnd: space.md,
-    borderRadius: radius.sm,
+    paddingHorizontal: space.md,
+    borderRadius: radius.lg,
     overflow: "hidden",
   },
-  sideBar: { width: 3, alignSelf: "stretch", borderRadius: radius.pill },
   count: {
+    flexDirection: "row",
+    gap: space.xs + 2,
     minWidth: 22,
-    height: 22,
-    paddingHorizontal: space.xs + 2,
+    height: 24,
+    paddingHorizontal: space.sm,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
   },
+  unreadDot: { width: 8, height: 8, borderRadius: radius.pill },
   switchWrap: { paddingHorizontal: space.sm, marginBottom: space.lg },
   user: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    borderTopWidth: 1,
-    paddingTop: space.lg,
+    minHeight: minTouchTarget,
+    paddingVertical: space.sm,
     paddingHorizontal: space.sm,
+    borderRadius: radius.lg,
   },
   userText: { flexShrink: 1, minWidth: 0 },
   avatar: {
@@ -517,13 +519,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.sm,
-    borderBottomWidth: 1,
     paddingHorizontal: space.sm,
+    zIndex: 2,
   },
   iconButton: {
     width: minTouchTarget,
     height: minTouchTarget,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
   },

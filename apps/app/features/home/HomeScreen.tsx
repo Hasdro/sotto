@@ -6,7 +6,7 @@
  * Agents never see model names or company stats (D-050).
  */
 
-import { Badge, Button, radius, StatTile, space, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, Icon, radius, StatTile, space, Text, useTheme } from "@sotto/ui";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
@@ -174,15 +174,21 @@ export function HomeScreen() {
   return (
     <ScrollView
       style={{ backgroundColor: color.background }}
-      contentContainerStyle={styles.page}
+      contentContainerStyle={[styles.page, wide ? styles.pageWide : null]}
       testID="home"
     >
-      <View style={[styles.hero, { backgroundColor: color.surface, borderColor: color.border }]}>
+      {/* Quiet Paper Glass (D-041): the page header is plain type on the canvas, not a box. */}
+      <View style={styles.hero}>
         <View style={styles.flex}>
-          <Text variant="title" weight="semibold" accessibilityRole="header" testID="home-next">
+          <Text
+            variant={wide ? "pageTitle" : "title"}
+            weight="semibold"
+            accessibilityRole="header"
+            testID="home-next"
+          >
             {nextLine(t, locale, next)}
           </Text>
-          <Text tone="muted">
+          <Text variant={wide ? "heading" : "body"} tone="muted">
             {me
               ? `${me.user.name} · ${t(`role.short.${me.user.role}`)}${company ? ` · ${company.name}` : ""}`
               : t("home.signedOut")}
@@ -225,12 +231,14 @@ export function HomeScreen() {
                   testID={i === 0 ? "home-last-call" : undefined}
                   style={(state) => [
                     styles.callRow,
-                    { borderColor: color.border },
                     (state as { hovered?: boolean }).hovered
                       ? { backgroundColor: color.surfaceSunken }
                       : null,
                   ]}
                 >
+                  <View style={[styles.rowIcon, { backgroundColor: color.surfaceSunken }]}>
+                    <Icon name="history" size={18} color={color.text} />
+                  </View>
                   <View style={styles.flex}>
                     <Text weight="medium" numberOfLines={1}>
                       {i === 0 ? `${t("home.lastCall")} · ${c.title}` : c.title}
@@ -274,7 +282,9 @@ function Section({
       testID={testID}
       style={[styles.section, { backgroundColor: color.surface, borderColor: color.border }]}
     >
-      <Text weight="semibold">{title}</Text>
+      <Text variant="heading" weight="semibold" accessibilityRole="header">
+        {title}
+      </Text>
       {children}
     </View>
   );
@@ -298,16 +308,22 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: space.xl, gap: space.lg, maxWidth: 1240, width: "100%", alignSelf: "center" },
+  page: { padding: space.xl, gap: space.xl, maxWidth: 1180, width: "100%", alignSelf: "center" },
+  pageWide: { paddingHorizontal: space.xxxl, paddingTop: space.xxxl },
   flex: { flex: 1, minWidth: 0 },
   hero: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     flexWrap: "wrap",
     gap: space.lg,
-    padding: space.lg,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: space.sm,
+  },
+  rowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
   },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
   num: { fontVariant: ["tabular-nums"] },
@@ -316,20 +332,22 @@ const styles = StyleSheet.create({
   main: { flex: 2, minWidth: 0, gap: space.lg },
   side: { gap: space.lg },
   sideWide: { flex: 1, minWidth: 300, maxWidth: 380 },
+  // Outlined card (DESIGN-SYSTEM §4.4): surface, hairline, 22 px radius, no shadow.
   section: {
-    padding: space.lg,
+    padding: space.xl,
     gap: space.md,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
+    borderWidth: 1,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 28 },
   callRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.md,
-    padding: space.md,
-    borderRadius: radius.sm,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    marginHorizontal: -space.sm,
+    borderRadius: radius.lg,
   },
   powered: { textAlign: "center", marginTop: space.md },
 });
