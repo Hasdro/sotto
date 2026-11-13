@@ -22,7 +22,7 @@ import {
   Toast,
   useTheme,
 } from "@sotto/ui";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
 import { deviceCall, setAfterCallItem } from "../../lib/deviceHistory";
@@ -73,7 +73,7 @@ export function FollowUp({
     ? ft("fu.title", { name: `${LRI}${person.name}${PDI}` })
     : ft("fu.titleNoName");
 
-  const make = () => {
+  const make = useCallback(() => {
     if (!bundle) return;
     setPhase("drafting");
     const fetchFn =
@@ -90,11 +90,11 @@ export function FollowUp({
       setVersion((v) => v + 1);
       setPhase(d ? "ready" : "none");
     });
-  };
+  }, [bundle, lines]);
   // Drafts once when the card appears (phase leaves "idle" on the first run).
   useEffect(() => {
     if (auto && visible && phase === "idle") make();
-  }, [auto, visible]);
+  }, [auto, visible, phase, make]);
   useEffect(() => {
     onOpenChange?.(visible && (handled === "open" || handled === "skipping") ? 1 : 0);
   }, [onOpenChange, visible, handled]);
