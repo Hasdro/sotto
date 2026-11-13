@@ -136,6 +136,10 @@ async def exchange_code(
         "access_token": str(data.get("access_token", "")),
         "api_domain": api_domain,
         "expires_in": str(data.get("expires_in", 3600)),
+        # What Zoho granted, when it says (else the caller records what was requested).
+        "scope": ",".join(str(data["scope"]).replace(" ", ",").split(","))
+        if isinstance(data.get("scope"), str) and data["scope"].strip()
+        else "",
     }
 
 

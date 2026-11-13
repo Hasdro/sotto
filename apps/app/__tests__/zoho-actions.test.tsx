@@ -99,6 +99,27 @@ describe("ActionCard", () => {
     expect(screen.queryByTestId("action-lead-approve")).toBeNull(); // saved: no second write
   });
 
+  it("an unconfirmed write is not retried from the card", async () => {
+    const perform = jest.fn().mockRejectedValue(new cloud.CloudError(409, "zoho_unknown", "x"));
+    await wrap(
+      <ActionCard
+        kind="deal_note"
+        title="Note"
+        specs={[]}
+        initial={{}}
+        build={() => ({ deal_id: "4150868000000400001", content: "x" })}
+        perform={perform}
+      />,
+    );
+    await fireEvent.press(screen.getByTestId("action-deal_note-approve"));
+    await waitFor(() =>
+      expect(
+        screen.getByText("Zoho did not confirm. Check Zoho before trying again."),
+      ).toBeOnTheScreen(),
+    );
+    expect(screen.queryByTestId("action-deal_note-approve")).toBeNull();
+  });
+
   it("dismiss sends nothing", async () => {
     const perform = jest.fn();
     await wrap(

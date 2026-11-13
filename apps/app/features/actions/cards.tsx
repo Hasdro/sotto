@@ -76,7 +76,7 @@ export function leadCard(t: T, perform?: Perform): ReactNode {
 
 export function contactCard(t: T, brief: Brief, perform?: Perform): ReactNode {
   const p = brief.person;
-  if (!p || p.module !== "Contacts") return null;
+  if (p?.module !== "Contacts") return null;
   return (
     <ActionCard
       key="contact_update"

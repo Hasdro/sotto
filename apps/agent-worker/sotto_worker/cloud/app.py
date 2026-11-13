@@ -222,6 +222,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "zoho_reconnect": HTTPStatus.CONFLICT,
         "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
         "in_flight": HTTPStatus.CONFLICT,
+        "zoho_unknown": HTTPStatus.CONFLICT,
+        "taken": HTTPStatus.CONFLICT,
         "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
     }
 
@@ -333,6 +335,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def call_brief_get(request: Request, who: Principal) -> Response:
+        store.require_feature(who, "prep")
         return JSONResponse({"brief": store.call_brief(who, request.path_params["call_id"])})
 
     @app_route

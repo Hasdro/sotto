@@ -17,7 +17,7 @@ export function newKey(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-type Phase = "idle" | "saving" | "saved" | "failed" | "reconnect" | "dismissed";
+type Phase = "idle" | "saving" | "saved" | "failed" | "reconnect" | "unknown" | "dismissed";
 
 export function ActionCard({
   kind,
@@ -63,11 +63,15 @@ export function ActionCard({
         setPhase("saved");
         onSaved?.(r.id);
       })
-      .catch((e: unknown) =>
-        setPhase(e instanceof CloudError && e.code === "zoho_reconnect" ? "reconnect" : "failed"),
-      );
+      .catch((e: unknown) => {
+        const code = e instanceof CloudError ? e.code : "";
+        // zoho_unknown: Zoho may have saved it; the server keeps the key, so no retry here.
+        setPhase(
+          code === "zoho_reconnect" ? "reconnect" : code === "zoho_unknown" ? "unknown" : "failed",
+        );
+      });
   };
-  const done = phase === "saved";
+  const done = phase === "saved" || phase === "unknown";
   return (
     <Panel sunken testID={`action-${kind}`}>
       <Stack gap="sm">
@@ -98,7 +102,9 @@ export function ActionCard({
                 ? t("actions.failed")
                 : phase === "reconnect"
                   ? t("actions.reconnect")
-                  : ""}
+                  : phase === "unknown"
+                    ? t("actions.unknown")
+                    : ""}
         </Text>
         {done ? null : (
           <Stack direction="row" gap="sm" wrap>

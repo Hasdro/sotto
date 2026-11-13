@@ -307,7 +307,7 @@ def make_routes(
             accounts_server=accounts,
             api_domain=tokens["api_domain"],
             client_scope=scope,
-            scopes=",".join(SCOPES),
+            scopes=tokens.get("scope") or ",".join(SCOPES),
             ip=ip_of(request),
         )
         if tokens["access_token"]:
@@ -416,9 +416,29 @@ def make_routes(
         if earlier is not None:
             return JSONResponse({"ok": True, **earlier})
         try:
-            result = await zoho_call(who, lambda rd: actions.execute(rd, planned))
-        except BaseException:
-            store.zoho_write_failed(who, key)
+            async with http() as h:
+                rd = await reader(h, who)  # fails before anything is sent: key freed below
+                try:
+                    result = await actions.execute(rd, planned)
+                except ZohoError as e:
+                    if 400 <= e.status < 500:  # Zoho refused it: nothing was written
+                        if e.status == 401:
+                            cache.drop((who.company, who.user_id))
+                        store.zoho_write_failed(who, key, planned.kind, e.code or str(e.status))
+                        code = "zoho_reconnect" if e.status == 401 else "zoho_unavailable"
+                        raise CloudError(code, str(e)) from None
+                    raise
+        except CloudError:
+            store.zoho_write_failed(who, key, planned.kind, "not sent")
+            raise
+        except BaseException as e:
+            # A timeout, a 5xx or a dropped request: Zoho may have saved it. Keep the key so a
+            # retry cannot write twice; the agent checks Zoho first (security review H1).
+            store.zoho_write_unknown(who, key, planned.kind, type(e).__name__)
+            if isinstance(e, Exception):
+                raise CloudError(
+                    "zoho_unknown", "Zoho did not confirm; check Zoho before trying again"
+                ) from None
             raise
         store.zoho_write_done(
             who,

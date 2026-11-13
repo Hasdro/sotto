@@ -144,9 +144,9 @@ async def execute(writer: ZohoCRMReader, p: Planned) -> dict[str, Any]:
         ):
             if f.get(src):
                 record[dst] = f[src]
-        # Zoho-side duplicate check too: the same email updates the lead instead of a second one.
-        check = ["Email"] if f.get("email") else ["Last_Name", "Company"]
-        return await writer.upsert("Leads", record, check)
+        # A plain create: approving "Create a lead" must never overwrite an existing one
+        # (security review M1); retries are covered by the idempotency key.
+        return await writer.create("Leads", record)
     if p.kind == "contact_update":
         record = {}
         for src, dst in (

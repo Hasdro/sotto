@@ -33,6 +33,7 @@ class FakeZohoWrites(FakeZoho):
         super().__init__()
         self.writes: list[tuple[str, str, Any]] = []
         self.fail_next = False
+        self.server_error_next = False
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = request.url
@@ -41,6 +42,9 @@ class FakeZohoWrites(FakeZoho):
             self.requests.append(request)
             body = json.loads(request.content)
             self.writes.append((request.method, path, body))
+            if self.server_error_next:  # Zoho may have saved it, then answered 500
+                self.server_error_next = False
+                return httpx.Response(500, json={"code": "INTERNAL_ERROR"})
             if self.fail_next:
                 self.fail_next = False
                 return httpx.Response(
@@ -236,11 +240,11 @@ def test_each_kind_writes_one_record_with_an_audit_row(
     paths = [(m, p) for m, p, _ in zw.writes]
     assert paths == [
         ("POST", "Events"),
-        ("POST", "Leads/upsert"),
+        ("POST", "Leads"),
         ("PUT", f"Contacts/{CONTACT_ID}"),
         ("POST", "Notes"),
     ]
-    assert zw.writes[1][2]["duplicate_check_fields"] == ["Email"]
+    assert "duplicate_check_fields" not in zw.writes[1][2]  # a new lead never overwrites one
     note = zw.writes[3][2]["data"][0]
     assert note["Parent_Id"] == {"module": {"api_name": "Deals"}, "id": DEAL_ID}
     audit = [a["action"] for a in store.owner_audit()]
@@ -352,3 +356,40 @@ def test_brief_is_saved_with_the_call_and_company_scoped(zc: TestClient) -> None
     assert zc.get("/api/v1/calls/call-1/brief", headers=a).json()["brief"] == brief
     big = {"tldr": "x" * 9000}
     assert zc.put("/api/v1/calls/call-2/brief", json={"brief": big}, headers=a).status_code == 413
+
+
+def test_an_unconfirmed_write_keeps_its_key_so_a_retry_cannot_double(
+    zc: TestClient, auth: dict[str, str], zw: FakeZohoWrites, store: CloudStore
+) -> None:
+    zw.server_error_next = True
+    fields = {"deal_id": DEAL_ID, "content": "Sent pricing"}
+    r = act(zc, auth, "deal_note", fields, key="unk-0001")
+    assert r.status_code == 409
+    assert r.json()["code"] == "zoho_unknown"
+    again = act(zc, auth, "deal_note", fields, key="unk-0001")
+    assert again.json()["code"] == "zoho_unknown"
+    assert len(zw.writes) == 1  # the retry never reached Zoho
+    actions_logged = [a["action"] for a in store.owner_audit()]
+    assert "zoho.write.deal_note.unknown" in actions_logged
+
+
+def test_a_refused_write_is_audited(
+    zc: TestClient, auth: dict[str, str], zw: FakeZohoWrites, store: CloudStore
+) -> None:
+    zw.fail_next = True
+    act(zc, auth, "lead", {"last_name": "Doe", "company": "X"}, key="aud-0001")
+    assert "zoho.write.lead.failed" in [a["action"] for a in store.owner_audit()]
+
+
+def test_a_call_id_cannot_be_squatted_inside_a_company(zc: TestClient, store: CloudStore) -> None:
+    from sotto_worker.cloud.store import CloudError, Principal
+
+    signup(zc, "Acme", "admin@acme.test")
+    admin = store._q("SELECT id, company_id FROM users WHERE email = 'admin@acme.test'")[0]
+    a = Principal(admin["id"], admin["company_id"], "admin", None, "admin@acme.test", "A")
+    agent_id, _ = store.invite(a, "agent@acme.test", "Agent", "agent")
+    b = Principal(agent_id, admin["company_id"], "agent", None, "agent@acme.test", "B")
+    store.save_call_brief(b, "call-a", {"tldr": "B first"})
+    with pytest.raises(CloudError):
+        store.save_call_brief(a, "call-a", {"tldr": "A"})
+    assert store.call_brief(b, "call-a") == {"tldr": "B first"}

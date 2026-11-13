@@ -2333,6 +2333,10 @@ class CloudStore:
                     raise CloudError("invalid", "that key was used for another action")
                 if row["status"] == "done":
                     return {"id": row["zoho_id"], "repeat": True}
+                if row["status"] == "unknown":
+                    raise CloudError(
+                        "zoho_unknown", "Zoho did not confirm; check Zoho before trying again"
+                    )
                 raise CloudError("in_flight", "this action is still being saved")
             db.execute(
                 "INSERT INTO zoho_writes(company_id, user_id, idem_key, kind, status, created_at)"
@@ -2352,13 +2356,26 @@ class CloudStore:
             )
             self.audit(db, f"zoho.write.{kind}", detail, company_id=who.company, actor=who, ip=ip)
 
-    def zoho_write_failed(self, who: Principal, idem_key: str) -> None:
-        """Nothing was written: free the key so the agent can try again."""
+    def zoho_write_failed(self, who: Principal, idem_key: str, kind: str, why: str) -> None:
+        """Nothing was written: free the key so the agent can try again (and log the try)."""
         with self._tx() as db:
             db.execute(
                 "DELETE FROM zoho_writes WHERE company_id = ? AND user_id = ? AND idem_key = ?"
                 " AND status = 'pending'",
                 (who.company, who.user_id, idem_key),
+            )
+            self.audit(db, f"zoho.write.{kind}.failed", why[:60], company_id=who.company, actor=who)
+
+    def zoho_write_unknown(self, who: Principal, idem_key: str, kind: str, why: str) -> None:
+        """Zoho may have written it (timeout, 5xx): keep the key so a retry never doubles."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE zoho_writes SET status = 'unknown'"
+                " WHERE company_id = ? AND user_id = ? AND idem_key = ? AND status = 'pending'",
+                (who.company, who.user_id, idem_key),
+            )
+            self.audit(
+                db, f"zoho.write.{kind}.unknown", why[:60], company_id=who.company, actor=who
             )
 
     def save_call_brief(self, who: Principal, call_id: str, brief: dict[str, Any]) -> None:
@@ -2367,11 +2384,16 @@ class CloudStore:
         if len(raw) > 8000:
             raise CloudError("too_large", "the brief is too long")
         with self._tx() as db:
+            owner = db.execute(
+                "SELECT user_id FROM call_briefs WHERE company_id = ? AND call_id = ?",
+                (who.company, call_id),
+            ).fetchone()
+            if owner is not None and owner["user_id"] != who.user_id:
+                raise CloudError("taken", "that call belongs to someone else")
             db.execute(
                 "INSERT INTO call_briefs(company_id, user_id, call_id, brief_json, updated_at)"
                 " VALUES (?,?,?,?,?) ON CONFLICT(company_id, call_id) DO UPDATE SET"
-                " brief_json = excluded.brief_json, updated_at = excluded.updated_at"
-                " WHERE call_briefs.user_id = excluded.user_id",
+                " brief_json = excluded.brief_json, updated_at = excluded.updated_at",
                 (who.company, who.user_id, call_id, raw, now_ms()),
             )
 
