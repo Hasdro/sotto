@@ -26,7 +26,7 @@ import {
   saveDeviceCall,
   setDeviceReview,
 } from "../../lib/deviceHistory";
-import { attachedBriefText } from "../crm/attached";
+import { attachedBriefText, saveBriefFor } from "../crm/attached";
 import { stateOf } from "../flags/catalog";
 import type { Bridge, BridgeHandlers } from "./bridge";
 
@@ -104,6 +104,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
   };
   const ended = (s: CallSummary) => {
     setCallLive(false);
+    void saveBriefFor(s.call_id); // T-056: the brief is kept with the call (server, org-scoped)
     saveDeviceCall({
       id: s.call_id,
       started_at: s.started_at,

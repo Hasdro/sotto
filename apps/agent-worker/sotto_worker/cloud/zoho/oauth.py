@@ -33,15 +33,32 @@ ACCOUNTS: dict[str, str] = {
 ACCOUNTS_SERVERS = frozenset(ACCOUNTS.values())
 # The CRM API host the token response names; only these may receive an access token.
 API_DOMAIN = re.compile(r"^https://(www\.)?zohoapis\.(com|eu|in|com\.au|jp|ca|com\.cn|sa|uk)$")
-# Read-only for the demo slice (D-031 read matrix); writes come with 0.6.0 and a re-consent.
+# D-031 v1 matrix: read Leads, Contacts, Accounts, Deals, Meetings (Events), Notes; write Leads,
+# Contacts, Meetings and Notes. No Deals/Accounts write scope is ever requested, so Zoho itself
+# refuses a Deal stage or amount change even if a bug let one through.
 SCOPES = (
     "ZohoCRM.modules.contacts.READ",
+    "ZohoCRM.modules.contacts.UPDATE",
     "ZohoCRM.modules.leads.READ",
+    "ZohoCRM.modules.leads.CREATE",
+    "ZohoCRM.modules.leads.UPDATE",
     "ZohoCRM.modules.accounts.READ",
     "ZohoCRM.modules.deals.READ",
+    "ZohoCRM.modules.events.READ",
+    "ZohoCRM.modules.events.CREATE",
     "ZohoCRM.modules.notes.READ",
+    "ZohoCRM.modules.notes.CREATE",
     "ZohoCRM.settings.modules.READ",
 )
+
+
+def missing_scopes(granted: str | None) -> list[str]:
+    """Scopes this server needs that a connection was not made with (made before an upgrade):
+    the app asks that person to connect again."""
+    have = set((granted or "").split(","))
+    return [s for s in SCOPES if s not in have]
+
+
 ACCESS_TTL_S = 55 * 60
 TIMEOUT_S = 10.0
 
@@ -119,6 +136,10 @@ async def exchange_code(
         "access_token": str(data.get("access_token", "")),
         "api_domain": api_domain,
         "expires_in": str(data.get("expires_in", 3600)),
+        # What Zoho granted, when it says (else the caller records what was requested).
+        "scope": ",".join(str(data["scope"]).replace(" ", ",").split(","))
+        if isinstance(data.get("scope"), str) and data["scope"].strip()
+        else "",
     }
 
 

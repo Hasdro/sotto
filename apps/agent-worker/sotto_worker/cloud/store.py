@@ -242,6 +242,27 @@ CREATE TABLE IF NOT EXISTS zoho_connections (
   connected_at INTEGER NOT NULL,
   PRIMARY KEY (company_id, user_id)
 );
+-- Zoho writes the agent approved (D-031): one row per idempotency key, so a retried request
+-- returns the first result instead of writing twice.
+CREATE TABLE IF NOT EXISTS zoho_writes (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  idem_key TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL,
+  zoho_id TEXT,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, user_id, idem_key)
+);
+-- The structured pre-call brief saved with a call (R10, T-056); company-scoped like usage.
+CREATE TABLE IF NOT EXISTS call_briefs (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  call_id TEXT NOT NULL,
+  brief_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, call_id)
+);
 -- One-time OAuth `state` values (hash only), bound to the person and device that asked.
 CREATE TABLE IF NOT EXISTS zoho_states (
   state_hash TEXT PRIMARY KEY,
@@ -370,6 +391,7 @@ ADDED_COLUMNS = (
     # been used yet; until it is, the old one may renew again (a lost response is not theft).
     ("sessions", "prev_refresh_hash", "TEXT"),
     ("sessions", "pair_used", "INTEGER"),
+    ("zoho_connections", "scopes", "TEXT"),  # zoho-actions: scopes granted (NULL = read-only era)
     ("sessions", "legacy_hash", "TEXT"),  # the 0.2.0 token a migrated pair replaced
 )
 EXCERPT_MAX_CHARS = 2000
@@ -2202,17 +2224,28 @@ class CloudStore:
         accounts_server: str,
         api_domain: str,
         client_scope: str,
+        scopes: str = "",
         ip: str = "",
     ) -> None:
         blob = self._vault.encrypt(f"zoho-refresh:{company_id}:{user_id}", refresh_token)
         with self._tx() as db:
             db.execute(
                 "INSERT INTO zoho_connections(company_id, user_id, ciphertext, accounts_server,"
-                " api_domain, client_scope, connected_at) VALUES (?,?,?,?,?,?,?)"
+                " api_domain, client_scope, connected_at, scopes) VALUES (?,?,?,?,?,?,?,?)"
                 " ON CONFLICT(company_id, user_id) DO UPDATE SET ciphertext = excluded.ciphertext,"
                 " accounts_server = excluded.accounts_server, api_domain = excluded.api_domain,"
-                " client_scope = excluded.client_scope, connected_at = excluded.connected_at",
-                (company_id, user_id, blob, accounts_server, api_domain, client_scope, now_ms()),
+                " client_scope = excluded.client_scope, connected_at = excluded.connected_at,"
+                " scopes = excluded.scopes",
+                (
+                    company_id,
+                    user_id,
+                    blob,
+                    accounts_server,
+                    api_domain,
+                    client_scope,
+                    now_ms(),
+                    scopes,
+                ),
             )
             db.execute(
                 "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
@@ -2251,20 +2284,25 @@ class CloudStore:
             "api_domain": str(r["api_domain"]),
             "client_scope": str(r["client_scope"]),
             "connected_at": int(r["connected_at"]),
+            "scopes": str(r["scopes"] or ""),
         }
 
     def zoho_connection_status(self, who: Principal) -> dict[str, Any]:
         rows = self._q(
-            "SELECT api_domain, connected_at FROM zoho_connections"
+            "SELECT api_domain, connected_at, scopes FROM zoho_connections"
             " WHERE company_id = ? AND user_id = ?",
             (who.company, who.user_id),
         )
         if not rows:
             return {"connected": False}
+        from sotto_worker.cloud.zoho.oauth import missing_scopes
+
         return {
             "connected": True,
             "api_domain": str(rows[0]["api_domain"]),
             "connected_at": int(rows[0]["connected_at"]),
+            # Connected before writes existed: reads work, saving to Zoho needs a reconnect.
+            "needs_reconnect": bool(missing_scopes(rows[0]["scopes"])),
         }
 
     def zoho_delete_connection(self, who: Principal, *, ip: str = "") -> None:
@@ -2278,3 +2316,93 @@ class CloudStore:
     def zoho_audit(self, who: Principal, action: str, detail: str, *, ip: str = "") -> None:
         with self._tx() as db:
             self.audit(db, action, detail, company_id=who.company, actor=who, ip=ip)
+
+    def zoho_write_begin(self, who: Principal, idem_key: str, kind: str) -> dict[str, Any] | None:
+        """Claims an idempotency key. Returns the earlier result when this key already wrote
+        (a retry), raises when the same key is still in flight, None when the caller may write."""
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", idem_key or ""):
+            raise CloudError("invalid", "send an idempotency key")
+        with self._tx() as db:
+            row = db.execute(
+                "SELECT kind, status, zoho_id FROM zoho_writes"
+                " WHERE company_id = ? AND user_id = ? AND idem_key = ?",
+                (who.company, who.user_id, idem_key),
+            ).fetchone()
+            if row is not None:
+                if row["kind"] != kind:
+                    raise CloudError("invalid", "that key was used for another action")
+                if row["status"] == "done":
+                    return {"id": row["zoho_id"], "repeat": True}
+                if row["status"] == "unknown":
+                    raise CloudError(
+                        "zoho_unknown", "Zoho did not confirm; check Zoho before trying again"
+                    )
+                raise CloudError("in_flight", "this action is still being saved")
+            db.execute(
+                "INSERT INTO zoho_writes(company_id, user_id, idem_key, kind, status, created_at)"
+                " VALUES (?,?,?,?, 'pending', ?)",
+                (who.company, who.user_id, idem_key, kind, now_ms()),
+            )
+        return None
+
+    def zoho_write_done(
+        self, who: Principal, idem_key: str, kind: str, zoho_id: str, detail: str, *, ip: str = ""
+    ) -> None:
+        with self._tx() as db:
+            db.execute(
+                "UPDATE zoho_writes SET status = 'done', zoho_id = ?"
+                " WHERE company_id = ? AND user_id = ? AND idem_key = ?",
+                (zoho_id, who.company, who.user_id, idem_key),
+            )
+            self.audit(db, f"zoho.write.{kind}", detail, company_id=who.company, actor=who, ip=ip)
+
+    def zoho_write_failed(self, who: Principal, idem_key: str, kind: str, why: str) -> None:
+        """Nothing was written: free the key so the agent can try again (and log the try)."""
+        with self._tx() as db:
+            db.execute(
+                "DELETE FROM zoho_writes WHERE company_id = ? AND user_id = ? AND idem_key = ?"
+                " AND status = 'pending'",
+                (who.company, who.user_id, idem_key),
+            )
+            self.audit(db, f"zoho.write.{kind}.failed", why[:60], company_id=who.company, actor=who)
+
+    def zoho_write_unknown(self, who: Principal, idem_key: str, kind: str, why: str) -> None:
+        """Zoho may have written it (timeout, 5xx): keep the key so a retry never doubles."""
+        with self._tx() as db:
+            db.execute(
+                "UPDATE zoho_writes SET status = 'unknown'"
+                " WHERE company_id = ? AND user_id = ? AND idem_key = ? AND status = 'pending'",
+                (who.company, who.user_id, idem_key),
+            )
+            self.audit(
+                db, f"zoho.write.{kind}.unknown", why[:60], company_id=who.company, actor=who
+            )
+
+    def save_call_brief(self, who: Principal, call_id: str, brief: dict[str, Any]) -> None:
+        call_id = _clean(call_id, "call_id", 64)
+        raw = json.dumps(brief, ensure_ascii=False)
+        if len(raw) > 8000:
+            raise CloudError("too_large", "the brief is too long")
+        with self._tx() as db:
+            owner = db.execute(
+                "SELECT user_id FROM call_briefs WHERE company_id = ? AND call_id = ?",
+                (who.company, call_id),
+            ).fetchone()
+            if owner is not None and owner["user_id"] != who.user_id:
+                raise CloudError("taken", "that call belongs to someone else")
+            db.execute(
+                "INSERT INTO call_briefs(company_id, user_id, call_id, brief_json, updated_at)"
+                " VALUES (?,?,?,?,?) ON CONFLICT(company_id, call_id) DO UPDATE SET"
+                " brief_json = excluded.brief_json, updated_at = excluded.updated_at",
+                (who.company, who.user_id, call_id, raw, now_ms()),
+            )
+
+    def call_brief(self, who: Principal, call_id: str) -> dict[str, Any] | None:
+        """The caller's own brief; admins and managers see their company's."""
+        sql = "SELECT brief_json FROM call_briefs WHERE company_id = ? AND call_id = ?"
+        args: tuple[Any, ...] = (who.company, call_id)
+        if who.role == "agent":
+            sql += " AND user_id = ?"
+            args = (*args, who.user_id)
+        rows = self._q(sql, args)
+        return cast(dict[str, Any], json.loads(rows[0]["brief_json"])) if rows else None

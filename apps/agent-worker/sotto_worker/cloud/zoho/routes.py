@@ -23,14 +23,16 @@ from starlette.routing import Route
 from sotto_worker.adapters.crm.zoho import ModuleNotAllowed, ZohoCRMReader, ZohoError
 from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
-from sotto_worker.cloud.zoho import lookup
+from sotto_worker.cloud.zoho import actions, lookup
 from sotto_worker.cloud.zoho.oauth import (
+    SCOPES,
     AccessCache,
     Client,
     ZohoAuthError,
     accounts_server_for,
     authorize_url,
     exchange_code,
+    missing_scopes,
     refresh_access,
     revoke,
 )
@@ -45,31 +47,73 @@ NO_STORE = {"Cache-Control": "no-store"}
 BROWSER_COOKIE = "sotto_zoho_flow"
 
 
+# Brand colours (packages/ui tokens: light + dark primary, surface, background, text).
+PAGE_STYLE = (
+    ":root{--bg:#eaeef2;--card:#f7f9fb;--ink:#132029;--muted:#4a5a66;--brand:#0b5f63;"
+    "--on-brand:#ffffff;--line:#d3dbe2;--ok:#0b5f63;--bad:#a2321f}"
+    "@media (prefers-color-scheme:dark){:root{--bg:#0c1218;--card:#121b23;--ink:#e6ecf1;"
+    "--muted:#9fb0bd;--brand:#5fc4bb;--on-brand:#06201f;--line:#26333e;--ok:#5fc4bb;"
+    "--bad:#ff9b85}}"
+    "*{box-sizing:border-box}"
+    "body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
+    "font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);"
+    "color:var(--ink)}"
+    "main{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);"
+    "border-radius:16px;padding:28px 24px;text-align:center}"
+    ".mark{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;"
+    "color:var(--brand);font-weight:700;font-size:15px;letter-spacing:.2px}"
+    ".state{width:44px;height:44px;margin:0 auto 12px;border-radius:50%;display:grid;"
+    "place-items:center;font-size:24px;font-weight:700}"
+    ".state.ok{background:var(--ok);color:var(--on-brand)}"
+    ".state.bad{border:2px solid var(--bad);color:var(--bad)}"
+    "h1{font-size:22px;margin:0 0 8px}p{margin:0;color:var(--muted);line-height:1.5}"
+    "a.go{display:inline-block;margin-top:20px;padding:12px 20px;border-radius:10px;"
+    "background:var(--brand);color:var(--on-brand);text-decoration:none;font-weight:600}"
+    "a.go:focus-visible{outline:3px solid var(--ink);outline-offset:2px}"
+)
+SHIELD = (
+    "<svg width='22' height='22' viewBox='0 0 24 24' aria-hidden='true'>"
+    "<path fill='currentColor' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z'/></svg>"
+)
+
+
 def _page(
-    title: str, body: str, status: int = 200, *, link: tuple[str, str] | None = None
+    title: str,
+    body: str,
+    status: int = 200,
+    *,
+    link: tuple[str, str] | None = None,
+    state: str | None = None,
 ) -> HTMLResponse:
+    """A small branded page for the browser half of the OAuth flow. All styling is in the head's
+    <style> (allowed by PAGE_CSP); every dynamic value is escaped."""
+    badge = {
+        "ok": "<div class='state ok' aria-hidden='true'>&#10003;</div>",
+        "bad": "<div class='state bad' aria-hidden='true'>!</div>",
+    }.get(state or "", "")
+    go = (
+        f"<a class='go' href='{html.escape(link[0], quote=True)}'>{html.escape(link[1])}</a>"
+        if link
+        else ""
+    )
     doc = (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        f"<title>{html.escape(title)}</title><style>"
-        "body{font-family:system-ui,sans-serif;margin:0;display:grid;place-items:center;"
-        "min-height:100vh;background:#f6f7f9;color:#1b1f24}"
-        "@media (prefers-color-scheme:dark){body{background:#111418;color:#e8eaed}}"
-        "main{max-width:420px;padding:24px;text-align:center}h1{font-size:22px}</style>"
-        "a{display:inline-block;margin-top:12px;padding:10px 18px;border-radius:8px;"
-        "background:#1f5eff;color:#fff;text-decoration:none;font-weight:600}"
-        f"</head><body><main><h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>"
-        + (
-            f"<a href='{html.escape(link[0], quote=True)}'>{html.escape(link[1])}</a>"
-            if link
-            else ""
-        )
-        + "</main></body></html>"
+        "<meta name='color-scheme' content='light dark'>"
+        f"<title>{html.escape(title)} · AGN Sales Shield</title>"
+        f"<style>{PAGE_STYLE}</style></head><body><main>"
+        f"<div class='mark'>{SHIELD}<span>AGN Sales Shield</span></div>{badge}"
+        f"<h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>{go}"
+        "</main></body></html>"
     )
     return HTMLResponse(
         doc,
         status_code=status,
-        headers={"Content-Security-Policy": PAGE_CSP, **NO_STORE, "Referrer-Policy": "no-referrer"},
+        headers={
+            "Content-Security-Policy": PAGE_CSP,
+            **NO_STORE,
+            "Referrer-Policy": "no-referrer",
+        },
     )
 
 
@@ -187,10 +231,12 @@ def make_routes(
         state = request.query_params.get("state", "")
         row = store.zoho_peek_state(state)
         if row is None:
-            return _page("Link expired", "Start again from AGN Sales Shield.", 400)
+            return _page("Link expired", "Start again from AGN Sales Shield.", 400, state="bad")
         client = client_of(str(row["company_id"]))
         if client is None:
-            return _page("Zoho is not set up", "Ask your admin to add the Zoho client.", 409)
+            return _page(
+                "Zoho is not set up", "Ask your admin to add the Zoho client.", 409, state="bad"
+            )
         # Bind the flow to this browser (security review M1), and say whose account it is for,
         # so a forwarded link cannot quietly connect someone else's Zoho.
         browser = secrets.token_urlsafe(32)
@@ -216,9 +262,14 @@ def make_routes(
         q = request.query_params
         row = store.zoho_spend_state(q.get("state", ""), request.cookies.get(BROWSER_COOKIE, ""))
         if row is None:
-            return _page("Link expired", "Start again from AGN Sales Shield.", 400)
+            return _page("Link expired", "Start again from AGN Sales Shield.", 400, state="bad")
         if q.get("error") or not q.get("code"):
-            return _page("Not connected", "Zoho did not grant access. Try again from the app.", 400)
+            return _page(
+                "Not connected",
+                "Zoho did not grant access. Try again from the app.",
+                400,
+                state="bad",
+            )
         company_id, user_id = str(row["company_id"]), str(row["user_id"])
         person = Principal(
             user_id, company_id, str(row["role"]), row["device_id"], str(row["email"]), ""
@@ -226,10 +277,14 @@ def make_routes(
         try:
             connectable(person)  # a kill switch or org toggle since /connect still applies
         except FeatureUnavailable:
-            return _page("Not connected", "Zoho is switched off for your organisation.", 403)
+            return _page(
+                "Not connected", "Zoho is switched off for your organisation.", 403, state="bad"
+            )
         client = client_of(company_id)
         if client is None:
-            return _page("Zoho is not set up", "Ask your admin to add the Zoho client.", 409)
+            return _page(
+                "Zoho is not set up", "Ask your admin to add the Zoho client.", 409, state="bad"
+            )
         accounts = accounts_server_for(q.get("accounts-server"), client)
         try:
             async with http() as h:
@@ -238,7 +293,12 @@ def make_routes(
                 )
         except ZohoAuthError as e:
             log(f"zoho: code exchange failed for company {company_id}: {e}")
-            return _page("Not connected", "Zoho refused the sign-in. Try again from the app.", 502)
+            return _page(
+                "Not connected",
+                "Zoho refused the sign-in. Try again from the app.",
+                502,
+                state="bad",
+            )
         scope = (store.zoho_client(company_id) or {}).get("scope", "platform")
         store.zoho_save_connection(
             company_id,
@@ -247,11 +307,16 @@ def make_routes(
             accounts_server=accounts,
             api_domain=tokens["api_domain"],
             client_scope=scope,
+            scopes=tokens.get("scope") or ",".join(SCOPES),
             ip=ip_of(request),
         )
         if tokens["access_token"]:
             cache.put((company_id, user_id), tokens["access_token"], int(tokens["expires_in"]))
-        return _page("Connected to Zoho", "You can close this tab and return to AGN Sales Shield.")
+        return _page(
+            "Connected to Zoho",
+            "You can close this tab. AGN Sales Shield shows the connection when you return.",
+            state="ok",
+        )
 
     # --- read-only lookup ------------------------------------------------------------------------
     async def reader(h: httpx.AsyncClient, who: Principal) -> ZohoCRMReader:
@@ -316,6 +381,76 @@ def make_routes(
         return JSONResponse({"brief": brief}, headers=NO_STORE)
 
     @app_route
+    async def meetings(r: Request, who: Principal) -> Response:
+        limited(who)
+        found = await zoho_call(who, lambda rd: lookup.find_meetings(rd))
+        store.zoho_audit(who, "zoho.search", f"meetings: {len(found)} found", ip=ip_of(r))
+        return JSONResponse({"candidates": found}, headers=NO_STORE)
+
+    @app_route
+    async def meeting(r: Request, who: Principal) -> Response:
+        limited(who)
+        event_id = r.path_params["id"]
+        if not lookup.RECORD_ID.match(event_id):
+            raise CloudError("invalid", "unknown meeting")
+        brief = await zoho_call(who, lambda rd: lookup.build_meeting_brief(rd, event_id))
+        if brief is None:
+            raise CloudError("not_found", "that meeting is gone")
+        store.zoho_audit(who, "zoho.read", f"Events:{event_id}", ip=ip_of(r))
+        return JSONResponse({"brief": brief}, headers=NO_STORE)
+
+    @app_route
+    async def action(r: Request, who: Principal) -> Response:
+        """One approved write (R12): the request is the agent's approval of that one card."""
+        limited(who)
+        data = await body(r)
+        if data.get("approved") is not True:
+            raise CloudError("invalid", "approve the action first")
+        planned = actions.plan(r.path_params["kind"], data.get("fields"))
+        store.require_feature(who, "zoho")
+        conn = store.zoho_connection(who)
+        if conn is None or missing_scopes(conn.get("scopes")):
+            raise CloudError("zoho_reconnect", "connect Zoho again to allow saving")
+        key = str(data.get("idempotency_key", ""))
+        earlier = store.zoho_write_begin(who, key, planned.kind)
+        if earlier is not None:
+            return JSONResponse({"ok": True, **earlier})
+        try:
+            async with http() as h:
+                rd = await reader(h, who)  # fails before anything is sent: key freed below
+                try:
+                    result = await actions.execute(rd, planned)
+                except ZohoError as e:
+                    if 400 <= e.status < 500:  # Zoho refused it: nothing was written
+                        if e.status == 401:
+                            cache.drop((who.company, who.user_id))
+                        store.zoho_write_failed(who, key, planned.kind, e.code or str(e.status))
+                        code = "zoho_reconnect" if e.status == 401 else "zoho_unavailable"
+                        raise CloudError(code, str(e)) from None
+                    raise
+        except CloudError:
+            store.zoho_write_failed(who, key, planned.kind, "not sent")
+            raise
+        except BaseException as e:
+            # A timeout, a 5xx or a dropped request: Zoho may have saved it. Keep the key so a
+            # retry cannot write twice; the agent checks Zoho first (security review H1).
+            store.zoho_write_unknown(who, key, planned.kind, type(e).__name__)
+            if isinstance(e, Exception):
+                raise CloudError(
+                    "zoho_unknown", "Zoho did not confirm; check Zoho before trying again"
+                ) from None
+            raise
+        store.zoho_write_done(
+            who,
+            key,
+            planned.kind,
+            result["id"],
+            f"{planned.summary} {result['action'] or 'insert'} {result['id']}",
+            ip=ip_of(r),
+        )
+        return JSONResponse({"ok": True, "id": result["id"], "action": result["action"]})
+
+    @app_route
     async def modules(_r: Request, who: Principal) -> Response:
         who.require("admin")
         found = await zoho_call(who, lambda rd: rd.modules())
@@ -335,6 +470,9 @@ def make_routes(
         Route(f"{api}/zoho/search", search),
         Route(f"{api}/zoho/records/{{module}}/{{id}}", record),
         Route(f"{api}/zoho/modules", modules),
+        Route(f"{api}/zoho/meetings", meetings),
+        Route(f"{api}/zoho/meetings/{{id}}", meeting),
+        Route(f"{api}/zoho/actions/{{kind}}", action, methods=["POST"]),
         Route("/auth/zoho/start", handle(start)),
         Route("/auth/zoho/callback/", handle(callback)),
     ]
