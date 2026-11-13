@@ -30,6 +30,8 @@ from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.recordings import KINDS, Recordings
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
+from sotto_worker.cloud.email import routes as email_routes
+from sotto_worker.cloud.gallabox import routes as gallabox_routes
 from sotto_worker.cloud.zoho import routes as zoho_routes
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
@@ -123,6 +125,8 @@ class CloudConfig:
     recordings: Recordings | None = None  # None: recordings are not kept on this server
     mailer: EmailSender | None = None  # None: manager emails are off (Inbox only)
     zoho_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Zoho
+    smtp_sender: email_routes.Sender | None = None  # tests: a local fake SMTP server
+    gallabox_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Gallabox
 
 
 async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
@@ -175,6 +179,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     token_limit = RateLimit(per_key=60, total=2000, window_s=3600)
     refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
     zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
+    send_limit = RateLimit(per_key=10, total=600, window_s=60)  # email + WhatsApp sends
     minter = config.stt_minter or mint_stt_token
     tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
@@ -221,6 +226,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "zoho_no_client": HTTPStatus.CONFLICT,
         "zoho_reconnect": HTTPStatus.CONFLICT,
         "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
+        "email_failed": HTTPStatus.BAD_GATEWAY,
+        "in_progress": HTTPStatus.CONFLICT,
+        "gallabox_no_credentials": HTTPStatus.CONFLICT,
+        "gallabox_auth": HTTPStatus.BAD_GATEWAY,
+        "gallabox_unavailable": HTTPStatus.BAD_GATEWAY,
+        "whatsapp_blocked": HTTPStatus.BAD_GATEWAY,
+        "freeform_disabled": HTTPStatus.FORBIDDEN,
         "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
     }
 
@@ -1011,6 +1023,25 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             log=config.log,
             secure_cookies=config.secure_cookies,
             read_limit=lambda key: zoho_limit.hit(key),
+        ),
+        *email_routes.make_routes(
+            store=store,
+            app_route=app_route,
+            owner_route=owner_route,
+            body=body,
+            ip_of=ip_of,
+            send_limit=lambda key: send_limit.hit(key),
+            log=config.log,
+            **({"sender": config.smtp_sender} if config.smtp_sender else {}),
+        ),
+        *gallabox_routes.make_routes(
+            store=store,
+            app_route=app_route,
+            body=body,
+            ip_of=ip_of,
+            transport=config.gallabox_transport,
+            send_limit=lambda key: send_limit.hit(key),
+            log=config.log,
         ),
         Route("/owner", owner_page),
         Route("/owner/{file}", owner_page),

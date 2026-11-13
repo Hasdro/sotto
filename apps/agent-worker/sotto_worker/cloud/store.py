@@ -1499,7 +1499,15 @@ class CloudStore:
     def connections(self, company_id: str) -> frozenset[str]:
         """Connections this organisation has. None exist before 0.4.0 (Zoho) and 0.6.0 (Gallabox,
         approved email senders); their modules add themselves here."""
-        return frozenset()
+        from sotto_worker.cloud.email.data import has_sender
+        from sotto_worker.cloud.gallabox.data import configured as gallabox_configured
+
+        found = set()
+        if has_sender(self, company_id):
+            found.add("email_sender")
+        if gallabox_configured(self, company_id):
+            found.add("gallabox")
+        return frozenset(found)
 
     def feature_layers(self, company_id: str) -> features.Layers:
         killed = {r["feature"] for r in self._q("SELECT feature FROM feature_kill")}

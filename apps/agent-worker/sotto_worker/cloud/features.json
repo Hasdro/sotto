@@ -50,21 +50,21 @@
       "roles": ["admin"],
       "requires": ["gallabox"],
       "depends": ["integrations"],
-      "built": false
+      "built": true
     },
     {
       "id": "email_send",
       "roles": ["admin", "manager", "agent"],
       "requires": ["email_sender"],
       "depends": ["follow_up"],
-      "built": false
+      "built": true
     },
     {
       "id": "whatsapp",
       "roles": ["admin", "manager", "agent"],
       "requires": ["gallabox"],
       "depends": ["integrations", "gallabox"],
-      "built": false
+      "built": true
     },
     {
       "id": "prep",
