@@ -64,6 +64,13 @@ window.I18N = {
     "form.privacy": "We use what you send only to reply to you. See the Privacy page.",
     "foot.by": "AGN IT Services",
     "legal.draft": "DRAFT, owner review",
+    "demo.live": "Live",
+    "demo.customer": "Customer",
+    "demo.q": "Can it see my meetings in Zoho before the call?",
+    "demo.type": "Answer · from your playbook",
+    "demo.a":
+      "Yes. It reads today's meeting and contact from Zoho, and saves notes only after you approve them.",
+    "demo.cap": "An example card on the live call.",
     "legal.back": "Back to the home page",
   },
   ar: {
@@ -125,6 +132,12 @@ window.I18N = {
     "form.privacy": "نستخدم ما ترسله للرد عليك فقط. راجع صفحة الخصوصية.",
     "foot.by": "AGN IT Services",
     "legal.draft": "مسودة، بانتظار مراجعة المالك",
+    "demo.live": "مباشر",
+    "demo.customer": "العميل",
+    "demo.q": "هل يرى اجتماعاتي في Zoho قبل المكالمة؟",
+    "demo.type": "إجابة · من دليل شركتك",
+    "demo.a": "نعم. يقرأ اجتماع اليوم وجهة الاتصال من Zoho، ولا يحفظ الملاحظات إلا بعد موافقتك.",
+    "demo.cap": "مثال على بطاقة أثناء المكالمة المباشرة.",
     "legal.back": "العودة إلى الصفحة الرئيسية",
   },
 };

@@ -15,6 +15,8 @@
       "!docs/owner-hub.html",
       "!packages/engine/src/__tests__/bundle.json",
       "!packages/ui/tokens.css",
+      "!apps/agent-worker/sotto_worker/cloud/owner/tokens.css",
+      "!apps/landing/tokens.css",
       "!docs/design/reference"
     ]
   },

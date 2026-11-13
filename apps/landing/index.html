@@ -8,37 +8,52 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="icon-512.png">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header class="top"><div class="wrap">
-  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><mask id="logo-cut"><rect width="64" height="64" fill="#fff"/><g transform="translate(14.5 14.5) scale(0.55)"><g fill="#000"><rect x="6.5" y="8.5" width="21" height="14" rx="6.5" transform="rotate(-38 17 15.5)"/><rect x="36.5" y="41.5" width="21" height="14" rx="6.5" transform="rotate(-52 47 48.5)"/></g><path d="M15 17 C9 33 23 51 46 50" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round"/></g></mask></defs><path d="M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z" fill="currentColor" mask="url(#logo-cut)"/></svg><span data-i18n="brand">AGN Sales Shield</span></a>
+<header class="top ss-topbar ss-glass"><div class="wrap">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><mask id="logo-cut"><rect width="64" height="64" fill="#fff"/><g transform="translate(14.5 14.5) scale(0.55)"><g fill="#000"><rect x="6.5" y="8.5" width="21" height="14" rx="6.5" transform="rotate(-38 17 15.5)"/><rect x="36.5" y="41.5" width="21" height="14" rx="6.5" transform="rotate(-52 47 48.5)"/></g><path d="M15 17 C9 33 23 51 46 50" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round"/></g></mask></defs><path d="M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z" fill="currentColor" mask="url(#logo-cut)"/></svg><span class="brand-name" data-i18n="brand">AGN Sales Shield</span></a>
   <div class="tools">
-    <button class="ghost" id="theme-btn" type="button" data-i18n="ui.theme">Theme</button>
-    <button class="ghost" id="lang-btn" type="button" lang="ar">العربية</button>
+    <button class="ghost ss-btn ss-btn--ghost" id="theme-btn" type="button" data-i18n="ui.theme">Theme</button>
+    <button class="ghost ss-btn ss-btn--ghost" id="lang-btn" type="button" lang="ar">العربية</button>
+    <a class="ss-btn top-dl" href="#download" data-i18n="dl.h2">Download</a>
   </div>
 </div></header>
 <main>
 <div class="wrap">
   <div class="hero">
-    <h1 data-i18n="hero.h1">The right words, while the customer is still talking.</h1>
-    <p class="lead" data-i18n="hero.lead">AGN Sales Shield listens only to your customer's side of a live call and shows you one short suggestion card, fast enough to use in the next sentence.</p>
-    <p class="zoho-badge" data-i18n="hero.zoho">Works with Zoho CRM</p>
-    <div class="cta"><div id="hero-dl" aria-live="polite"></div></div>
+    <div class="hero-copy">
+      <p class="zoho-badge ss-badge"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="hero.zoho">Works with Zoho CRM</span></p>
+      <h1 class="ss-display" data-i18n="hero.h1">The right words, while the customer is still talking.</h1>
+      <p class="lead" data-i18n="hero.lead">AGN Sales Shield listens only to your customer's side of a live call and shows you one short suggestion card, fast enough to use in the next sentence.</p>
+      <div class="cta"><div id="hero-dl" aria-live="polite"></div></div>
+    </div>
+    <figure class="demo" aria-labelledby="demo-cap">
+      <div class="demo-status"><span class="ss-status"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="demo.live">Live</span> <span class="ss-mono" dir="ltr">00:11</span></span></div>
+      <p class="ss-bubble demo-bubble"><span class="demo-who" data-i18n="demo.customer">Customer</span><span data-i18n="demo.q">Can it see my meetings in Zoho before the call?</span></p>
+      <div class="ss-suggestion demo-card">
+        <p class="ss-suggestion__meta"><span class="demo-glyph" aria-hidden="true">“</span><span data-i18n="demo.type">Answer · from your playbook</span></p>
+        <p class="demo-text" data-i18n="demo.a">Yes. It reads today's meeting and contact from Zoho, and saves notes only after you approve them.</p>
+      </div>
+      <figcaption id="demo-cap" class="ss-caption" data-i18n="demo.cap">An example card on the live call.</figcaption>
+    </figure>
   </div>
 
   <section aria-labelledby="what">
     <h2 id="what" data-i18n="what.h2">What it does</h2>
-    <p data-i18n="what.p">During a sales call, one card at a time appears on your screen.</p>
+    <p class="section-lead" data-i18n="what.p">During a sales call, one card at a time appears on your screen.</p>
   </section>
 
   <section aria-labelledby="features">
     <h2 id="features" data-i18n="f.h2">Built for the call</h2>
     <div class="grid">
-      <div class="card"><h3 data-i18n="f1.h">Customer audio only</h3><p data-i18n="f1.p"></p></div>
-      <div class="card"><h3 data-i18n="f2.h">One card, no clutter</h3><p data-i18n="f2.p"></p></div>
-      <div class="card"><h3 data-i18n="f3.h">Your playbook first</h3><p data-i18n="f3.p"></p></div>
-      <div class="card"><h3 data-i18n="f4.h">Works with Zoho CRM</h3><p data-i18n="f4.p"></p></div>
+      <div class="card ss-well"><h3 data-i18n="f1.h">Customer audio only</h3><p data-i18n="f1.p"></p></div>
+      <div class="card ss-well"><h3 data-i18n="f2.h">One card, no clutter</h3><p data-i18n="f2.p"></p></div>
+      <div class="card ss-well"><h3 data-i18n="f3.h">Your playbook first</h3><p data-i18n="f3.p"></p></div>
+      <div class="card ss-well"><h3 data-i18n="f4.h">Works with Zoho CRM</h3><p data-i18n="f4.p"></p></div>
     </div>
   </section>
 
@@ -64,14 +79,14 @@
   <section aria-labelledby="inst">
     <h2 id="inst" data-i18n="inst.h2">First open on Mac and Windows</h2>
     <div class="grid">
-      <div class="card"><h3 data-i18n="inst.mac.h">macOS</h3><ol class="steps"><li data-i18n="inst.mac.1"></li><li data-i18n="inst.mac.2"></li><li data-i18n="inst.mac.3"></li></ol></div>
-      <div class="card"><h3 data-i18n="inst.win.h">Windows</h3><ol class="steps"><li data-i18n="inst.win.1"></li><li data-i18n="inst.win.2"></li><li data-i18n="inst.win.3"></li></ol></div>
+      <div class="card ss-well"><h3 data-i18n="inst.mac.h">macOS</h3><ol class="steps"><li data-i18n="inst.mac.1"></li><li data-i18n="inst.mac.2"></li><li data-i18n="inst.mac.3"></li></ol></div>
+      <div class="card ss-well"><h3 data-i18n="inst.win.h">Windows</h3><ol class="steps"><li data-i18n="inst.win.1"></li><li data-i18n="inst.win.2"></li><li data-i18n="inst.win.3"></li></ol></div>
     </div>
   </section>
 
   <section aria-labelledby="form">
     <h2 id="form" data-i18n="form.h2">Talk to us</h2>
-    <div class="form-box">
+    <div class="form-box ss-card">
       <p class="form-loading" id="form-loading" data-i18n="form.loading">Loading the form…</p>
       <iframe id="zoho-form" class="zoho-form" aria-label="Sales Shield Signup" title="Sales Shield Signup" loading="lazy"
         src="https://forms.zohopublic.com/agncomputerllc/form/SalesShieldSignup/formperma/95zC6xcBOHVHXpGkfczaurMCdOmUN1bSpPIhPdLDy-Q"
