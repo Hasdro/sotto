@@ -42,8 +42,9 @@ export function ScenarioPicker({ scenarios, onStart }: Props) {
                 style={[
                   styles.option,
                   {
-                    borderColor: selected ? color.primary : color.border,
-                    backgroundColor: selected ? color.surfaceSunken : color.surface,
+                    // Rows are flat gray (D-041); the chosen one keeps an accent outline.
+                    borderColor: selected ? color.primary : "transparent",
+                    backgroundColor: selected ? color.bubble : color.surfaceSunken,
                   },
                 ]}
               >
@@ -96,7 +97,7 @@ const styles = StyleSheet.create({
     minHeight: size.controlLg,
     paddingHorizontal: space.lg,
     borderWidth: 1,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
   },
   radio: {
     width: size.radio,

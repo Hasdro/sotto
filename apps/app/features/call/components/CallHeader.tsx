@@ -8,6 +8,7 @@ import {
   space,
   Text,
   useFocusRing,
+  useGlassStyle,
   useTheme,
 } from "@sotto/ui";
 import { useEffect, useState } from "react";
@@ -59,13 +60,7 @@ export function CallHeader({
   const ct = useCallText();
   const source = useCallSource();
   return (
-    <View
-      style={[
-        styles.bar,
-        { borderBottomColor: color.border, backgroundColor: color.background },
-        wide ? styles.barWide : null,
-      ]}
-    >
+    <View style={[styles.bar, { backgroundColor: color.background }, wide ? styles.barWide : null]}>
       {rail ? <RailToggle open={rail.open} onToggle={rail.onToggle} /> : null}
       <View style={styles.titleBlock}>
         <Text
@@ -113,6 +108,8 @@ export function CallHeader({
 /** "Live" with its dot; hover or focus shows the AI mode (UX-06a). */
 function LiveStatus({ tip }: { tip: string }) {
   const { color } = useTheme();
+  // Floating chrome (D-041): the tooltip is glass.
+  const glass = useGlassStyle();
   const { t } = useI18n();
   const [shown, setShown] = useState(false);
   return (
@@ -125,21 +122,15 @@ function LiveStatus({ tip }: { tip: string }) {
       onHoverOut={() => setShown(false)}
       onFocus={() => setShown(true)}
       onBlur={() => setShown(false)}
-      style={styles.status}
+      style={[styles.status, { backgroundColor: color.signalFill }]}
     >
       <View style={[styles.liveDot, { backgroundColor: color.signal }]} />
-      <Text variant="label" weight="semibold" color={color.signal}>
+      <Text variant="label" weight="medium" color={color.onSignalFill}>
         {t("call.status.live")}
       </Text>
       {shown ? (
-        <View
-          testID="live-tooltip"
-          pointerEvents="none"
-          style={[styles.tip, { backgroundColor: color.toastFill, borderColor: color.toastBorder }]}
-        >
-          <Text variant="label" color={color.onToast}>
-            {tip}
-          </Text>
+        <View testID="live-tooltip" pointerEvents="none" style={[styles.tip, glass]}>
+          <Text variant="label">{tip}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -165,10 +156,8 @@ function RailToggle({ open, onToggle }: { open: boolean; onToggle: () => void })
       testID="rail-toggle"
       style={({ pressed }) => [
         styles.railToggle,
-        {
-          borderColor: color.borderStrong,
-          backgroundColor: open ? color.surfaceSunken : "transparent",
-        },
+        // The neutral chip (D-041): gray fill, darker when the rail is open; no outline.
+        { backgroundColor: open ? color.bubble : color.surfaceSunken },
         pressed ? styles.pressed : null,
         focus.ring,
       ]}
@@ -210,14 +199,20 @@ function CallClock({ startedAt, endedAt }: { startedAt: number; endedAt: number 
 }
 
 const styles = StyleSheet.create({
-  status: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  status: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.xs + 2,
+    minHeight: 28,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+  },
   liveDot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
   railToggle: {
     minWidth: minTouchTarget,
     minHeight: minTouchTarget,
-    paddingHorizontal: space.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -230,10 +225,9 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
     zIndex: 10,
     minWidth: 220,
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
+    borderRadius: radius.lg,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
   },
   railGlyph: {
     width: 20,
@@ -252,7 +246,6 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
-    borderBottomWidth: 1,
   },
   barWide: { paddingHorizontal: space.xxl, paddingVertical: space.lg },
   titleBlock: { flex: 1, gap: space.xs, minWidth: 0 },
