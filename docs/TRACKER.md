@@ -217,7 +217,8 @@ Wave 1
 - [x] T-074 `review-server-core` — ZC-02, UX-35, W1-DESK, ZC-14s, UX-39s, ZC-11s, INT-01s, INT-03, INT-16
   - Evidence (13 Nov, `phase9/review-server-core`): worker 588 passed (new: test_zoho_dc, test_call_log, test_brief_stage, test_reset, test_health, test_company_defaults), desktop 25, app jest 334 (6 load timeouts re-run green), lint/typecheck/boundaries green, replay ALL p50 576 / p95 978 ms, R4 0; security-auditor 0 C/H, M1+L1–L3 fixed; screenshots `docs/evidence/phase9/review-server-core/`.
 Wave 2
-- [ ] T-075 `review-live-call` — UX-01, UX-03r, UX-16, UX-17, UX-18, UX-19 (+INT-11), UX-20, UX-21, ZC-08
+- [x] T-075 `review-live-call` — UX-01, UX-03r, UX-16, UX-17, UX-18, UX-19 (+INT-11), UX-20, UX-21, ZC-08, W1-L1
+  - Evidence (13 Nov, `phase9/review-live-call`): app jest 401 passed (`--maxWorkers=2`), desktop 25, typecheck + boundaries green, biome clean on the 26 changed files (copied config; `pnpm lint` checks nothing in worktrees), a11y 49 checks 0 serious, replay ALL p50 576 / p95 978 ms, R4 0; screenshots `docs/evidence/phase9/review-live-call/`.
 - [ ] T-076 `review-post-call` — UX-04, UX-05, UX-22, UX-23, UX-24, UX-27, UX-41, INT-01c, INT-02m, INT-07, INT-14a, W2-REPLAY
 - [ ] T-077 `review-home-shell` — UX-10 (+ZC-09, DD-8), UX-03h, UX-25, UX-26, UX-43b, UX-29, UX-39, ZC-14c, ZC-map-agent, W2-A11Y
 Wave 3
@@ -342,6 +343,11 @@ Things only the owner can do, so the agent never waits silently.
 _None yet._
 
 ## Session log
+
+### 2026-11-13 (d) · local · Opus 5.5 · phase9/review-live-call
+- **Done (T-075):** rail has two stages (`CrmRail stage`): before the call the Zoho pick + full brief editor (help text carries the timing note, UX-16); live a 4-line read-only brief + Edit, "Linked to this call.", Zoho details behind `Disclosure` "More from Zoho", "Not linked to Zoho · Link" only when unlinked (UX-01, UX-03r); no CRM forms live, one "Note for after the call" (`CallNotes` → `lib/callNotes.ts`); unknown caller → dedupe search then a prefilled Lead `ActionCard`, written only on approval (UX-19). Phones: rail in `Sheet`. `/call?prepare=1` opens the editor; `/call?check=audio` opens the 5 s check. `lib/format.ts` formatNumber/parseAmount/formatMoney/formatDay/formatWhen (UX-17). TalkMeter `variant="alert"` (live, only when too much) / `"full"` (review, UX-18). One start screen, "Start listening" (UX-20); desktop permission copy + `openPrivacySettings` button (UX-21). ZC-08 `features/call/audioSetup.ts`: OS default mic fallback, per-track level check, result per device; R4 test (agent mic never reaches the customer track). W1-L1 `Desktop` type + `useZoho` re-reads on `zoho/connected`.
+- **For other streams:** `review-post-call` mounts `<TalkMeter variant="full" />` and reads `callNotes()`; `QuickActions` in `features/actions/PostCallPanel.tsx` is now unused (its owner may delete it). Deals show a currency only when the server sends `deals[].currency` (not sent today).
+- **Not built:** practice on the start screen for real accounts (Q15).
 
 ### 2026-11-13 (c) · local · Opus 5.5 · phase9/review-server-core
 - **Done (T-074):** ZC-02 OAuth starts on the global accounts host; the callback's `accounts-server`/`location` sets the DC (per person + org default), manual "Change" kept, probe only when Zoho names none. UX-35 connect page (reads/writes, DC + Change, Cancel → `/auth/zoho/cancel`), done page "Zoho is connected. You can close this tab." + `agn-sales-shield://zoho/connected`. W1-DESK `apps/desktop/deep-link.cjs`: scheme registered by the installed app only (never dev runs), single instance, `onDeepLink`, `openPrivacySettings(mic|system-audio)`. ZC-14s `health` in `/api/v1/features`. UX-39s `POST /api/v1/auth/reset/request|confirm`. ZC-11s `GET/PUT /api/v1/company/defaults`. INT-01s Zoho action `call_log`. INT-03 stage guidance as data in `crm_brief` v3; INT-16 Lead_Source + Campaign_Source in the brief.
