@@ -20,7 +20,10 @@ PERSON_FIELDS = {
     "Leads": "Full_Name,First_Name,Last_Name,Designation,Email,Phone,Mobile,Company,Industry",
 }
 DEAL_FIELDS = "Deal_Name,Stage,Amount,Closing_Date,Owner"
-EVENT_FIELDS = "Event_Title,Start_DateTime,End_DateTime,Description,Who_Id,What_Id,Participants"
+EVENT_FIELDS = (
+    "Event_Title,Start_DateTime,End_DateTime,Description,Who_Id,What_Id,Participants,Owner,Venue"
+)
+DEAL_DETAIL_FIELDS = "Deal_Name,Stage,Amount,Closing_Date,Owner,Account_Name,Contact_Name"
 NOTE_FIELDS = "Note_Title,Note_Content,Created_Time"
 ACCOUNT_FIELDS = "Account_Name,Industry"
 
@@ -56,7 +59,7 @@ class ZohoCRMReader:
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         module = path.strip("/").split("/")[0]
-        if module != "settings":
+        if module not in ("settings", "users"):
             check_read(module)
             for part in path.strip("/").split("/")[2:3]:  # related list: Contacts/{id}/Deals
                 check_read(part)
@@ -111,6 +114,25 @@ class ZohoCRMReader:
             f"{module}/search", {"criteria": criteria, "fields": fields, "per_page": 20}
         )
         return [d for d in data.get("data") or [] if isinstance(d, dict)]
+
+    async def search_page(
+        self, module: str, criteria: str, fields: str, page: int, per_page: int = 200
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """One page of a criteria search and whether Zoho has more."""
+        data = await self._get(
+            f"{module}/search",
+            {"criteria": criteria, "fields": fields, "page": page, "per_page": per_page},
+        )
+        raw_info = data.get("info")
+        info: dict[str, Any] = raw_info if isinstance(raw_info, dict) else {}
+        rows = [d for d in data.get("data") or [] if isinstance(d, dict)]
+        return rows, bool(info.get("more_records"))
+
+    async def current_user(self) -> dict[str, Any] | None:
+        """The Zoho user this token belongs to (ZohoCRM.users.READ)."""
+        data = await self._get("users", {"type": "CurrentUser"})
+        users = data.get("users") or []
+        return users[0] if users and isinstance(users[0], dict) else None
 
     async def _send(self, method: str, path: str, body: dict[str, Any]) -> dict[str, Any]:
         """One record written; returns Zoho's `details` (id) and `action` (insert/update)."""

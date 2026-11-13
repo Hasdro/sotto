@@ -188,28 +188,7 @@ def test_old_read_only_connections_are_asked_to_reconnect(
     assert missing_scopes(",".join(SCOPES)) == []
 
 
-# --- meetings -----------------------------------------------------------------------------------
-def test_meetings_nearest_first_with_time_evidence(zc: TestClient, auth: dict[str, str]) -> None:
-    r = zc.get("/api/v1/zoho/meetings", headers=auth)
-    assert r.status_code == 200, r.text
-    first, second = r.json()["candidates"]
-    assert first["id"] == EVENT_ID
-    assert first["evidence"]["field"] == "time"
-    assert second["title"] == "Later"
-
-
-def test_meeting_brief_includes_the_contact_and_the_meeting(
-    zc: TestClient, auth: dict[str, str]
-) -> None:
-    r = zc.get(f"/api/v1/zoho/meetings/{EVENT_ID}", headers=auth)
-    assert r.status_code == 200, r.text
-    brief = r.json()["brief"]
-    assert brief["meeting"]["title"] == "Acme renewal call"
-    assert brief["meeting"]["participants"] == ["Jane Doe"]
-    assert brief["person"]["name"] == "Jane Doe"
-    assert brief["deals"][0]["id"] == ""  # fake deals carry no id; real ones do
-    assert brief["text"].startswith("Meeting: Acme renewal call")
-    assert "Agenda: Go through volume pricing" in brief["text"]
+# Meetings: see test_zoho_meetings.py (owner-filtered upcoming list, detail, brief).
 
 
 # --- writes -------------------------------------------------------------------------------------

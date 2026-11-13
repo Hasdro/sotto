@@ -11,11 +11,13 @@ from typing import Any
 
 from sotto_worker.adapters.crm.zoho import (
     ACCOUNT_FIELDS,
+    DEAL_DETAIL_FIELDS,
     DEAL_FIELDS,
     EVENT_FIELDS,
     NOTE_FIELDS,
     PERSON_FIELDS,
     ZohoCRMReader,
+    ZohoError,
 )
 
 MAX_CANDIDATES = 3
@@ -196,6 +198,9 @@ def brief_text(brief: dict[str, Any]) -> str:
     if m:
         when = f"{m['start'][:16].replace('T', ' ')} to {m['end'][11:16]}" if m.get("start") else ""
         lines.append(f"Meeting: {m['title']}" + (f", {when}" if when else ""))
+        rel = m.get("related")
+        if rel and rel.get("name"):
+            lines.append(f"Related {rel['module'].rstrip('s').lower()}: {rel['name']}")
         if m.get("participants"):
             lines.append("Attendees: " + ", ".join(m["participants"]))
         if m.get("agenda"):
@@ -223,21 +228,35 @@ def brief_text(brief: dict[str, Any]) -> str:
 
 
 # --- Meetings (Zoho module `Events`, label "Meetings"; REFERENCES § Zoho) ---------------------
-MEETING_BEFORE = timedelta(hours=3)
-MEETING_AFTER = timedelta(hours=12)
+UPCOMING_DAYS = 14
+UPCOMING_PAGE = 20
+UPCOMING_MAX_ROWS = 600  # three Zoho pages of 200: enough for two weeks of one person's meetings
 AGENDA_CHARS = 300
+DETAIL_CHARS = 2000
+URL = re.compile(r"https://[^\s<>\"']{4,300}")
+RELATED_MODULES = ("Deals", "Accounts", "Contacts", "Leads")
 
 
 def _iso(t: datetime) -> str:
     return t.astimezone(UTC).replace(microsecond=0).isoformat()
 
 
-def _start(rec: dict[str, Any]) -> datetime | None:
+def _when(rec: dict[str, Any], field: str) -> datetime | None:
     try:
-        t = datetime.fromisoformat(_s(rec.get("Start_DateTime")))
+        t = datetime.fromisoformat(_s(rec.get(field)))
     except ValueError:
         return None
     return t if t.tzinfo else None
+
+
+def _owner_id(rec: dict[str, Any]) -> str:
+    owner = rec.get("Owner")
+    return _s(owner.get("id")) if isinstance(owner, dict) else ""
+
+
+def owned_by(rec: dict[str, Any], user_id: str) -> bool:
+    """Only meetings this person owns are ever shown (owner request, 14 Nov 2026)."""
+    return bool(user_id) and _owner_id(rec) == user_id
 
 
 def _participants(rec: dict[str, Any]) -> list[str]:
@@ -250,6 +269,27 @@ def _participants(rec: dict[str, Any]) -> list[str]:
     return out[:8]
 
 
+def _related(rec: dict[str, Any]) -> dict[str, str] | None:
+    what = rec.get("What_Id")
+    module = _s(rec.get("$se_module"))
+    if isinstance(what, dict) and module in RELATED_MODULES:
+        return {"module": module, "id": _s(what.get("id")), "name": _s(what.get("name"))}
+    return None
+
+
+def _link(rec: dict[str, Any]) -> str:
+    details = rec.get("$meeting_details")
+    if isinstance(details, dict):
+        for key in ("link", "meeting_link", "join_link"):
+            if _s(details.get(key)).startswith("https://"):
+                return _s(details.get(key))[:300]
+    for field in ("Venue", "Description"):
+        m = URL.search(_s(rec.get(field)))
+        if m:
+            return m.group(0)
+    return ""
+
+
 def _meeting(rec: dict[str, Any]) -> dict[str, Any]:
     who = rec.get("Who_Id") if isinstance(rec.get("Who_Id"), dict) else None
     return {
@@ -259,45 +299,168 @@ def _meeting(rec: dict[str, Any]) -> dict[str, Any]:
         "end": _s(rec.get("End_DateTime")),
         "agenda": " ".join(_s(rec.get("Description")).split())[:AGENDA_CHARS],
         "participants": _participants(rec),
+        "related": _related(rec),
         "contact": {"id": _s(who.get("id")), "name": _s(who.get("name"))} if who else None,
     }
 
 
-async def find_meetings(
-    reader: ZohoCRMReader, *, now: datetime | None = None
-) -> list[dict[str, Any]]:
-    """Meetings from 3 hours ago to 12 hours ahead, the three nearest to now. Shown as
-    candidates with their time as the evidence; the agent still picks."""
+async def current_user_id(reader: ZohoCRMReader) -> str:
+    user = await reader.current_user()
+    uid = _s(user.get("id")) if user else ""
+    if not RECORD_ID.match(uid):
+        raise ValueError("Zoho did not say who the connected user is")
+    return uid
+
+
+async def upcoming_meetings(
+    reader: ZohoCRMReader,
+    user_id: str,
+    *,
+    page: int = 1,
+    now: datetime | None = None,
+    days: int = UPCOMING_DAYS,
+) -> dict[str, Any]:
+    """This person's meetings that have not ended yet, up to `days` ahead, soonest first,
+    UPCOMING_PAGE per page. The owner filter is in the Zoho query and checked again here."""
     t = now or datetime.now(UTC)
     criteria = (
-        f"((Start_DateTime:greater_equal:{_iso(t - MEETING_BEFORE)})"
-        f"and(Start_DateTime:less_equal:{_iso(t + MEETING_AFTER)}))"
+        f"((Owner:equals:{user_id})"
+        f"and(Start_DateTime:greater_equal:{_iso(t - timedelta(hours=8))})"
+        f"and(Start_DateTime:less_equal:{_iso(t + timedelta(days=days))}))"
     )
-    rows = await reader.search_criteria("Events", criteria, EVENT_FIELDS)
-    timed = [(abs((s - t).total_seconds()), r) for r in rows if (s := _start(r)) is not None]
-    timed.sort(key=lambda x: x[0])
+    rows: list[dict[str, Any]] = []
+    zoho_page = 1
+    while len(rows) < UPCOMING_MAX_ROWS:
+        batch, more = await reader.search_page("Events", criteria, EVENT_FIELDS, zoho_page)
+        rows.extend(batch)
+        if not more:
+            break
+        zoho_page += 1
+    mine = []
+    for r in rows:
+        start, end = _when(r, "Start_DateTime"), _when(r, "End_DateTime")
+        if start is None or not owned_by(r, user_id):
+            continue
+        if (end or start) < t:  # already over
+            continue
+        mine.append((start, r))
+    mine.sort(key=lambda x: x[0])
+    first = (max(1, page) - 1) * UPCOMING_PAGE
+    chunk = mine[first : first + UPCOMING_PAGE]
     out = []
-    for _, r in timed[:MAX_CANDIDATES]:
+    for _, r in chunk:
         m = _meeting(r)
+        m.pop("contact")
         out.append({**m, "evidence": {"field": "time", "value": m["start"]}})
-    return out
+    return {"meetings": out, "page": max(1, page), "more": first + UPCOMING_PAGE < len(mine)}
 
 
-async def build_meeting_brief(
-    reader: ZohoCRMReader, event_id: str, *, now: datetime | None = None
+async def meeting_detail(
+    reader: ZohoCRMReader, user_id: str, event_id: str
 ) -> dict[str, Any] | None:
+    """View-only detail of one of this person's meetings; None for anyone else's."""
     if not RECORD_ID.match(event_id):
         raise ValueError("unknown meeting")
     rec = await reader.record("Events", event_id, EVENT_FIELDS)
-    if rec is None:
+    if rec is None or not owned_by(rec, user_id):
+        return None
+    people = []
+    for p in rec.get("Participants") or []:
+        if isinstance(p, dict):
+            people.append(
+                {
+                    "name": _s(p.get("name")),
+                    "email": _s(p.get("Email")),
+                    "type": _s(p.get("type")),
+                }
+            )
+    who = rec.get("Who_Id") if isinstance(rec.get("Who_Id"), dict) else None
+    return {
+        "id": event_id,
+        "title": _s(rec.get("Event_Title")),
+        "start": _s(rec.get("Start_DateTime")),
+        "end": _s(rec.get("End_DateTime")),
+        "participants": people[:50],
+        "related": _related(rec),
+        "contact": {"id": _s(who.get("id")), "name": _s(who.get("name"))} if who else None,
+        "description": _s(rec.get("Description"))[:DETAIL_CHARS],
+        "venue": _s(rec.get("Venue"))[:300],
+        "link": _link(rec),
+    }
+
+
+async def build_meeting_brief(
+    reader: ZohoCRMReader, event_id: str, user_id: str, *, now: datetime | None = None
+) -> dict[str, Any] | None:
+    """The brief for a picked meeting: the meeting, its Contact (Who_Id, else the first contact
+    or lead participant), the related Deal (What_Id) and its Account, and recent notes."""
+    if not RECORD_ID.match(event_id):
+        raise ValueError("unknown meeting")
+    rec = await reader.record("Events", event_id, EVENT_FIELDS)
+    if rec is None or not owned_by(rec, user_id):
         return None
     meeting = _meeting(rec)
     contact = meeting.pop("contact")
-    brief: dict[str, Any] | None = None
+    related = meeting.get("related")
+    person: tuple[str, str] | None = None
     if contact and RECORD_ID.match(contact["id"]):
-        brief = await build_brief(reader, "Contacts", contact["id"], now=now)
+        person = ("Contacts", contact["id"])
+    elif related and related["module"] in PERSON_MODULES and RECORD_ID.match(related["id"]):
+        person = (related["module"], related["id"])
+    else:
+        for p in rec.get("Participants") or []:
+            if not isinstance(p, dict):
+                continue
+            kind, pid = _s(p.get("type")).lower(), _s(p.get("participant"))
+            if kind in ("contact", "lead") and RECORD_ID.match(pid):
+                person = ("Contacts" if kind == "contact" else "Leads", pid)
+                break
+    brief: dict[str, Any] | None = None
+    if person:
+        try:
+            brief = await build_brief(reader, person[0], person[1], now=now)
+        except ZohoError:  # a deleted or unreadable contact must not hide the meeting
+            brief = None
     if brief is None:
         brief = {"person": None, "account": None, "deals": [], "notes": []}
+    if related and related["module"] == "Deals" and RECORD_ID.match(related["id"]):
+        deal = await reader.record("Deals", related["id"], DEAL_DETAIL_FIELDS)
+        if deal:
+            row = {
+                "id": related["id"],
+                "name": _s(deal.get("Deal_Name")),
+                "stage": _s(deal.get("Stage")),
+                "amount": _s(deal.get("Amount")),
+                "close_date": _s(deal.get("Closing_Date")),
+                "owner": _s(deal.get("Owner")),
+            }
+            brief["deals"] = [row, *[d for d in brief["deals"] if d.get("id") != row["id"]]][
+                :MAX_DEALS
+            ]
+            acct = deal.get("Account_Name")
+            if (
+                not brief.get("account")
+                and isinstance(acct, dict)
+                and RECORD_ID.match(_s(acct.get("id")))
+            ):
+                a = await reader.record("Accounts", _s(acct.get("id")), ACCOUNT_FIELDS)
+                if a:
+                    brief["account"] = {
+                        "name": _s(a.get("Account_Name")),
+                        "industry": _s(a.get("Industry")),
+                    }
+    elif (
+        related
+        and related["module"] == "Accounts"
+        and not brief.get("account")
+        and RECORD_ID.match(related["id"])
+    ):
+        a = await reader.record("Accounts", related["id"], ACCOUNT_FIELDS)
+        if a:
+            brief["account"] = {
+                "name": _s(a.get("Account_Name")),
+                "industry": _s(a.get("Industry")),
+            }
     brief["meeting"] = meeting
     brief["text"] = brief_text(brief)
     return brief

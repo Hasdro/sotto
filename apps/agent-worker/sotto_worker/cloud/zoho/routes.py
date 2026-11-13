@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import secrets
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -380,24 +381,72 @@ def make_routes(
         store.zoho_audit(who, "zoho.read", f"{module}:{record_id}", ip=ip_of(r))
         return JSONResponse({"brief": brief}, headers=NO_STORE)
 
+    owners: dict[tuple[str, str], tuple[str, float]] = {}  # (company, person) → Zoho user id
+
+    async def my_zoho_id(rd: ZohoCRMReader, who: Principal) -> str:
+        """The connected Zoho user's id (1 h cache). Without users.READ the list could not be
+        limited to this person's meetings, so it is refused and the app asks to reconnect."""
+        conn = store.zoho_connection(who)
+        if conn is None or "ZohoCRM.users.READ" in missing_scopes(conn.get("scopes")):
+            raise CloudError("zoho_reconnect", "connect Zoho again to list your meetings")
+        key = (who.company, who.user_id)
+        hit = owners.get(key)
+        if hit and hit[1] > time.monotonic():
+            return hit[0]
+        try:
+            uid = await lookup.current_user_id(rd)
+        except ValueError:
+            raise CloudError("zoho_reconnect", "connect Zoho again to list your meetings") from None
+        owners[key] = (uid, time.monotonic() + 3600)
+        return uid
+
     @app_route
     async def meetings(r: Request, who: Principal) -> Response:
+        """This person's upcoming meetings (owner = the connected Zoho user), soonest first."""
         limited(who)
-        found = await zoho_call(who, lambda rd: lookup.find_meetings(rd))
-        store.zoho_audit(who, "zoho.search", f"meetings: {len(found)} found", ip=ip_of(r))
-        return JSONResponse({"candidates": found}, headers=NO_STORE)
+        try:
+            page = max(1, min(50, int(r.query_params.get("page", "1"))))
+        except ValueError:
+            page = 1
+
+        async def go(rd: ZohoCRMReader) -> dict[str, Any]:
+            return await lookup.upcoming_meetings(rd, await my_zoho_id(rd, who), page=page)
+
+        return JSONResponse(await zoho_call(who, go), headers=NO_STORE)
 
     @app_route
     async def meeting(r: Request, who: Principal) -> Response:
+        """The brief for a picked meeting (rail): meeting + contact/lead + deal + account."""
         limited(who)
         event_id = r.path_params["id"]
         if not lookup.RECORD_ID.match(event_id):
             raise CloudError("invalid", "unknown meeting")
-        brief = await zoho_call(who, lambda rd: lookup.build_meeting_brief(rd, event_id))
+
+        async def go(rd: ZohoCRMReader) -> dict[str, Any] | None:
+            return await lookup.build_meeting_brief(rd, event_id, await my_zoho_id(rd, who))
+
+        brief = await zoho_call(who, go)
         if brief is None:
             raise CloudError("not_found", "that meeting is gone")
         store.zoho_audit(who, "zoho.read", f"Events:{event_id}", ip=ip_of(r))
         return JSONResponse({"brief": brief}, headers=NO_STORE)
+
+    @app_route
+    async def meeting_detail(r: Request, who: Principal) -> Response:
+        """View-only meeting detail (home screen)."""
+        limited(who)
+        event_id = r.path_params["id"]
+        if not lookup.RECORD_ID.match(event_id):
+            raise CloudError("invalid", "unknown meeting")
+
+        async def go(rd: ZohoCRMReader) -> dict[str, Any] | None:
+            return await lookup.meeting_detail(rd, await my_zoho_id(rd, who), event_id)
+
+        detail = await zoho_call(who, go)
+        if detail is None:
+            raise CloudError("not_found", "that meeting is gone")
+        store.zoho_audit(who, "zoho.read", f"Events:{event_id}", ip=ip_of(r))
+        return JSONResponse({"meeting": detail}, headers=NO_STORE)
 
     @app_route
     async def action(r: Request, who: Principal) -> Response:
@@ -472,6 +521,7 @@ def make_routes(
         Route(f"{api}/zoho/modules", modules),
         Route(f"{api}/zoho/meetings", meetings),
         Route(f"{api}/zoho/meetings/{{id}}", meeting),
+        Route(f"{api}/zoho/meetings/{{id}}/detail", meeting_detail),
         Route(f"{api}/zoho/actions/{{kind}}", action, methods=["POST"]),
         Route("/auth/zoho/start", handle(start)),
         Route("/auth/zoho/callback/", handle(callback)),

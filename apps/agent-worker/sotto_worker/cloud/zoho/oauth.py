@@ -49,6 +49,8 @@ SCOPES = (
     "ZohoCRM.modules.notes.READ",
     "ZohoCRM.modules.notes.CREATE",
     "ZohoCRM.settings.modules.READ",
+    # zoho-meetings: who "me" is, so the list shows only meetings this person owns.
+    "ZohoCRM.users.READ",
 )
 
 
