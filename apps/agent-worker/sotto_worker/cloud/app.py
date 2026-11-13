@@ -1015,7 +1015,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         if not owner_host_ok(request):
             return PlainTextResponse("not found\n", status_code=404)
         name = request.path_params.get("file") or "index.html"
-        if name not in {"index.html", "owner.js", "owner.css"}:
+        if name not in {"index.html", "owner.js", "owner.css", "tokens.css", "components.css"}:
             return PlainTextResponse("not found\n", status_code=404)
         return FileResponse(
             OWNER_DIR / name,

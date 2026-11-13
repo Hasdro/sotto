@@ -14,6 +14,7 @@ import html
 import secrets
 import time
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -55,39 +56,64 @@ READS = "meetings, contacts, deals"
 WRITES = "meetings and notes after you approve them"
 
 
-# Brand colours (packages/ui tokens: light + dark primary, surface, background, text).
-PAGE_STYLE = (
-    ":root{--bg:#eaeef2;--card:#f7f9fb;--ink:#132029;--muted:#4a5a66;--brand:#0b5f63;"
-    "--on-brand:#ffffff;--line:#d3dbe2;--ok:#0b5f63;--bad:#a2321f}"
-    "@media (prefers-color-scheme:dark){:root{--bg:#0c1218;--card:#121b23;--ink:#e6ecf1;"
-    "--muted:#9fb0bd;--brand:#5fc4bb;--on-brand:#06201f;--line:#26333e;--ok:#5fc4bb;"
-    "--bad:#ff9b85}}"
+# Quiet Paper Glass (D-041, DESIGN-SYSTEM.md §5.6): the design-system tokens (the owner console's
+# copy of packages/ui/tokens.css, kept current by a test) inlined, since PAGE_CSP allows only
+# inline styles. Fonts fall back to the system face (no font-src). Colours only from --ss-*.
+TOKENS_CSS = (Path(__file__).resolve().parent.parent / "owner" / "tokens.css").read_text()
+PAGE_STYLE = TOKENS_CSS + (
     "*{box-sizing:border-box}"
     "body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
-    "font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);"
-    "color:var(--ink)}"
-    "main{width:100%;max-width:440px;background:var(--card);border:1px solid var(--line);"
-    "border-radius:16px;padding:28px 24px;text-align:center}"
-    ".mark{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;"
-    "color:var(--brand);font-weight:700;font-size:15px;letter-spacing:.2px}"
-    ".state{width:44px;height:44px;margin:0 auto 12px;border-radius:50%;display:grid;"
-    "place-items:center;font-size:24px;font-weight:700}"
-    ".state.ok{background:var(--ok);color:var(--on-brand)}"
-    ".state.bad{border:2px solid var(--bad);color:var(--bad)}"
-    "h1{font-size:22px;margin:0 0 8px}p{margin:0;color:var(--muted);line-height:1.5}"
-    "a.go{display:inline-block;margin-top:20px;padding:12px 20px;border-radius:10px;"
-    "background:var(--brand);color:var(--on-brand);text-decoration:none;font-weight:600}"
-    "a.go:focus-visible{outline:3px solid var(--ink);outline-offset:2px}"
-    ".facts{text-align:start;margin:16px 0 0;padding:0;list-style:none;display:grid;gap:8px}"
-    ".facts li{color:var(--muted);line-height:1.5}.facts b{color:var(--ink)}"
-    "details{text-align:start;margin-top:8px}summary{cursor:pointer;color:var(--brand)}"
+    "background:var(--ss-background);color:var(--ss-text);font-family:var(--ss-font);"
+    "font-size:var(--ss-text-body);line-height:var(--ss-leading-body);"
+    "-webkit-font-smoothing:antialiased}"
+    "main{width:100%;max-width:480px;background:var(--ss-surface);"
+    "border:1px solid var(--ss-border);border-radius:var(--ss-radius-xl);padding:32px 24px 24px}"
+    ".mark{display:flex;align-items:center;gap:8px;margin-bottom:32px;color:var(--ss-primary)}"
+    ".mark svg{width:30px;height:30px;flex:none}"
+    ".mark span{display:grid;font-weight:var(--ss-weight-semibold);font-size:16px;line-height:20px}"
+    ".mark small{font-size:12px;line-height:14px;font-weight:var(--ss-weight-medium);"
+    "color:var(--ss-text-muted)}"
+    ".state{width:44px;height:44px;margin:0 0 16px;border-radius:var(--ss-radius-pill);"
+    "display:grid;place-items:center;background:var(--ss-surface-sunken);font-size:20px;"
+    "font-weight:var(--ss-weight-semibold)}"
+    ".state.ok{color:var(--ss-positive)}.state.bad{color:var(--ss-danger)}"
+    "h1{margin:0 0 8px;font-size:var(--ss-text-title);line-height:var(--ss-leading-title);"
+    "font-weight:var(--ss-weight-semibold)}"
+    "p{margin:0;color:var(--ss-text-muted)}"
+    "a{color:var(--ss-primary);text-underline-offset:2px}"
+    "a.go,a.quiet{display:inline-flex;align-items:center;justify-content:center;height:44px;"
+    "padding:0 20px;border-radius:var(--ss-radius-pill);text-decoration:none;"
+    "font-weight:var(--ss-weight-medium);"
+    "transition:opacity var(--ss-dur-base) var(--ss-ease-standard),"
+    "background-color var(--ss-dur-base) var(--ss-ease-standard)}"
+    "a.go{margin-top:24px;background:var(--ss-primary);color:var(--ss-on-primary)}"
+    "a.go:hover{opacity:.92}"
+    "a.quiet{margin-top:8px;color:var(--ss-text)}a.quiet:hover{background:var(--ss-surface-sunken)}"
+    "main>br{display:none}p+br+a.quiet,ul+br+a.quiet{margin-top:24px}"
+    "a.go+br+a.quiet{margin-inline-start:8px}"
+    ".facts{margin:24px 0 0;padding:0;list-style:none;display:grid;gap:4px}"
+    ".facts li{padding:12px 16px;border-radius:var(--ss-radius-lg);"
+    "background:var(--ss-surface-sunken);color:var(--ss-text-muted);font-size:14px;line-height:20px}"
+    ".facts b{display:block;color:var(--ss-text);font-weight:var(--ss-weight-medium)}"
+    "details{margin-top:4px}summary{cursor:pointer;color:var(--ss-primary);"
+    "font-weight:var(--ss-weight-medium);min-height:32px;display:flex;align-items:center}"
     ".dcs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}"
-    ".dcs a,a.quiet{color:var(--brand)}a.quiet{display:inline-block;margin-top:14px}"
-    "a:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:2px}"
+    ".dcs a{display:inline-flex;align-items:center;height:36px;padding:0 14px;"
+    "border-radius:var(--ss-radius-pill);background:var(--ss-surface);color:var(--ss-text);"
+    "text-decoration:none;font-weight:var(--ss-weight-medium);box-shadow:0 0 0 1px var(--ss-border)}"
+    ".dcs a:hover{background:var(--ss-bubble)}"
+    "a:focus-visible,summary:focus-visible{outline:2px solid var(--ss-focus);outline-offset:2px}"
+    "@media (prefers-reduced-motion:reduce){*{transition-duration:0ms!important}}"
 )
 SHIELD = (
-    "<svg width='22' height='22' viewBox='0 0 24 24' aria-hidden='true'>"
-    "<path fill='currentColor' d='M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z'/></svg>"
+    "<svg viewBox='0 0 64 64' aria-hidden='true'><defs><mask id='cut'>"
+    "<rect width='64' height='64' fill='#fff'/><g transform='translate(14.5 14.5) scale(0.55)'>"
+    "<g fill='#000'><rect x='6.5' y='8.5' width='21' height='14' rx='6.5' "
+    "transform='rotate(-38 17 15.5)'/><rect x='36.5' y='41.5' width='21' height='14' rx='6.5' "
+    "transform='rotate(-52 47 48.5)'/></g><path d='M15 17 C9 33 23 51 46 50' fill='none' "
+    "stroke='#000' stroke-width='10' stroke-linecap='round'/></g></mask></defs>"
+    "<path d='M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z' "
+    "fill='currentColor' mask='url(#cut)'/></svg>"
 )
 
 
@@ -119,7 +145,7 @@ def _page(
         "<meta name='color-scheme' content='light dark'>"
         f"<title>{html.escape(title)} · AGN Sales Shield</title>"
         f"<style>{PAGE_STYLE}</style></head><body><main>"
-        f"<div class='mark'>{SHIELD}<span>AGN Sales Shield</span></div>{badge}"
+        f"<div class='mark'>{SHIELD}<span><small>AGN</small>Sales Shield</span></div>{badge}"
         f"<h1>{html.escape(title)}</h1><p>{html.escape(body)}</p>{extra}{go}{after}"
         "</main></body></html>"
     )

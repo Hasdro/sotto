@@ -4,37 +4,42 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AGN Sales Shield · Owner</title>
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/owner/tokens.css">
+<link rel="stylesheet" href="/owner/components.css">
 <link rel="stylesheet" href="/owner/owner.css">
 <script src="/owner/owner.js" defer></script>
 </head>
 <body>
 <div id="login" class="login" hidden>
-  <form id="loginForm" class="login-card" autocomplete="on">
-    <div class="brand"><span class="mark" aria-hidden="true"></span>AGN Sales Shield <span>Owner</span></div>
+  <main class="login-main"><form id="loginForm" class="login-card ss-card" autocomplete="on" aria-labelledby="loginTitle">
+    <div class="brand"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><mask id="cut-login"><rect width="64" height="64" fill="#fff"/><g transform="translate(14.5 14.5) scale(0.55)"><g fill="#000"><rect x="6.5" y="8.5" width="21" height="14" rx="6.5" transform="rotate(-38 17 15.5)"/><rect x="36.5" y="41.5" width="21" height="14" rx="6.5" transform="rotate(-52 47 48.5)"/></g><path d="M15 17 C9 33 23 51 46 50" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round"/></g></mask></defs><path d="M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z" fill="currentColor" mask="url(#cut-login)"/></svg><span class="brand-name"><span class="brand-agn">AGN</span>Sales Shield</span><span class="brand-area">Owner</span></div>
+    <h1 id="loginTitle" class="login-title">Sign in to the owner console</h1>
     <label for="email">Email</label>
     <input id="email" name="email" type="email" autocomplete="username" required>
     <label for="password">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required>
     <button type="submit" class="primary">Sign in</button>
     <p id="loginError" class="error" role="alert"></p>
-  </form>
+  </form></main>
 </div>
 
-<div id="app" class="shell" hidden>
-  <header class="top">
-    <div class="brand"><span class="mark" aria-hidden="true"></span>AGN Sales Shield <span>Owner</span></div>
+<div id="app" class="shell ss-shell" hidden>
+  <aside class="side" aria-label="Owner console">
+    <div class="brand"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><mask id="cut-side"><rect width="64" height="64" fill="#fff"/><g transform="translate(14.5 14.5) scale(0.55)"><g fill="#000"><rect x="6.5" y="8.5" width="21" height="14" rx="6.5" transform="rotate(-38 17 15.5)"/><rect x="36.5" y="41.5" width="21" height="14" rx="6.5" transform="rotate(-52 47 48.5)"/></g><path d="M15 17 C9 33 23 51 46 50" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round"/></g></mask></defs><path d="M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z" fill="currentColor" mask="url(#cut-side)"/></svg><span class="brand-name"><span class="brand-agn">AGN</span>Sales Shield</span><span class="brand-area">Owner</span></div>
     <nav class="tabs" aria-label="Sections">
-      <button type="button" data-view="overview" aria-current="page">Overview</button>
-      <button type="button" data-view="companies">Companies</button>
-      <button type="button" data-view="features">Features</button>
-      <button type="button" data-view="audit">Audit log</button>
-      <button type="button" data-view="account">Account</button>
+      <button type="button" data-view="overview" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM14 4v4h6V4zM4 20h6v-3H4z"/></svg><span>Overview</span></button>
+      <button type="button" data-view="companies"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20V6l7-3v17M11 9h8v11M4 20h16M7 8h1M7 12h1M7 16h1M14 13h2M14 17h2"/></svg><span>Companies</span></button>
+      <button type="button" data-view="features"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7zM16 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg><span>Features</span></button>
+      <button type="button" data-view="audit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg><span>Audit log</span></button>
+      <button type="button" data-view="account"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/></svg><span>Account</span></button>
     </nav>
     <div class="who"><span id="whoEmail"></span><button type="button" id="logout" class="ghost">Sign out</button></div>
-  </header>
+  </aside>
 
-  <main>
+  <main class="ss-main"><div class="ss-page ss-page--wide">
     <section id="v-overview" class="view">
+      <header class="page-head"><h1 class="ss-page-title">Overview</h1><p class="ss-lead ss-muted">Calls, companies and trials across the platform.</p></header>
       <div class="kpis" id="kpis"></div>
       <div class="grid2">
         <div class="panel"><h2>Calls per day <small>last 30 days</small></h2><div id="chart" class="chart"></div></div>
@@ -45,8 +50,9 @@
     </section>
 
     <section id="v-companies" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Companies</h1><p class="ss-lead ss-muted">Plans, trials, seats and minutes for every company.</p></header>
       <div class="toolbar">
-        <input id="search" type="search" placeholder="Search name or admin email" aria-label="Search companies">
+        <label class="ss-search search-pill"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4"/></svg><input id="search" type="search" placeholder="Search name or admin email" aria-label="Search companies"></label>
         <select id="statusFilter" aria-label="Filter by status">
           <option value="">All statuses</option><option value="trial">Trial</option><option value="active">Active</option>
           <option value="expired">Expired</option><option value="suspended">Suspended</option>
@@ -60,6 +66,7 @@
     </section>
 
     <section id="v-features" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Features</h1><p class="ss-lead ss-muted">Kill switches and which companies may use each feature.</p></header>
       <div class="panel">
         <h2>Kill switch <small>turns a feature off for every company at once; apps follow within 10 minutes</small></h2>
         <div class="table-wrap"><table id="kills" class="kills-table">
@@ -74,11 +81,13 @@
     </section>
 
     <section id="v-audit" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Audit log</h1><p class="ss-lead ss-muted">Every owner and admin action, newest first.</p></header>
       <div class="panel flush"><div class="table-wrap"><table id="audit">
         <thead><tr><th>When</th><th>Company</th><th>Who</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead><tbody></tbody></table></div></div>
     </section>
 
     <section id="v-account" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Account</h1><p class="ss-lead ss-muted">Your password and the platform defaults for Zoho and email.</p></header>
       <form id="pwForm" class="panel narrow">
         <h2>Change your password</h2>
         <label for="pwCur">Current password</label><input id="pwCur" type="password" autocomplete="current-password" required>
@@ -119,17 +128,17 @@
         <p id="smtpMsg" class="note" role="status"></p>
       </form>
     </section>
-  </main>
+  </div></main>
 </div>
 
-<aside id="drawer" class="drawer" hidden aria-label="Company details">
+<aside id="drawer" class="drawer ss-glass" hidden aria-label="Company details">
   <div class="drawer-head"><h2 id="dName">Company</h2><button type="button" id="dClose" class="ghost" aria-label="Close">Close</button></div>
   <div id="dBody" class="drawer-body"></div>
 </aside>
 
-<dialog id="newDialog">
+<dialog id="newDialog" class="ss-sheet ss-glass" aria-labelledby="nTitle">
   <form id="newForm" method="dialog">
-    <h2>New company</h2>
+    <h2 id="nTitle">New company</h2>
     <label for="nName">Company name</label><input id="nName" required maxlength="120">
     <label for="nAdmin">Admin name</label><input id="nAdmin" required maxlength="120">
     <label for="nEmail">Admin email</label><input id="nEmail" type="email" required>
@@ -140,7 +149,7 @@
   </form>
 </dialog>
 
-<dialog id="killDialog" aria-labelledby="kTitle">
+<dialog id="killDialog" class="ss-sheet ss-glass" aria-labelledby="kTitle">
   <form method="dialog">
     <h2 id="kTitle">Turn off for everyone?</h2>
     <p id="kBody"></p>
@@ -148,12 +157,12 @@
   </form>
 </dialog>
 
-<dialog id="secretDialog">
+<dialog id="secretDialog" class="ss-sheet ss-glass" aria-labelledby="sTitle">
   <h2 id="sTitle">One-time password</h2>
   <p>Give this to the person once. They must change it at first sign-in. It is not shown again.</p>
   <code id="sValue" class="secret"></code>
   <div class="row"><button type="button" id="sCopy" class="ghost">Copy</button><button type="button" id="sDone" class="primary">Done</button></div>
 </dialog>
-<div id="toast" class="toast" role="status" hidden></div>
+<div id="toast" class="toast ss-toast ss-glass" role="status" hidden></div>
 </body>
 </html>
