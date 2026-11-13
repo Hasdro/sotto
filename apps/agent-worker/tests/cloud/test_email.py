@@ -343,7 +343,7 @@ def test_recipients_and_fields_are_validated(mclient: TestClient) -> None:
 def test_formats_are_editable_with_known_placeholders_only(mclient: TestClient) -> None:
     h = signup(mclient, "Acme", "admin@acme.test")
     fmts = mclient.get("/api/v1/email/formats", headers=h).json()["formats"]
-    assert [f["id"] for f in fmts] == ["follow_up", "meeting_confirmation"]
+    assert [f["id"] for f in fmts] == ["follow_up", "meeting_confirmation", "proposal", "booking"]
     fmts[0]["signature"] = "Cheers,\n{{agent.name}} · {{agent.email}}"
     r = mclient.put("/api/v1/company/email/formats", json={"formats": fmts}, headers=h)
     assert r.status_code == 200, r.text
