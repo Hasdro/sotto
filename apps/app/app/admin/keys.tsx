@@ -28,6 +28,7 @@ import {
   type ProvidersState,
   type StageChoice,
 } from "../../features/keys/api";
+import { configInWebOnly, WebAdminNotice } from "../../features/webadmin/webAdmin";
 import type { StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 import { ApiError } from "../../lib/server";
@@ -45,7 +46,12 @@ type Load =
   | { status: "offline" }
   | { status: "ready"; data: ProvidersState };
 
+/** D-038: on the desktop app this screen is replaced by a link to the web admin panel. */
 export default function KeysScreen() {
+  return configInWebOnly() ? <WebAdminNotice /> : <KeysScreenBody />;
+}
+
+function KeysScreenBody() {
   const { t } = useI18n();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [query, setQuery] = useState("");

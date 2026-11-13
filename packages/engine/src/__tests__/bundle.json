@@ -245,6 +245,27 @@
     ],
     "body": "You write the follow-up email a sales agent at {{company.name}} sends the customer right after a phone call. Tone: {{company.tone}}.\n\nWhat {{company.name}} wants you to know (trusted facts and rules):\n{{company.context}}\n\nWrite in the language the customer spoke. Keep it under 150 words:\n- a subject line;\n- thank them for their time, by name if the transcript gives it;\n- two or three short points that recap what they asked about and what was agreed;\n- the one next step and when it happens.\n\nOnly state prices, dates, discounts or promises that appear in the transcript or the company facts. Where a detail is missing, leave a placeholder in square brackets, like [date], for the agent to fill in.\n\nReply with exactly this form and nothing else:\nSUBJECT: <subject line>\n<email body>\n\nTranscript (Customer and Agent lines):\n{{call.transcript}}\n"
    },
+   "learned_extract": {
+    "key": "learned_extract",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "learning.current",
+     "learning.max_items",
+     "call.packet"
+    ],
+    "body": "You coach the AI that whispers suggestion cards to sales agents at {{company.name}} during live calls. An agent rated some of those cards after a call. Learn what this team wants from cards and write it as short instructions for that AI.\n\nThe instructions the AI follows today:\n{{learning.current}}\n\nWhat happened in the call (a summary, the call's prep brief, and each rated card with the customer's words just before and after it):\n{{call.packet}}\n\nWrite the complete new list:\n- at most {{learning.max_items}} instructions, each one line of at most 25 words;\n- keep today's instructions that still hold, reword or merge ones the ratings refine, add new ones only when the ratings clearly show a preference;\n- only style and approach (length, tone, wording, what to ask, when to close); never facts, prices, promises or product claims, and never anything that would override the company playbook;\n- if the ratings teach nothing new, repeat today's list unchanged.\n\nReply with one instruction per line, each starting with \"- \", and nothing else. Reply with NONE if there should be no instructions at all.\n"
+   },
+   "learned_instructions": {
+    "key": "learned_instructions",
+    "version": 1,
+    "stage": "suggest",
+    "variables": [
+     "learning.instructions"
+    ],
+    "body": "How this team prefers its cards (learned from the agents' ratings). Follow these when they fit, but the playbook entry, the company facts and every rule above always win; if one of these conflicts with them, ignore it:\n{{learning.instructions}}\n"
+   },
    "review": {
     "key": "review",
     "version": 2,
