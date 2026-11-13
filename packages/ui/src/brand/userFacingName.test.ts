@@ -22,8 +22,9 @@ const SCAN = [
   "apps/desktop/package.json",
   "apps/app/app.json",
   "docs/design/logo/index.html",
+  "apps/agent-worker/sotto_worker/cloud/owner",
 ];
-const CODE = new Set([".ts", ".tsx", ".cjs", ".mjs", ".js"]);
+const CODE = new Set([".ts", ".tsx", ".cjs", ".mjs", ".js", ".css"]);
 const SKIP = /(\.test\.tsx?$|__tests__|node_modules)/;
 
 function files(path: string): string[] {
@@ -62,6 +63,9 @@ describe("brand name (T-049, D-026)", () => {
     expect(userFacingHits("a.ts", 'const u = "https://x.io"; // Sotto')).toEqual([]);
     expect(userFacingHits("a.ts", 'const k = "sotto.locale";')).toEqual([]);
     expect(userFacingHits("a.ts", 'const ar = "يستخدمها سوتو";')).toHaveLength(1);
+    // the owner console is scanned too (UX-08); a planted string fails
+    expect(userFacingHits("owner.js", 'h("div", {}, "Sotto Owner")')).toHaveLength(1);
+    expect(userFacingHits("index.html", "<title>Sotto Owner Console</title>")).toHaveLength(1);
   });
 
   it("no user-facing Sotto remains in app, UI, desktop, manifests or the logo page", () => {

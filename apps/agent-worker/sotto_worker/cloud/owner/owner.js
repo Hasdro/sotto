@@ -1,4 +1,4 @@
-// Sotto owner console (D-022). Plain JS, no build step, served with a strict CSP (no inline code).
+// AGN Sales Shield owner console (D-022). Plain JS, no build step, served with a strict CSP (no inline code).
 
 const $ = (s, el = document) => el.querySelector(s);
 const DAY = 86400000;
@@ -636,25 +636,36 @@ async function loadFeatures() {
   renderFeatures(await api("/api/owner/features"));
 }
 function renderFeatures(data) {
-  $("#kills").replaceChildren(
-    ...data.features.map((f) => {
-      const id = `kill-${f.id}`;
-      return h(
-        "label",
-        { class: f.killed_at ? "kill on" : "kill", for: id },
-        h("input", {
-          id,
-          type: "checkbox",
-          checked: Boolean(f.killed_at),
-          onchange: (e) => setKill(f, e.target),
-        }),
-        h("span", {}, featureName(f.id)),
-        f.built ? null : h("small", { class: "kill-note" }, "later version"),
-        f.killed_at
-          ? h("small", { class: "kill-note bad" }, `off since ${fmtDate(f.killed_at)}`)
-          : null,
-      );
-    }),
+  $("#kills tbody").replaceChildren(
+    ...data.features.map((f) =>
+      h(
+        "tr",
+        {},
+        h("th", { scope: "row" }, featureName(f.id)),
+        h(
+          "td",
+          {},
+          f.killed_at
+            ? h("span", { class: "status bad" }, `Killed since ${fmtDate(f.killed_at)}`)
+            : h("span", { class: "status ok" }, "Live"),
+          f.built ? null : h("small", { class: "kill-note" }, " Not released yet"),
+        ),
+        h(
+          "td",
+          { class: "act" },
+          h(
+            "button",
+            {
+              type: "button",
+              class: f.killed_at ? "ghost" : "danger",
+              "data-feature": f.id,
+              onclick: () => setKill(f, !f.killed_at),
+            },
+            f.killed_at ? "Turn back on" : "Turn off for everyone",
+          ),
+        ),
+      ),
+    ),
   );
   $("#matrix thead").replaceChildren(
     h(
@@ -694,19 +705,29 @@ function renderFeatures(data) {
         ]),
   );
 }
-async function setKill(f, box) {
-  const killed = box.checked;
-  if (killed && !confirm(`Turn ${featureName(f.id)} off for every company?`)) {
-    box.checked = false;
-    return;
-  }
+function confirmKill(f) {
+  return new Promise((resolve) => {
+    const dlg = $("#killDialog");
+    $("#kBody").textContent =
+      `${featureName(f.id)} stops working for every company. Apps follow within 10 minutes. You can turn it back on at any time.`;
+    const done = (yes) => {
+      dlg.close();
+      resolve(yes);
+    };
+    $("#kCancel").onclick = () => done(false);
+    $("#kConfirm").onclick = () => done(true);
+    dlg.oncancel = () => resolve(false);
+    dlg.showModal();
+  });
+}
+async function setKill(f, killed) {
+  if (killed && !(await confirmKill(f))) return;
   try {
     renderFeatures(
       await api(`/api/owner/features/${f.id}/kill`, { method: "PUT", body: { killed } }),
     );
     toast(killed ? `${featureName(f.id)} is off everywhere` : `${featureName(f.id)} is back on`);
   } catch (err) {
-    box.checked = !killed;
     toast(err.message);
   }
 }
