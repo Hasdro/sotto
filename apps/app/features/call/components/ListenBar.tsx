@@ -1,9 +1,58 @@
 import { Badge, Button, radius, size, space, Text, useTheme } from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
+import { desktop, type PrivacyPane } from "../../../lib/desktop";
+import type { StringKey } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import { isWindows } from "../../../lib/platform";
 import type { AudioSource } from "../mic";
+import { type CallTextKey, useCallText } from "../strings";
 import type { MicState } from "../useCallSession";
+
+type Os = "mac" | "windows" | "other";
+
+/**
+ * UX-21: what a failed start says and which OS privacy pane fixes it. The desktop app names the
+ * exact setting; the browser keeps its own copy (no settings button there). Pure.
+ */
+export function permissionHelp(
+  state: MicState,
+  source: AudioSource,
+  inDesktop: boolean,
+  os: Os,
+): { text: { call: CallTextKey } | { app: StringKey }; pane: PrivacyPane | null } | null {
+  if (state !== "denied" && state !== "unsupported") return null;
+  const denied = state === "denied";
+  if (inDesktop && os === "mac" && denied) {
+    return source === "computer"
+      ? { text: { call: "perm.systemAudioMac" }, pane: "system-audio" }
+      : { text: { call: "perm.micMac" }, pane: "mic" };
+  }
+  if (inDesktop && os === "windows" && denied) {
+    return source === "computer"
+      ? { text: { app: "call.listen.computerDeniedWindows" }, pane: "mic" }
+      : { text: { call: "perm.micWindows" }, pane: "mic" };
+  }
+  if (inDesktop && source === "mic") return { text: { call: "perm.noMicDesktop" }, pane: null };
+  return {
+    text: {
+      app:
+        source === "computer"
+          ? denied
+            ? "call.listen.computerDenied"
+            : "call.listen.computerUnsupported"
+          : denied
+            ? "call.mic.denied"
+            : "call.mic.unsupported",
+    },
+    pane: null,
+  };
+}
+
+function osOf(): Os {
+  if (isWindows()) return "windows";
+  const ua = (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent ?? "";
+  return /Mac/i.test(ua) ? "mac" : "other";
+}
 
 type Props = {
   state: MicState;
@@ -20,22 +69,19 @@ type Props = {
  */
 export function ListenBar({ state, source, vendor, partial, onToggle }: Props) {
   const { t } = useI18n();
+  const tc = useCallText();
   const { color } = useTheme();
   const win = isWindows();
+  const os = osOf();
+  const bridge = desktop();
   const on = state === "on" || state === "starting";
-  const problem = state === "denied" || state === "unsupported";
-  const status = problem
-    ? t(
-        source === "computer"
-          ? state === "denied"
-            ? win
-              ? "call.listen.computerDeniedWindows"
-              : "call.listen.computerDenied"
-            : "call.listen.computerUnsupported"
-          : state === "denied"
-            ? "call.mic.denied"
-            : "call.mic.unsupported",
-      )
+  const help = permissionHelp(state, source, bridge !== null, os);
+  const problem = help !== null;
+  const pane = help?.pane && bridge?.openPrivacySettings ? help.pane : null;
+  const status = help
+    ? "call" in help.text
+      ? tc(help.text.call)
+      : t(help.text.app)
     : state === "starting"
       ? t(win ? "call.listen.startingWindows" : "call.listen.starting")
       : on
@@ -72,6 +118,14 @@ export function ListenBar({ state, source, vendor, partial, onToggle }: Props) {
         <Text variant="label" tone={problem ? "danger" : "muted"} style={styles.status}>
           {status}
         </Text>
+        {pane ? (
+          <Button
+            variant="secondary"
+            label={tc(os === "windows" ? "perm.openWindows" : "perm.openMac")}
+            onPress={() => void bridge?.openPrivacySettings?.(pane)?.catch(() => {})}
+            testID="open-privacy"
+          />
+        ) : null}
         {source === "mic" ? (
           <Badge tone="objection" label={t("call.listen.approximate")} testID="approximate" />
         ) : null}

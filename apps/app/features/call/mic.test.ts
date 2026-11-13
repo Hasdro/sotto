@@ -1,3 +1,4 @@
+import { setPrefs } from "../../lib/prefs";
 import { computerAudioAvailable, Downsampler, FRAME_SAMPLES, startCapture, startMic } from "./mic";
 
 describe("microphone downsampling (D-020)", () => {
@@ -87,5 +88,59 @@ describe("the computer's sound (D-024)", () => {
   it("reports a blocked permission when the system gives no sound", async () => {
     fakeBrowser("Electron/44.5.1", 0);
     await expect(startCapture("computer", () => {})).rejects.toMatchObject({ reason: "denied" });
+  });
+});
+
+describe("microphone device (ZC-08)", () => {
+  const g = globalThis as { navigator?: unknown; AudioContext?: unknown };
+  const saved = { navigator: g.navigator, AudioContext: g.AudioContext };
+  afterEach(() => {
+    Object.defineProperty(globalThis, "navigator", { value: saved.navigator, configurable: true });
+    g.AudioContext = saved.AudioContext;
+    setPrefs({ micId: null });
+  });
+
+  function fakeMic(devices: { kind: string; deviceId: string }[]) {
+    const track = { stop: jest.fn() };
+    const stream = {
+      getVideoTracks: () => [],
+      getAudioTracks: () => [track],
+      getTracks: () => [track],
+    };
+    const getUserMedia = jest.fn(async (_c: MediaStreamConstraints) => stream);
+    Object.defineProperty(globalThis, "navigator", {
+      value: {
+        userAgent: "Electron/44",
+        mediaDevices: { getUserMedia, enumerateDevices: async () => devices },
+      },
+      configurable: true,
+    });
+    const node = () => ({ connect: jest.fn(), disconnect: jest.fn() });
+    g.AudioContext = class {
+      state = "running";
+      sampleRate = 48000;
+      destination = {};
+      createMediaStreamSource = node;
+      createScriptProcessor = node;
+      createGain = () => ({ ...node(), gain: { value: 1 } });
+      close = jest.fn(async () => {});
+    };
+    return getUserMedia;
+  }
+  const audioOf = (m: jest.Mock) =>
+    (m.mock.calls[0]?.[0] as { audio: Record<string, unknown> } | undefined)?.audio ?? {};
+
+  it("uses the chosen microphone while it is plugged in", async () => {
+    setPrefs({ micId: "usb-1" });
+    const gum = fakeMic([{ kind: "audioinput", deviceId: "usb-1" }]);
+    (await startCapture("mic", () => {})).stop();
+    expect(audioOf(gum).deviceId).toEqual({ exact: "usb-1" });
+  });
+
+  it("falls back to the OS default when the chosen one is unplugged", async () => {
+    setPrefs({ micId: "usb-1" });
+    const gum = fakeMic([{ kind: "audioinput", deviceId: "default" }]);
+    (await startCapture("mic", () => {})).stop();
+    expect(audioOf(gum).deviceId).toBeUndefined();
   });
 });

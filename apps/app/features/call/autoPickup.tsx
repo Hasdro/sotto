@@ -5,10 +5,10 @@
  * agent started by hand are never ended for them. Off in Settings, or outside the desktop app.
  */
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { setCallSource, sourceOf } from "../../lib/callSource";
-import { desktop } from "../../lib/desktop";
 import { usePrefs } from "../../lib/prefs";
+import { useCallApp } from "./callApp";
 import type { CallSession } from "./useCallSession";
 
 export type Pickup = { waiting: boolean; auto: boolean };
@@ -32,15 +32,9 @@ export function pickupStep(
 export function AutoPickup({ session, activate }: { session: CallSession; activate: () => void }) {
   const router = useRouter();
   const { autoPickup } = usePrefs();
-  const [app, setApp] = useState<string | null>(null);
+  const app = useCallApp();
   const onCall = app !== null;
   const pickup = useRef<Pickup>({ waiting: false, auto: false });
-  useEffect(() => {
-    const d = desktop();
-    if (!d) return;
-    void d.callState().then((s) => setApp(s.app));
-    return d.onCallState((s) => setApp(s.app));
-  }, []);
   const { state, startListening, end } = session;
   const ready = state.connection === "open" && Boolean(state.hello);
   const live = state.phase === "live";

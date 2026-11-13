@@ -4,35 +4,77 @@ import { cloudOrigin } from "../../../lib/cloud";
 import { useI18n } from "../../../lib/locale";
 import { usePrefs } from "../../../lib/prefs";
 import { useIsWide } from "../../../lib/responsive";
+import { callAppName } from "../callApp";
 import type { AudioSource } from "../mic";
+import { useCallText } from "../strings";
 
 type Props = {
   /** The desktop app can hear the computer's sound (Zoom, Google Meet, softphones). */
   computer: boolean;
+  /** The call app the desktop app sees on the microphone now (bundle id / process), if any. */
+  callApp?: string | null;
   onStart: (source: AudioSource) => void;
+  /** ZC-08: open the 5-second level check. */
+  onCheck?: () => void;
 };
 
+/** What the start screen offers, given what the app can hear and sees. Pure (UX-20). */
+export function startPlan(
+  computer: boolean,
+  callApp: string | null,
+): {
+  primary: AudioSource;
+  secondary: AudioSource | null;
+  detected: boolean;
+} {
+  if (computer && callApp) return { primary: "computer", secondary: "mic", detected: true };
+  return { primary: "mic", secondary: computer ? "computer" : null, detected: false };
+}
+
 /**
- * Before a real call (owner, 21 Oct): no source cards. Sotto waits for the call app to start and
- * starts by itself (auto pick-up, desktop); Start now begins at once. The computer's sound is the
- * default on the desktop (exact, R4); the microphone stays one tap away for in-person calls.
+ * Before a real call (owner, 21 Oct; UX-20): one start screen, one verb ("Start listening").
+ * A detected call app makes the computer's sound the primary start (exact, R4: the customer is
+ * the call's sound, the agent the microphone, never one mixed track); otherwise the microphone
+ * is primary and the computer's sound is one tap away. Auto pick-up still starts by itself.
+ *
+ * Practice stays where it is (scripted scenarios in development builds only, D-024, T-038): no
+ * practice entry on this screen for real accounts until owner question Q15 is answered.
  */
-export function ListenStart({ computer, onStart }: Props) {
-  const { t } = useI18n();
+export function ListenStart({ computer, callApp = null, onStart, onCheck }: Props) {
+  const tc = useCallText();
   const { color, card } = useTheme();
   const wide = useIsWide();
   const { autoPickup } = usePrefs();
-  const watching = computer && autoPickup;
+  const plan = startPlan(computer, callApp);
+  const watching = computer && autoPickup && !plan.detected;
+  const name = callAppName(callApp);
+  const title = plan.detected
+    ? name
+      ? tc("start.detected", { app: name })
+      : tc("start.detectedAny")
+    : tc("start.title");
+  const body = plan.detected
+    ? tc("start.detectedBody")
+    : computer
+      ? tc("start.micBody")
+      : tc("start.webBody");
+  const link = (label: string, onPress: () => void, testID: string) => (
+    <Pressable accessibilityRole="button" onPress={onPress} testID={testID} style={styles.link}>
+      <Text variant="label" weight="medium" color={color.primary}>
+        {label}
+      </Text>
+    </Pressable>
+  );
   return (
     <Panel style={[styles.panel, wide ? null : styles.panelNarrow]} testID="listen-start">
       <View style={styles.head}>
-        <Mascot state={watching ? "listening" : "idle"} size={64} />
+        <Mascot state={plan.detected || watching ? "listening" : "idle"} size={64} />
         <View style={styles.headText}>
-          <Text variant="title" weight="semibold" accessibilityRole="header">
-            {t(watching ? "call.wait.title" : "call.listen.title")}
+          <Text variant="title" weight="semibold" accessibilityRole="header" testID="start-title">
+            {title}
           </Text>
           <Text variant="body" tone="muted">
-            {t(watching ? "call.wait.body" : "call.listen.body")}
+            {body}
           </Text>
         </View>
       </View>
@@ -40,29 +82,24 @@ export function ListenStart({ computer, onStart }: Props) {
         <View style={[styles.watch, { backgroundColor: card.answer.fill }]}>
           <View style={[styles.liveDot, { backgroundColor: card.answer.accent }]} />
           <Text variant="label" weight="medium" color={card.answer.text}>
-            {t("call.wait.apps")}
+            {tc("start.watching")}
           </Text>
         </View>
       ) : null}
       <View style={[styles.actions, wide ? null : styles.actionsNarrow]}>
         <Button
           size="lg"
-          label={t("call.wait.start")}
-          onPress={() => onStart(computer ? "computer" : "mic")}
+          label={tc("start.listen")}
+          onPress={() => onStart(plan.primary)}
           testID="start-call"
         />
-        {computer ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => onStart("mic")}
-            testID="source-mic"
-            style={styles.link}
-          >
-            <Text variant="label" weight="medium" color={color.primary}>
-              {t("call.wait.mic")}
-            </Text>
-          </Pressable>
-        ) : null}
+        {plan.secondary === "mic"
+          ? link(tc("start.useMic"), () => onStart("mic"), "source-mic")
+          : null}
+        {plan.secondary === "computer"
+          ? link(tc("start.useComputer"), () => onStart("computer"), "source-computer")
+          : null}
+        {onCheck ? link(tc("check.open"), onCheck, "check-audio-open") : null}
       </View>
     </Panel>
   );

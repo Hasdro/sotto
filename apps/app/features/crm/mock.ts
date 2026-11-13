@@ -40,6 +40,7 @@ const BRIEF: Brief = {
       amount: "12000",
       close_date: "2026-12-01",
       owner: "Ada Admin",
+      currency: "AED",
     },
   ],
   notes: [
@@ -108,7 +109,8 @@ export const mockLookup = {
       text: `Meeting: ${MEETING.title}\nAttendees: Jane Doe, Ada Admin\n${BRIEF.text}`,
     },
   }),
-  search: async (_q: string) => ({ candidates: [JANE, JOHN] }),
+  // "new…" stands for an unknown caller: no match, so the rail offers a Lead (UX-19).
+  search: async (q: string) => ({ candidates: /^new/i.test(q.trim()) ? [] : [JANE, JOHN] }),
   brief: async (_c: Pick<Candidate, "module" | "id">) => ({ brief: BRIEF }),
 };
 
