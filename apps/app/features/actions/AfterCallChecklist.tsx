@@ -228,7 +228,7 @@ export function AfterCallChecklist({
         {openCount > 0 ? (
           <Stack direction="row" gap="sm" wrap>
             <Button
-              label={at("after.save", { n: pending.length })}
+              label={pending.length ? at("after.save", { n: pending.length }) : at("after.saveNone")}
               disabled={pending.length === 0}
               helper={pending.length === 0 ? at("after.saveHelper") : undefined}
               onPress={save}

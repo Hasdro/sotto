@@ -145,7 +145,7 @@ function meetingItem(t: T, at: ActionsT, brief: Brief | null, review: CallReview
     id: "meeting",
     label: (v) =>
       v.date && v.time
-        ? at("after.meeting", { when: `${v.date} ${v.time}` })
+        ? at("after.meeting", { when: `${LRI}${v.date} ${v.time}${PDI}` })
         : at("after.meeting.unset"),
     fields: [
       { name: "title", label: t("actions.field.title") },

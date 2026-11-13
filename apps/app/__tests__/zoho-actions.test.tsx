@@ -275,7 +275,7 @@ describe("AfterCallChecklist (UX-04, D-044)", () => {
   it("the meeting row is prefilled from the agreed date and cannot be ticked until the time is confirmed", async () => {
     attachBrief(BRIEF);
     await wrap(<AfterCallChecklist callId="c1" review={REVIEW} perform={jest.fn()} />);
-    expect(screen.getByText("Meeting: 2026-11-20 15:30")).toBeOnTheScreen();
+    expect(screen.getByText("Meeting: \u20662026-11-20 15:30\u2069")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("after-meeting-check"));
     expect(checked("meeting")).toBe(false);
     expect(
