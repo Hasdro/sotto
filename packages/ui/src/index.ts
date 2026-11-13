@@ -1,10 +1,17 @@
 export * from "./components/Badge.tsx";
 export * from "./components/Button.tsx";
+export * from "./components/ChecklistRow.tsx";
+export * from "./components/Disclosure.tsx";
 export * from "./components/EmptyState.tsx";
+export { useFocusRing } from "./components/focus.ts";
 export * from "./components/Icon.tsx";
+export * from "./components/IconButton.tsx";
+export * from "./components/LtrRun.tsx";
 export * from "./components/layout.tsx";
 export * from "./components/Mascot.tsx";
 export * from "./components/SegmentedControl.tsx";
+export * from "./components/Sheet.tsx";
+export * from "./components/StatTile.tsx";
 export * from "./components/SuggestionCard.tsx";
 export * from "./components/Table.tsx";
 export * from "./components/Text.tsx";

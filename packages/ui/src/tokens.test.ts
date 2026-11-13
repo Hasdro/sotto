@@ -23,6 +23,9 @@ const TEXT_PAIRS: [fg: ColorKey, bg: ColorKey][] = [
   ["positive", "background"],
   ["negative", "background"],
   ["onInverseSurface", "inverseSurface"],
+  ["onToast", "toastFill"],
+  ["text", "surfaceRaised"],
+  ["textMuted", "surfaceRaised"],
   ["noticeText", "noticeFill"],
   ["signal", "background"],
   ["signal", "surface"],
@@ -36,6 +39,8 @@ const NON_TEXT_PAIRS: [fg: ColorKey, bg: ColorKey][] = [
   ["focus", "background"],
   ["focus", "surface"],
   ["noticeBorder", "noticeFill"],
+  ["focus", "surfaceRaised"],
+  ["borderStrong", "surfaceRaised"],
 ];
 
 describe("design tokens", () => {
@@ -61,6 +66,15 @@ describe("design tokens", () => {
       ]),
     ];
     for (const hex of all) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it("the dark toast is a raised dark surface with a visible border, not inverted (UX-40)", () => {
+    const d = themes.dark.color;
+    expect(d.toastFill).toBe(d.surfaceRaised);
+    // Darker than its own text, like every other dark surface.
+    expect(contrastRatio(d.toastFill, "#000000")).toBeLessThan(contrastRatio(d.onToast, "#000000"));
+    expect(contrastRatio(d.toastBorder, d.background)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(d.toastBorder, d.toastFill)).toBeGreaterThanOrEqual(3);
   });
 
   describe.each(["light", "dark"] as const)("%s theme meets WCAG 2.2 AA", (name) => {

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Pressable, type StyleProp, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../theme.tsx";
 import { type Hex, minTouchTarget, radius, size, space } from "../tokens.ts";
+import { useFocusRing } from "./focus.ts";
 import { Text } from "./Text.tsx";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -17,6 +18,8 @@ export type ButtonProps = {
   leading?: ReactNode;
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  /** Shown under a disabled button to say why it is disabled, e.g. "Enter a client ID first". */
+  helper?: string;
   testID?: string;
   style?: StyleProp<ViewStyle>;
 };
@@ -30,10 +33,13 @@ export function Button({
   leading,
   accessibilityLabel,
   accessibilityHint,
+  helper,
   testID,
   style,
 }: ButtonProps) {
   const { color } = useTheme();
+  const focus = useFocusRing();
+  const why = disabled && helper ? helper : undefined;
   const palette: Record<
     ButtonVariant,
     { fill: Hex | "transparent"; text: Hex; border: Hex | "transparent" }
@@ -44,21 +50,24 @@ export function Button({
     danger: { fill: color.danger, text: color.onDanger, border: color.danger },
   };
   const p = palette[variant];
-  return (
+  const button = (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityHint={accessibilityHint}
+      accessibilityHint={why ?? accessibilityHint}
       aria-disabled={disabled}
       disabled={disabled}
       onPress={onPress}
       testID={testID}
+      onFocus={focus.onFocus}
+      onBlur={focus.onBlur}
       style={({ pressed }) => [
         styles.base,
         size === "lg" ? styles.lg : null,
         { backgroundColor: p.fill, borderColor: p.border },
         pressed ? styles.pressed : null,
         disabled ? styles.disabled : null,
+        focus.ring,
         style,
       ]}
     >
@@ -71,6 +80,15 @@ export function Button({
         {label}
       </Text>
     </Pressable>
+  );
+  if (!why) return button;
+  return (
+    <View style={styles.withHelper}>
+      {button}
+      <Text variant="label" tone="muted">
+        {why}
+      </Text>
+    </View>
   );
 }
 
@@ -89,4 +107,5 @@ const styles = StyleSheet.create({
   lg: { minHeight: size.controlLg, paddingHorizontal: space.xl },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.45 },
+  withHelper: { gap: space.xs, alignItems: "flex-start" },
 });
