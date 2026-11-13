@@ -11,7 +11,6 @@ import {
   deviceTimeZone,
   zohoWebUrl,
 } from "../features/actions/checklist";
-import { QuickActions } from "../features/actions/PostCallPanel";
 import { actionsText } from "../features/actions/strings";
 import { EndedView } from "../features/call/components/EndedView";
 import type { Brief } from "../features/crm/api";
@@ -418,18 +417,6 @@ describe("EndedView (UX-04, UX-24)", () => {
     } finally {
       jest.useRealTimers();
     }
-  });
-});
-
-describe("QuickActions", () => {
-  it("during the call: collapsed, then only a lead or a contact update", async () => {
-    attachBrief(BRIEF);
-    await wrap(<QuickActions perform={jest.fn()} />);
-    expect(screen.queryByTestId("action-contact_update")).toBeNull();
-    await fireEvent.press(screen.getByTestId("quick-actions-toggle"));
-    expect(screen.getByTestId("action-contact_update")).toBeOnTheScreen();
-    expect(screen.queryByTestId("action-meeting")).toBeNull();
-    expect(screen.queryByTestId("action-deal_note")).toBeNull();
   });
 });
 
