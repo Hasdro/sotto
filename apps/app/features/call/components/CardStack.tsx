@@ -15,6 +15,7 @@ import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { CardView } from "../../cards/reducer";
+import { RatingControls } from "../../rating/RatingControls";
 import { cardStrings } from "./strings";
 
 /** Heights of the static "listening" mark (distinct, so they double as keys). */
@@ -67,6 +68,7 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
       ) : listening ? (
         <Listening speaking={speaking} />
       ) : null}
+      {hero ? <RatingControls card={hero} /> : null}
       {earlier.length > 0 ? (
         <View style={styles.earlier}>
           <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">

@@ -95,6 +95,10 @@ export type SessionDeps = {
   crmBrief?: (() => string) | undefined;
   /** The `crm_brief` prompt (seed/prompts); absent in older bundles, then no block is added. */
   briefPrompt?: PromptRecord | undefined;
+  /** R11: the org's learned instructions, fixed for the whole call (from the bundle). */
+  learned?: readonly string[] | undefined;
+  /** The `learned_instructions` prompt; absent in older bundles, then no block is added. */
+  learnedPrompt?: PromptRecord | undefined;
 };
 
 export function languageFor(company: CompanyProfile, text: string): string {
@@ -412,6 +416,13 @@ export class CallSession {
     if (!user.trim()) {
       user = system;
       system = "";
+    }
+    const learned = (this.deps.learned ?? []).filter((l) => l.trim());
+    if (learned.length > 0 && this.deps.learnedPrompt) {
+      // Per company and fixed for the call, so it joins the cacheable system part (D-034).
+      const list = learned.map((l) => `- ${l.trim()}`).join("\n");
+      const block = renderPrompt(this.deps.learnedPrompt.body, { "learning.instructions": list });
+      system = system.trim() ? `${system.trim()}\n\n${block}` : block;
     }
     const brief = this.deps.crmBrief?.().trim() ?? "";
     if (brief && this.deps.briefPrompt) {

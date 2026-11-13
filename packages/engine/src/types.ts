@@ -140,6 +140,8 @@ export type CallBundle = {
   keys: Record<string, string> | null;
   plan?: PlanState;
   key_status?: Record<string, number>;
+  /** R11: the org's active learned instructions (null/absent: feature off or an older server). */
+  learned?: { version: number; instructions: string[] } | null;
 };
 
 export function newId(): string {

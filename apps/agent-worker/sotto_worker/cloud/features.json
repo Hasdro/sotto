@@ -78,14 +78,14 @@
       "roles": ["admin", "manager", "agent"],
       "requires": [],
       "depends": [],
-      "built": false
+      "built": true
     },
     {
       "id": "learned_instructions",
       "roles": ["admin", "manager", "agent"],
       "requires": [],
       "depends": ["card_ratings"],
-      "built": false
+      "built": true
     }
   ]
 }

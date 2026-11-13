@@ -854,3 +854,67 @@ describe("CRM brief (R10, context rail)", () => {
     }
   });
 });
+
+describe("Learned instructions (R11, D-034)", () => {
+  const learnedPrompt = {
+    key: "learned_instructions",
+    version: 1,
+    stage: "suggest",
+    variables: ["learning.instructions"],
+    body: "Team style (the playbook wins):\n{{learning.instructions}}",
+  };
+  async function ask(learned: string[] | undefined, withPrompt = true): Promise<LLMRequest> {
+    const seen: LLMRequest[] = [];
+    const capture: LLMAdapter = {
+      provider: "fake",
+      model: "capture",
+      warm: async () => {},
+      async *stream(req) {
+        seen.push(req);
+        yield "ANSWER: Sure.";
+      },
+    };
+    const prompt = bundle.prompts.suggest;
+    if (!prompt) throw new Error("fixture has the suggest prompt");
+    const session = new CallSession({
+      callId: "c",
+      company: { ...bundle.company, ai_answers_allowed: true },
+      router: new ModelRouter(
+        { suggest: { provider: "fake", model: "capture" } },
+        () => capture,
+        realClock,
+      ),
+      prompt,
+      playbook: new PlaybookIndex([]),
+      clock: realClock,
+      onCard: () => {},
+      onEscalation: () => {},
+      onTiming: () => {},
+      learned,
+      learnedPrompt: withPrompt ? learnedPrompt : undefined,
+    });
+    session.onTranscript(
+      { speaker: "customer", text: "Is it worth it?", final: true, start_ms: 0, end_ms: 2000 },
+      realClock.now(),
+    );
+    await session.drain();
+    const req = seen[0];
+    if (!req) throw new Error("no request");
+    return req;
+  }
+
+  it("adds the list to the cacheable system part, after the rules, never the turn", async () => {
+    const req = await ask(["Keep it under 15 words.", "  ", "Name the next step."]);
+    expect(req.system).toContain(
+      "Team style (the playbook wins):\n- Keep it under 15 words.\n- Name the next step.",
+    );
+    expect(req.system.indexOf("Team style")).toBeGreaterThan(req.system.indexOf("NO_SAFE_ANSWER"));
+    expect(req.messages[0]?.content).not.toContain("Team style");
+  });
+
+  it("adds nothing without instructions or without the prompt (older bundles)", async () => {
+    for (const r of [await ask(undefined), await ask([]), await ask(["A."], false)]) {
+      expect(r.system).not.toContain("Team style");
+    }
+  });
+});
