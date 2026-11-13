@@ -4,8 +4,7 @@
  * plan blocks calls, everyone sees a short line saying so — agents and the call screen included,
  * since that is where a block bites (T-026).
  */
-import {
-  radius, space, Text, useTheme } from "@sotto/ui";
+import { radius, space, Text, useTheme } from "@sotto/ui";
 import { usePathname } from "expo-router";
 import { type ReactNode, useMemo } from "react";
 import { StyleSheet, View } from "react-native";

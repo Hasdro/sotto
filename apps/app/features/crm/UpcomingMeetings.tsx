@@ -315,7 +315,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  row: { borderWidth: 1, borderRadius: radius.md, padding: space.md, gap: space.sm },
+  row: { borderWidth: 1, borderRadius: radius.xl, padding: space.lg, gap: space.sm },
   head: { gap: 2 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
 });

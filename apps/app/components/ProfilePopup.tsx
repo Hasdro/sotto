@@ -2,7 +2,7 @@
  * The profile popup (owner, 21 Oct): opens from the person's name in the menu and shows who is
  * signed in, their company and plan, with quick links to Account and Settings and Sign out.
  */
-import { Badge, Button, radius, space, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, space, Text, useGlassStyle, useTheme } from "@sotto/ui";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, Modal, Pressable, StyleSheet, View } from "react-native";
@@ -12,6 +12,7 @@ import { useCloud } from "../lib/useCloud";
 
 export function ProfilePopup({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { color, card } = useTheme();
+  const glass = useGlassStyle({ elevated: true });
   const { t } = useI18n();
   const router = useRouter();
   const cloud = useCloud();
@@ -55,10 +56,8 @@ export function ProfilePopup({ open, onClose }: { open: boolean; onClose: () => 
         accessibilityViewIsModal
         style={[
           styles.sheet,
+          glass,
           {
-            backgroundColor: color.surface,
-            borderColor: color.border,
-            shadowColor: color.scrim,
             opacity: shown,
             transform: [
               { translateY: shown.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
@@ -123,11 +122,7 @@ const styles = StyleSheet.create({
     maxWidth: "92%",
     padding: space.lg,
     gap: space.sm,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 10 },
+    borderRadius: radius.sheet,
   },
   head: { flexDirection: "row", alignItems: "center", gap: space.md, marginBottom: space.sm },
   avatar: {

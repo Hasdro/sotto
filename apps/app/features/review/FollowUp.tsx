@@ -247,8 +247,8 @@ const styles = StyleSheet.create({
   box: {
     padding: space.lg,
     gap: space.md,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.xl,
+    borderWidth: 1,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" },
   grow: { flex: 1, minWidth: 0 },
