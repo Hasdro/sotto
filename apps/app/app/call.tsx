@@ -22,6 +22,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { FeatureGate } from "../components/FeatureGate";
+import { PostCallPanel } from "../features/actions/PostCallPanel";
 import { useSharedCall } from "../features/call/CallSessionProvider";
 import { CallHeader } from "../features/call/components/CallHeader";
 import { CallNotes } from "../features/call/components/CallNotes";
@@ -37,7 +38,7 @@ import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
-import { mockLookup } from "../features/crm/mock";
+import { mockLookup, mockPerform } from "../features/crm/mock";
 import { useEscalations } from "../features/escalations/store";
 import { CallReviewPanel } from "../features/review/CallReviewPanel";
 import { FollowUp } from "../features/review/FollowUp";
@@ -167,7 +168,13 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
   );
   const showRail = railOpen && state.phase !== "idle";
   // R10: Zoho lookup in the rail; the dev mock call uses canned records (never in a release).
-  const crm = <CrmRail callId={state.callId} lookup={mock ? mockLookup : undefined} />;
+  const crm = (
+    <CrmRail
+      callId={state.callId}
+      lookup={mock ? mockLookup : undefined}
+      perform={mock ? mockPerform : undefined}
+    />
+  );
   const controls = practice ? (
     live ? (
       <Composer
@@ -220,6 +227,10 @@ export function CallView({ session, mock }: { session: CallSession; mock: boolea
             }
           />
         </Panel>
+      ) : null}
+      {state.phase === "ended" && (!practice || mock) ? (
+        // R12 (T-061): Zoho writes, each approved on its own card, and the follow-up slot.
+        <PostCallPanel perform={mock ? mockPerform : undefined} />
       ) : null}
       {state.phase === "ended" && !practice ? (
         <FeatureGate feature="call_review">

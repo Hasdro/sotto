@@ -9,6 +9,40 @@ export function ZohoConnect({ zoho, compact = false }: { zoho: ZohoConn; compact
   if (s?.connected) {
     return (
       <Stack gap="sm" align="flex-start" testID="zoho-connected">
+        {zoho.justConnected ? (
+          <Text
+            variant="body"
+            weight="semibold"
+            aria-live="polite"
+            accessibilityLiveRegion="polite"
+            testID="zoho-just-connected"
+          >
+            {t("crm.connected.now")}
+          </Text>
+        ) : null}
+        {s.needs_reconnect ? (
+          <Stack gap="xs" align="flex-start" testID="zoho-needs-reconnect">
+            <Text variant="label" tone="muted">
+              {t("crm.reconnect.body")}
+            </Text>
+            <Button
+              variant="secondary"
+              label={t("crm.reconnect.button")}
+              onPress={zoho.connect}
+              testID="zoho-reconnect"
+            />
+            {zoho.waiting ? (
+              <Text
+                variant="label"
+                tone="muted"
+                aria-live="polite"
+                accessibilityLiveRegion="polite"
+              >
+                {t("crm.connect.waiting")}
+              </Text>
+            ) : null}
+          </Stack>
+        ) : null}
         <Stack direction="row" gap="sm" align="center" wrap>
           <Badge label={t("crm.connected")} tone="answer" dot />
           {s.connected_at ? (

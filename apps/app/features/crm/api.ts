@@ -15,7 +15,20 @@ export type Candidate = {
   phone: string;
   evidence: Evidence;
 };
+export type Meeting = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  agenda: string;
+  participants: string[];
+};
+export type MeetingCandidate = Meeting & {
+  contact: { id: string; name: string } | null;
+  evidence: { field: "time"; value: string };
+};
 export type Brief = {
+  meeting?: Meeting;
   person: {
     module: "Contacts" | "Leads";
     id: string;
@@ -23,9 +36,16 @@ export type Brief = {
     title: string;
     email: string;
     phone: string;
-  };
+  } | null;
   account: { name: string; industry: string } | null;
-  deals: { name: string; stage: string; amount: string; close_date: string; owner: string }[];
+  deals: {
+    id: string;
+    name: string;
+    stage: string;
+    amount: string;
+    close_date: string;
+    owner: string;
+  }[];
   notes: { date: string; title: string; text: string }[];
   /** The compact text the live prompt gets (`crm.brief`), capped by the server. */
   text: string;
@@ -33,6 +53,8 @@ export type Brief = {
 export type ZohoStatus = {
   connected: boolean;
   connected_at?: number;
+  /** Connected before Zoho writes existed: reconnect to allow saving to Zoho. */
+  needs_reconnect?: boolean;
   api_domain?: string;
   feature: { state: string; cause?: string };
   client: "org" | "platform" | null;
@@ -60,3 +82,20 @@ export const saveOrgClient = (body: { client_id: string; client_secret: string; 
   cloudApi<ClientStatus>("/api/v1/company/zoho/client", { method: "PUT", body });
 export const removeOrgClient = () =>
   cloudApi<ClientStatus>("/api/v1/company/zoho/client", { method: "DELETE" });
+export const zohoMeetings = () =>
+  cloudApi<{ candidates: MeetingCandidate[] }>(`/api/v1/zoho/meetings?t=${Date.now()}`);
+export const zohoMeetingBrief = (id: string) =>
+  cloudApi<{ brief: Brief }>(`/api/v1/zoho/meetings/${encodeURIComponent(id)}`);
+
+export type ActionKind = "meeting" | "lead" | "contact_update" | "deal_note";
+/** One approved write (R12). The same key on a retry never writes twice (server table). */
+export const zohoAction = (kind: ActionKind, fields: Record<string, string>, key: string) =>
+  cloudApi<{ ok: true; id: string; action?: string; repeat?: boolean }>(
+    `/api/v1/zoho/actions/${kind}`,
+    { method: "POST", body: { approved: true, idempotency_key: key, fields } },
+  );
+export const saveCallBrief = (callId: string, brief: Record<string, unknown>) =>
+  cloudApi<{ ok: true }>(`/api/v1/calls/${encodeURIComponent(callId)}/brief`, {
+    method: "PUT",
+    body: { brief },
+  });
