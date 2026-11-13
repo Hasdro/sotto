@@ -425,6 +425,20 @@ describe("in-call screen", () => {
     expect(s.start).toHaveBeenCalledWith(null);
   });
 
+  it("ended: the live card stack is gone, the ended view stays", async () => {
+    const s = session(
+      stateFrom([
+        hello,
+        { type: "call_started", call_id: CALL },
+        card({ done: true }),
+        { type: "call_ended", call_id: CALL },
+      ]),
+    );
+    await render(<CallView session={s} mock={false} />);
+    expect(screen.getByText("Call ended")).toBeOnTheScreen();
+    expect(screen.queryByTestId("hero-card")).toBeNull();
+  });
+
   it("uses the wide two-column layout at laptop width", async () => {
     jest.mocked(useIsWide).mockReturnValue(true);
     const s = session(stateFrom([hello, { type: "call_started", call_id: CALL }]));

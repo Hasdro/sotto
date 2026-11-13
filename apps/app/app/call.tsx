@@ -249,7 +249,7 @@ export function CallView({
           onAgain={() => (practice ? session.start(null) : session.startListening(session.source))}
         />
       ) : null}
-      {state.phase !== "idle" ? (
+      {state.phase !== "idle" && state.phase !== "ended" ? (
         <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
       ) : null}
     </View>
