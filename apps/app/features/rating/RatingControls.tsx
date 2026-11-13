@@ -4,7 +4,7 @@
  * chips open only after a thumbs-down. Hidden for playbook, holding and system cards, and
  * whenever ratings are not available to this person. Where it shows (never under the live
  * hero; on collapsed cards on hover or focus; on every AI card after the call) is CardStack's
- * choice (D-042 draft).
+ * choice (draft D-042 (backlog)).
  */
 import { IconButton, minTouchTarget, radius, space, Text, useTheme } from "@sotto/ui";
 import { Pressable, StyleSheet, View } from "react-native";

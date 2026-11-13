@@ -1,5 +1,5 @@
 /**
- * "Suggested updates (n)" after the call (UX-04, D-044, R12): one checklist, nothing pre-ticked,
+ * "Suggested updates (n)" after the call (UX-04, draft D-044 (backlog), R12): one checklist, nothing pre-ticked,
  * an Edit disclosure per row, and one "Save n to Zoho" that sends only the ticked rows. Each row
  * is its own approval with its own idempotency key (kept for the row's life, so a retry never
  * writes twice) and its own audit row on the server. "Skip" hides a row with a 5 s Undo (UX-23);

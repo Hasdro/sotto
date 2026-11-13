@@ -1,4 +1,5 @@
-"""INT-03 and INT-16 (D-048): the brief carries a stage guidance line from seed data and where
+"""INT-03 and INT-16 (draft D-048 (backlog)): the brief carries a stage guidance line from seed
+data and where
 the lead came from, inside the unchanged 1200-character budget."""
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ export type Area =
   | "/admin"
   | "/settings";
 
-/** D-050: agents never see the Inbox or the playbook editor (R3 table: "Edit playbook: no"). */
+/** draft D-050 (backlog): agents never see the Inbox or the playbook editor (R3 table: "Edit playbook: no"). */
 export const ROLE_AREAS: Record<ViewRole, readonly Area[]> = {
   agent: ["/home", "/call", "/history", "/reports", "/settings"],
   manager: ["/home", "/call", "/history", "/reports", "/playbook", "/inbox", "/settings"],

@@ -50,7 +50,8 @@ PAGE_CSP = (
 )
 NO_STORE = {"Cache-Control": "no-store"}
 BROWSER_COOKIE = "sotto_zoho_flow"
-# UX-35 / D-054: the desktop app's "return to the app" link. It never carries a token or code.
+# UX-35 / draft D-054 (backlog): the desktop app's "return to the app" link. It never carries a
+# token or code.
 APP_LINK = "agn-sales-shield://zoho/connected"
 READS = "meetings, contacts, deals"
 WRITES = "meetings and notes after you approve them"
@@ -66,7 +67,7 @@ FONTS_CSS = "".join(
     for fam, f in (("Inter", "inter"), ("'IBM Plex Sans Arabic'", "plex-arabic"))
     for w, n in ((400, "400Regular"), (500, "500Medium"), (600, "600SemiBold"))
 )
-PAGE_STYLE = TOKENS_CSS + FONTS_CSS + (
+PAGE_RULES = (
     "*{box-sizing:border-box}"
     "body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
     "background:var(--ss-background);color:var(--ss-text);font-family:var(--ss-font);"
@@ -112,6 +113,7 @@ PAGE_STYLE = TOKENS_CSS + FONTS_CSS + (
     "a:focus-visible,summary:focus-visible{outline:2px solid var(--ss-focus);outline-offset:2px}"
     "@media (prefers-reduced-motion:reduce){*{transition-duration:0ms!important}}"
 )
+PAGE_STYLE = TOKENS_CSS + FONTS_CSS + PAGE_RULES
 SHIELD = (
     "<svg viewBox='0 0 64 64' aria-hidden='true'><defs><mask id='cut'>"
     "<rect width='64' height='64' fill='#fff'/><g transform='translate(14.5 14.5) scale(0.55)'>"

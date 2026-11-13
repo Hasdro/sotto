@@ -370,7 +370,7 @@ describe("WhatsAppAction", () => {
   });
 });
 
-describe("FollowUp card (UX-05, D-045)", () => {
+describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
   const BRIEF = {
     person: {
       module: "Contacts" as const,

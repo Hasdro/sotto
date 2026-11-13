@@ -18,7 +18,7 @@ export type MiniState = {
   source: string | null;
 };
 
-/** An `agn-sales-shield://` link the desktop app understood (D-054); never carries a token. */
+/** An `agn-sales-shield://` link the desktop app understood (draft D-054 (backlog)); never carries a token. */
 export type DeepLink = { kind: "zoho"; status: "connected" | "cancelled" };
 export type PrivacyPane = "mic" | "system-audio";
 export type PrivacyResult = { ok: true } | { ok: false; reason: string };

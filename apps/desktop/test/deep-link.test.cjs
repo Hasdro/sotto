@@ -1,4 +1,4 @@
-// W1-DESK (D-054): the agn-sales-shield:// protocol and the whitelisted privacy-pane opener.
+// W1-DESK (draft D-054 (backlog)): the agn-sales-shield:// protocol and the whitelisted privacy-pane opener.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

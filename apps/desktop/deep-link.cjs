@@ -1,4 +1,4 @@
-// W1-DESK (D-054, UX-21, UX-35): the `agn-sales-shield://` link that brings the person back to
+// W1-DESK (draft D-054 (backlog), UX-21, UX-35): the `agn-sales-shield://` link that brings the person back to
 // the app after a browser step (Zoho connect), and "open the OS privacy pane" for the microphone
 // and the computer's sound. Pure functions plus two small registrars, so tests need no Electron.
 //

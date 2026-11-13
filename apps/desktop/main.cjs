@@ -50,7 +50,7 @@ const CSP =
   `img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:${LOCAL}; ` +
   "media-src 'self' blob:; object-src 'none'; base-uri 'none'";
 
-// W1-DESK (D-054): agn-sales-shield:// brings the person back (one instance; focus on open).
+// W1-DESK (draft D-054 (backlog)): agn-sales-shield:// brings the person back (one instance; focus on open).
 let pendingLink = null;
 const firstInstance = registerDeepLinks({
   app,

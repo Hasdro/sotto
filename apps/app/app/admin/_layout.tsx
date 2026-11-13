@@ -1,4 +1,4 @@
-/** Admin area (R3, R6), in four groups (UX-29, D-051): People, Connections, AI, Company. On the
+/** Admin area (R3, R6), in four groups (UX-29, draft D-051 (backlog)): People, Connections, AI, Company. On the
  * desktop app keys, models and prompts live in the web admin panel only (D-038): Keys & providers
  * is not listed there and the AI group links to the web admin instead.
  * Quiet Paper Glass (D-041, DESIGN-SYSTEM.md §5.4): the 34 px page title, the groups as neutral
@@ -38,7 +38,7 @@ type Page = {
 };
 type Group = { id: string; label: StringKey; icon: IconName; pages: readonly Page[] };
 
-/** UX-29, D-051: four groups instead of nine tabs in a scrolling row. */
+/** UX-29, draft D-051 (backlog): four groups instead of nine tabs in a scrolling row. */
 export const ADMIN_GROUPS: readonly Group[] = [
   {
     id: "people",

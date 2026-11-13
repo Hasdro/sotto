@@ -1,5 +1,5 @@
 /**
- * One "Follow up with <name>" card after the call (UX-05, D-045). The `followup` draft (made on
+ * One "Follow up with <name>" card after the call (UX-05, draft D-045 (backlog)). The `followup` draft (made on
  * this device with the company's own AI, owner 22 Oct) is the email body; WhatsApp is the second
  * tab. One send path per channel: the org's email (server preview, then confirm), or — where
  * email sending is not set up — the draft to copy into a mail app; WhatsApp through the org's

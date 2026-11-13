@@ -9,7 +9,7 @@ describe("role areas (R3)", () => {
     expect(areaOf("/gallery")).toBeNull();
   });
 
-  it("agents get home, calls, history, their own reports and settings only (D-050)", () => {
+  it("agents get home, calls, history, their own reports and settings only (draft D-050 (backlog))", () => {
     expect(ROLE_AREAS.agent).toEqual(["/home", "/call", "/history", "/reports", "/settings"]);
     expect(canOpen("agent", "/inbox")).toBe(false);
     expect(canOpen("agent", "/playbook")).toBe(false);

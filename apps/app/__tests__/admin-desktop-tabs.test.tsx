@@ -1,4 +1,4 @@
-/** UX-29, D-051 (+ D-038, D-039): the admin area in four groups; on the desktop app Keys &
+/** UX-29, draft D-051 (backlog) (+ D-038, D-039): the admin area in four groups; on the desktop app Keys &
  * providers moves to the web admin panel, while Integrations (Zoho, SMTP, Gallabox) stays. */
 import { UIProvider } from "@sotto/ui";
 import { render, screen } from "@testing-library/react-native";

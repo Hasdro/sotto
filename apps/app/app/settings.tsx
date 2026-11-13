@@ -64,7 +64,7 @@ export default function SettingsScreen() {
   const { role } = useRole();
   const signedIn = cloud.status === "signed_in";
   const admin = signedIn && cloud.me.user.role === "admin";
-  const staff = role !== "agent"; // D-050: agents have no playbook editor
+  const staff = role !== "agent"; // draft D-050 (backlog): agents have no playbook editor
   useScrollToHash();
   const toggle = (key: keyof Prefs) => (v: boolean) => setPrefs({ [key]: v });
 

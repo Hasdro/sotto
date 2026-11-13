@@ -32,7 +32,8 @@ ACCOUNTS: dict[str, str] = {
 }
 ACCOUNTS_SERVERS = frozenset(ACCOUNTS.values())
 DC_OF_SERVER = {v: k for k, v in ACCOUNTS.items()}
-# ZC-02 (D-046): the flow starts on the global accounts host; Zoho sends the person to their own
+# ZC-02 (draft D-046 (backlog)): the flow starts on the global accounts host; Zoho sends the
+# person to their own
 # DC and names it in the callback (`location`, `accounts-server`).
 GLOBAL_ACCOUNTS = "https://accounts.zoho.com"
 DC_NAMES: dict[str, str] = {

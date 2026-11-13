@@ -1,5 +1,5 @@
 /**
- * The after-call checklist as data (UX-04, D-044): one item per suggested Zoho write, built from
+ * The after-call checklist as data (UX-04, draft D-044 (backlog)): one item per suggested Zoho write, built from
  * the attached record, the review and the agent's note. Nothing here sends anything; the
  * component ticks, edits and saves. Kept pure so the rules (what is offered, what each write
  * carries, when a meeting may be ticked) are tested without rendering.
@@ -46,7 +46,7 @@ export function deviceTimeZone(): string {
   }
 }
 
-/** The parent of the call log (D-047): Deal, else Contact, else Lead. */
+/** The parent of the call log (draft D-047 (backlog)): Deal, else Contact, else Lead. */
 export function callLogParent(
   brief: Brief | null,
 ): { field: string; module: string; id: string } | null {
@@ -61,7 +61,7 @@ export function callLogParent(
 /**
  * The summary the server writes first in the note. The agent's note and (when chosen) the
  * risk reasons ride in it, because the server's call_log accepts only the review fields; never
- * transcript text, so a risk's quote stays in the review on this device (D-047).
+ * transcript text, so a risk's quote stays in the review on this device (draft D-047 (backlog)).
  */
 export function callLogSummary(
   summary: string,

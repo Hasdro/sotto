@@ -15,7 +15,8 @@ from sotto_worker.cloud.store import CloudError
 RECORD_ID = re.compile(r"^\d{5,25}$")
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
 KINDS = ("meeting", "lead", "contact_update", "deal_note", "call_log")
-# INT-01 (D-047): the after-call log is the review's structured summary, never transcript text;
+# INT-01 (draft D-047 (backlog)): the after-call log is the review's structured summary, never
+# transcript text;
 # the caps keep a pasted transcript out. Parent order: Deal, else Contact, else Lead.
 CALL_LOG_PARENTS = (("deal_id", "Deals"), ("contact_id", "Contacts"), ("lead_id", "Leads"))
 CHANCE_BANDS = ("low", "medium", "high")

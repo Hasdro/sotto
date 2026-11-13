@@ -69,7 +69,7 @@ export function EndedView({ cardCount, practice, mock, callId, perform, saveLog,
         </FeatureGate>
       ) : null}
       {showUpdates ? (
-        // R12, D-044: each ticked row is its own approval and its own idempotent write.
+        // R12, draft D-044 (backlog): each ticked row is its own approval and its own idempotent write.
         <ZohoGate>
           <AfterCallChecklist
             callId={callId}

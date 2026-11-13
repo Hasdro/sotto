@@ -35,7 +35,8 @@ def test_static_files_spa_fallback_and_cache_rules(
     assert c.get("/sub").text == "<html>sub</html>"
 
     asset = c.get("/_expo/static/a.js")
-    assert asset.status_code == 200 and "immutable" in asset.headers["cache-control"]
+    assert asset.status_code == 200
+    assert "immutable" in asset.headers["cache-control"]
     assert c.get("/missing.js").status_code == 404
     assert c.get("/%2e%2e/secret").status_code == 404
 

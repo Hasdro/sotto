@@ -1,5 +1,5 @@
 /**
- * /reset-password#token=… (UX-39r, D-053): the page the reset email links to. The token sits in
+ * /reset-password#token=… (UX-39r, draft D-053 (backlog)): the page the reset email links to. The token sits in
  * the fragment so it never reaches a server log; on the first render the page reads it, drops
  * it from the address bar (history.replaceState) and tells the browser to send no Referer, all
  * before any request. Then: new password twice → confirm. The server answers one way for an

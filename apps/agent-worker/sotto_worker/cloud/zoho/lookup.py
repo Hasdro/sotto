@@ -39,7 +39,8 @@ SOURCE_CHARS = 80
 
 @functools.cache
 def _stage_seed() -> tuple[str, dict[str, str]]:
-    """INT-03 (D-048): the stage label and guidance lines from seed/prompts/crm_brief.md."""
+    """INT-03 (draft D-048 (backlog)): the stage label and guidance lines from
+    seed/prompts/crm_brief.md."""
     _, front, _ = (SEED / "prompts" / "crm_brief.md").read_text(encoding="utf-8").split("---\n", 2)
     meta = yaml.safe_load(front) or {}
     table = {str(k).lower(): str(v) for k, v in (meta.get("stage_guidance") or {}).items()}

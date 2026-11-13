@@ -1,4 +1,5 @@
-"""ZC-02 (D-046) and UX-35: the Zoho data centre comes from the OAuth callback, a manual choice
+"""ZC-02 (draft D-046 (backlog)) and UX-35: the Zoho data centre comes from the OAuth callback, a
+manual choice
 still works, and the connect / done / cancel pages say what they must and nothing secret."""
 
 from __future__ import annotations

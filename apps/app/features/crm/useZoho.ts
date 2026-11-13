@@ -7,7 +7,7 @@
  * throttled in the background), and polls every 2 s for 3 minutes while a connect is pending.
  * When the status turns connected it refreshes the feature map (every screen sees `zoho`
  * available) and sets `justConnected` so the screen can confirm it. In the desktop app the
- * browser step ends on `agn-sales-shield://zoho/connected` (D-054), which re-reads at once; focus
+ * browser step ends on `agn-sales-shield://zoho/connected` (draft D-054 (backlog)), which re-reads at once; focus
  * and polling stay as the fallback (a browser that never opens the link).
  */
 import { useCallback, useEffect, useRef, useState } from "react";

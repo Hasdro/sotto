@@ -170,7 +170,7 @@ describe("first-run checklist (UX-10)", () => {
   });
 });
 
-describe("agent and staff Home (UX-25, D-050)", () => {
+describe("agent and staff Home (UX-25, draft D-050 (backlog))", () => {
   it("an agent sees no company block and no model name, but their own questions", async () => {
     signedIn("agent");
     mockCalls = [

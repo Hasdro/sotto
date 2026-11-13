@@ -64,7 +64,7 @@ RECORD_CALLS = ("agent_choice", "on", "off")  # A4: the org policy; agent_choice
 CONSENT_CHOICES = ("all", "primary_only")
 VENDOR_ID = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,39}$")
 MAX_VENDORS = 30
-# ZC-14 (D-057): where each health reason is fixed in the apps.
+# ZC-14 (draft D-057 (backlog)): where each health reason is fixed in the apps.
 HEALTH_FIX = {
     "zoho_token_expired": "/settings#zoho",
     "smtp_failing": "/admin/integrations#email",
@@ -289,9 +289,11 @@ CREATE TABLE IF NOT EXISTS zoho_states (
   used_at INTEGER,
   browser_hash TEXT
 );
--- ZC-02 (D-046): the org's Zoho data centre, set by the first detected connection; a default
+-- ZC-02 (draft D-046 (backlog)): the org's Zoho data centre, set by the first detected
+-- connection; a default
 -- for the connect page. Each person's own DC is on their connection row.
--- ZC-11 (D-044 data part): the org's defaults an admin sets once; one row per key, audited.
+-- ZC-11 (draft D-044 (backlog) data part): the org's defaults an admin sets once; one row per
+-- key, audited.
 CREATE TABLE IF NOT EXISTS company_defaults (
   company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   key TEXT NOT NULL,
@@ -300,7 +302,7 @@ CREATE TABLE IF NOT EXISTS company_defaults (
   updated_by TEXT,
   PRIMARY KEY (company_id, key)
 );
--- UX-39 (D-053): emailed password-reset tokens (hash only), single use, 30 minutes.
+-- UX-39 (draft D-053 (backlog)): emailed password-reset tokens (hash only), single use, 30 minutes.
 CREATE TABLE IF NOT EXISTS password_resets (
   token_hash TEXT PRIMARY KEY,
   company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
@@ -2581,7 +2583,8 @@ class CloudStore:
 
     # --- ZC-14: config health --------------------------------------------------------------------
     def config_health(self, who: Principal) -> dict[str, Any]:
-        """One status per org (D-057), shipped with the feature map. Reasons are machine codes
+        """One status per org (draft D-057 (backlog)), shipped with the feature map. Reasons are
+        machine codes
         with the app route that fixes them; nothing secret. A Zoho token counts for the person
         asking (admins: anyone in the org), since each person connects their own."""
         company = who.company

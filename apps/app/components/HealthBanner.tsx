@@ -1,5 +1,5 @@
 /**
- * Config health (ZC-14c, D-057): the server computes one status per company and sends it with
+ * Config health (ZC-14c, draft D-057 (backlog)): the server computes one status per company and sends it with
  * the feature map. When it needs attention the shell shows one line with the first reason this
  * person can fix and a button to the page that fixes it. Agents only see what is theirs to fix
  * (their Zoho connection); plan and email problems go to the people who can open those pages.

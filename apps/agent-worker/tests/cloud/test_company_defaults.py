@@ -1,4 +1,5 @@
-"""ZC-11 (data part of D-044 / DD-4, A4, B9): company defaults — record-calls policy, consent
+"""ZC-11 (data part of draft D-044 (backlog) / DD-4, A4, B9): company defaults — record-calls
+policy, consent
 record, vendor allow-list, derived manager. Admin-only writes, audited, company-scoped."""
 
 from __future__ import annotations

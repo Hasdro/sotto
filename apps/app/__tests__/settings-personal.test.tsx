@@ -1,5 +1,5 @@
 /** ZC-map-agent (ZC A1, A3, A5): Settings is language/theme, Audio, the person's Zoho, Advanced
- * and About; no "Soon" placeholders; agents get no playbook guide (D-050). */
+ * and About; no "Soon" placeholders; agents get no playbook guide (draft D-050 (backlog)). */
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import SettingsScreen from "../app/settings";

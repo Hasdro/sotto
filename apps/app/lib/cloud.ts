@@ -623,7 +623,7 @@ export async function changePassword(current: string, next: string): Promise<voi
 
 // --- T-074 (wave 1 server core): typed calls for the new routes; screens come in waves 2–3. ---
 
-/** ZC-14 (D-057): one org status, refreshed with the feature map. */
+/** ZC-14 (draft D-057 (backlog)): one org status, refreshed with the feature map. */
 export type HealthReason = {
   code: "zoho_token_expired" | "smtp_failing" | "minutes_low" | "trial_ending";
   /** The app route that fixes it. */
@@ -637,7 +637,7 @@ export function configHealth(): ConfigHealth {
   return health;
 }
 
-/** UX-39 (D-053): always resolves the same way, known address or not. */
+/** UX-39 (draft D-053 (backlog)): always resolves the same way, known address or not. */
 export async function requestPasswordReset(email: string): Promise<void> {
   await cloudApi("/api/v1/auth/reset/request", { method: "POST", body: { email } });
 }
@@ -676,7 +676,7 @@ export async function saveCompanyDefaults(change: CompanyDefaultsChange): Promis
   return cloudApi<CompanyDefaults>("/api/v1/company/defaults", { method: "PUT", body: change });
 }
 
-/** INT-01 (D-047): the after-call log as one Note on the Deal, else Contact, else Lead. */
+/** INT-01 (draft D-047 (backlog)): the after-call log as one Note on the Deal, else Contact, else Lead. */
 export type CallLogFields = {
   call_id: string;
   deal_id?: string;

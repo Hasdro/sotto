@@ -182,7 +182,7 @@ const REVIEW = {
 const checked = (id: string) =>
   screen.getByTestId(`after-${id}-check`).props.accessibilityState?.checked === true;
 
-describe("AfterCallChecklist (UX-04, D-044)", () => {
+describe("AfterCallChecklist (UX-04, draft D-044 (backlog))", () => {
   it("lists the suggested updates with nothing ticked and nothing sent", async () => {
     attachBrief(BRIEF);
     const perform = jest.fn();

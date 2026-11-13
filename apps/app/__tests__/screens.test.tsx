@@ -124,7 +124,7 @@ describe("mock screens", () => {
     expect(screen.getByRole("link", { name: /^السجل/ })).toBeOnTheScreen();
   });
 
-  it("the demo role switch hides areas an agent may not open (R3, D-050)", async () => {
+  it("the demo role switch hides areas an agent may not open (R3, draft D-050 (backlog))", async () => {
     await open("/history");
     await openMenu();
     await fireEvent.press(screen.getByTestId("role-switch-agent"));
@@ -140,7 +140,7 @@ describe("mock screens", () => {
   });
 
   it.each(["/playbook", "/inbox"])(
-    "an agent who opens %s by URL gets the no-access page (D-050)",
+    "an agent who opens %s by URL gets the no-access page (draft D-050 (backlog))",
     async (path) => {
       await open(path);
       await openMenu();

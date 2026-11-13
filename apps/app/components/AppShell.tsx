@@ -121,7 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {wide ? <Sidebar /> : <TopBar open={menuOpen} onOpen={() => setMenuOpen(true)} />}
       <View style={styles.main}>
         <ShellBanner />
-        {/* R3, D-050: a page outside this role's areas says why, whatever the URL. The page
+        {/* R3, draft D-050 (backlog): a page outside this role's areas says why, whatever the URL. The page
             stays mounted (hidden) so the router's navigator keeps its state. */}
         <View style={allowed ? styles.main : styles.hidden}>{children}</View>
         {allowed ? null : <NoAccess />}

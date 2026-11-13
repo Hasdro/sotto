@@ -25,7 +25,7 @@ contextBridge.exposeInMainWorld("sottoDesktop", {
   },
   showMini: (show) => ipcRenderer.send("mini-show", Boolean(show)),
   miniAction: (action) => ipcRenderer.send("mini-action", String(action)),
-  // agn-sales-shield:// links (D-054), e.g. { kind: "zoho", status: "connected" }; no tokens.
+  // agn-sales-shield:// links (draft D-054 (backlog)), e.g. { kind: "zoho", status: "connected" }; no tokens.
   onDeepLink: (cb) => {
     const listener = (_event, msg) => cb(msg);
     ipcRenderer.on("deep-link", listener);

@@ -1,4 +1,5 @@
-"""UX-39 (D-053): password reset by email — no account enumeration, a single-use 30-minute token
+"""UX-39 (draft D-053 (backlog)): password reset by email — no account enumeration, a single-use
+30-minute token
 stored hashed, every session (and refresh token) ended on use, rate-limited, audited."""
 
 from __future__ import annotations

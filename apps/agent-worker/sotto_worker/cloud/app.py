@@ -187,7 +187,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
     zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
     send_limit = RateLimit(per_key=10, total=600, window_s=60)  # email + WhatsApp sends
-    # UX-39 (D-053): reset requests, per address and per client (counted on every request).
+    # UX-39 (draft D-053 (backlog)): reset requests, per address and per client (counted on every
+    # request).
     # No small global cap: it would let anyone switch resets off for everyone (security review).
     reset_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # per address
     reset_client_limit = RateLimit(per_key=20, total=1_000_000, window_s=3600)  # per client
@@ -347,7 +348,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     async def features_get(_request: Request, who: Principal) -> Response:
         return JSONResponse(
             # learned_version: a changed list makes the app reload the bundle between calls.
-            # health: ZC-14 (D-057), one org status refreshed on the same cycle as the features.
+            # health: ZC-14 (draft D-057 (backlog)), one org status refreshed on the same cycle as
+            # the features.
             {
                 "features": store.features_for(who),
                 "learned_version": learning.version_of(who),
@@ -1030,7 +1032,14 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         if not owner_host_ok(request):
             return PlainTextResponse("not found\n", status_code=404)
         name = request.path_params.get("file") or "index.html"
-        if name not in {"index.html", "owner.js", "owner.css", "tokens.css", "components.css", "fonts.css"}:
+        if name not in {
+            "index.html",
+            "owner.js",
+            "owner.css",
+            "tokens.css",
+            "components.css",
+            "fonts.css",
+        }:
             return PlainTextResponse("not found\n", status_code=404)
         return FileResponse(
             OWNER_DIR / name,

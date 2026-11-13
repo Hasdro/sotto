@@ -1,4 +1,5 @@
-"""ZC-14 (D-057): one config health per org in the session config, next to the feature map."""
+"""ZC-14 (draft D-057 (backlog)): one config health per org in the session config, next to the
+feature map."""
 
 from __future__ import annotations
 

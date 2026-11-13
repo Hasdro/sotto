@@ -3,7 +3,7 @@
  * the title, the first-run steps until they are done, today's numbers, the next meetings with
  * Prepare / Start, the last call's tip and recent calls. Agents also see the questions they
  * sent to their manager; admins and managers see the company line and the playbook instead.
- * Agents never see model names or company stats (D-050).
+ * Agents never see model names or company stats (draft D-050 (backlog)).
  */
 
 import { Badge, Button, Icon, radius, StatTile, space, Text, useTheme } from "@sotto/ui";
@@ -47,7 +47,7 @@ export function todayStats(calls: ReturnType<typeof deviceCalls>, now = Date.now
 }
 
 /** UX-25: questions this agent sent to the manager, newest first, from calls on this device
- * (agents cannot list the company inbox, D-050). */
+ * (agents cannot list the company inbox, draft D-050 (backlog)). */
 export function myQuestions(calls: readonly DeviceCall[], max = 3): string[] {
   const out: string[] = [];
   for (const c of calls) {

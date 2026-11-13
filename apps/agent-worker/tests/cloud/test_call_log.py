@@ -1,4 +1,5 @@
-"""INT-01 (D-047): the after-call log as one structured Note on the Deal, else the Contact, else
+"""INT-01 (draft D-047 (backlog)): the after-call log as one structured Note on the Deal, else the
+Contact, else
 the Lead; approved only, one per call (idempotent), audited, never transcript text."""
 
 from __future__ import annotations
