@@ -42,6 +42,8 @@ def make_routes(
     minter: Callable[[str, str], Awaitable[dict[str, Any]]],
     report_limit: Callable[[str], bool],
     signup_limit: Callable[[str], bool],
+    bad_secret_limit: Callable[[str], bool],
+    bad_secret_record: Callable[[str], None],
     send_invite: Callable[[str, str, str], Awaitable[None]],
     log: Callable[[str], None],
 ) -> list[Route]:
@@ -335,6 +337,10 @@ def make_routes(
             headers=NO_STORE,
         )
 
+    async def o_signup_approve(r: Request, who: Principal) -> Response:
+        platform.approve_signup(store, who, r.path_params["id"], ip=ip_of(r))
+        return JSONResponse({"signups": platform.signups(store)}, headers=NO_STORE)
+
     async def o_signup_secret(r: Request, who: Principal) -> Response:
         secret = platform.rotate_signup_secret(store, who, ip=ip_of(r))
         return JSONResponse({"secret": secret, "header": "X-AGN-Signup-Secret"}, headers=NO_STORE)
@@ -366,12 +372,17 @@ def make_routes(
     async def signup_hook(r: Request) -> Response:
         """Zoho Forms → webhook (POST, a custom header with the shared secret). Answers 200 for a
         duplicate address too, so Zoho does not mark the entry failed; nothing new is created."""
-        if not signup_limit(ip_key(r)):
-            raise CloudError("rate_limited", "too many sign-ups; wait")
+        # The secret first: requests without it must not use up the budget real sign-ups need
+        # (security review L); wrong secrets are limited per client on their own.
+        if bad_secret_limit(ip_key(r)):
+            raise CloudError("rate_limited", "too many tries; wait")
         if not platform.signup_secret_ok(store, r.headers.get(SIGNUP_HEADER)):
+            bad_secret_record(ip_key(r))
             return JSONResponse(
                 {"error": "wrong secret", "code": "signed_out"}, status_code=HTTPStatus.UNAUTHORIZED
             )
+        if not signup_limit(ip_key(r)):
+            raise CloudError("rate_limited", "too many sign-ups; wait")
         fields = await hook_fields(r)
         made = platform.signup(
             store,
@@ -425,6 +436,7 @@ def make_routes(
         o("companies/{id}/zoho-client", o_zoho_override_delete, "DELETE"),
         o("signups", o_signups),
         o("signups/secret", o_signup_secret, "POST"),
+        o("signups/{id}/approve", o_signup_approve, "POST"),
         Route(f"{api}/provider-health", failures_post, methods=["POST"]),
         Route(f"{api}/company/prompts", c_prompts),
         Route(f"{api}/company/prompts", c_prompt_post, methods=["POST"]),

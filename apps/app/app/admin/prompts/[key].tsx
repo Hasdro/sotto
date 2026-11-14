@@ -3,7 +3,7 @@
 import { Badge, Button, EmptyState, LtrRun, Panel, Stack, Text, TextField } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ByoGate } from "../../../features/keys/byo";
+import { ByoGate, OnServer } from "../../../features/keys/byo";
 import { useByoText } from "../../../features/keys/strings";
 import {
   canPublish,
@@ -19,7 +19,9 @@ export default function PromptDetailScreen() {
     <WebAdminNotice />
   ) : (
     <ByoGate>
-      <PromptDetailScreenBody />
+      <OnServer>
+        <PromptDetailScreenBody />
+      </OnServer>
     </ByoGate>
   );
 }

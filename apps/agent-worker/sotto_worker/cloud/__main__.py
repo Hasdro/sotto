@@ -5,6 +5,7 @@ create-owner  create the platform owner account; the one-time password goes to a
 backup        copy the database to SOTTO_DATA_DIR/backups/, keeping the newest 14
 email-setup   the mailbox that sends manager emails; asks for the password without showing it
 email-test    send one test email through that mailbox
+benchmark     record a model's replay result for one stage (R6 guard in Model routing, T-079)
 """
 
 from __future__ import annotations
@@ -111,8 +112,36 @@ def main(argv: list[str] | None = None) -> int:
     test.add_argument("--to", required=True)
     examples = sub.add_parser("add-examples")
     examples.add_argument("--company", required=True, help="the company's name, e.g. Zylker")
+    bench = sub.add_parser("benchmark")
+    bench.add_argument("--provider", required=True, help="catalog vendor id, e.g. groq")
+    bench.add_argument("--model", required=True)
+    bench.add_argument("--stage", required=True, help="e.g. suggest")
+    bench.add_argument("--p50", type=int, required=True)
+    bench.add_argument("--p95", type=int, required=True)
+    bench.add_argument("--samples", type=int, required=True)
+    bench.add_argument("--source", default="replay-live")
     args = p.parse_args(argv)
     env = os.environ
+
+    if args.cmd == "benchmark":
+        from sotto_worker.cloud.owner.platform import record_benchmark
+
+        seed = Seed.load()
+        if args.provider not in seed.catalog.providers or args.stage not in seed.catalog.stages:
+            print("unknown vendor or stage", file=sys.stderr)
+            return 1
+        result = record_benchmark(
+            open_store(env),
+            provider_id=args.provider,
+            model=args.model,
+            stage=args.stage,
+            p50_ms=args.p50,
+            p95_ms=args.p95,
+            samples=args.samples,
+            source=args.source,
+        )
+        print(f"{'meets' if result['ok'] else 'MISSES'} R1: p95 {args.p95} ms on {args.stage}")
+        return 0
 
     if args.cmd == "email-setup":
         import getpass

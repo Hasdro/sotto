@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS prompt_versions (
   created_by TEXT,
   published_at INTEGER,
   test_json TEXT,
-  UNIQUE (key, scope, scope_id, version)
+  UNIQUE (key, scope, scope_id, company_id, version)
 );
 -- ZC-01 (D-064): a platform Zoho client per DC family (multi-DC: the same client ID, a secret
 -- per DC), and an owner-set override per company.
@@ -131,7 +131,8 @@ CREATE TABLE IF NOT EXISTS signups (
   phone TEXT NOT NULL DEFAULT '',
   ip TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
-  invited_at INTEGER
+  invited_at INTEGER,
+  approved_at INTEGER           -- security review H1: AGN's keys only after the owner approves
 );
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
@@ -194,6 +195,29 @@ def set_byo(store: CloudStore, owner: Principal, company_id: str, on: object, *,
             db.execute("DELETE FROM company_byo WHERE company_id = ?", (company_id,))
         store.audit(
             db, "owner.byo", "on" if on else "off", company_id=company_id, actor=owner, ip=ip
+        )
+
+
+def pending_signup(store: CloudStore, company_id: str) -> bool:
+    """A self-signup company the owner has not approved yet: it can sign in and look around,
+    but gets none of AGN's paid keys (security review H1: a throwaway sign-up must not be a way
+    to read AGN's vendor keys off a device). Per-tenant sub-keys replace this in ZC-12."""
+    return bool(
+        store._q(
+            "SELECT 1 FROM signups WHERE company_id = ? AND approved_at IS NULL", (company_id,)
+        )
+    )
+
+
+def approve_signup(store: CloudStore, owner: Principal, signup_id: str, *, ip: str) -> None:
+    _owner(owner)
+    rows = store._q("SELECT company_id FROM signups WHERE id = ?", (signup_id,))
+    if not rows or rows[0]["company_id"] is None:
+        raise CloudError("not_found", "no such sign-up")
+    with store._tx() as db:
+        db.execute("UPDATE signups SET approved_at = ? WHERE id = ?", (now_ms(), signup_id))
+        store.audit(
+            db, "owner.signup.approved", "", company_id=rows[0]["company_id"], actor=owner, ip=ip
         )
 
 
@@ -317,16 +341,21 @@ def record_benchmark(
 ) -> dict[str, Any]:
     """A replay result for one vendor/model/stage; live stages pass only with p95 ≤ 1500 ms."""
     ok = samples > 0 and p95_ms is not None and (stage not in LIVE_STAGES or p95_ms <= R1_P95_MS)
+    at = now_ms()
     with store._tx() as db:
         db.execute(
             "INSERT OR REPLACE INTO model_benchmarks(provider_id, model, stage, p50_ms, p95_ms,"
             " samples, ok, source, at) VALUES (?,?,?,?,?,?,?,?,?)",
-            (provider_id, model, stage, p50_ms, p95_ms, samples, int(ok), source[:40], now_ms()),
+            (provider_id, model, stage, p50_ms, p95_ms, samples, int(ok), source[:40], at),
         )
-    found = benchmark(store, provider_id, model, stage)
-    if found is None:  # pragma: no cover - just written in the same process
-        raise CloudError("not_found", "benchmark not saved")
-    return found
+    return {
+        "ok": ok,
+        "p50_ms": p50_ms,
+        "p95_ms": p95_ms,
+        "samples": samples,
+        "source": source[:40],
+        "at": at,
+    }
 
 
 def check_route(seed: Seed, stage: str, provider_id: str, model: str) -> None:
@@ -487,10 +516,16 @@ def report_failures(
 def _window(db: Any, vendor: str, t: int) -> tuple[int, int]:
     """(failures, distinct companies) for one vendor within the window. Each company counts at
     most FAIL_THRESHOLD, so one tenant's flood cannot reach the threshold by itself."""
+    # Security review M: only companies that made real calls in the last 30 days and are not an
+    # unapproved self-signup count, so free trial sign-ups cannot demote a vendor for everyone.
     per = db.execute(
         "SELECT company_id, SUM(count) AS n FROM provider_failures"
-        " WHERE provider_id = ? AND at >= ? GROUP BY company_id",
-        (vendor, t - FAIL_WINDOW_MS),
+        " WHERE provider_id = ? AND at >= ?"
+        " AND company_id IN (SELECT company_id FROM usage WHERE reported_at >= ?)"
+        " AND company_id NOT IN (SELECT company_id FROM signups"
+        "   WHERE approved_at IS NULL AND company_id IS NOT NULL)"
+        " GROUP BY company_id",
+        (vendor, t - FAIL_WINDOW_MS, t - 30 * 86_400_000),
     ).fetchall()
     return sum(min(int(r["n"]), FAIL_THRESHOLD - 1) for r in per), len(per)
 
@@ -685,8 +720,8 @@ def create_version(
     with store._tx() as db:
         top = db.execute(
             "SELECT MAX(version) AS v FROM prompt_versions WHERE key = ? AND scope = ?"
-            " AND scope_id = ?",
-            (key, scope, stored_id),
+            " AND scope_id = ? AND company_id IS ?",
+            (key, scope, stored_id, stored_company),
         ).fetchone()
         version = max(int(top["v"] or 0), int(seed.prompts[key]["version"])) + 1
         db.execute(
@@ -752,8 +787,8 @@ def publish_version(
     with store._tx() as db:
         db.execute(
             "UPDATE prompt_versions SET status = 'retired' WHERE key = ? AND scope = ?"
-            " AND scope_id = ? AND status = 'published'",
-            (v["key"], v["scope"], v["scope_id"] or ""),
+            " AND scope_id = ? AND company_id IS ? AND status = 'published'",
+            (v["key"], v["scope"], v["scope_id"] or "", v["company_id"]),
         )
         db.execute(
             "UPDATE prompt_versions SET status = 'published', published_at = ? WHERE id = ?",
@@ -778,8 +813,8 @@ def unpublish_slot(
     with store._tx() as db:
         db.execute(
             "UPDATE prompt_versions SET status = 'retired' WHERE key = ? AND scope = ?"
-            " AND scope_id = ? AND status = 'published'",
-            (v["key"], v["scope"], v["scope_id"] or ""),
+            " AND scope_id = ? AND company_id IS ? AND status = 'published'",
+            (v["key"], v["scope"], v["scope_id"] or "", v["company_id"]),
         )
         store.audit(
             db,
@@ -1047,6 +1082,7 @@ def signups(store: CloudStore) -> list[dict[str, Any]]:
             if r["suspended"]
             else str(r["plan"]),
             "trial_ends_at": r["trial_ends_at"],
+            "approved_at": r["approved_at"],
         }
         for r in rows
     ]

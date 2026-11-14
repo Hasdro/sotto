@@ -5,6 +5,7 @@
  */
 import { EmptyState } from "@sotto/ui";
 import type { ReactNode } from "react";
+import { ComingLater } from "../../components/ComingLater";
 import type { CloudState } from "../../lib/cloud";
 import { useCloud } from "../../lib/useCloud";
 import type { Effective } from "../flags/catalog";
@@ -29,5 +30,15 @@ export function ByoOffNotice() {
 export function ByoGate({ children }: { children: ReactNode }) {
   const state = byoOf(useCloud());
   if (state && state.state !== "available") return <ByoOffNotice />;
+  return <>{children}</>;
+}
+
+/** Prompt versions live on the management server (DD-2). Without one (the local Mac demo) the
+ * screen keeps its "comes later" note: there is nowhere to save an edit (T-040). */
+export function OnServer({ children }: { children: ReactNode }) {
+  const state = useCloud();
+  if (state.status !== "signed_in" || !state.me.company) {
+    return <ComingLater title="admin.later.prompts.title" body="admin.later.prompts.body" />;
+  }
   return <>{children}</>;
 }

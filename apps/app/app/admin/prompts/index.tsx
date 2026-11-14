@@ -3,7 +3,7 @@
 import { Badge, Button, EmptyState, Panel, Stack, Text } from "@sotto/ui";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { ByoGate } from "../../../features/keys/byo";
+import { ByoGate, OnServer } from "../../../features/keys/byo";
 import { useByoText } from "../../../features/keys/strings";
 import { liveOf, promptsApi, type StudioKey } from "../../../features/prompts/api";
 import { configInWebOnly, WebAdminNotice } from "../../../features/webadmin/webAdmin";
@@ -14,7 +14,9 @@ export default function PromptsScreen() {
     <WebAdminNotice />
   ) : (
     <ByoGate>
-      <PromptsScreenBody />
+      <OnServer>
+        <PromptsScreenBody />
+      </OnServer>
     </ByoGate>
   );
 }

@@ -142,7 +142,49 @@ def test_the_queue_lists_it_and_suspend_blocks_calls(app: TestClient, store: Clo
     assert r.status_code == 402  # plan_blocked: sign-in works, calls do not (R3)
     r = app.delete(f"/api/owner/companies/{cid}?confirm=Lead%20Co", headers=H)
     assert r.status_code == 200
-    assert app.get("/api/owner/signups").json()["signups"][0]["status"] == "deleted"
+    assert app.get("/api/owner/signups").json()["signups"] == []  # its personal data is gone too
+    assert store._q("SELECT * FROM signups") == []
     assert app.get("/api/owner/signups").status_code == 200
     plain = TestClient(app.app, base_url=ORIGIN)
     assert plain.get("/api/owner/signups").status_code == 401
+
+
+def test_platform_keys_reach_a_signup_only_after_the_owner_approves(
+    app: TestClient, store: CloudStore, mailer: Mailer
+) -> None:
+    """Security review H1: a throwaway sign-up cannot read AGN's vendor keys off the bundle."""
+    secret = _secret(app)
+    groq = "gsk_" + "k" * 30
+    app.put("/api/owner/keys/GROQ_API_KEY", json={"value": groq}, headers=H)
+    app.put("/api/owner/keys/ASSEMBLYAI_API_KEY", json={"value": "aai-" + "k" * 20}, headers=H)
+    app.post(HOOK, json=_form(), headers={"X-AGN-Signup-Secret": secret})
+    token = next(w for w in mailer.sent[0].text.split() if "#token=" in w).split("#token=")[1]
+    app.post("/api/v1/auth/reset/confirm", json={"token": token, "password": PASSWORD})
+    tok = app.post(
+        "/api/v1/auth/login", json={"email": "new@lead.test", "password": PASSWORD}
+    ).json()["token"]
+    auth = {"authorization": f"Bearer {tok}"}
+    b = app.get("/api/v1/bundle", headers=auth).json()
+    assert b["keys"] == {}
+    assert b["key_status"] == {}
+    assert groq not in app.get("/api/v1/bundle", headers=auth).text
+    assert app.post("/api/v1/stt-token/assemblyai", headers=auth).status_code == 400
+    item = app.get("/api/owner/signups").json()["signups"][0]
+    assert item["approved_at"] is None
+    r = app.post(f"/api/owner/signups/{item['id']}/approve", json={}, headers=H)
+    assert r.status_code == 200
+    assert r.json()["signups"][0]["approved_at"] is not None
+    assert app.get("/api/v1/bundle", headers=auth).json()["keys"] == {"GROQ_API_KEY": groq}
+
+
+def test_requests_without_the_secret_do_not_use_up_the_signup_budget(app: TestClient) -> None:
+    secret = _secret(app)
+    other = TestClient(app.app, base_url=ORIGIN, client=("198.51.100.7", 1234))
+    codes = [
+        other.post(HOOK, json=_form(), headers={"X-AGN-Signup-Secret": "nope"}).status_code
+        for _ in range(12)
+    ]
+    assert codes[:10] == [401] * 10
+    assert codes[10:] == [429, 429]
+    r = app.post(HOOK, json=_form(), headers={"X-AGN-Signup-Secret": secret})
+    assert r.status_code == 201

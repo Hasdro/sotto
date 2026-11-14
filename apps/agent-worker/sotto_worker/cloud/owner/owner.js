@@ -110,6 +110,13 @@ function show(view) {
     companies: loadCompanies,
     features: loadFeatures,
     audit: loadAudit,
+    // T-079 views live in platform.js (loaded after this file).
+    providers: () => window.platformViews.providers(),
+    routing: () => window.platformViews.routing(),
+    prompts: () => window.platformViews.prompts(),
+    health: () => window.platformViews.health(),
+    zoho: () => window.platformViews.zoho(),
+    signups: () => window.platformViews.signups(),
     account: () => {
       loadZoho();
       loadSmtp();

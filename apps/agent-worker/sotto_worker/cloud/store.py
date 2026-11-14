@@ -1163,10 +1163,14 @@ class CloudStore:
         """{key name: (updated_at, "platform" | "company")}."""
         from sotto_worker.cloud.owner import platform
 
-        out = {
-            env: (int(s["updated_at"]), "platform")
-            for env, s in platform.platform_key_status(self).items()
-        }
+        out = (
+            {}
+            if who.company_id is not None and platform.pending_signup(self, who.company)
+            else {
+                env: (int(s["updated_at"]), "platform")
+                for env, s in platform.platform_key_status(self).items()
+            }
+        )
         if who.company_id is not None and platform.byo_on(self, who.company):
             out.update({env: (at, "company") for env, at in self.own_key_status(who).items()})
         return out
@@ -1179,6 +1183,8 @@ class CloudStore:
             own = self.stored_key(who, key_env)
             if own:
                 return own
+        if who.company_id is not None and platform.pending_signup(self, who.company):
+            return None
         return platform.platform_key(self, key_env)
 
     def keys_for_call(
@@ -1189,7 +1195,11 @@ class CloudStore:
         that has a short-lived token path. Each delivery is in the audit log."""
         from sotto_worker.cloud.owner import platform
 
-        out = platform.platform_keys(self, needed)
+        out = (
+            {}
+            if platform.pending_signup(self, who.company)
+            else platform.platform_keys(self, needed)
+        )
         if platform.byo_on(self, who.company):  # D-059: the company's own keys only with BYO
             rows = self._q(
                 "SELECT key_env, ciphertext FROM company_keys WHERE company_id = ?",
@@ -2124,6 +2134,8 @@ class CloudStore:
     def owner_delete_company(self, owner: Principal, company_id: str, *, ip: str = "") -> None:
         c = self.company_row(company_id)
         with self._tx() as db:
+            # ZC-10: the sign-up's personal data (email, phone, IP) goes with the company.
+            db.execute("DELETE FROM signups WHERE company_id = ?", (company_id,))
             db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
             self.audit(db, "owner.company.deleted", str(c["name"]), actor=owner, ip=ip)
 

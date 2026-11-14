@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { platformStubs } from "./owner-platform-stubs.mjs";
 
 const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const dist = resolve(process.argv[2] ?? join(root, "apps", "app", "dist"));
@@ -42,7 +43,19 @@ const PAGES = [
 // The owner console (a static page the server serves at /owner, UX-44b). Its API is stubbed here
 // with realistic data so axe sees filled tables, the chart and the kill-switch statuses.
 const OWNER_DIR = join(root, "apps", "agent-worker", "sotto_worker", "cloud", "owner");
-const OWNER_VIEWS = ["overview", "companies", "features", "audit", "account"];
+const OWNER_VIEWS = [
+  "overview",
+  "companies",
+  "features",
+  "providers",
+  "routing",
+  "prompts",
+  "health",
+  "zoho",
+  "signups",
+  "audit",
+  "account",
+];
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 13, 9, 0, 0);
 const OWNER_COMPANY = {
@@ -104,6 +117,7 @@ const OWNER_API = {
   },
   "/api/owner/zoho": { configured: false },
   "/api/owner/smtp": { configured: false },
+  ...platformStubs(NOW, DAY),
 };
 
 const MODES = [

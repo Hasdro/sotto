@@ -1,3 +1,6 @@
+import type { CloudState } from "../../lib/cloud";
+import { byoOf } from "../keys/byo";
+import { canPublish, liveOf, type PromptVersionRow, type StudioKey } from "./api";
 import {
   draftOf,
   lineDiff,
@@ -56,5 +59,65 @@ describe("prompt studio (R6: create v2, publish, roll back to v1)", () => {
 
   it("publishing an unknown version changes nothing", () => {
     expect(publishVersion(DOC, 9)).toBe(DOC);
+  });
+});
+
+// --- T-079: server-backed studio and BYO (D-059) ---------------------------------------------
+
+const signedIn = (features: Record<string, unknown>): CloudState =>
+  ({
+    status: "signed_in",
+    bundle: null,
+    me: { user: { id: "u" }, company: { id: "c" }, features },
+  }) as unknown as CloudState;
+
+const row = (over: Partial<PromptVersionRow>): PromptVersionRow => ({
+  id: "v",
+  key: "suggest",
+  scope: "company",
+  version: 4,
+  body: "x",
+  status: "draft",
+  created_at: 1,
+  published_at: null,
+  test: null,
+  ...over,
+});
+
+describe("BYO gate (D-059)", () => {
+  it("reads the platform entitlement from the feature map", () => {
+    expect(byoOf(signedIn({ byo_providers: { state: "off_by_platform" } }))?.state).toBe(
+      "off_by_platform",
+    );
+    expect(byoOf(signedIn({ byo_providers: { state: "available" } }))?.state).toBe("available");
+  });
+  it("is null without a server session or from a server that predates BYO", () => {
+    expect(byoOf({ status: "off" })).toBeNull();
+    expect(byoOf(signedIn({}))).toBeNull();
+  });
+});
+
+describe("company prompt studio (DD-2)", () => {
+  it("publishes only tested versions, or earlier live ones (rollback)", () => {
+    expect(canPublish(row({}))).toBe(false);
+    expect(
+      canPublish(row({ test: { passed: true, synthetic: true, quality: 1, detail: "" } })),
+    ).toBe(true);
+    expect(
+      canPublish(row({ test: { passed: false, synthetic: true, quality: 0, detail: "" } })),
+    ).toBe(false);
+    expect(canPublish(row({ status: "retired", published_at: 5 }))).toBe(true);
+    expect(canPublish(row({ status: "published", published_at: 5 }))).toBe(false);
+  });
+  it("names the live version, else AGN's", () => {
+    const key: StudioKey = {
+      key: "suggest",
+      stage: "suggest",
+      variables: [],
+      seed: { version: 3, body: "" },
+      versions: [row({ id: "a" }), row({ id: "b", status: "published" })],
+    };
+    expect(liveOf(key)?.id).toBe("b");
+    expect(liveOf({ ...key, versions: [] })).toBeNull();
   });
 });

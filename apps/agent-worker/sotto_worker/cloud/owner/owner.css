@@ -813,3 +813,69 @@ dialog p {
 #matrix tbody tr:hover {
   background: var(--ss-surface-sunken);
 }
+
+/* ---------- Platform views (T-079): providers, routing, prompts, health, Zoho, sign-ups ---------- */
+#providers,
+#routing,
+#promptVersions,
+#health,
+#signups {
+  min-inline-size: 720px;
+}
+#providers .act,
+#routing .act,
+#promptVersions .act,
+#health .act,
+#signups .act {
+  text-align: end;
+  white-space: nowrap;
+}
+#providers .act button,
+#routing .act button,
+#promptVersions .act button,
+#health .act button,
+#signups .act button {
+  margin-inline-start: var(--ss-space-xs);
+}
+#routing td select,
+#routing td input {
+  inline-size: auto;
+  min-inline-size: 140px;
+}
+#promptBody {
+  min-block-size: 280px;
+  font-family: var(--ss-font-mono, ui-monospace, monospace);
+  font-size: var(--ss-text-label);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+ul.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+ul.plain li label {
+  display: flex;
+  align-items: center;
+  gap: var(--ss-space-sm);
+  color: var(--ss-text);
+}
+.toolbar > label {
+  margin: 0;
+}
+.toolbar > select {
+  inline-size: auto;
+}
+@media (max-width: 899px) {
+  /* Eleven sections (T-079): the tab strip scrolls inside the bar instead of widening the page. */
+  .side,
+  .tabs {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+}
+/* Visually hidden header text (e.g. "Actions") is absolutely positioned: keep it inside the
+   scroll box of a wide table, so it cannot widen the page at 390 px. */
+.table-wrap {
+  position: relative;
+}

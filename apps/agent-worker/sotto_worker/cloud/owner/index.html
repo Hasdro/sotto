@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/owner/components.css">
 <link rel="stylesheet" href="/owner/owner.css">
 <script src="/owner/owner.js" defer></script>
+<script src="/owner/platform.js" defer></script>
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -33,6 +34,12 @@
       <button type="button" data-view="overview" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM14 4v4h6V4zM4 20h6v-3H4z"/></svg><span>Overview</span></button>
       <button type="button" data-view="companies"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20V6l7-3v17M11 9h8v11M4 20h16M7 8h1M7 12h1M7 16h1M14 13h2M14 17h2"/></svg><span>Companies</span></button>
       <button type="button" data-view="features"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7zM16 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg><span>Features</span></button>
+      <button type="button" data-view="providers"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 7a4 4 0 1 1-3.9 5H4v3h3v3h3v-3h1.1A4 4 0 0 1 15 7z"/></svg><span>Providers and keys</span></button>
+      <button type="button" data-view="routing"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h6l4 6-4 6H4M14 12h6"/></svg><span>Model routing</span></button>
+      <button type="button" data-view="prompts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 4h10l4 4v12H5zM8 11h8M8 15h6"/></svg><span>Prompt studio</span></button>
+      <button type="button" data-view="health"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>Health</span></button>
+      <button type="button" data-view="zoho"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0M4 12h16M12 4a12 12 0 0 1 0 16"/></svg><span>Zoho clients</span></button>
+      <button type="button" data-view="signups"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 12-6.9M18 15v6M15 18h6"/></svg><span>Sign-up queue</span></button>
       <button type="button" data-view="audit"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg><span>Audit log</span></button>
       <button type="button" data-view="account"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/></svg><span>Account</span></button>
     </nav>
@@ -81,6 +88,91 @@
         <h2 class="pad">Entitlements <small>which companies may use each feature; new companies get every feature</small></h2>
         <div class="table-wrap"><table id="matrix"><thead></thead><tbody></tbody></table></div>
       </div>
+    </section>
+
+    <section id="v-providers" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Providers and keys</h1><p class="ss-lead ss-muted">AGN's own keys for every company (D-059). Keys are write-only: after saving, only the date and the last test are shown.</p></header>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Providers table"><table id="providers">
+        <thead><tr><th scope="col">Provider</th><th scope="col">Key</th><th scope="col">Last test</th><th scope="col">New key</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody></tbody></table></section></div>
+      <div class="panel"><h2>Bring your own <small>companies that may use their own keys, models and prompts (default off)</small></h2><div id="byoList"></div></div>
+    </section>
+
+    <section id="v-routing" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Model routing</h1><p class="ss-lead ss-muted">Which vendor and model each stage uses for every company. A live stage only takes a model whose last benchmark met R1 (p95 ≤ 1500 ms). The next call uses a change; no release needed.</p></header>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Model routing table"><table id="routing">
+        <thead><tr><th scope="col">Stage</th><th scope="col">Now</th><th scope="col">Benchmark</th><th scope="col">Change to</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody></tbody></table></section></div>
+    </section>
+
+    <section id="v-prompts" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Prompt studio</h1><p class="ss-lead ss-muted">Every prompt version. Test a version on the recorded calls, then publish; publishing an older version rolls back. A company version wins over the platform one for that company.</p></header>
+      <div class="toolbar">
+        <label for="promptKey">Prompt</label><select id="promptKey"></select>
+        <span class="spacer"></span>
+      </div>
+      <form id="promptForm" class="panel">
+        <h2>New version</h2>
+        <p id="promptVars" class="note"></p>
+        <label for="promptScope">Level</label>
+        <select id="promptScope"><option value="platform">Platform (every company)</option><option value="company">One company</option></select>
+        <label for="promptCompany">Company</label><select id="promptCompany"></select>
+        <label for="promptBody">Prompt text</label><textarea id="promptBody" rows="14" spellcheck="false" required></textarea>
+        <button type="submit" class="primary">Save draft</button>
+        <p id="promptMsg" class="note" role="status"></p>
+      </form>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Prompt versions table"><table id="promptVersions">
+        <thead><tr><th scope="col">Version</th><th scope="col">Level</th><th scope="col">Status</th><th scope="col">Test (quality · latency)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody></tbody></table></section></div>
+    </section>
+
+    <section id="v-health" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Health</h1><p class="ss-lead ss-muted">Primary-model failures the apps report. A vendor failing for several companies is demoted for everyone for a while; calls use the backup first. Companies never see this.</p></header>
+      <p id="healthRule" class="note"></p>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Vendor health table"><table id="health">
+        <thead><tr><th scope="col">Vendor</th><th scope="col">Status</th><th scope="col" class="num">Failures 10 min</th><th scope="col" class="num">Companies 10 min</th><th scope="col" class="num">Failures 24 h</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody></tbody></table></section></div>
+    </section>
+
+    <section id="v-zoho" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Zoho clients</h1><p class="ss-lead ss-muted">One AGN client for every company (D-064). With multi-DC on in the Zoho API console the client ID stays the same and each data centre has its own secret. The server picks by the data centre Zoho reports.</p></header>
+      <div class="panel"><h2>Main client <small>set in Account</small></h2><p id="zohoMain" class="note">Loading…</p></div>
+      <form id="dcForm" class="panel narrow">
+        <h2>Data-centre secret</h2>
+        <label for="dcDc">Data centre</label>
+        <select id="dcDc"><option value="eu">zoho.eu</option><option value="in">zoho.in</option><option value="au">zoho.com.au</option><option value="jp">zoho.jp</option><option value="ca">zohocloud.ca</option><option value="cn">zoho.com.cn</option><option value="sa">zoho.sa</option><option value="uk">zoho.uk</option><option value="us">zoho.com (US)</option></select>
+        <label for="dcId">Client ID</label><input id="dcId" autocomplete="off" spellcheck="false" required>
+        <label for="dcSecret">Client secret</label><input id="dcSecret" type="password" autocomplete="off" required>
+        <button type="submit" class="primary">Save</button>
+        <p id="dcMsg" class="note" role="status"></p>
+      </form>
+      <div class="panel"><h2>Per data centre</h2><div id="dcList"></div></div>
+      <form id="ovrForm" class="panel narrow">
+        <h2>Company override <small>only for a company that must use its own Zoho app</small></h2>
+        <label for="ovrCompany">Company</label><select id="ovrCompany"></select>
+        <label for="ovrDc">Data centre</label>
+        <select id="ovrDc"><option value="us">zoho.com (US)</option><option value="eu">zoho.eu</option><option value="in">zoho.in</option><option value="au">zoho.com.au</option><option value="jp">zoho.jp</option><option value="ca">zohocloud.ca</option><option value="cn">zoho.com.cn</option><option value="sa">zoho.sa</option><option value="uk">zoho.uk</option></select>
+        <label for="ovrId">Client ID</label><input id="ovrId" autocomplete="off" spellcheck="false" required>
+        <label for="ovrSecret">Client secret</label><input id="ovrSecret" type="password" autocomplete="off" required>
+        <button type="submit" class="primary">Save override</button>
+        <p id="ovrMsg" class="note" role="status"></p>
+      </form>
+      <div class="panel"><h2>Overrides</h2><div id="ovrList"></div></div>
+    </section>
+
+    <section id="v-signups" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Sign-up queue</h1><p class="ss-lead ss-muted">Companies created by the Zoho Forms sign-up (D-068): a 14-day trial and an invite to the first admin. Calls use AGN's providers once you approve the company.</p></header>
+      <div class="panel"><h2>Webhook secret</h2><p id="hookState" class="note">Loading…</p>
+        <p class="note">In Zoho Forms › Integrations › Webhooks: POST to <code id="hookUrl"></code>, JSON payload with parameters <code>company</code>, <code>name</code>, <code>email</code>, <code>phone</code>, and a custom header <code>X-AGN-Signup-Secret</code>.</p>
+        <button type="button" id="hookRotate" class="ghost">New secret</button></div>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Sign-ups table"><table id="signups">
+        <thead><tr><th scope="col">When</th><th scope="col">Company</th><th scope="col">Admin</th><th scope="col">Status</th><th scope="col">Invite</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody></tbody></table></section></div>
     </section>
 
     <section id="v-audit" class="view" hidden>

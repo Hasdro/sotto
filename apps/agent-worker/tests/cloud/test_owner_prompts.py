@@ -176,3 +176,63 @@ def test_agents_cannot_use_company_prompt_routes(
         headers=agent,
     )
     assert client.get("/api/v1/company/prompts", headers=agent).status_code == 403
+
+
+def test_team_versions_of_two_companies_never_touch_each_other(
+    client: TestClient, store: CloudStore, seed: Seed, sign_up: SignUp
+) -> None:
+    """Tenancy review: the same free-text team id in two companies is two separate slots."""
+    a, b = sign_up("A", "a@a.test"), sign_up("B", "b@b.test")
+    allow_byo(store, a)
+    allow_byo(store, b)
+
+    def team_version(s: dict[str, Any], marker: str) -> dict[str, Any]:
+        r = client.post(
+            "/api/v1/company/prompts",
+            json={
+                "key": "suggest",
+                "body": _v2_body(seed, marker),
+                "scope": "team",
+                "scope_id": "sales",
+            },
+            headers=s["auth"],
+        )
+        assert r.status_code == 201, r.text
+        v: dict[str, Any] = r.json()
+        client.post(f"/api/v1/company/prompts/{v['id']}/test", json={}, headers=s["auth"])
+        assert (
+            client.post(
+                f"/api/v1/company/prompts/{v['id']}/publish", json={}, headers=s["auth"]
+            ).status_code
+            == 200
+        )
+        return v
+
+    vb = team_version(b, "B-TEAM")
+    va = team_version(a, "A-TEAM")
+    assert va["version"] == vb["version"]  # numbering is per company: no count leaks across
+    team_version(a, "A-TEAM-2")
+    client.post(f"/api/v1/company/prompts/{va['id']}/unpublish", json={}, headers=a["auth"])
+    rows = store._q("SELECT status FROM prompt_versions WHERE id = ?", (vb["id"],))
+    assert rows[0]["status"] == "published"
+
+
+def test_deleting_a_company_removes_its_platform_rows(
+    owner: TestClient, store: CloudStore, seed: Seed, sign_up: SignUp
+) -> None:
+    s = sign_up()
+    cid = s["company"]["id"]
+    allow_byo(store, s)
+    owner.post(
+        "/api/v1/company/prompts",
+        json={"key": "suggest", "body": _v2_body(seed, "GONE")},
+        headers=s["auth"],
+    )
+    owner.post(
+        "/api/v1/provider-health",
+        json={"failures": [{"provider": "groq", "stage": "suggest", "reason": "error"}]},
+        headers=s["auth"],
+    )
+    assert owner.delete(f"/api/owner/companies/{cid}?confirm=Acme", headers=H).status_code == 200
+    for table in ("prompt_versions", "company_byo", "provider_failures"):
+        assert store._q(f"SELECT * FROM {table} WHERE company_id = ?", (cid,)) == [], table  # noqa: S608

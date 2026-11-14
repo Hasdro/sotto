@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import { extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { PLATFORM_VIEWS, platformStubs } from "./owner-platform-stubs.mjs";
 
 const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const [ownerBase, zohoDir, outArg] = process.argv.slice(2);
@@ -152,6 +153,7 @@ const API = {
   },
   "/api/owner/zoho": { configured: true, client_id_hint: "1000.AB…", dc: "us" },
   "/api/owner/smtp": { configured: false },
+  ...platformStubs(Date.UTC(2026, 10, 13, 9, 0, 0), 86_400_000),
 };
 
 const MODES = [];
@@ -179,6 +181,23 @@ async function check(page, label) {
         .map((n) => n.target.join(" "))
         .slice(0, 3)
         .join(" | ")}`,
+    );
+  if (overflow)
+    console.log(
+      `     wider than the page: ${await page.evaluate(() =>
+        [...document.querySelectorAll("body *")]
+          .filter((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.right <= innerWidth + 1) return false;
+            // Content of a scroll box (a wide table, the tab strip) is clipped, not page width.
+            for (let a = el.parentElement; a; a = a.parentElement)
+              if (["auto", "scroll", "hidden"].includes(getComputedStyle(a).overflowX)) return false;
+            return true;
+          })
+          .slice(0, 3)
+          .map((el) => `${el.tagName.toLowerCase()}#${el.id}.${el.className}`)
+          .join(" | "),
+      )}`,
     );
   bad += sev.length + (overflow ? 1 : 0);
 }
@@ -263,7 +282,16 @@ for (const m of MODES) {
   await page.unroute("**/api/owner/me");
   await page.goto(`${ownerBase}/owner`, { waitUntil: "networkidle" });
   await setDir(page, m.dir);
-  for (const view of ["overview", "companies", "features", "audit", "account"]) {
+  // OWNER_VIEWS=providers,routing… limits the run (T-079 evidence); OWNER_ONLY=1 skips the rest.
+  const views = process.env.OWNER_VIEWS?.split(",") ?? [
+    "overview",
+    "companies",
+    "features",
+    ...PLATFORM_VIEWS,
+    "audit",
+    "account",
+  ];
+  for (const view of views) {
     await page.evaluate(
       (v) => document.querySelector(`.tabs button[data-view="${v}"]`).click(),
       view,
@@ -273,7 +301,7 @@ for (const m of MODES) {
     await page.screenshot({ path: join(out, `owner-${view}-${tag(m)}.png`), fullPage: true });
     await check(page, `owner ${view} ${tag(m)}`);
   }
-  if (m.width === 1280 && m.dir === "ltr") {
+  if (m.width === 1280 && m.dir === "ltr" && !process.env.OWNER_VIEWS) {
     await page.evaluate(() =>
       document.querySelector('.tabs button[data-view="companies"]').click(),
     );
@@ -289,6 +317,12 @@ for (const m of MODES) {
     await check(page, `owner new-company dialog ${tag(m)}`);
   }
   await ctx.close();
+}
+
+if (process.env.OWNER_ONLY) {
+  await browser.close();
+  console.log(bad ? `\n${bad} problem(s)` : "\nall clean: axe 0 serious/critical, no overflow");
+  process.exit(bad ? 1 : 0);
 }
 
 // ---------- Zoho connect pages ----------

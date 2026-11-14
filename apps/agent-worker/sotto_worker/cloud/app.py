@@ -199,6 +199,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     # client address and in total (abuse cap: the owner rotates the secret if it leaks).
     failure_report_limit = RateLimit(per_key=30, total=20_000, window_s=3600)
     hook_limit = RateLimit(per_key=10, total=200, window_s=3600)
+    hook_secret_limit = RateLimit(per_key=10, total=1_000_000, window_s=3600)  # failures only
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
@@ -1080,6 +1081,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         if name not in {
             "index.html",
             "owner.js",
+            "platform.js",
             "owner.css",
             "tokens.css",
             "components.css",
@@ -1258,6 +1260,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             minter=minter,
             report_limit=lambda key: failure_report_limit.hit(key),
             signup_limit=lambda key: hook_limit.hit(key),
+            bad_secret_limit=lambda key: hook_secret_limit.blocked(key),
+            bad_secret_record=lambda key: hook_secret_limit.record(key),
             send_invite=send_invite,
             log=config.log,
         ),

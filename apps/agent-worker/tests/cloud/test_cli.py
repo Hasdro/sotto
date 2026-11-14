@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -50,3 +51,19 @@ def test_local_secret_is_created_when_no_key_is_set(
     first = cli.secret({}, data)
     assert len(first) >= 32
     assert cli.secret({}, data) == first
+
+
+def test_benchmark_records_a_replay_result_for_the_routing_guard(
+    env: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sotto_worker.cloud.owner.platform import benchmark
+
+    args = ["benchmark", "--provider", "groq", "--model", "m", "--stage", "suggest"]
+    assert cli.main([*args, "--p50", "400", "--p95", "1700", "--samples", "40"]) == 0
+    assert "MISSES R1" in capsys.readouterr().out
+    found = benchmark(cli.open_store(os.environ), "groq", "m", "suggest")
+    assert found is not None
+    assert found["ok"] is False
+    assert (
+        cli.main([*args[:2], "nope", *args[3:], "--p50", "1", "--p95", "1", "--samples", "1"]) == 1
+    )

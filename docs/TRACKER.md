@@ -225,7 +225,8 @@ Wave 2
   - Evidence (13 Nov, `phase9/review-home-shell`): app jest 66 suites / 398 tests green with `--maxWorkers=2` (new: home-first-run, admin-company, health-banner, account-signin, reset-password, settings-personal, locale-os), typecheck/boundaries green, biome clean on owned files, `pnpm a11y` 64 checks 0 serious (routes + /home, /settings, /reset-password, /admin/integrations, /admin/company), signed-in screenshots against a local cloud (`SOTTO_SHOT_BASE`) in `docs/evidence/phase9/review-home-shell/`. No live-path change, so no replay.
 Wave 3
 - [ ] T-078 `review-integrations` — ready (`docs/prompts/review-integrations.md`; + W3-PRACTICE, owner Q15/D-073) — UX-30, UX-32 (+ZC-03), ZC-07, ZC-13, UX-44c, W3-INT-EVID
-- [ ] T-079 `review-owner-platform` — ready (`docs/prompts/review-owner-platform.md`) — ZC-01, ZC-06, DD-1, DD-2, ZC-10, W3-OWN-A11Y
+- [x] T-079 `review-owner-platform` — done on `phase9/review-owner-platform`, awaiting master merge — ZC-01, ZC-06, DD-1, DD-2, ZC-10, W3-OWN-A11Y
+  - Evidence: worker pytest 639, engine vitest 75, app jest 470, desktop 25, a11y 76 checks 0 serious, replay p50 576 / p95 978 ms, shots `docs/evidence/phase9/review-owner-platform/`.
 - [ ] T-080 `review-company-coaching` — ready (`docs/prompts/review-company-coaching.md`) — ZC-11c, DD-4, DD-5, ZC-B10, UX-31, UX-06c, INT-05, INT-15
 Wave 4
 - [ ] T-081 `review-followup-automation` — ready after wave 3 (`docs/prompts/review-followup-automation.md`) — INT-08, INT-09, INT-10, INT-13, INT-14b
@@ -351,6 +352,13 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 · local · Opus 5.5 · phase9/review-owner-platform
+- T-079 built: owner console views Providers and keys, Model routing (benchmark guard, rollback), Prompt studio (persisted `prompt_versions`, synthetic test, publish, rollback), Health (ZC-06 cross-tenant demotion, carried in `/api/v1/features` + bundle `demoted_until`; engine router uses the backup first), Zoho clients (per-DC secret + owner overrides, D-064), Sign-up queue (Zoho Forms webhook, approve/suspend/delete, D-068). `byo_providers` entitlement gates company key/model/prompt writes (403 off_by_platform); web admin Keys/Models/Prompts show the reason.
+- Schema: new tables only, created in place; first start switches BYO on for companies that already had their own keys or routes (nothing stops working).
+- Reviews: tenancy (fixed: team/campaign prompt slots now per company; sign-up PII deleted with the company); security (fixed: AGN keys reach a self-signup company only after the owner approves it; only approved companies with calls in the last 30 days count toward a demotion; webhook secret checked before the global rate limit). Open (wave 4, ZC-12): per-tenant sub-keys instead of shipping platform keys to devices.
+- Needs the master: `cloud/zoho/routes.py` `client_of` → `Client.from_store(c)`; `tests/cloud/test_reports.py` BYO line (done here, outside the owned list); new helper `tests/cloud/byo.py`, `scripts/owner-platform-stubs.mjs`.
+- Owner steps: enable multi-DC on the Zoho API client; add the Zoho Forms webhook (URL + header `X-AGN-Signup-Secret` from Sign-up queue › New secret).
 
 ### 2026-11-14 (g) · local · Opus 5.5 · claude/friendly-gates-fbhqdv (master, subagent)
 - **Done:** owner answered the 15 backlog questions "all recommended". Recorded D-042…D-058 (backlog technical drafts, same numbers as the code comments) and D-059…D-073 (one per owner answer, Q1…Q15) in `docs/DECISIONS.md`, with pointers on D-019, D-022, D-024, D-031, D-038, D-039 and the phase 9 brief line (D-043). REQUIREMENTS: R3 self-signup (D-068) and BYO note (D-059), R4 "(platform default)" (D-062), R6 Keys & providers and prompt studio in the owner console (D-059, D-061); R12 untouched. Six wave 3–4 prompts in `docs/prompts/review-*.md`; T-078…T-083 ready. Practice call (Q15, T-038) assigned to T-078.
