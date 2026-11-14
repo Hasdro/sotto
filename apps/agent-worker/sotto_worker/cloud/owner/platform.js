@@ -693,7 +693,7 @@ const SPEND_STATE = {
 async function loadSpend() {
   const data = await api("/api/owner/spend");
   $("#spendNote").textContent =
-    `Estimates from seed/models/prices.yaml (checked ${data.checked}); not a vendor bill. Companies on their own keys (BYO) are not metered.`;
+    `Estimates from seed/models/prices.yaml (checked ${data.checked}); not a vendor bill. Stages a company runs on its own keys (BYO) are not counted.`;
   $("#spend tbody").replaceChildren(
     ...data.companies.map((c) => {
       const input = h("input", {

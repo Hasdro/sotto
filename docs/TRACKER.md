@@ -236,7 +236,8 @@ Wave 3
 Wave 4
 - [ ] T-081 `review-followup-automation` — ready after wave 3 (`docs/prompts/review-followup-automation.md`) — INT-08, INT-09, INT-10, INT-13, INT-14b
 - [ ] T-082 `review-zoho-scopes` — ready after wave 3 (`docs/prompts/review-zoho-scopes.md`) — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
-- [ ] T-083 `review-ai-autoconfig` — ready after wave 3 (`docs/prompts/review-ai-autoconfig.md`; routing job off until golden calls P0.5 and the owner's cap) — ZC-04, ZC-05, ZC-12
+- [x] T-083 `review-ai-autoconfig` — done on `phase9/review-ai-autoconfig`, awaiting master merge + hub lines (cap enforcement, alerts, scheduler, Zoho source) — ZC-04, ZC-05, ZC-12, W4-COST
+  - Evidence: worker pytest 745 (coverage ok), app jest 82 suites / 528, engine vitest 75, desktop 25, lint + typecheck + boundaries green, replay p50 576 / p95 978 ms, R4 0, cost estimate 0.0062 USD/min (synthetic), `pnpm a11y` 79 checks + `scripts/autoconfig-shots.mjs` 20 checks, 0 serious; shots `docs/evidence/phase9/review-ai-autoconfig/`.
 - [x] T-084 `design-system` — Quiet Paper Glass from the owner's muse-ai reference (D-041): `docs/design/DESIGN-SYSTEM.md`, tokens + primitives in `packages/ui`, `tokens.css`/`components.css` for HTML, Inter + IBM Plex Sans Arabic, gallery screens in `docs/design/screens/` (branch `phase9/design-system`, `docs/design/READY`)
 - [x] T-085 `redesign-app` — the desktop/web app on Quiet Paper Glass (D-041): shell (gray-fill nav rows, neutral unread count, glass phone top bar, inset banners), page header 34 px, Home, live-call chrome (Live pill, chip rail toggle, glass composer/listen capsules, glass End dialog), glass overlays (palette, profile, peek, tutorial), 22 px outlined cards, desktop window canvas; screens in `docs/design/screens/app/` (branch `phase9/redesign-app`)
 - [x] T-086 `redesign-panels` — admin + web panels on Quiet Paper Glass (D-041): web admin shell/pages, owner console, Zoho connect pages, landing + legal (branch `phase9/redesign-panels`; evidence `docs/design/screens/panels/`)
@@ -357,6 +358,12 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 · local · Opus 5.5 · phase9/review-ai-autoconfig
+- **Done (T-083):** ZC-04 playbook bootstrap (`cloud/bootstrap/`: consent-gated, drafts in their own table as "needs review", approve → one playbook entry; website read SSRF-guarded: https, own domain, public IPs pinned with SNI, redirects re-checked, size/time caps, no compression, linear HTML parse; Zoho won deals + notes read-only; pasted text stays on the device; `seed/prompts/playbook_bootstrap.md` runs on the device's summary stage; app panel + review queue on Playbook). ZC-05 routing job (`cloud/routing/`: benchmarks per live stage, R6 guard, canary on the demo org only, promote or roll back on worse p95/quality; off while `routing.monthly_cap_usd` is unset, "Waiting for golden calls" until P0.5; tested on the synthetic set via `replay/routing_bench.py`). ZC-12 key rotation (next key in the next bundle, old key retiring 20 min then deleted, never in a response), per-company metering from reported calls, spend caps with one 80 % and one 100 % alert, vendor sub-key/token research `seed/models/tenant-auth.yaml`. W4-COST `seed/models/prices.yaml` + `pnpm cost:estimate`.
+- **Reviews:** security (fixed H regex slowdown, total fetch timeout, compression, NAT64/6to4, async DNS, atomic approve); tenancy (fixed demo org needs an all-vendors consent, canaries move with the demo org, accepted users only for domains, BYO metered per stage); latency PASS (fixed R6 during a canary, check_route on candidates, 20 canary calls, baseline after the last route change).
+- **Open (master, D-058):** hub lines in the shared notes `review-ai-autoconfig-handover.md` — cap enforcement in `keys_for_call`/`bundle`/`stt_token`, alert on usage, scheduler entries, Zoho `zoho_call`. Until merged, caps are shown but not enforced.
+- **Owner:** set `routing.monthly_cap_usd`, the demo org and per-company caps (no defaults); run `pnpm replay:live` for the live cost estimate (spends money).
 
 ### 2026-11-14 (i) · local · Opus 5.5 · claude/friendly-gates-fbhqdv (master, subagent)
 - Merged wave 3 with `--no-ff`: `phase9/review-owner-platform` (3100918), `phase9/review-integrations` (92ddfc7), `phase9/review-company-coaching` (04f1541); tracker conflicts kept both sides.
