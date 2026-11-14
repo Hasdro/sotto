@@ -29,6 +29,7 @@ import {
   type ProvidersState,
   type StageChoice,
 } from "../../features/keys/api";
+import { ByoGate } from "../../features/keys/byo";
 import { configInWebOnly, WebAdminNotice } from "../../features/webadmin/webAdmin";
 import type { StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
@@ -47,9 +48,16 @@ type Load =
   | { status: "offline" }
   | { status: "ready"; data: ProvidersState };
 
-/** D-038: on the desktop app this screen is replaced by a link to the web admin panel. */
+/** D-038: on the desktop app this screen is replaced by a link to the web admin panel. D-059:
+ * in the web admin it shows only while AGN allows the company to bring its own keys. */
 export default function KeysScreen() {
-  return configInWebOnly() ? <WebAdminNotice /> : <KeysScreenBody />;
+  return configInWebOnly() ? (
+    <WebAdminNotice />
+  ) : (
+    <ByoGate>
+      <KeysScreenBody />
+    </ByoGate>
+  );
 }
 
 function KeysScreenBody() {

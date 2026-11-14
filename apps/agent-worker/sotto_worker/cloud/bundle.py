@@ -103,15 +103,30 @@ def build_bundle(
     own_playbook: list[dict[str, Any]],
     keys: dict[str, str] | None,
     samples: bool = False,
+    overrides: list[str] | None = None,
+    prompts: dict[str, dict[str, Any]] | None = None,
+    demoted: dict[str, int] | None = None,
 ) -> dict[str, Any]:
+    """`routes` are the effective choices (AGN's platform routes, plus the company's own under
+    BYO); `overrides` the company's own, for its Models page. `prompts`: the effective prompt
+    versions (DD-2); `demoted`: vendors demoted for everyone {vendor: until ms} (ZC-06), which the
+    app's router skips to the backup while they last."""
+    from sotto_worker.cloud.owner.platform import vendor_of
+
     routing = apply_overrides(seed.routing, seed.catalog, routes)
     profile = seed.demo_company if samples else seed.company
     card_language = settings.get("card_language", "en")
-    stages = {
-        name: {k: v for k, v in dataclasses.asdict(route).items() if v not in (None, {})}
-        for name, route in routing.stages.items()
-        if name in CLIENT_STAGES
-    }
+    stages: dict[str, dict[str, Any]] = {}
+    for name, route in routing.stages.items():
+        if name not in CLIENT_STAGES:
+            continue
+        entry = {k: v for k, v in dataclasses.asdict(route).items() if v not in (None, {})}
+        vendor = vendor_of(seed.catalog, route)
+        if vendor is not None:
+            entry["vendor"] = vendor
+            if demoted and vendor in demoted:
+                entry["demoted_until"] = demoted[vendor]
+        stages[name] = entry
     backup_off: list[str] = []
     if settings.get("backup_allowed") is False:
         backup_off = ["suggest_backup", "stt_backup"]
@@ -158,12 +173,12 @@ def build_bundle(
             "context": settings.get("context", ""),
         },
         "stages": stages,
-        "overrides": sorted(routes),
+        "overrides": sorted(routes if overrides is None else overrides),
         "providers": providers,
         "stage_slots": {
             s.id: {"kind": s.kind, "label": s.label} for s in seed.catalog.stages.values()
         },
-        "prompts": seed.prompts,
+        "prompts": seed.prompts if prompts is None else prompts,
         "playbook": own + (seed.playbook if samples else []),
         "scenarios": seed.scenarios if samples else [],
         "keys": keys,

@@ -12,6 +12,7 @@ from starlette.testclient import TestClient
 from sotto_worker.cloud.passwords import hash_password, verify_password
 from sotto_worker.cloud.store import DAY_MS, CloudStore, plan_state
 from sotto_worker.server.vault import Vault
+from tests.cloud.byo import allow_byo
 from tests.cloud.conftest import PASSWORD, SECRET, SignUp, minted
 
 JSON = {"content-type": "application/json"}
@@ -104,6 +105,7 @@ def test_bundle_has_routes_prompts_playbook_and_keys_only_while_calls_are_allowe
     client: TestClient, sign_up: SignUp, store: CloudStore
 ) -> None:
     s = sign_up()
+    allow_byo(store, s)
     fake_key = "gsk_" + "x" * 24
     assert (
         client.put(
@@ -135,14 +137,18 @@ def test_keys_are_stored_encrypted_and_bound_to_their_company(
     sign_up: SignUp, client: TestClient, store: CloudStore
 ) -> None:
     s = sign_up()
+    allow_byo(store, s)
     secret = "sk-test-" + "y" * 20
     client.put("/api/v1/company/keys/OPENAI_API_KEY", json={"value": secret}, headers=s["auth"])
     raw = store._q("SELECT ciphertext FROM company_keys")
     assert secret.encode() not in raw[0]["ciphertext"]
 
 
-def test_stt_token_is_minted_with_the_company_key(client: TestClient, sign_up: SignUp) -> None:
+def test_stt_token_is_minted_with_the_company_key(
+    client: TestClient, sign_up: SignUp, store: CloudStore
+) -> None:
     s = sign_up()
+    allow_byo(store, s)
     assert client.post("/api/v1/stt-token/assemblyai", headers=s["auth"]).status_code == 400
     key = "aai-" + "z" * 20
     client.put("/api/v1/company/keys/ASSEMBLYAI_API_KEY", json={"value": key}, headers=s["auth"])
@@ -330,8 +336,11 @@ def test_escalation_answer_added_to_playbook_reaches_the_bundle(
     assert own[0]["question"] == "Do you allow pets?"
 
 
-def test_routes_are_validated_against_the_catalog(client: TestClient, sign_up: SignUp) -> None:
+def test_routes_are_validated_against_the_catalog(
+    client: TestClient, sign_up: SignUp, store: CloudStore
+) -> None:
     s = sign_up()
+    allow_byo(store, s)
     ok = client.put(
         "/api/v1/company/routes/suggest",
         json={"provider": "gemini", "model": "gemini-2.5-flash"},
@@ -349,9 +358,12 @@ def test_routes_are_validated_against_the_catalog(client: TestClient, sign_up: S
     assert wrong_kind.status_code == 400
 
 
-def test_speech_vendors_the_app_cannot_run_are_refused(client: TestClient, sign_up: SignUp) -> None:
+def test_speech_vendors_the_app_cannot_run_are_refused(
+    client: TestClient, sign_up: SignUp, store: CloudStore
+) -> None:
     """Picking Deepgram used to pass the key test and then leave calls with no speech-to-text."""
     s = sign_up()
+    allow_byo(store, s)
     for stage in ("stt", "stt_backup"):
         for vendor, model in (("deepgram", "nova-3"), ("elevenlabs", "scribe_v2_realtime")):
             r = client.put(

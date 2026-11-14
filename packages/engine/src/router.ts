@@ -2,6 +2,10 @@
  * The model router with the R2 backup race, ported from sotto_worker/router/router.py:
  * the backup starts when the primary errors, its circuit is open, or t0 + first_token_ms passes
  * without a first chunk; the first chunk from either wins and the loser is aborted.
+ *
+ * ZC-06 platform circuit: a stage whose vendor AGN demoted for everyone carries `demoted_until`
+ * (epoch ms) in the bundle; until then the backup goes first, and the primary only runs if the
+ * backup fails. Primary failures are reported (setFailureReporter) so the server can demote.
  */
 import type { Clock, LLMAdapter, LLMRequest, StageRoute } from "./types.ts";
 
@@ -13,7 +17,34 @@ const CIRCUIT_FAILURES = 3;
 const CIRCUIT_WINDOW_MS = 30_000;
 const CIRCUIT_OPEN_MS = 60_000;
 
-export type FallbackReason = "timeout" | "error" | "circuit_open";
+export type FallbackReason = "timeout" | "error" | "circuit_open" | "demoted";
+
+/** A bundle stage route with the server's platform fields (cloud/bundle.py). */
+export type PlatformRoute = StageRoute & { vendor?: string; demoted_until?: number };
+
+export type PrimaryFailure = { stage: string; provider: string; reason: "error" | "timeout" };
+let failureReporter: ((f: PrimaryFailure) => void) | null = null;
+
+/** The app passes its batching reporter here (lib/cloud.ts); null switches reporting off. */
+export function setFailureReporter(fn: ((f: PrimaryFailure) => void) | null): void {
+  failureReporter = fn;
+}
+
+function report(stage: string, route: StageRoute, reason: "error" | "timeout"): void {
+  const provider = (route as PlatformRoute).vendor;
+  if (!provider || !failureReporter) return;
+  try {
+    failureReporter({ stage, provider, reason });
+  } catch {
+    /* reporting never breaks a call */
+  }
+}
+
+/** True while AGN has demoted this route's vendor for everyone (wall clock: the server's ms). */
+export function isDemoted(route: StageRoute, now: number = Date.now()): boolean {
+  const until = (route as PlatformRoute).demoted_until;
+  return typeof until === "number" && until > now;
+}
 type Source = "primary" | "backup";
 
 export type RouteResult = {
@@ -223,7 +254,8 @@ export class ModelRouter {
     };
     outer?.addEventListener("abort", abortAll, { once: true });
 
-    if (primaryCircuit.isOpen() && backupStage !== null) startBackup("circuit_open");
+    if (backupStage !== null && isDemoted(primaryRoute)) startBackup("demoted");
+    else if (primaryCircuit.isOpen() && backupStage !== null) startBackup("circuit_open");
     else start("primary", stage);
 
     let deadline: Promise<"deadline"> | null = null;
@@ -243,6 +275,7 @@ export class ModelRouter {
           const first = await Promise.race(waits);
           if (first === "deadline" && !queue.size) {
             deadline = null;
+            report(stage, primaryRoute, "timeout");
             startBackup("timeout");
             continue;
           }
@@ -253,9 +286,14 @@ export class ModelRouter {
         if (item.kind === "error" || (item.kind === "end" && winner === null)) {
           if (item.kind === "end" && winner !== null) return;
           failed.add(item.source);
-          if (item.source === "primary") primaryCircuit.failure();
+          if (item.source === "primary") {
+            primaryCircuit.failure();
+            report(stage, primaryRoute, "error");
+          }
           if (winner !== null) throw item.kind === "error" ? item.error : new Error("stream ended");
           startBackup("error");
+          // Backup first (demoted or circuit open) and it failed: the primary is the last try.
+          if (item.source === "backup" && !controllers.has("primary")) start("primary", stage);
           if ([...controllers.keys()].every((s) => failed.has(s))) {
             throw new AllProvidersFailed(`${stage}: every provider failed`);
           }

@@ -6,7 +6,7 @@
  * hosted web app and the Chrome extension. `pnpm demo` and `pnpm dev` leave it off and keep the
  * D-020 local server. This module is the single session store; React reads it via useCloud().
  */
-import type { CallBundle } from "@sotto/engine";
+import { type CallBundle, type PrimaryFailure, setFailureReporter } from "@sotto/engine";
 import { AppState, Platform } from "react-native";
 import type { FeatureMap } from "../features/flags/catalog";
 import { clearDeviceCalls, setDeviceOwner } from "./deviceHistory";
@@ -516,6 +516,7 @@ export async function refreshFeatures(): Promise<void> {
       features: FeatureMap;
       learned_version?: number | null;
       health?: ConfigHealth;
+      demoted?: Record<string, number>;
     }>("/api/v1/features");
     reads.delete("/api/v1/features");
     if (state.status !== "signed_in") return;
@@ -524,8 +525,11 @@ export async function refreshFeatures(): Promise<void> {
     const learned =
       r.learned_version !== undefined &&
       (state.bundle?.learned?.version ?? null) !== (r.learned_version ?? null);
+    // ZC-06: a vendor AGN demoted (or restored) for everyone reaches the router via the bundle.
+    const demoted =
+      r.demoted !== undefined && demotionKey(r.demoted) !== bundleDemotionKey(state.bundle);
     const changed =
-      learned || JSON.stringify(state.me.features ?? {}) !== JSON.stringify(r.features);
+      learned || demoted || JSON.stringify(state.me.features ?? {}) !== JSON.stringify(r.features);
     set({ ...state, me: { ...state.me, features: r.features } });
     // D-036: what a switched-off feature needs (company knowledge, keys) leaves the device too.
     if (changed) {
@@ -557,6 +561,59 @@ async function reloadBundle(): Promise<void> {
     /* offline: the next check tries again */
   }
 }
+
+/** Vendors demoted right now, as a comparable string ({vendor: until} → "a,b"). */
+export function demotionKey(map: Record<string, number>, now: number = Date.now()): string {
+  return Object.entries(map)
+    .filter(([, until]) => until > now)
+    .map(([vendor]) => vendor)
+    .sort()
+    .join(",");
+}
+
+export function bundleDemotionKey(
+  bundle: CallBundle | null | undefined,
+  now: number = Date.now(),
+): string {
+  const map: Record<string, number> = {};
+  for (const route of Object.values(bundle?.stages ?? {})) {
+    const r = route as { vendor?: string; demoted_until?: number };
+    if (r.vendor && typeof r.demoted_until === "number") map[r.vendor] = r.demoted_until;
+  }
+  return demotionKey(map, now);
+}
+
+// --- ZC-06: primary-model failures, batched, so the server can demote a vendor for everyone ---
+const FAILURES_EVERY_MS = 60_000;
+const pendingFailures = new Map<string, PrimaryFailure & { count: number }>();
+let failureTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** The engine router calls this on each primary error or first-token timeout. */
+export function queueFailure(f: PrimaryFailure): void {
+  if (state.status !== "signed_in") return;
+  const key = `${f.provider}|${f.stage}|${f.reason}`;
+  const item = pendingFailures.get(key);
+  if (item) item.count = Math.min(item.count + 1, 50);
+  else if (pendingFailures.size < 20) pendingFailures.set(key, { ...f, count: 1 });
+  if (failureTimer === null) {
+    failureTimer = setTimeout(() => void flushFailures(), FAILURES_EVERY_MS);
+    (failureTimer as { unref?: () => void }).unref?.();
+  }
+}
+
+export async function flushFailures(): Promise<void> {
+  failureTimer = null;
+  if (!pendingFailures.size || state.status !== "signed_in") return;
+  const failures = [...pendingFailures.values()];
+  pendingFailures.clear();
+  try {
+    await cloudApi("/api/v1/provider-health", { method: "POST", body: { failures } });
+  } catch {
+    /* best effort: the per-request backup race (R2) already covered this call */
+  }
+}
+
+setFailureReporter(queueFailure);
 
 function watchFeatures(): void {
   if (watching) return;
