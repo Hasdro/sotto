@@ -16,6 +16,8 @@ type Props = {
   onStart: (source: AudioSource) => void;
   /** ZC-08: open the 5-second level check. */
   onCheck?: () => void;
+  /** D-073: open the practice call (only when the bundle has the script). */
+  onPractice?: (() => void) | undefined;
 };
 
 /** What the start screen offers, given what the app can hear and sees. Pure (UX-20). */
@@ -37,10 +39,9 @@ export function startPlan(
  * the call's sound, the agent the microphone, never one mixed track); otherwise the microphone
  * is primary and the computer's sound is one tap away. Auto pick-up still starts by itself.
  *
- * Practice stays where it is (scripted scenarios in development builds only, D-024, T-038): no
- * practice entry on this screen for real accounts until owner question Q15 is answered.
+ * Practice (D-073, owner Q15): a quiet link to the neutral practice call, never typed lines.
  */
-export function ListenStart({ computer, callApp = null, onStart, onCheck }: Props) {
+export function ListenStart({ computer, callApp = null, onStart, onCheck, onPractice }: Props) {
   const tc = useCallText();
   const { color, card } = useTheme();
   const wide = useIsWide();
@@ -100,6 +101,7 @@ export function ListenStart({ computer, callApp = null, onStart, onCheck }: Prop
           ? link(tc("start.useComputer"), () => onStart("computer"), "source-computer")
           : null}
         {onCheck ? link(tc("check.open"), onCheck, "check-audio-open") : null}
+        {onPractice ? link(tc("practice.open"), onPractice, "practice-open") : null}
       </View>
     </Panel>
   );
@@ -127,8 +129,9 @@ const styles = StyleSheet.create({
 
 /** Phones (T-036): the phone app cannot hear another app's call yet (no native capture until
  * phone calling, Phase 4), so it says so instead of offering a start that fails. */
-export function PhoneCallsLater() {
+export function PhoneCallsLater({ onPractice }: { onPractice?: (() => void) | undefined } = {}) {
   const { t } = useI18n();
+  const tc = useCallText();
   const wide = useIsWide();
   const origin = cloudOrigin();
   return (
@@ -145,6 +148,15 @@ export function PhoneCallsLater() {
           variant="secondary"
           onPress={() => void Linking.openURL(`${origin}/downloads/`)}
           testID="phone-downloads"
+        />
+      ) : null}
+      {/* D-073: the practice call needs no call audio, so phones can try it too. */}
+      {onPractice ? (
+        <Button
+          label={tc("practice.open")}
+          variant="ghost"
+          onPress={onPractice}
+          testID="practice-open"
         />
       ) : null}
     </Panel>

@@ -5,6 +5,8 @@
  * the computer's sound (Zoom, Google Meet, softphones) or the microphone (D-024). Development
  * builds without a server use the local demo bridge (D-013); `?mock=1` (development only) replays
  * a canned call so the screen can be reviewed without the worker (mock-stream.ts).
+ * `/call?practice=1` (D-073) offers the neutral practice script in any account: labelled
+ * "Practice", never saved, rated or uploaded (features/call/practice.ts).
  */
 import { EmptyState, layout, motion, Screen, Sheet, space, Toast, useTheme } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
@@ -22,10 +24,12 @@ import { CrmRail } from "../features/call/components/CrmRail";
 import { EndedView } from "../features/call/components/EndedView";
 import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
+import { PracticeStart } from "../features/call/components/PracticeStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
+import { practiceScenario, usePracticeRun } from "../features/call/practice";
 import { useCallText } from "../features/call/strings";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
@@ -33,7 +37,9 @@ import { bindCall } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
 import { useEscalations } from "../features/escalations/store";
 import { useI18n } from "../lib/locale";
+import { prefs, setPrefs } from "../lib/prefs";
 import { useIsWide } from "../lib/responsive";
+import { useCloud } from "../lib/useCloud";
 
 export default function CallScreen() {
   // demoEnabled() is constant for the life of the build, so the hook order never changes.
@@ -41,14 +47,24 @@ export default function CallScreen() {
 }
 
 function DemoCallScreen() {
-  const params = useLocalSearchParams<{ mock?: string; prepare?: string; check?: string }>();
+  const params = useLocalSearchParams<{
+    mock?: string;
+    prepare?: string;
+    check?: string;
+    practice?: string;
+  }>();
   const mock = __DEV__ && params.mock === "1"; // never in a release build (D-024)
   // Home's "Prepare" (UX-03h): `/call?prepare=1` opens the rail on the brief editor.
   // Home's "Test audio" (UX-10, ZC-08): `/call?check=audio` opens the level check.
-  const opts = { prepare: params.prepare === "1", check: params.check === "audio" };
+  // Home's "Try a practice call" (D-073): `/call?practice=1` opens the practice start.
+  const opts = {
+    prepare: params.prepare === "1",
+    check: params.check === "audio",
+    practice: params.practice === "1",
+  };
   return mock ? <MockCallScreen {...opts} /> : <SharedCallScreen {...opts} />;
 }
-type Opts = { prepare: boolean; check: boolean };
+type Opts = { prepare: boolean; check: boolean; practice: boolean };
 
 /** The real call: held by CallSessionProvider, so leaving this screen keeps it live (T-025). */
 function SharedCallScreen(opts: Opts) {
@@ -90,6 +106,7 @@ export function CallView({
   mock,
   prepare = false,
   check = false,
+  practice: askPractice = false,
 }: {
   session: CallSession;
   mock: boolean;
@@ -97,6 +114,8 @@ export function CallView({
   prepare?: boolean;
   /** `/call?check=audio`: open the 5-second audio check (ZC-08). */
   check?: boolean;
+  /** `/call?practice=1`: open the practice start (D-073). */
+  practice?: boolean;
 }) {
   const { t } = useI18n();
   const tc = useCallText();
@@ -114,6 +133,13 @@ export function CallView({
     if (check) setChecking(true);
   }, [check]);
   const callApp = useCallApp();
+  const cloud = useCloud();
+  const script = practiceScenario(cloud.status === "signed_in" ? cloud.bundle : null);
+  const practiceRun = usePracticeRun();
+  const [practicing, setPracticing] = useState(askPractice);
+  useEffect(() => {
+    if (askPractice) setPracticing(true);
+  }, [askPractice]);
   useEffect(() => {
     if (prepare) setRailOpen(true);
   }, [prepare]);
@@ -154,9 +180,19 @@ export function CallView({
 
   const cards = selectCards(state.cards);
   const vendor = state.hello.stt_vendor ?? null;
-  // Practice (development only): scripted scenarios or the mock stream, with typed lines. A real
-  // account has neither (D-024): the call is heard, never typed.
-  const practice = mock || state.hello.scenarios.length > 0;
+  // Scripted (development only): scenarios or the mock stream, with typed lines. A real account
+  // has neither (D-024): the call is heard, never typed. Its practice call (D-073) plays the
+  // neutral script with nothing to type, and is labelled and kept apart the same way.
+  const scripted = mock || state.hello.scenarios.length > 0;
+  const realPractice = !scripted && practiceRun && !idle;
+  const practice = scripted || realPractice;
+  const startPractice = () => {
+    if (!script) return;
+    session.start(script.id);
+    // Home's "Try a practice call" step (D-073) is done once one has started.
+    const done = prefs().setupDone;
+    if (!done.includes("practice")) setPrefs({ setupDone: [...done, "practice"] });
+  };
   const mic: MicControl | null =
     vendor && !mock && Platform.OS === "web"
       ? { state: session.mic, vendor, onToggle: () => session.toggleMic() }
@@ -195,7 +231,7 @@ export function CallView({
     />
   );
   const notes = !practice && !idle ? <CallNotes /> : null;
-  const controls = practice ? (
+  const controls = scripted ? (
     live ? (
       <Composer
         onSay={session.say}
@@ -205,7 +241,7 @@ export function CallView({
         partial={state.partial}
       />
     ) : null
-  ) : live ? (
+  ) : live && !realPractice ? (
     listenBar
   ) : null;
   const confirm = (
@@ -220,10 +256,17 @@ export function CallView({
   );
   const main = (
     <View style={styles.mainStack}>
-      {state.phase === "idle" && practice ? (
+      {state.phase === "idle" && scripted ? (
         <ScenarioPicker scenarios={state.hello.scenarios} onStart={session.start} />
       ) : null}
-      {state.phase === "idle" && !practice ? (
+      {state.phase === "idle" && !scripted && practicing ? (
+        <PracticeStart
+          available={Boolean(script)}
+          onStart={startPractice}
+          onReal={() => setPracticing(false)}
+        />
+      ) : null}
+      {state.phase === "idle" && !scripted && !practicing ? (
         Platform.OS === "web" ? (
           checking ? (
             <AudioCheck computer={computerAudioAvailable()} onDone={() => setChecking(false)} />
@@ -233,10 +276,11 @@ export function CallView({
               callApp={callApp}
               onStart={session.startListening}
               onCheck={() => setChecking(true)}
+              onPractice={script ? () => setPracticing(true) : undefined}
             />
           )
         ) : (
-          <PhoneCallsLater />
+          <PhoneCallsLater onPractice={script ? () => setPracticing(true) : undefined} />
         )
       ) : null}
       {state.phase === "ended" ? (
@@ -246,11 +290,23 @@ export function CallView({
           mock={mock}
           callId={state.callId ?? null}
           perform={mock ? mockPerform : undefined}
-          onAgain={() => (practice ? session.start(null) : session.startListening(session.source))}
+          onAgain={() =>
+            realPractice
+              ? startPractice()
+              : scripted
+                ? session.start(null)
+                : session.startListening(session.source)
+          }
         />
       ) : null}
       {state.phase !== "idle" && state.phase !== "ended" ? (
-        <CardStack cards={cards} wide={wide} listening={live} speaking={Boolean(state.partial)} />
+        <CardStack
+          cards={cards}
+          wide={wide}
+          listening={live}
+          speaking={Boolean(state.partial)}
+          practice={practice}
+        />
       ) : null}
     </View>
   );

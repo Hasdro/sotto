@@ -59,13 +59,15 @@ type Props = {
   listening: boolean;
   /** The customer is mid-sentence (a partial transcript is showing). */
   speaking?: boolean;
+  /** A practice call (D-073): its cards are never rated, so nothing reaches learning. */
+  practice?: boolean;
 };
 
 /**
  * The newest card large on top, older ones compact below (DESIGN.md §5). The hero slot keeps a
  * minimum height, so the first card replaces the placeholder without moving anything below it.
  */
-export function CardStack({ cards, wide, listening, speaking = false }: Props) {
+export function CardStack({ cards, wide, listening, speaking = false, practice = false }: Props) {
   const { t, locale } = useI18n();
   const ct = useCallText();
   const strings = useCardStrings();
@@ -97,7 +99,7 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
         <Listening speaking={speaking} />
       ) : null}
       {/* UX-02: no rating under the live hero; after the call every AI card is rateable. */}
-      {hero && !listening ? <RatingControls card={hero} /> : null}
+      {hero && !listening && !practice ? <RatingControls card={hero} /> : null}
       {earlier.length > 0 ? (
         <View style={styles.earlier}>
           <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
@@ -111,6 +113,7 @@ export function CardStack({ cards, wide, listening, speaking = false }: Props) {
               label={t(openId === c.id ? "card.collapse" : "card.expand")}
               onToggle={() => setOpenId((id) => (id === c.id ? null : c.id))}
               alwaysRate={!listening}
+              noRating={practice}
             >
               {(quiet) => (
                 <SuggestionCard
@@ -162,6 +165,7 @@ function Earlier({
   label,
   onToggle,
   alwaysRate,
+  noRating,
 }: {
   card: CardView;
   children: (quiet: boolean) => ReactNode;
@@ -169,6 +173,7 @@ function Earlier({
   label: string;
   onToggle: () => void;
   alwaysRate: boolean;
+  noRating: boolean;
 }) {
   const [lit, setLit] = useState(false);
   const canRate = useCanRate(card);
@@ -188,7 +193,7 @@ function Earlier({
     },
     [],
   );
-  const rate = canRate && (alwaysRate || lit || open);
+  const rate = !noRating && canRate && (alwaysRate || lit || open);
   return (
     <Pressable
       // Hover area only (card + its rating row): not a control, not a tab stop.

@@ -97,6 +97,15 @@ const en = {
   "ui.sample.save": "Save client",
   "ui.sample.deleted": "Note deleted",
   "ui.sample.sheet": "Open sheet",
+  /** D-073: practice call in a real account. */
+  "practice.title": "Try a practice call",
+  "practice.body":
+    "A 30-second scripted call. You see the cards your team would get, from your own playbook. Nothing is saved, rated or sent.",
+  "practice.start": "Start practice",
+  "practice.open": "Try a practice call",
+  "practice.real": "Start a real call instead",
+  "practice.missing": "Practice calls arrive with the next server update.",
+  "practice.ended": "Practice over. Nothing was saved to History or Reports.",
 } as const;
 
 export type CallTextKey = keyof typeof en;
@@ -182,6 +191,14 @@ const ar: Record<CallTextKey, string> = {
   "ui.sample.save": "احفظ العميل",
   "ui.sample.deleted": "حُذفت الملاحظة",
   "ui.sample.sheet": "افتح اللوحة",
+  "practice.title": "جرّب مكالمة تدريبية",
+  "practice.body":
+    "مكالمة مكتوبة مسبقًا مدتها 30 ثانية. ترى البطاقات التي سيحصل عليها فريقك من دليل شركتك. لا يُحفظ شيء ولا يُقيَّم ولا يُرسل.",
+  "practice.start": "ابدأ التدريب",
+  "practice.open": "جرّب مكالمة تدريبية",
+  "practice.real": "ابدأ مكالمة حقيقية بدلًا من ذلك",
+  "practice.missing": "المكالمات التدريبية تصل مع تحديث الخادم القادم.",
+  "practice.ended": "انتهى التدريب. لم يُحفظ شيء في السجل أو التقارير.",
 };
 
 export const CALL_TEXT: Record<Locale, Record<CallTextKey, string>> = { en, ar };

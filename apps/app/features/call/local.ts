@@ -30,6 +30,7 @@ import { attachedBriefText, saveBriefFor } from "../crm/attached";
 import { stateOf } from "../flags/catalog";
 import { learnAfterCall } from "../learning/learn";
 import type { Bridge, BridgeHandlers } from "./bridge";
+import { isPracticeId, practiceRun, practiceScenario, setPracticeRun } from "./practice";
 
 /** Call review is a flagged feature (D-028): when it is not available the transcript never goes
  * to the after-call model at all (D-036). */
@@ -48,7 +49,14 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
   // React Native's built-in fetch cannot stream a response; Expo's can (cards word by word).
   const fetchFn =
     Platform.OS === "web" ? undefined : (require("expo/fetch") as { fetch: typeof fetch }).fetch;
-  const runtime = buildRuntime(bundle, undefined, fetchFn);
+  // D-073: the practice script plays on the same engine; the hello list never offers it, so a
+  // real account still shows the listen screen (call.tsx decides from `bundle.practice`).
+  const practice = practiceScenario(bundle);
+  const runtime = buildRuntime(
+    practice ? { ...bundle, scenarios: [...bundle.scenarios, practice] } : bundle,
+    undefined,
+    fetchFn,
+  );
 
   const emit = (raw: DemoServerMessage) => {
     let msg: DemoServerMessage;
@@ -58,11 +66,16 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       console.warn("[engine] dropped an invalid message", err);
       return;
     }
+    if (msg.type === "hello") {
+      msg = { ...msg, scenarios: msg.scenarios.filter((x) => !isPracticeId(x.id)) };
+    }
+    // No "sent to your manager" toast on a practice call: nothing was sent.
+    if (msg.type === "escalation" && practiceRun()) return;
     remember(msg);
     handlers.onMessage(msg);
     if (msg.type === "call_started") {
       setCallLive(true);
-      registerStart(msg.call_id);
+      if (!practiceRun()) registerStart(msg.call_id); // practice minutes are not counted
     }
   };
   // The server notes when the call began (minutes are capped by its own clock) and can still
@@ -106,6 +119,8 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
   };
   const ended = (s: CallSummary) => {
     setCallLive(false);
+    // Practice (D-073): no History, no brief, no review, no learning, no usage report.
+    if (practiceRun()) return;
     void saveBriefFor(s.call_id); // T-056: the brief is kept with the call (server, org-scoped)
     saveDeviceCall({
       id: s.call_id,
@@ -171,11 +186,13 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     send: emit,
     tokens: (vendor) =>
       cloudApi<SttToken>(`/api/v1/stt-token/${encodeURIComponent(vendor)}`, { method: "POST" }),
-    onEscalation: (e) =>
+    onEscalation: (e) => {
+      if (practiceRun()) return; // a practice question never reaches the manager
       void cloudApi("/api/v1/escalations", {
         method: "POST",
         body: { question: e.question, transcript_excerpt: e.transcriptExcerpt, call_id: e.callId },
-      }).catch((err) => console.warn("[engine] escalation not sent", err)),
+      }).catch((err) => console.warn("[engine] escalation not sent", err));
+    },
     onEnded: ended,
     crmBrief: attachedBriefText, // R10: the record the agent attached in the context rail
   });
@@ -196,6 +213,8 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
         });
         return false;
       }
+      // Set before the engine sees the start, so its first messages already know.
+      if (parsed.data.type === "start") setPracticeRun(isPracticeId(parsed.data.scenario_id));
       bridge.handle(parsed.data);
       return true;
     },

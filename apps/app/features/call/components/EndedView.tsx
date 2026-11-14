@@ -17,6 +17,8 @@ import { ZohoGate } from "../../actions/PostCallPanel";
 import { CallReviewPanel } from "../../review/CallReviewPanel";
 import { FollowUp } from "../../review/FollowUp";
 import { useReviewText } from "../../review/strings";
+import { usePracticeRun } from "../practice";
+import { useCallText } from "../strings";
 
 type Props = {
   /** Cards shown during the call (for "n suggestions"). */
@@ -36,6 +38,8 @@ type Props = {
 export function EndedView({ cardCount, practice, mock, callId, perform, saveLog, onAgain }: Props) {
   const { t } = useI18n();
   const rt = useReviewText();
+  const tc = useCallText();
+  const keptNothing = usePracticeRun(); // D-073: a practice run in a real account
   const review = useReview(callId);
   const [openUpdates, setOpenUpdates] = useState(0);
   const [openFollowUp, setOpenFollowUp] = useState(0);
@@ -53,6 +57,11 @@ export function EndedView({ cardCount, practice, mock, callId, perform, saveLog,
           <Text variant="body" tone="muted">
             {t("call.ended.body", { cards: cardCount })}
           </Text>
+          {practice && keptNothing ? (
+            <Text variant="label" tone="muted" testID="practice-ended">
+              {tc("practice.ended")}
+            </Text>
+          ) : null}
         </View>
         {callId && !practice ? (
           <Button
