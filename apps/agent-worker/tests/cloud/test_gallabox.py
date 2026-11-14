@@ -163,13 +163,32 @@ def test_template_dropdown_is_redacted_and_parsed(gclient: TestClient) -> None:
         "status": "APPROVED",
         "body": "Thanks for the call, {{name}}. Our next meeting is on {{date}}.",
         "params": [
-            {"name": "name", "component": "header", "type": "text", "example": ""},
-            {"name": "name", "component": "body", "type": "text", "example": "Jane"},
-            {"name": "date", "component": "body", "type": "text", "example": "12 Dec"},
+            # `source` is the guessed field the app pre-fills (ZC-07).
+            {
+                "name": "name",
+                "component": "header",
+                "type": "text",
+                "example": "",
+                "source": "customer.first_name",
+            },
+            {
+                "name": "name",
+                "component": "body",
+                "type": "text",
+                "example": "Jane",
+                "source": "customer.first_name",
+            },
+            {
+                "name": "date",
+                "component": "body",
+                "type": "text",
+                "example": "12 Dec",
+                "source": "meeting.date",
+            },
         ],
     }
     assert second["params"] == [
-        {"name": "offer", "component": "body", "type": "text", "example": "10%"}
+        {"name": "offer", "component": "body", "type": "text", "example": "10%", "source": ""}
     ]
 
 
@@ -330,7 +349,11 @@ def test_org_isolation(gclient: TestClient, gb: FakeGallabox) -> None:
     b = signup(gclient, "Beta", "admin@b.test")
     setup_org(gclient, a)
     sb = gclient.get("/api/v1/company/gallabox", headers=b).json()
-    assert sb == {"configured": False, "templates": []}
+    assert sb == {
+        "configured": False,
+        "channel": {"set": False, "label": ""},
+        "templates": [],
+    }
     assert gclient.get("/api/v1/whatsapp/templates", headers=b).status_code == 403
     assert gclient.post("/api/v1/company/gallabox/templates/load", headers=b).status_code == 409
     gclient.delete("/api/v1/company/gallabox", headers=b)
