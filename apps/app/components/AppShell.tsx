@@ -33,6 +33,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ConsentStep } from "../features/admin/ConsentStep";
 import { useOpenCount } from "../features/escalations/store";
 import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
@@ -55,6 +56,7 @@ type NavItem = {
     | "/call"
     | "/history"
     | "/reports"
+    | "/coaching"
     | "/playbook"
     | "/inbox"
     | "/admin"
@@ -70,6 +72,7 @@ export const NAV: readonly NavItem[] = [
   { href: "/call", label: "nav.call", icon: "call" },
   { href: "/history", label: "nav.history", icon: "history" },
   { href: "/reports", label: "nav.reports", icon: "reports" },
+  { href: "/coaching", label: "nav.coaching", icon: "spark" },
   { href: "/playbook", label: "nav.playbook", icon: "playbook" },
   { href: "/inbox", label: "nav.inbox", icon: "inbox" },
   { href: "/admin", label: "nav.admin", icon: "admin" },
@@ -128,6 +131,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </View>
       {wide ? null : <NavDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />}
       <Tutorial />
+      <ConsentStep />
       <Palette />
     </View>
   );

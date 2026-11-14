@@ -24,6 +24,7 @@ import { Pressable, StyleSheet, Switch, View } from "react-native";
 import { FeatureGate } from "../../components/FeatureGate";
 import {
   type Draft,
+  type Instruction,
   type LearnedVersion,
   type Learning,
   learningApi,
@@ -31,6 +32,13 @@ import {
   wordCount,
 } from "../../features/learning/api";
 import { clearLearningBadge } from "../../features/learning/badge";
+import {
+  COUNTER_FROM_WORDS,
+  type DiffLine,
+  diffInstructions,
+  sourceName,
+} from "../../features/learning/diff";
+import { deviceCall } from "../../lib/deviceHistory";
 import type { StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
@@ -110,7 +118,16 @@ export function InstructionsScreen() {
       if (it) next.splice(i + by, 0, it);
       return next;
     });
-  const date = (ms: number) => new Date(ms).toLocaleDateString(locale);
+  const date = (ms: number) =>
+    new Date(ms).toLocaleDateString(locale, { day: "numeric", month: "short" });
+  // UX-06c: "From the call with Sara, 12 Nov", never a call id.
+  const sourceLine = (item: Instruction) => {
+    const name = sourceName(item, (id) => deviceCall(id)?.title);
+    if (name === null) return t("learning.sourceManual", { date: date(item.added_at) });
+    return name
+      ? t("learning.source", { name, date: date(item.added_at) })
+      : t("learning.sourceUnnamed", { date: date(item.added_at) });
+  };
   const pending = data?.versions.filter((v) => v.status === "pending") ?? [];
 
   return (
@@ -145,9 +162,17 @@ export function InstructionsScreen() {
                 {`${t("learning.version", { n: v.version })} · ${date(v.created_at)}`}
               </Text>
             </View>
-            {v.items.map((it) => (
-              <Text key={it.id} variant="body">{`• ${it.text}`}</Text>
-            ))}
+            <Text variant="label" tone="muted">
+              {t("learning.diffBody")}
+            </Text>
+            <View accessibilityRole="list" style={styles.diff}>
+              {diffInstructions(
+                (data?.items ?? []).filter((i) => i.enabled).map((i) => i.text),
+                v.items.filter((i) => i.enabled).map((i) => i.text),
+              ).map((line, j) => (
+                <DiffRow key={`${line.kind}-${j}`} line={line} index={j} />
+              ))}
+            </View>
             <View style={styles.actions}>
               <Button
                 testID={`approve-${v.version}`}
@@ -179,7 +204,12 @@ export function InstructionsScreen() {
         />
       </Panel>
 
-      <Panel>
+      {pending.length > 0 ? (
+        <Text variant="label" tone="muted" testID="instructions-decide-first">
+          {t("learning.decideFirst")}
+        </Text>
+      ) : (
+      <Panel testID="instructions-editor">
         <Stack gap="md">
           <Text variant="label" tone="muted">
             {t("learning.limit", { items: limits.items, words: limits.words })}
@@ -201,16 +231,7 @@ export function InstructionsScreen() {
                 maxWords={limits.words}
                 first={i === 0}
                 last={i === drafts.length - 1}
-                source={
-                  item
-                    ? item.source_call
-                      ? t("learning.source", {
-                          call: item.source_call.slice(0, 8),
-                          date: date(item.added_at),
-                        })
-                      : t("learning.sourceManual", { date: date(item.added_at) })
-                    : null
-                }
+                source={item ? sourceLine(item) : null}
                 onText={(text) => edit(i, { text })}
                 onEnabled={(enabled) => edit(i, { enabled })}
                 onMove={(by) => move(i, by)}
@@ -235,6 +256,7 @@ export function InstructionsScreen() {
           </View>
         </Stack>
       </Panel>
+      )}
 
       <Ratings summary={summary} />
 
@@ -291,9 +313,15 @@ function Row(props: {
         multiline
       />
       <View style={styles.meta}>
-        <Text variant="label" tone={over ? "danger" : "muted"}>
-          {t("learning.words", { count: props.words, max: props.maxWords })}
-        </Text>
+        {props.words > COUNTER_FROM_WORDS ? (
+          <Text
+            variant="label"
+            tone={over ? "danger" : "muted"}
+            testID={`instruction-words-${props.index}`}
+          >
+            {t("learning.words", { count: props.words, max: props.maxWords })}
+          </Text>
+        ) : null}
         {props.source ? (
           <Text variant="label" tone="muted">
             {props.source}
@@ -363,6 +391,37 @@ function IconButton(props: {
         <Icon name={props.icon} size={18} color={color.textMuted} />
       </View>
     </Pressable>
+  );
+}
+
+const DIFF_MARK: Record<DiffLine["kind"], { sign: string; label: StringKey }> = {
+  same: { sign: "·", label: "learning.diff.same" },
+  added: { sign: "+", label: "learning.diff.added" },
+  removed: { sign: "−", label: "learning.diff.removed" },
+};
+
+function DiffRow({ line, index }: { line: DiffLine; index: number }) {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const mark = DIFF_MARK[line.kind];
+  const tint =
+    line.kind === "added" ? color.signalFill : line.kind === "removed" ? color.surfaceSunken : undefined;
+  return (
+    <View
+      testID={`diff-${line.kind}-${index}`}
+      accessibilityLabel={`${t(mark.label)}: ${line.text}`}
+      style={[styles.diffRow, tint ? { backgroundColor: tint } : null]}
+    >
+      <Text weight="semibold" tone={line.kind === "same" ? "muted" : undefined}>
+        {mark.sign}
+      </Text>
+      <Text
+        style={line.kind === "removed" ? styles.struck : undefined}
+        tone={line.kind === "same" ? "muted" : undefined}
+      >
+        {line.text}
+      </Text>
+    </View>
   );
 }
 
@@ -485,4 +544,13 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
   },
   versionText: { flex: 1, minWidth: 200, gap: space.xs },
+  diff: { gap: space.xs },
+  diffRow: {
+    flexDirection: "row",
+    gap: space.sm,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+    borderRadius: radius.sm,
+  },
+  struck: { textDecorationLine: "line-through" },
 });

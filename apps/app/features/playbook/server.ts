@@ -41,14 +41,21 @@ export function parseTags(text: string): string[] {
 export function useServerPlaybook() {
   const [entries, setEntries] = useState<PlaybookEntry[] | null>(null);
   const apply = useCallback((p: Payload) => setEntries(p.entries.map(toEntry)), []);
+  const reload = useCallback(
+    () =>
+      api<Payload>("/api/playbook")
+        .then(apply)
+        .catch(() => setEntries(null)),
+    [apply],
+  );
   useEffect(() => {
-    api<Payload>("/api/playbook")
-      .then(apply)
-      .catch(() => setEntries(null));
-  }, [apply]);
+    void reload();
+  }, [reload]);
   const enc = encodeURIComponent;
   return {
     entries,
+    /** After an approved suggestion (INT-15) added an entry on the server. */
+    reload,
     add: (input: EntryInput) =>
       api<Payload>("/api/playbook", { method: "POST", body: input }).then(apply),
     edit: (id: string, input: EntryInput) =>

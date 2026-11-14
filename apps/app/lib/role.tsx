@@ -17,16 +17,37 @@ export type Area =
   | "/call"
   | "/history"
   | "/reports"
+  | "/coaching"
   | "/playbook"
   | "/inbox"
   | "/admin"
   | "/settings";
 
 /** draft D-050 (backlog): agents never see the Inbox or the playbook editor (R3 table: "Edit playbook: no"). */
+/** INT-05: everyone has Coaching; the server decides whose data each role sees. */
 export const ROLE_AREAS: Record<ViewRole, readonly Area[]> = {
-  agent: ["/home", "/call", "/history", "/reports", "/settings"],
-  manager: ["/home", "/call", "/history", "/reports", "/playbook", "/inbox", "/settings"],
-  admin: ["/home", "/call", "/history", "/reports", "/playbook", "/inbox", "/admin", "/settings"],
+  agent: ["/home", "/call", "/history", "/reports", "/coaching", "/settings"],
+  manager: [
+    "/home",
+    "/call",
+    "/history",
+    "/reports",
+    "/coaching",
+    "/playbook",
+    "/inbox",
+    "/settings",
+  ],
+  admin: [
+    "/home",
+    "/call",
+    "/history",
+    "/reports",
+    "/coaching",
+    "/playbook",
+    "/inbox",
+    "/admin",
+    "/settings",
+  ],
 };
 
 const AREAS: readonly Area[] = ["/call", "/history", "/playbook", "/inbox", "/admin"];

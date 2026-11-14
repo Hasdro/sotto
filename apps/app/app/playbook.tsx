@@ -39,7 +39,8 @@ import { MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
 import { useEscalations } from "../features/escalations/store";
 import { type PlaybookEntry, searchPlaybook } from "../features/playbook/mock";
 import { type EntryInput, parseTags, useServerPlaybook } from "../features/playbook/server";
-import { sampleDataAllowed } from "../lib/cloud";
+import { Suggestions } from "../features/playbook/Suggestions";
+import { cloudActive, sampleDataAllowed } from "../lib/cloud";
 import { formatDate } from "../lib/format";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -109,6 +110,8 @@ export default function PlaybookScreen() {
           ) : null}
         </View>
       </View>
+      {/* INT-15: approval cards for managers; nothing is added without "Approve". */}
+      {canEdit && cloudActive() ? <Suggestions onApproved={() => void server.reload()} /> : null}
       {editing === "new" ? (
         <Panel style={styles.formPanel}>
           <EntryForm

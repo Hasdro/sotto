@@ -8,7 +8,6 @@ describe("company settings on this server (D-020)", () => {
     let settings = {
       ai_answers_allowed: true,
       backup_allowed: true,
-      agent_context: true,
       card_language: "auto",
     };
     globalThis.fetch = jest.fn(async (_url: string, init: RequestInit) => {

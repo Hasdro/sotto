@@ -87,4 +87,25 @@ describe("personal Settings", () => {
     await fireEvent.press(screen.getByText("Advanced"));
     expect(screen.getByText("Playbook guide")).toBeOnTheScreen();
   });
+
+  it("shows the company's recording policy as a read-only line (D-049)", async () => {
+    const { cloudApi } = jest.requireMock("../lib/cloud") as { cloudApi: jest.Mock };
+    cloudApi.mockImplementation(async (path: string) =>
+      path === "/api/v1/company/defaults" ? { record_calls: "on" } : new Promise(() => {}),
+    );
+    signedIn("agent");
+    await wrap("agent");
+    await fireEvent.press(screen.getByText("Advanced"));
+    expect(await screen.findByTestId("settings-record-policy")).toHaveTextContent("Always on");
+    expect(screen.getByText("Your company records every call.")).toBeOnTheScreen();
+    expect(screen.queryByTestId("settings-record")).toBeNull();
+    cloudApi.mockImplementation(() => new Promise(() => {}));
+  });
+
+  it("keeps the personal recording switch while each person chooses", async () => {
+    signedIn("agent");
+    await wrap("agent");
+    await fireEvent.press(screen.getByText("Advanced"));
+    expect(screen.getByTestId("settings-record")).toBeOnTheScreen();
+  });
 });

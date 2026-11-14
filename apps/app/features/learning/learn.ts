@@ -6,9 +6,11 @@
  */
 import { type CallBundle, type ModelRouter, renderPrompt } from "@sotto/engine";
 import { cloudApi, cloudState, refreshFeatures } from "../../lib/cloud";
-import type { DeviceEntry } from "../../lib/deviceHistory";
+import { type DeviceEntry, deviceCall } from "../../lib/deviceHistory";
+import { coachingApi } from "../coaching/api";
+import { buildSignals } from "../coaching/signals";
 import { stateOf } from "../flags/catalog";
-import { ratingsFor } from "../rating/ratings";
+import { type RatedCard, ratingsFor } from "../rating/ratings";
 import { buildPacket, MAX_ITEMS, MIN_RATINGS } from "./packet";
 
 const MAX_WORDS = 25;
@@ -34,6 +36,24 @@ export function learningAllowed(): boolean {
   );
 }
 
+/** INT-05, INT-15: objection themes and "not helpful" questions for coaching. Never throws. */
+export async function sendCoachingSignals(
+  callId: string,
+  transcript: readonly DeviceEntry[],
+  ratings: readonly RatedCard[],
+): Promise<boolean> {
+  if (cloudState().status !== "signed_in") return false;
+  const signals = buildSignals(callId, transcript, ratings);
+  if (!signals) return false;
+  try {
+    await coachingApi.signals(signals);
+    return true;
+  } catch (err) {
+    console.warn("[coaching] signals not sent", err);
+    return false;
+  }
+}
+
 /** Runs once per call; never throws. Resolves to the instructions sent, or null. */
 export async function learnAfterCall(opts: {
   callId: string;
@@ -46,6 +66,7 @@ export async function learnAfterCall(opts: {
 }): Promise<string[] | null> {
   const prompt = opts.bundle.prompts.learned_extract;
   const ratings = ratingsFor(opts.callId);
+  void sendCoachingSignals(opts.callId, opts.transcript, ratings);
   if (!prompt || ratings.length < MIN_RATINGS || !learningAllowed()) return null;
   try {
     const current = opts.bundle.learned?.instructions ?? [];
@@ -77,7 +98,12 @@ export async function learnAfterCall(opts: {
     if (instructions === null) return null;
     await cloudApi("/api/v1/learning/proposals", {
       method: "POST",
-      body: { call_id: opts.callId, instructions },
+      body: {
+        call_id: opts.callId,
+        instructions,
+        // UX-06c: "From the call with <name>" in the editor (the call's title on this device).
+        source_label: deviceCall(opts.callId)?.title ?? "",
+      },
     });
     void refreshFeatures(); // a new active version reloads the bundle between calls
     return instructions;

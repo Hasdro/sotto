@@ -6,6 +6,8 @@ export type Instruction = {
   text: string;
   enabled: boolean;
   source_call: string | null;
+  /** UX-06c: who the call was with, as the agent's device named it. */
+  source_label?: string;
   added_at: number;
 };
 
