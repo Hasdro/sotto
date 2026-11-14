@@ -62,6 +62,20 @@ const en = {
   "email.warnAttached":
     "The message mentions an attachment, but nothing is attached. Add a link or change the text.",
   "email.warnPlaceholder": "Fill in {items} before sending.",
+  "email.attachments": "Attach files from your admin's list",
+  "email.attachedFiles": "Attached: {files}",
+  "att.title": "Email attachments",
+  "att.hint":
+    "Files your agents can add to follow-up emails. Agents pick from this list; they cannot upload.",
+  "att.none": "No files yet",
+  "att.add": "Add a file",
+  "att.uploading": "Uploading…",
+  "att.delete": "Delete",
+  "att.deleteOne": "Delete {name}",
+  "att.tooBig": "Files can be at most 5 MB.",
+  "att.limits":
+    "PDF, PNG, JPEG, Word, Excel or PowerPoint. Up to 5 MB each, 20 files, 25 MB in all.",
+  "att.desktopOnly": "Add files from the desktop app or the web.",
 } as const;
 
 export type EmailKey = keyof typeof en;
@@ -120,6 +134,20 @@ const ar: Record<EmailKey, string> = {
   "email.failed": "لم تُرسل: {error}",
   "email.another": "كتابة رسالة أخرى",
   "email.warnAttached": "تذكر الرسالة مرفقًا، لكن لا يوجد مرفق. أضف رابطًا أو غيّر النص.",
+  "email.attachments": "أرفق ملفات من قائمة المسؤول",
+  "email.attachedFiles": "المرفقات: {files}",
+  "att.title": "مرفقات البريد",
+  "att.hint":
+    "ملفات يمكن للوكلاء إضافتها إلى بريد المتابعة. يختار الوكلاء من هذه القائمة ولا يمكنهم الرفع.",
+  "att.none": "لا توجد ملفات بعد",
+  "att.add": "أضف ملفًا",
+  "att.uploading": "جارٍ الرفع…",
+  "att.delete": "حذف",
+  "att.deleteOne": "احذف {name}",
+  "att.tooBig": "الحد الأقصى للملف 5 ميغابايت.",
+  "att.limits":
+    "PDF أو PNG أو JPEG أو Word أو Excel أو PowerPoint. حتى 5 ميغابايت للملف، و20 ملفًا، و25 ميغابايت إجمالًا.",
+  "att.desktopOnly": "أضف الملفات من تطبيق سطح المكتب أو الويب.",
   "email.warnPlaceholder": "املأ {items} قبل الإرسال.",
 };
 

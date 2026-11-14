@@ -71,7 +71,8 @@ const en: Text = {
     learned_instructions: "Short rules learned from card ratings.",
     followup_plan: "Reminds the agent at each follow-up step; nothing is sent without a tap.",
     meeting_reminders: "WhatsApp reminder before a booked meeting, one tap each.",
-    whatsapp_status: "Shows sent, delivered, read or failed for each message. Needs Gallabox webhooks.",
+    whatsapp_status:
+      "Shows sent, delivered, read or failed for each message. Needs Gallabox webhooks.",
     zoho_watch: "Updates the call brief when the deal or meeting changes in Zoho.",
     email_attachments: "Files your admin approved, added to follow-up emails.",
   },
@@ -144,7 +145,8 @@ const ar: Text = {
     learned_instructions: "قواعد قصيرة مستفادة من تقييم البطاقات.",
     followup_plan: "يذكّر الوكيل بكل خطوة متابعة؛ لا يُرسل شيء دون نقرة.",
     meeting_reminders: "تذكير واتساب قبل الاجتماع المحجوز، بنقرة لكل تذكير.",
-    whatsapp_status: "يعرض مُرسلة أو مُسلّمة أو مقروءة أو فاشلة لكل رسالة. يتطلب Webhooks في Gallabox.",
+    whatsapp_status:
+      "يعرض مُرسلة أو مُسلّمة أو مقروءة أو فاشلة لكل رسالة. يتطلب Webhooks في Gallabox.",
     zoho_watch: "يحدّث ملخص المكالمة عند تغيّر الصفقة أو الاجتماع في Zoho.",
     email_attachments: "ملفات اعتمدها المسؤول تُضاف إلى بريد المتابعة.",
   },

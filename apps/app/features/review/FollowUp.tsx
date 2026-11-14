@@ -30,9 +30,12 @@ import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 import { useAttached } from "../crm/attached";
 import { EmailAction } from "../email";
+import type { Draft as EmailDraft } from "../email/api";
 import { SendWarnings } from "../email/EmailAction";
 import { followUpWarnings } from "../email/warnings";
+import { PlanSetup } from "../followup";
 import { WhatsAppAction } from "../whatsapp";
+import type { Message } from "../whatsapp/api";
 import { useReviewText } from "./strings";
 
 type Channel = "email" | "whatsapp";
@@ -61,6 +64,10 @@ export function FollowUp({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [version, setVersion] = useState(0);
   const [handled, setHandled] = useState<Handled>("open");
+  // INT-08: what the plan's steps are prepared from (the composers report their drafts).
+  const [emailDraft, setEmailDraft] = useState<EmailDraft | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
+  const [waMessage, setWaMessage] = useState<Message | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bundle = cloud.status === "signed_in" ? cloud.bundle : null;
   const call = callId ? deviceCall(callId) : null;
@@ -184,7 +191,11 @@ export function FollowUp({
               callId={callId}
               customer={{ name: person?.name, email: person?.email }}
               draft={draft}
-              onSent={sent}
+              onSent={() => {
+                setEmailSent(true);
+                sent();
+              }}
+              onDraft={setEmailDraft}
             />
           ) : phase === "ready" && draft ? (
             <CopyDraft key={version} draft={draft} />
@@ -195,10 +206,25 @@ export function FollowUp({
           callId={callId}
           customer={{ name: person?.name, phone: person?.phone }}
           onSent={sent}
+          onChoose={setWaMessage}
         />
       )}
+      <PlanSetup
+        callId={callId}
+        customer={{ name: person?.name ?? "", phone: person?.phone ?? "" }}
+        email={email.state === "available" ? emailDraft : null}
+        emailSent={emailSent}
+        whatsapp={waMessage}
+        meetingAt={meetingStart(crm.kind === "attached" ? crm.brief.meeting?.start : undefined)}
+      />
     </View>
   );
+}
+
+/** The booked meeting's start in ms, if it is a valid future time (INT-09). */
+function meetingStart(iso: string | undefined): number | null {
+  const ms = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(ms) && ms > Date.now() ? ms : null;
 }
 
 /** No org email: the draft to edit and copy into the agent's own mail app. */

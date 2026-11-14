@@ -13,6 +13,7 @@ import {
   space,
   Text,
   TextField,
+  ToggleRow,
   useTheme,
 } from "@sotto/ui";
 import { useEffect, useMemo, useState } from "react";
@@ -20,9 +21,11 @@ import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
 import { useAttached } from "../crm/attached";
 import {
+  type Attachment,
   addressList,
   type Draft,
   type EmailFormat,
+  emailAttachments,
   emailFormats,
   emailSenders,
   newIdempotencyKey,
@@ -40,7 +43,12 @@ export type EmailActionProps = {
   customer?: { name?: string; email?: string };
   /** The follow-up draft written on this device (features/review/FollowUp), if any. */
   draft?: { subject: string; body: string } | null;
+  /** A follow-up plan step (INT-08): the approved draft and the step's own send key. */
+  prepared?: Partial<Draft> | null;
+  idempotencyKey?: string;
   onSent?: (preview: Preview) => void;
+  /** Reports the current draft (the follow-up plan prepares its steps from it). */
+  onDraft?: (draft: Draft) => void;
 };
 
 type Step =
@@ -59,20 +67,31 @@ export function EmailAction(props: EmailActionProps) {
   return <Composer {...props} />;
 }
 
-function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
+function Composer({
+  callId,
+  customer,
+  draft,
+  prepared,
+  idempotencyKey,
+  onSent,
+  onDraft,
+}: EmailActionProps) {
   const t = useEmailText();
   const attached = useAttached();
   const person = attached.kind === "attached" ? attached.brief.person : null;
   const [senders, setSenders] = useState<Sender[]>([]);
   const [formats, setFormats] = useState<EmailFormat[]>([]);
-  const [sender, setSender] = useState("");
-  const [format, setFormat] = useState("");
-  const [to, setTo] = useState(customer?.email ?? person?.email ?? "");
-  const [cc, setCc] = useState("");
-  const [name, setName] = useState(customer?.name ?? person?.name ?? "");
-  const [subject, setSubject] = useState(draft?.subject ?? "");
-  const [body, setBody] = useState(draft?.body ?? "");
-  const [touched, setTouched] = useState(Boolean(draft));
+  const [sender, setSender] = useState(prepared?.sender ?? "");
+  const [format, setFormat] = useState(prepared?.format ?? "");
+  const [to, setTo] = useState(prepared?.to?.join(", ") ?? customer?.email ?? person?.email ?? "");
+  const [cc, setCc] = useState(prepared?.cc?.join(", ") ?? "");
+  const [name, setName] = useState(prepared?.customer_name ?? customer?.name ?? person?.name ?? "");
+  const [subject, setSubject] = useState(prepared?.subject ?? draft?.subject ?? "");
+  const [body, setBody] = useState(prepared?.body ?? draft?.body ?? "");
+  const [touched, setTouched] = useState(Boolean(draft || prepared));
+  const files = useFeature("email_attachments");
+  const [library, setLibrary] = useState<Attachment[]>([]);
+  const [chosenFiles, setChosenFiles] = useState<string[]>(prepared?.attachments ?? []);
   const [step, setStep] = useState<Step>({ kind: "compose" });
 
   useEffect(() => {
@@ -89,6 +108,12 @@ function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
       })
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (files.state !== "available") return;
+    emailAttachments()
+      .then((r) => setLibrary(r.attachments))
+      .catch(() => setLibrary([]));
+  }, [files.state]);
 
   const chosen = useMemo(() => formats.find((f) => f.id === format), [formats, format]);
   useEffect(() => {
@@ -106,7 +131,13 @@ function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
     subject,
     body,
     customer_name: name.trim(),
+    ...(chosenFiles.length ? { attachments: chosenFiles } : {}),
   };
+  const draftKey = JSON.stringify(current);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reported when the draft changes
+  useEffect(() => {
+    onDraft?.(current);
+  }, [draftKey]);
   const edit =
     (set: (v: string) => void, marks = false) =>
     (v: string) => {
@@ -120,7 +151,7 @@ function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
         setStep({
           kind: "preview",
           preview: p,
-          key: newIdempotencyKey(`${callId ?? "call"}-email`),
+          key: idempotencyKey ?? newIdempotencyKey(`${callId ?? "call"}-email`),
         }),
       )
       .catch((e) => setStep({ kind: "compose", error: errorOf(e) }));
@@ -208,6 +239,27 @@ function Composer({ callId, customer, draft, onSent }: EmailActionProps) {
               height={160}
               testID="email-body"
             />
+            {library.length ? (
+              <Labelled label={t("email.attachments")}>
+                <Stack gap="xs" testID="email-attachments">
+                  {library.map((f) => {
+                    const on = chosenFiles.includes(f.id);
+                    return (
+                      <ToggleRow
+                        key={f.id}
+                        value={on}
+                        label={f.name}
+                        description={sizeOf(f.size)}
+                        onValueChange={() =>
+                          setChosenFiles((a) => (on ? a.filter((x) => x !== f.id) : [...a, f.id]))
+                        }
+                        testID={`email-attach-${f.id}`}
+                      />
+                    );
+                  })}
+                </Stack>
+              </Labelled>
+            ) : null}
             <Stack direction="row" gap="sm" wrap>
               <Button
                 label={t("email.preview")}
@@ -300,7 +352,8 @@ function Problem({ text }: { text: string }) {
 function PreviewBox({ preview, title }: { preview: Preview; title: string }) {
   const t = useEmailText();
   const { color } = useTheme();
-  const warn = followUpWarnings(`${preview.subject}\n${preview.text}`);
+  const files = preview.attachments ?? [];
+  const warn = followUpWarnings(`${preview.subject}\n${preview.text}`, files.length);
   const rows: [string, string, string][] = [
     [t("email.from"), `${preview.from.name} <${preview.from.address}>`, "from"],
     [t("email.to"), preview.to.join(", "), "to"],
@@ -345,6 +398,13 @@ function PreviewBox({ preview, title }: { preview: Preview; title: string }) {
           <Text variant="body" selectable testID="email-preview-text" style={styles.mailBody}>
             {preview.text}
           </Text>
+          {files.length ? (
+            <Text variant="label" tone="muted" testID="email-preview-attachments">
+              {t("email.attachedFiles", {
+                files: files.map((f) => `${f.name} (${sizeOf(f.size)})`).join(", "),
+              })}
+            </Text>
+          ) : null}
         </Stack>
       </Panel>
       <SendWarnings warnings={warn} />
@@ -369,6 +429,12 @@ export function SendWarnings({ warnings }: { warnings: FollowUpWarnings }) {
       ) : null}
     </>
   );
+}
+
+function sizeOf(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 const styles = StyleSheet.create({

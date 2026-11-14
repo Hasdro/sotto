@@ -51,6 +51,17 @@ const en = {
   "whatsapp.duplicate": "Already sent; not sent again.",
   "whatsapp.failed": "Not sent: {error}",
   "whatsapp.another": "Send another",
+  "hook.title": "Delivery status (webhook)",
+  "hook.hint":
+    "Shows sent, delivered, read or failed for each message. Needs a Gallabox plan with webhooks (Essential or Advanced). Only the status is kept, never the text.",
+  "hook.off": "Turn on \u201cWhatsApp delivery status\u201d in Admin \u203a Features first.",
+  "hook.create": "Create webhook URL",
+  "hook.rotate": "Replace URL and secret",
+  "hook.url": "Webhook URL",
+  "hook.secret": "Secret (shown once)",
+  "hook.steps":
+    "In Gallabox \u203a Settings \u203a Webhooks: add this URL with the events Message.WA.Status.Received and Message.WA.Status.Failed, and paste the secret.",
+  "hook.ready": "Webhook URL set. Replace it if the secret was lost.",
 } as const;
 
 export type WhatsAppKey = keyof typeof en;
@@ -101,6 +112,17 @@ const ar: Record<WhatsAppKey, string> = {
   "whatsapp.duplicate": "أُرسلت سابقًا؛ لم تُرسل مرة أخرى.",
   "whatsapp.failed": "لم تُرسل: {error}",
   "whatsapp.another": "إرسال رسالة أخرى",
+  "hook.title": "حالة التسليم (Webhook)",
+  "hook.hint":
+    "يعرض أُرسلت أو سُلّمت أو قُرئت أو فشلت لكل رسالة. يتطلب باقة Gallabox تتضمن Webhooks (Essential أو Advanced). تُحفظ الحالة فقط، ولا يُحفظ النص أبدًا.",
+  "hook.off": "شغّل \u201cحالة تسليم واتساب\u201d من الإدارة \u203a الميزات أولًا.",
+  "hook.create": "أنشئ رابط Webhook",
+  "hook.rotate": "استبدل الرابط والسر",
+  "hook.url": "رابط Webhook",
+  "hook.secret": "السر (يظهر مرة واحدة)",
+  "hook.steps":
+    "في Gallabox \u203a الإعدادات \u203a Webhooks: أضف هذا الرابط مع الحدثين Message.WA.Status.Received وMessage.WA.Status.Failed، والصق السر.",
+  "hook.ready": "تم ضبط رابط Webhook. استبدله إن فُقد السر.",
 };
 
 export const WHATSAPP_TEXT: Record<Locale, Record<WhatsAppKey, string>> = { en, ar };

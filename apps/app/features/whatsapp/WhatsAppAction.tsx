@@ -26,7 +26,14 @@ export type WhatsAppActionProps = {
   callId: string | null;
   /** Prefills; the attached Zoho record fills whatever is not given. */
   customer?: { name?: string; phone?: string };
+  /** A follow-up plan step (INT-08, INT-09): the template to start from and the step's key. */
+  preset?: { template?: string; language?: string; values?: Record<string, string> } | null;
+  idempotencyKey?: string;
+  /** Only these categories are offered (meeting reminders: UTILITY). */
+  categories?: string[];
   onSent?: (preview: Preview) => void;
+  /** Reports the chosen template (the follow-up plan prepares its WhatsApp step from it). */
+  onChoose?: (message: Message | null) => void;
 };
 
 type Step =
@@ -45,7 +52,15 @@ export function WhatsAppAction(props: WhatsAppActionProps) {
   return <Composer {...props} />;
 }
 
-function Composer({ callId, customer, onSent }: WhatsAppActionProps) {
+function Composer({
+  callId,
+  customer,
+  preset,
+  idempotencyKey,
+  categories,
+  onSent,
+  onChoose,
+}: WhatsAppActionProps) {
   const t = useWhatsAppText();
   const attached = useAttached();
   const person = attached.kind === "attached" ? attached.brief.person : null;
@@ -58,14 +73,20 @@ function Composer({ callId, customer, onSent }: WhatsAppActionProps) {
   const nameNow = useRef(name);
   nameNow.current = name;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loaded once per composer
   useEffect(() => {
     allowedTemplates()
       .then((r) => {
-        setTemplates(r.templates);
-        const first = r.templates[0];
+        const list = categories
+          ? r.templates.filter((x) => categories.includes(x.category.toUpperCase()))
+          : r.templates;
+        setTemplates(list);
+        const first =
+          list.find((x) => x.name === preset?.template && x.language === preset?.language) ??
+          list[0];
         if (first) {
           setPicked(keyOf(first));
-          setValues(prefill(first, { name: nameNow.current }));
+          setValues({ ...prefill(first, { name: nameNow.current }), ...(preset?.values ?? {}) });
         }
       })
       .catch((e) => {
@@ -85,7 +106,6 @@ function Composer({ callId, customer, onSent }: WhatsAppActionProps) {
     setValues(next ? prefill(next, { name }) : {});
   };
 
-  if (templates === null) return null;
   const fields = template ? fieldsOf(template) : [];
   const message: Message | null = template
     ? {
@@ -96,12 +116,22 @@ function Composer({ callId, customer, onSent }: WhatsAppActionProps) {
       }
     : null;
   const filled = fields.every((p) => values[p.name]?.trim());
+  const messageKey = JSON.stringify(message);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reported when the message changes
+  useEffect(() => {
+    onChoose?.(message);
+  }, [messageKey]);
 
+  if (templates === null) return null;
   const preview = () => {
     if (!message) return;
     previewWhatsApp(message)
       .then((p) =>
-        setStep({ kind: "preview", preview: p, key: newIdempotencyKey(`${callId ?? "call"}-wa`) }),
+        setStep({
+          kind: "preview",
+          preview: p,
+          key: idempotencyKey ?? newIdempotencyKey(`${callId ?? "call"}-wa`),
+        }),
       )
       .catch((e) => setStep({ kind: "compose", error: errorOf(e) }));
   };

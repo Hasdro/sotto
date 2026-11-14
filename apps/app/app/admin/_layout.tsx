@@ -24,12 +24,14 @@ import { useFeature } from "../../components/FeatureGate";
 import { RoleGate } from "../../components/RoleGate";
 import { useLearningBadge } from "../../features/learning/badge";
 import { configInWebOnly, openWebAdmin, webAdminUrl } from "../../features/webadmin/webAdmin";
-import type { StringKey } from "../../lib/i18n";
+import type { Locale, StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
+/** A page label added in a wave whose i18n.ts belongs to another stream (D-058): both texts. */
+type OwnLabel = Record<Locale, string>;
 type Page = {
   href: string;
-  label: StringKey;
+  label: StringKey | OwnLabel;
   icon: IconName;
   /** Web only: on the desktop app it is configured in the web admin panel (D-038). */
   webOnly?: boolean;
@@ -37,6 +39,8 @@ type Page = {
   also?: readonly string[];
 };
 type Group = { id: string; label: StringKey; icon: IconName; pages: readonly Page[] };
+
+const ATTACHMENTS_LABEL: OwnLabel = { en: "Attachments", ar: "المرفقات" };
 
 /** UX-29, draft D-051 (backlog): four groups instead of nine tabs in a scrolling row. */
 export const ADMIN_GROUPS: readonly Group[] = [
@@ -52,6 +56,8 @@ export const ADMIN_GROUPS: readonly Group[] = [
     icon: "globe",
     pages: [
       { href: "/admin/integrations", label: "admin.integrations", icon: "globe" },
+      // INT-14b: the files agents may attach to follow-up emails.
+      { href: "/admin/attachments", label: ATTACHMENTS_LABEL, icon: "mail" },
       {
         href: "/admin/keys",
         label: "admin.keys",
@@ -103,7 +109,7 @@ export default function AdminRoute() {
 }
 
 function AdminLayout() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { color } = useTheme();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
@@ -189,7 +195,7 @@ function AdminLayout() {
                   ])}
                 >
                   <Text variant="label" weight={active ? "medium" : "regular"}>
-                    {t(p.label)}
+                    {typeof p.label === "string" ? t(p.label) : p.label[locale]}
                   </Text>
                 </AppLink>
               );

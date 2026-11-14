@@ -36,7 +36,14 @@ export type Desktop = {
   onDeepLink?: (cb: (link: DeepLink) => void) => () => void;
   /** W1-DESK / UX-21: opens the OS privacy pane; `not_needed` where the OS asks nothing. */
   openPrivacySettings?: (pane: PrivacyPane) => Promise<PrivacyResult>;
+  /** INT-08: a system notification for a due follow-up step; resolves false if not shown. */
+  notify?: (notice: FollowupNotice) => Promise<boolean>;
+  /** INT-08: the person clicked a follow-up notification; gives the step to open. */
+  onNotifyOpen?: (cb: (stepId: string) => void) => () => void;
 };
+
+/** What the page may put in a notification: a step id (16 hex) and two short lines. */
+export type FollowupNotice = { stepId: string; title: string; body: string };
 
 export function desktop(): Desktop | null {
   return (globalThis as { sottoDesktop?: Desktop }).sottoDesktop ?? null;
