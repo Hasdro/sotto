@@ -16,6 +16,9 @@ const T = {
   ".js": "text/javascript",
   ".css": "text/css",
   ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".woff": "font/woff",
 };
 const srv = createServer((q, r) => {
   try {
@@ -35,7 +38,11 @@ const runs = [
   ["dark-1280", "dark", "en", 1280, 900],
   ["light-390", "light", "en", 390, 844],
   ["dark-390", "dark", "en", 390, 844],
+  ["light-768", "light", "en", 768, 1024],
+  ["light-1440", "light", "en", 1440, 900],
+  ["dark-1440", "dark", "en", 1440, 900],
   ["rtl-light-1280", "light", "ar", 1280, 900],
+  ["rtl-light-390", "light", "ar", 390, 844],
   ["rtl-dark-390", "dark", "ar", 390, 844],
 ];
 for (const [name, scheme, lang, w, h] of runs) {
