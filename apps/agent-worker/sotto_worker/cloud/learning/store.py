@@ -284,6 +284,9 @@ class LearningStore:
             raise CloudError("invalid", f"at most {MAX_ITEMS} instructions")
         known = {i["text"]: i for i in current if i.get("enabled", True)}
         t = now_ms()
+        # UX-06c: who the call was with, as the agent's device names it ("From the call with
+        # Sara, 12 Nov"); a name only, like an escalation's customer.
+        label = " ".join(str(data.get("source_label") or "").split())[:60]
         items = [
             known.get(text)
             or {
@@ -292,6 +295,7 @@ class LearningStore:
                 "enabled": True,
                 "source_call": call_id,
                 "added_at": t,
+                **({"source_label": label} if label else {}),
             }
             for text in texts
         ] + kept_off
@@ -386,6 +390,11 @@ class LearningStore:
                     "enabled": entry.get("enabled", True) is not False,
                     "source_call": prev.get("source_call") if prev else None,
                     "added_at": prev.get("added_at", t) if prev else t,
+                    **(
+                        {"source_label": prev["source_label"]}
+                        if prev and prev.get("source_label")
+                        else {}
+                    ),
                 }
             )
         with self.s._tx() as db:

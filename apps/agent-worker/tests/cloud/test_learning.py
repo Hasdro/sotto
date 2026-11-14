@@ -275,3 +275,30 @@ def test_company_b_never_sees_company_a_ratings_or_instructions(
         headers=b,
     )
     assert client.get("/api/v1/ratings/summary", headers=a).json()["total"] == 3
+
+
+def test_learned_items_name_the_call_they_came_from(client: TestClient, sign_up: SignUp) -> None:
+    """UX-06c: "From the call with <name>, <date>"; the label survives an admin edit and is
+    trimmed to one short line."""
+    admin = sign_up()["auth"]
+    agent = _agent(client, admin)
+    _rate(client, agent, 3)
+    r = client.post(
+        "/api/v1/learning/proposals",
+        json={
+            "call_id": CALL,
+            "instructions": ["Name the next step."],
+            "source_label": "  Sara   Haddad " + "x" * 80,
+        },
+        headers=agent,
+    )
+    assert r.status_code == 201, r.text
+    item = client.get("/api/v1/learning", headers=admin).json()["items"][0]
+    assert item["source_label"].startswith("Sara Haddad x")
+    assert len(item["source_label"]) == 60
+    edited = client.put(
+        "/api/v1/learning/instructions",
+        json={"items": [{"id": item["id"], "text": "Name one next step.", "enabled": True}]},
+        headers=admin,
+    ).json()
+    assert edited["items"][0]["source_label"] == item["source_label"]

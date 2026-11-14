@@ -96,7 +96,11 @@ describe("learnAfterCall", () => {
     const post = mockApi.mock.calls.find((c) => c[0] === "/api/v1/learning/proposals");
     expect(post?.[1]).toEqual({
       method: "POST",
-      body: { call_id: "call-1", instructions: ["Be brief.", "Ask one question."] },
+      body: {
+        call_id: "call-1",
+        instructions: ["Be brief.", "Ask one question."],
+        source_label: "", // UX-06c: no call of that id on this device
+      },
     });
     expect(mockRefresh).toHaveBeenCalled();
   });
@@ -105,5 +109,30 @@ describe("learnAfterCall", () => {
     rate(3);
     mockFeatures = { learned_instructions: { state: "off_by_org" } };
     expect(await run(routerSaying("- X."))).toBeNull();
+  });
+
+  it("sends the coaching signals of the call: themes and 'not helpful' questions only", async () => {
+    rate(3);
+    await learnAfterCall({
+      callId: "call-1",
+      router: routerSaying("NONE"),
+      bundle,
+      transcript: [
+        { kind: "line", speaker: "customer", text: "Is it expensive?", at_ms: 0 },
+        { kind: "card", type: "objection", source: "ai", text: "Card 0.", at_ms: 1 },
+      ],
+      summary: "",
+      brief: "",
+      now: 0,
+    });
+    const post = mockApi.mock.calls.find((c) => c[0] === "/api/v1/coaching/signals");
+    expect(post?.[1]).toEqual({
+      method: "POST",
+      body: {
+        call_id: "call-1",
+        objections: ["price"],
+        not_helpful: [{ question: "Is it expensive?" }],
+      },
+    });
   });
 });

@@ -11,6 +11,11 @@ import yaml
 
 from sotto_worker.router import CompanyRouting
 
+# What a company admin may change on top of the company file (D-020). The agent-track context is
+# not among them (D-062); backups are switched with `backup_allowed` (R2).
+COMPANY_SETTINGS = ("ai_answers_allowed", "card_language")
+PLATFORM_DEFAULTS = {"agent_context": True}
+
 
 @dataclass(frozen=True)
 class CompanyProfile:
@@ -24,6 +29,8 @@ class CompanyProfile:
     # Platform default is English (D-018); a company can still choose otherwise.
     card_language: str = "en"
     ai_answers_allowed: bool = True
+    # The agent track as context (never as a trigger, R4) is a platform default that AGN sets in
+    # the seed config, not a company setting (D-062): COMPANY_SETTINGS leaves it out.
     agent_context: bool = True
     backup_disabled: tuple[str, ...] = ()
     context: str = ""  # company knowledge the AI reads (owner, 22 Oct 2026)

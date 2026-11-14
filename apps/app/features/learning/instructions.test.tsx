@@ -2,6 +2,7 @@
  * switch, approve, badge. And D-038: desktop hides the model screens behind a web-panel link. */
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { StyleSheet } from "react-native";
 
 const mockApi = jest.fn();
 let mockDesktop: object | null = null;
@@ -79,6 +80,14 @@ const SUMMARY = {
   people: [{ name: "Agnes", up: 1, down: 2 }],
 };
 
+/** No version waiting: the editor is shown (UX-31 hides it while one waits). */
+const decided = (over: Partial<Learning> = {}) =>
+  learning({
+    versions: learning().versions.filter((v) => v.status !== "pending"),
+    pending: [],
+    ...over,
+  });
+
 function serve(l: Learning) {
   mockApi.mockImplementation(async (path: string, init?: { body?: unknown }) => {
     if (path.startsWith("/api/v1/ratings/summary")) return SUMMARY;
@@ -86,7 +95,7 @@ function serve(l: Learning) {
     if (path === "/api/v1/learning/instructions") {
       type Body = { items: { id?: string; text: string; enabled: boolean }[] };
       const items = (init?.body as Body | undefined)?.items ?? [];
-      return learning({ items: items.map((i) => item(i.id ?? "n", i.text, i.enabled)) });
+      return decided({ items: items.map((i) => item(i.id ?? "n", i.text, i.enabled)) });
     }
     return l;
   });
@@ -106,7 +115,7 @@ describe("instruction editor", () => {
   });
 
   it("edits, reorders, disables, deletes and adds, then saves one new version", async () => {
-    serve(learning());
+    serve(decided());
     await wrap(<InstructionsRoute />);
     expect(await screen.findByDisplayValue("Keep it short.")).toBeOnTheScreen();
     expect(screen.getByTestId("instructions-new")).toBeOnTheScreen();
@@ -140,13 +149,63 @@ describe("instruction editor", () => {
   });
 
   it("blocks saving an instruction over 25 words", async () => {
-    serve(learning());
+    serve(decided());
     await wrap(<InstructionsRoute />);
     await screen.findByDisplayValue("Keep it short.");
+    // UX-31: no counter until an instruction is long.
+    expect(screen.queryByTestId("instruction-words-0")).toBeNull();
+    await fireEvent.changeText(screen.getByTestId("instruction-text-0"), "word ".repeat(20));
+    expect(screen.queryByTestId("instruction-words-0")).toBeNull();
+    await fireEvent.changeText(screen.getByTestId("instruction-text-0"), "word ".repeat(21));
+    expect(screen.getByText("21/25 words")).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByTestId("instruction-text-0"), "word ".repeat(26));
     expect(screen.getByText("26/25 words")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("instructions-save"));
     expect(mockApi).not.toHaveBeenCalledWith("/api/v1/learning/instructions", expect.anything());
+  });
+
+  it("shows a pending version as a diff and hides the editor until it is decided (UX-31)", async () => {
+    serve(learning());
+    await wrap(<InstructionsRoute />);
+    expect(await screen.findByTestId("pending-3")).toBeOnTheScreen();
+    expect(screen.getByTestId("diff-added-0")).toHaveTextContent(/Pending rule\./);
+    expect(screen.getByTestId("diff-removed-1")).toHaveTextContent(/Keep it short\./);
+    expect(screen.getByTestId("diff-removed-2")).toHaveTextContent(/Name the next step\./);
+    expect(screen.queryByTestId("instructions-editor")).toBeNull();
+    expect(screen.getByTestId("instructions-decide-first")).toBeOnTheScreen();
+    serve(decided()); // the server's answer to the rejection
+    await fireEvent.press(screen.getByTestId("reject-3"));
+    await waitFor(() => expect(screen.getByTestId("instructions-editor")).toBeOnTheScreen());
+  });
+
+  it("names the call an instruction came from, never its id (UX-06c)", async () => {
+    serve(
+      decided({
+        items: [
+          {
+            ...item("a", "Keep it short."),
+            source_label: "Sara Haddad",
+            added_at: Date.UTC(2026, 10, 12),
+          },
+          { ...item("b", "Name the next step."), added_at: Date.UTC(2026, 10, 12) },
+        ],
+      }),
+    );
+    await wrap(<InstructionsRoute />);
+    expect(await screen.findByText("From the call with Sara Haddad, Nov 12")).toBeOnTheScreen();
+    expect(screen.getByText("From a call, Nov 12")).toBeOnTheScreen();
+    expect(screen.queryByText(/abcdef12/)).toBeNull();
+  });
+
+  it("reorder and delete controls are at least 44 px", async () => {
+    serve(decided());
+    await wrap(<InstructionsRoute />);
+    await screen.findByDisplayValue("Keep it short.");
+    for (const id of ["instruction-up-1", "instruction-down-0", "instruction-delete-0"]) {
+      const style = StyleSheet.flatten(screen.getByTestId(id).props.style);
+      expect(style.minWidth).toBeGreaterThanOrEqual(44);
+      expect(style.minHeight).toBeGreaterThanOrEqual(44);
+    }
   });
 
   it("approves a pending version, reverts an old one and flips the review switch", async () => {

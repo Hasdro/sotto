@@ -6,14 +6,18 @@ import SettingsScreen from "../app/admin/settings";
 import { LocaleProvider } from "../lib/locale";
 
 let mockDesktop: unknown = null;
+const mockOff = { status: "off" };
 jest.mock("../lib/desktop", () => ({ desktop: () => mockDesktop }));
-jest.mock("../lib/cloud", () => ({ cloudOrigin: () => "https://sales.example.com" }));
+jest.mock("../lib/cloud", () => ({
+  cloudOrigin: () => "https://sales.example.com",
+  cloudState: () => mockOff,
+  subscribeCloud: () => () => {},
+}));
 jest.mock("../features/admin/settings", () => ({
   useCompanySettings: () => ({
     settings: {
       ai_answers_allowed: true,
       backup_allowed: true,
-      agent_context: false,
       card_language: "auto",
       manager_email: null,
     },

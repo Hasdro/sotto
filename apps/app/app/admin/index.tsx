@@ -1,5 +1,6 @@
-/** Admin: the company's team on the management server (R3, T-039); invite people with a role. */
+/** Admin home: what AGN learned (ZC-B10) and the company's team on the management server (R3, T-039); invite people with a role. */
 import { EmptyState, Stack, Text } from "@sotto/ui";
+import { LearnedCard } from "../../features/learning/LearnedCard";
 import { TeamPanel, useTeam } from "../../features/team/TeamPanel";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
@@ -20,6 +21,7 @@ export default function TeamScreen() {
   }
   return (
     <Stack gap="lg" testID="admin-team">
+      <LearnedCard />
       <Text variant="body" tone="muted">
         {t("admin.team.subtitle")}
       </Text>

@@ -22,6 +22,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { FeatureGate, useFeature } from "../components/FeatureGate";
 import { PageHeader } from "../components/PageHeader";
+import { useCompanyDefaults } from "../features/admin/defaults";
 import { computerAudioAvailable } from "../features/call/mic";
 import { useZoho } from "../features/crm/useZoho";
 import { ZohoConnect } from "../features/crm/ZohoConnect";
@@ -67,6 +68,7 @@ export default function SettingsScreen() {
   const staff = role !== "agent"; // draft D-050 (backlog): agents have no playbook editor
   useScrollToHash();
   const toggle = (key: keyof Prefs) => (v: boolean) => setPrefs({ [key]: v });
+  const recordPolicy = useCompanyDefaults().defaults.record_calls;
 
   return (
     <ScrollView
@@ -177,13 +179,27 @@ export default function SettingsScreen() {
               onValueChange={toggle("autoPickup")}
               testID="settings-autopickup"
             />
-            <ToggleRow
-              label={t("settings.record")}
-              description={t("settings.record.body")}
-              value={p.record}
-              onValueChange={toggle("record")}
-              testID="settings-record"
-            />
+            {/* D-049: when the company set a recording policy, it is a read-only line here. */}
+            {recordPolicy === "agent_choice" ? (
+              <ToggleRow
+                label={t("settings.record")}
+                description={t("settings.record.body")}
+                value={p.record}
+                onValueChange={toggle("record")}
+                testID="settings-record"
+              />
+            ) : (
+              <Row
+                label={t("settings.record")}
+                body={t(
+                  recordPolicy === "on" ? "settings.record.policyOn" : "settings.record.policyOff",
+                )}
+              >
+                <Text variant="label" weight="medium" testID="settings-record-policy">
+                  {t(recordPolicy === "on" ? "settings.record.on" : "settings.record.off")}
+                </Text>
+              </Row>
+            )}
             <Row label={t("settings.tutorial")} body={t("settings.tutorial.body")}>
               <Button
                 variant="secondary"

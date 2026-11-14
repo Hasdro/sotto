@@ -228,7 +228,8 @@ Wave 3
   - Evidence: app jest 491, worker pytest 635, desktop 25, lint + typecheck + boundaries green; replay p50 576 / p95 978 ms, R4 0; 24 screenshots + axe 0 serious in `docs/evidence/phase9/review-integrations/`. Needs the master's `bundle.py` practice line before practice works on a server.
 - [x] T-079 `review-owner-platform` — done on `phase9/review-owner-platform`, awaiting master merge — ZC-01, ZC-06, DD-1, DD-2, ZC-10, W3-OWN-A11Y
   - Evidence: worker pytest 639, engine vitest 75, app jest 470, desktop 25, a11y 76 checks 0 serious, replay p50 576 / p95 978 ms, shots `docs/evidence/phase9/review-owner-platform/`.
-- [ ] T-080 `review-company-coaching` — ready (`docs/prompts/review-company-coaching.md`) — ZC-11c, DD-4, DD-5, ZC-B10, UX-31, UX-06c, INT-05, INT-15
+- [x] T-080 `review-company-coaching` — done on `phase9/review-company-coaching`, needs hub lines at merge — ZC-11c, DD-4, DD-5, ZC-B10, UX-31, UX-06c, INT-05, INT-15
+  - Evidence: app jest 78 suites / 493 tests, worker pytest 628, engine vitest 68, typecheck + ruff/mypy + boundaries green, a11y 64 checks 0 serious, replay p50 576 / p95 978 ms, R4 0; screenshots `docs/evidence/phase9/review-company-coaching/`.
 Wave 4
 - [ ] T-081 `review-followup-automation` — ready after wave 3 (`docs/prompts/review-followup-automation.md`) — INT-08, INT-09, INT-10, INT-13, INT-14b
 - [ ] T-082 `review-zoho-scopes` — ready after wave 3 (`docs/prompts/review-zoho-scopes.md`) — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
@@ -353,6 +354,11 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 (h) · local · Opus 5.5 · phase9/review-company-coaching
+- T-080 built. Server: new `cloud/coaching/` (coaching view scoped by role, no ranking; device signals; playbook suggestions from repeated "not helpful" questions and answered escalations, approve/reject audited; weekly digest opt-in + preview + `weekly_digest_job` hook for T-081), learned items carry `source_label`, `company.COMPANY_SETTINGS` without `agent_context` (D-062). Seed: `coaching_digest`, `playbook_suggest` (bundle fixture regenerated with `pnpm gen`).
+- App: Admin › Company defaults (tone, goal, record policy, AI answers, manager, vendor consent); first-run consent sheet with DRAFT text in `features/admin/consentText.ts`; personal Settings shows the record policy read-only; instructions diff + editor hidden while pending + counter > 20 words + call names; "AGN learned n things" card; `/coaching` for every role; playbook suggestion cards.
+- Waiting at merge (hubs): mount coaching routes in `app.py`; `store.py` accept `tone`/`call_goal` in company defaults + `bundle.py` use them; `bundle.py` agent_context from the profile only; drop the `agent_context` setting; `runtime.py` use `COMPANY_SETTINGS`; a11y route `/coaching`. Owner: legal text and sub-processor list.
 
 ### 2026-11-14 (h) · local · Opus 5.5 · phase9/review-integrations
 - **Done (T-078):** server: SMTP presets from the admin's domain (`/company/smtp/preset`, known map + MX via `dnspython`, D-052); Gallabox `discover` (numbers as opaque refs, APPROVED templates, guessed parameter sources, only unmapped shown) + `channel` pick, the allow-list saves the mapping, and a send without a number is refused; `/zoho/team` preview + `/zoho/team/invite` (confirm, seats all-or-nothing, audited, isolation-tested). App: Integrations order Zoho → Email → WhatsApp, the org client form is gone (override line only, D-064), SMTP only-password presets + test email on save, Gallabox pick lists, invite from Zoho, reasons on disabled buttons; practice call (`seed/practice/practice.json`, `/call?practice=1`, Home step, nothing kept).

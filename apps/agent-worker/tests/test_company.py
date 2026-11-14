@@ -40,3 +40,13 @@ def test_admin_settings_switch_ai_answers_and_backups() -> None:
     assert not {"suggest_backup", "stt_backup"} & set(back.backup_disabled)
     assert back.card_language == "en"
     assert apply_settings(base, {}) is base
+
+
+def test_agent_track_context_is_a_platform_default_not_a_company_setting() -> None:
+    """D-062 (DD-5): AGN sets it; behaviour unchanged; the agent track never triggers (R4)."""
+    from sotto_worker.company import COMPANY_SETTINGS, PLATFORM_DEFAULTS
+    from sotto_worker.runtime import DEMO
+
+    assert "agent_context" not in COMPANY_SETTINGS
+    assert PLATFORM_DEFAULTS["agent_context"] is True
+    assert CompanyProfile.load(DEMO / "company.yaml").agent_context is True
