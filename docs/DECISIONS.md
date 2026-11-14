@@ -585,3 +585,10 @@ Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058
 2026-11-14 · owner (backlog Q15 → 15a; tracker T-038)
 - **Decision:** real accounts may run a practice call, labelled "Practice", never saved to History, Reports, ratings or learning, and never uploaded. The first-run checklist gets its "Try a practice call" step.
 - **Amends:** D-024 "real accounts carry no demo data", for one neutral practice script only.
+
+## D-074 — R12 rests on code for Deals (engineering, 15 Nov 2026)
+2026-11-15 · engineering (T-082 draft, recorded in wave-4 hardening)
+- **Context:** D-069 grants `ZohoCRM.modules.deals.UPDATE`, so the OAuth scope no longer stops a Deal write; only our code does.
+- **Decision:** the adapter's `update_deal_fields` allow-list (the 4 AGN api names) is the only Deal write. A test (`test_only_three_callers_reach_the_raw_write`) pins that `_request` has exactly two callers, `_send` (module allow-list) and `update_deal_fields`. Stage and Amount stay blocked by test. Blueprint is read per record with `deals.READ`; no Blueprint or layout settings scope is requested.
+- **Also:** a Task or AGN-field write names a `call_id` the caller started or reported in their own company; any other id is 404 (wave-4 hardening).
+- **Open (owner):** the AGN Deal PUT sends no `trigger`, so Zoho runs its default workflow/Blueprint rules on the field change.

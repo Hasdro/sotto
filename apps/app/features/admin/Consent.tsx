@@ -74,7 +74,7 @@ export function ConsentPanel({
       <Text tone="muted">{consentText("intro", locale)}</Text>
       <View accessibilityRole="list" testID="consent-vendors">
         {shown.map((v, i) => (
-          <View key={v.id} accessibilityRole="none">
+          <View key={v.id} accessibilityRole="listitem">
             {i > 0 ? <Divider /> : null}
             <View style={styles.vendor} testID={`vendor-${v.id}`}>
               <View style={styles.row}>

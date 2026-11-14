@@ -21,6 +21,7 @@ from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudError, CloudStore
 from sotto_worker.cloud.zoho import actions
 from tests.cloud.test_coaching import member
+from tests.cloud.test_zoho import signup
 from tests.cloud.test_zoho_actions import DEAL_ID
 from tests.cloud.test_zoho_scopes import (
     FakeZohoW4,
@@ -42,7 +43,10 @@ def c4(store: CloudStore, seed: Seed, z4: FakeZohoW4) -> TestClient:
 
 @pytest.fixture
 def a4(c4: TestClient) -> dict[str, str]:
-    return connected_admin(c4)
+    a = connected_admin(c4)
+    r = c4.post("/api/v1/calls/start", json={"call_id": "call-abc"}, headers=a)
+    assert r.status_code == 200  # the write checks the call is the caller's own
+    return a
 
 
 def agn(c4: TestClient, a4: dict[str, str], key: str = "", **fields: Any) -> Any:
@@ -265,3 +269,18 @@ def test_non_ascii_digits_are_refused() -> None:
             actions.plan("agn_fields", {"call_id": "c1", "deal_id": bad, "score": "5"})
     with pytest.raises(CloudError):
         actions.plan("agn_fields", {"call_id": "c1", "deal_id": DEAL_ID, "score": "²"})
+
+
+def test_agn_fields_on_another_companys_call_are_404(
+    c4: TestClient, a4: dict[str, str], z4: FakeZohoW4
+) -> None:
+    b = signup(c4, "Beta", "admin@beta.test")
+    assert c4.post("/api/v1/calls/start", json={"call_id": "call-b"}, headers=b).status_code == 200
+    before = len(z4.writes)
+    r = c4.post(
+        "/api/v1/zoho/actions/agn_fields",
+        json={"approved": True, "fields": {"call_id": "call-b", "deal_id": DEAL_ID, "score": "70"}},
+        headers=a4,
+    )
+    assert r.status_code == 404, r.text
+    assert len(z4.writes) == before
