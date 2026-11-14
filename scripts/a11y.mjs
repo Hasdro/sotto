@@ -38,6 +38,7 @@ const PAGES = [
   "/admin/instructions",
   "/admin/integrations",
   "/admin/company",
+  "/coaching",
   "/gallery",
 ];
 // The owner console (a static page the server serves at /owner, UX-44b). Its API is stubbed here

@@ -214,10 +214,7 @@ export function SmtpSettings() {
         {known ? (
           <>
             {passwordField}
-            <Disclosure
-              title={ti("smtp.preset.advanced")}
-              testID="smtp-advanced"
-            >
+            <Disclosure title={ti("smtp.preset.advanced")} testID="smtp-advanced">
               <Stack gap="md">{serverFields}</Stack>
             </Disclosure>
           </>

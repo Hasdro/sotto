@@ -18,7 +18,7 @@ from sotto_worker.company import CompanyProfile
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import SEED
-from sotto_worker.scenarios import load_all
+from sotto_worker.scenarios import Scenario, load_all
 from sotto_worker.server.catalog import Catalog, apply_overrides
 
 BUNDLE_VERSION = 1
@@ -36,6 +36,8 @@ class Seed:
     scenarios: list[dict[str, Any]]
     # Example answers every new company starts with (seed/company/examples.yaml).
     examples: list[dict[str, Any]] = field(default_factory=list)
+    # The neutral practice script every account can run (seed/practice, D-073).
+    practice: dict[str, Any] | None = None
 
     @classmethod
     def load(cls, root: Path = SEED) -> Seed:
@@ -66,22 +68,9 @@ class Seed:
             }
             for e in index.entries
         ]
-        scenarios = [
-            {
-                "id": s.id,
-                "title": s.title,
-                "lines": [
-                    {
-                        "speaker": ln.speaker,
-                        "text": ln.text,
-                        "gap_ms": ln.gap_ms,
-                        "duration_ms": ln.duration_ms,
-                    }
-                    for ln in s.lines
-                ],
-            }
-            for s in load_all(root / "demo" / "calls")
-        ]
+        scenarios = [_scenario(s) for s in load_all(root / "demo" / "calls")]
+        practice_file = root / "practice" / "practice.json"
+        practice = _scenario(Scenario.load(practice_file)) if practice_file.exists() else None
         return cls(
             routing=RoutingConfig.load(root / "models" / "default.yaml"),
             catalog=Catalog.load(root / "models" / "providers.yaml"),
@@ -91,7 +80,25 @@ class Seed:
             playbook=playbook,
             scenarios=scenarios,
             examples=list(yaml.safe_load((root / "company" / "examples.yaml").read_text()) or []),
+            practice=practice,
         )
+
+
+def _scenario(s: Scenario) -> dict[str, Any]:
+    """A scripted call as the app plays it (the replay's `expect` stays on the server)."""
+    return {
+        "id": s.id,
+        "title": s.title,
+        "lines": [
+            {
+                "speaker": ln.speaker,
+                "text": ln.text,
+                "gap_ms": ln.gap_ms,
+                "duration_ms": ln.duration_ms,
+            }
+            for ln in s.lines
+        ],
+    }
 
 
 def build_bundle(
@@ -161,14 +168,15 @@ def build_bundle(
         "v": BUNDLE_VERSION,
         "company": {
             "name": company_name,
-            # Default tone and goal until the company sets its own (P0.3 playbook interview).
-            "tone": profile.tone,
-            "call_goal": profile.call_goal,
+            # The company's own tone and goal (Company defaults, ZC-11c), else the seed's.
+            "tone": settings.get("tone") or profile.tone,
+            "call_goal": settings.get("call_goal") or profile.call_goal,
             "holding_line": profile.holding_line,
             "escalation_label": profile.escalation_label,
             "card_language": card_language if card_language in ("en", "ar") else "auto",
             "ai_answers_allowed": settings.get("ai_answers_allowed", profile.ai_answers_allowed),
-            "agent_context": settings.get("agent_context", profile.agent_context),
+            # D-062: a platform default from the seed, not a company setting.
+            "agent_context": profile.agent_context,
             "backup_disabled": backup_off,
             "context": settings.get("context", ""),
         },
@@ -181,5 +189,6 @@ def build_bundle(
         "prompts": seed.prompts if prompts is None else prompts,
         "playbook": own + (seed.playbook if samples else []),
         "scenarios": seed.scenarios if samples else [],
+        "practice": seed.practice,
         "keys": keys,
     }

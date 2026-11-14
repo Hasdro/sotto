@@ -17,7 +17,7 @@ from sotto_worker.adapters.factory import (
     stt_key_env,
 )
 from sotto_worker.clock import Clock
-from sotto_worker.company import CompanyProfile
+from sotto_worker.company import COMPANY_SETTINGS, CompanyProfile
 from sotto_worker.contracts import LLMAdapter
 from sotto_worker.playbook import PlaybookEntry, PlaybookIndex
 from sotto_worker.prompts import PromptRegistry
@@ -48,7 +48,7 @@ BACKUP_STAGES = ("suggest_backup", "stt_backup")
 def apply_settings(company: CompanyProfile, settings: Mapping[str, Any]) -> CompanyProfile:
     """The company file plus what the admin changed in the app (server store, D-020)."""
     changes: dict[str, Any] = {}
-    for name in ("ai_answers_allowed", "agent_context", "card_language"):
+    for name in COMPANY_SETTINGS:
         if name in settings:
             changes[name] = settings[name]
     if settings.get("backup_allowed") is False:  # R2: an admin can switch backups off
@@ -74,7 +74,7 @@ def build_demo_runtime(
     A backup without credentials is switched off for this run (R2 allows a disabled backup).
     `config` is the seed routing plus the Keys & providers panel's choices (server, P6.7);
     `extra_playbook` holds answers a manager added from the inbox (R2 step 5); `settings` the
-    admin's company settings (ai_answers_allowed, backup_allowed, agent_context, card_language)."""
+    admin's company settings (COMPANY_SETTINGS and backup_allowed)."""
     config = config or RoutingConfig.load(SEED / "models" / "default.yaml")
     company = apply_settings(CompanyProfile.load(DEMO / "company.yaml"), settings or {})
     stt_routes = tuple(

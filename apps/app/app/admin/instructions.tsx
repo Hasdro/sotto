@@ -170,7 +170,7 @@ export function InstructionsScreen() {
                 (data?.items ?? []).filter((i) => i.enabled).map((i) => i.text),
                 v.items.filter((i) => i.enabled).map((i) => i.text),
               ).map((line, j) => (
-                <DiffRow key={`${line.kind}-${j}`} line={line} index={j} />
+                <DiffRow key={`${line.kind}:${line.text}`} line={line} index={j} />
               ))}
             </View>
             <View style={styles.actions}>

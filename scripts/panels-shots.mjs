@@ -191,7 +191,8 @@ async function check(page, label) {
             if (r.right <= innerWidth + 1) return false;
             // Content of a scroll box (a wide table, the tab strip) is clipped, not page width.
             for (let a = el.parentElement; a; a = a.parentElement)
-              if (["auto", "scroll", "hidden"].includes(getComputedStyle(a).overflowX)) return false;
+              if (["auto", "scroll", "hidden"].includes(getComputedStyle(a).overflowX))
+                return false;
             return true;
           })
           .slice(0, 3)

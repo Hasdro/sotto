@@ -91,6 +91,9 @@ def test_an_owner_set_org_override_wins_and_is_write_only(
     assert picked is not None
     assert picked["scope"] == "org"
     assert picked["client_id"] == OVR_ID
+    status = store.zoho_client_status(company)
+    assert status["org"]["client_id_tail"] == "0042"  # the admin's override line (D-064)
+    assert OVR_SECRET not in str(status)
     shown = owner.get("/api/owner/zoho/clients").json()
     assert shown["overrides"][0]["client_id_ends"] == "0042"
     assert shown["platform"]["client_id_ends"] == "0001"

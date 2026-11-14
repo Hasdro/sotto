@@ -28,6 +28,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.adapters.email.smtp import Outgoing, send_mail
 from sotto_worker.cloud.bundle import Seed, build_bundle
+from sotto_worker.cloud.coaching import routes as coaching_routes
+from sotto_worker.cloud.coaching.store import CoachingStore
 from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.email import routes as email_routes
 from sotto_worker.cloud.features import FeatureUnavailable
@@ -558,6 +560,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         settings = store.settings(who.company)
         if not store.org_feature_on(who.company, "ai_knowledge"):
             settings.pop("context", None)  # D-036: the knowledge is withheld, not just hidden
+        settings.update(store.text_defaults(who.company))  # ZC-11c tone and call goal
         out = build_bundle(
             seed,
             company_name=str(company["name"]),
@@ -1214,6 +1217,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         ),
         *learning_routes.make_routes(
             learning=learning, app_route=app_route, body=body, ip_of=ip_of
+        ),
+        *coaching_routes.make_routes(
+            coaching=CoachingStore(store),
+            learning=learning,
+            prompts=seed.prompts,
+            app_route=app_route,
+            body=body,
+            ip_of=ip_of,
+            origin=config.public_origin or "http://localhost:8788",
+            mailer=config.mailer,
         ),
         *zoho_routes.make_routes(
             store=store,

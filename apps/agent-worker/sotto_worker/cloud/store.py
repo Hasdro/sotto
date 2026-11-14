@@ -50,7 +50,6 @@ PLANS: dict[str, dict[str, int]] = {
 SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "ai_answers_allowed": (bool, ()),
     "backup_allowed": (bool, ()),
-    "agent_context": (bool, ()),
     "card_language": (str, ("auto", "en", "ar")),
     "audio_retention_days": (int, (0, 7, 30, 90, 365)),
     # Company knowledge the AI reads on every card and review (owner, 22 Oct 2026).
@@ -59,6 +58,10 @@ SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "manager_email": (str, ()),
 }
 CONTEXT_MAX_CHARS = 8000
+# D-062: the agent-track context is a platform default; older apps may still send it (ignored).
+RETIRED_SETTINGS = frozenset({"agent_context"})
+# ZC-11c: tone and call goal in the company defaults (the bundle uses them over the seed's).
+TEXT_DEFAULTS = {"tone": 300, "call_goal": 300}
 # ZC-11: company defaults (data only; the legal text is the owner's, DD-4).
 RECORD_CALLS = ("agent_choice", "on", "off")  # A4: the org policy; agent_choice = as before
 CONSENT_CHOICES = ("all", "primary_only")
@@ -1078,6 +1081,8 @@ class CloudStore:
         who.require("admin")
         clean: dict[str, Any] = {}
         for key, value in changes.items():
+            if key in RETIRED_SETTINGS:
+                continue
             if key not in SETTINGS:
                 raise CloudError("invalid", f"unknown setting {key!r}")
             kind, allowed = SETTINGS[key]
@@ -2310,6 +2315,9 @@ class CloudStore:
                 if rows
                 else {"configured": False}
             )
+            org = self._zoho_org_client(company_id) if rows else None
+            if org is not None:  # the last 4 of the client ID only, never the secret (D-064)
+                out["org"]["client_id_tail"] = str(org["client_id"])[-4:]
             out["active"] = (
                 "org"
                 if out["org"]["configured"]
@@ -2674,6 +2682,11 @@ class CloudStore:
         )
         return {r["key"]: json.loads(r["value_json"]) for r in rows}
 
+    def text_defaults(self, company_id: str) -> dict[str, str]:
+        """The tone and call goal an admin set (ZC-11c); the bundle uses them over the seed's."""
+        raw = self._defaults_raw(company_id)
+        return {k: raw[k] for k in TEXT_DEFAULTS if isinstance(raw.get(k), str) and raw[k]}
+
     def manager_of(self, company_id: str) -> dict[str, Any]:
         """B9: the address an admin set, else the active managers, else the active admins."""
         chosen = str(self.settings(company_id).get("manager_email") or "").strip()
@@ -2695,13 +2708,14 @@ class CloudStore:
         record = raw.get("record_calls", "agent_choice")
         if who.role != "admin":
             return {"record_calls": record}
-        return {
+        out = {
             "record_calls": record,
             "consent": raw.get("consent"),
             "vendor_allow_list": raw.get("vendor_allow_list", []),
-            "agent_context": bool(self.settings(who.company).get("agent_context", False)),
             "manager": self.manager_of(who.company),
         }
+        out.update(self.text_defaults(who.company))
+        return out
 
     def set_company_defaults(
         self, who: Principal, changes: dict[str, Any], *, ip: str = ""
@@ -2735,6 +2749,10 @@ class CloudStore:
                     raise CloudError("invalid", "vendor ids are short lowercase names")
                 vendors = sorted(set(value))
                 clean[key] = (vendors, ",".join(vendors) or "(all approved)")
+            elif key in TEXT_DEFAULTS:
+                if not isinstance(value, str) or len(value.strip()) > TEXT_DEFAULTS[key]:
+                    raise CloudError("invalid", f"{key} is text up to {TEXT_DEFAULTS[key]} chars")
+                clean[key] = (value.strip(), value.strip()[:60])
             else:
                 raise CloudError("invalid", f"unknown default {key!r}")
         t = now_ms()

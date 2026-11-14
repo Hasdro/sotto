@@ -56,7 +56,7 @@ def test_admin_sets_and_reads_all_defaults(
     admin_id = store._q("SELECT id FROM users WHERE email = 'admin@acme.test'")[0]["id"]
     assert consent["accepted_by"] == admin_id
     assert consent["accepted_at"] > 0
-    assert out["agent_context"] is False
+    assert "agent_context" not in out  # D-062: a platform default, not a company setting
 
 
 def test_defaults_start_as_before(client: TestClient, sign_up: SignUp) -> None:
@@ -130,3 +130,41 @@ def test_company_a_cannot_read_or_write_b(
     assert out_b["manager"]["emails"] == ["admin@beta.test"]
     companies = {r["company_id"] for r in store._q("SELECT company_id FROM company_defaults")}
     assert len(companies) == 2
+
+
+def test_tone_and_goal_are_saved_and_reach_the_next_bundle(
+    client: TestClient, sign_up: SignUp
+) -> None:
+    """ZC-11c: the admin's tone and call goal replace the seed's in the call bundle."""
+    a = sign_up()["auth"]
+    seed_company = client.get("/api/v1/bundle", headers=a).json()["company"]
+    assert "tone" not in client.get("/api/v1/company/defaults", headers=a).json()
+    r = put(client, a, {"tone": "  Warm and brief ", "call_goal": "Book a demo"})
+    assert r.status_code == 200, r.text
+    assert r.json()["tone"] == "Warm and brief"
+    assert r.json()["call_goal"] == "Book a demo"
+    company = client.get("/api/v1/bundle", headers=a).json()["company"]
+    assert company["tone"] == "Warm and brief"
+    assert company["call_goal"] == "Book a demo"
+    assert company["agent_context"] is seed_company["agent_context"] is True
+    assert put(client, a, {"tone": "x" * 301}).status_code == 400
+    assert put(client, a, {"call_goal": 5}).status_code == 400
+
+
+def test_the_retired_agent_context_setting_is_ignored(client: TestClient, sign_up: SignUp) -> None:
+    """D-062: an older app may still send it; it is accepted, not stored, and changes nothing."""
+    a = sign_up()["auth"]
+    r = client.put("/api/v1/company/settings", json={"agent_context": False}, headers=a)
+    assert r.status_code == 200, r.text
+    settings = client.get("/api/v1/company/settings", headers=a).json()["settings"]
+    assert "agent_context" not in settings
+    assert client.get("/api/v1/bundle", headers=a).json()["company"]["agent_context"] is True
+
+
+def test_the_bundle_ships_the_practice_script(client: TestClient, sign_up: SignUp) -> None:
+    """D-073: one neutral practice script for every account, without the replay's expectations."""
+    practice = client.get("/api/v1/bundle", headers=sign_up()["auth"]).json()["practice"]
+    assert practice["id"] == "practice"
+    assert practice["lines"]
+    assert all("expect" not in line for line in practice["lines"])
+    assert {line["speaker"] for line in practice["lines"]} == {"agent", "customer"}

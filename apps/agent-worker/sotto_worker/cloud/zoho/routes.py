@@ -199,7 +199,7 @@ def make_routes(
 
     def client_of(company_id: str) -> Client | None:
         c = store.zoho_client(company_id)
-        return Client(c["client_id"], c["client_secret"], c["dc"]) if c else None
+        return Client.from_store(c) if c else None
 
     # --- client configuration --------------------------------------------------------------------
     async def o_get(_r: Request, _who: Principal) -> Response:

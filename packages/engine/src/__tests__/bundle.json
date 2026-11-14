@@ -747,6 +747,60 @@
     ]
    }
   ],
+  "practice": {
+   "id": "practice",
+   "title": "Practice call",
+   "lines": [
+    {
+     "speaker": "agent",
+     "text": "Hello, thanks for taking my call. Is now a good time?",
+     "gap_ms": 400,
+     "duration_ms": 2600
+    },
+    {
+     "speaker": "customer",
+     "text": "Yes, I have a few minutes. I filled in your form last week.",
+     "gap_ms": 400,
+     "duration_ms": 2800
+    },
+    {
+     "speaker": "agent",
+     "text": "Great. What made you get in touch with us?",
+     "gap_ms": 400,
+     "duration_ms": 2200
+    },
+    {
+     "speaker": "customer",
+     "text": "We are comparing a few options. How much does it cost?",
+     "gap_ms": 500,
+     "duration_ms": 2800
+    },
+    {
+     "speaker": "agent",
+     "text": "It depends on what you need. Can I ask a couple of questions first?",
+     "gap_ms": 2500,
+     "duration_ms": 3000
+    },
+    {
+     "speaker": "customer",
+     "text": "Sure. Honestly it sounds expensive, and I am not sure we need it right now.",
+     "gap_ms": 500,
+     "duration_ms": 3400
+    },
+    {
+     "speaker": "agent",
+     "text": "I understand. What would have to be true for this to be worth it for you?",
+     "gap_ms": 2500,
+     "duration_ms": 3200
+    },
+    {
+     "speaker": "customer",
+     "text": "Can you send me something in writing so I can show my manager?",
+     "gap_ms": 500,
+     "duration_ms": 3000
+    }
+   ]
+  },
   "keys": null
  },
  "lookups": {
