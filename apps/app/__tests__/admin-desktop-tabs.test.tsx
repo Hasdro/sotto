@@ -61,8 +61,10 @@ describe("admin groups", () => {
     mockPath = "/admin/integrations";
     await wrap();
     expect(screen.queryByText("Keys & providers")).toBeNull();
-    // Connections now has a single page, so there is no second row at all.
-    expect(screen.queryByTestId("admin-pages")).toBeNull();
+    // Connections: Integrations and (T-081, INT-14b) Attachments; Keys stays web-only.
+    expect(screen.getByTestId("admin-page-integrations")).toBeTruthy();
+    expect(screen.getByTestId("admin-page-attachments")).toBeTruthy();
+    expect(screen.queryByTestId("admin-page-keys")).toBeNull();
     expect(screen.getByTestId("admin-group-connections")).toBeSelected();
   });
 

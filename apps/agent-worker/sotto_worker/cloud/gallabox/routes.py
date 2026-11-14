@@ -34,6 +34,7 @@ from sotto_worker.adapters.whatsapp.gallabox import (
     digits,
 )
 from sotto_worker.cloud.gallabox import data, webhook
+from sotto_worker.cloud.scheduler.plans import check_step_key
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
 Wrap = Callable[..., Callable[[Request], Awaitable[Response]]]
@@ -277,6 +278,7 @@ def make_routes(
         idem = str(d.get("idempotency_key", ""))
         if not IDEM.match(idem):
             raise CloudError("invalid", "missing idempotency key")
+        check_step_key(store, who, idem)
         state = data.claim_send(store, who, idem)
         if state == "sent":
             return JSONResponse({"status": "sent", "duplicate": True}, headers=NO_STORE)

@@ -207,10 +207,9 @@ export function PlanStatus({ plan, onChange }: { plan: Plan; onChange: (p: Plan)
     .filter((s) => s.kind === "whatsapp" || s.kind === "meeting_reminder")
     .map((s) => s.idempotency_key);
   const keyList = keys.join(",");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by the joined keys
   useEffect(() => {
-    if (status.state !== "available" || !keys.length) return;
-    void deliveryStatus(keys)
+    if (status.state !== "available" || !keyList) return;
+    void deliveryStatus(keyList.split(","))
       .then((r) => setDelivery(r.status))
       .catch(() => {});
   }, [status.state, keyList]);

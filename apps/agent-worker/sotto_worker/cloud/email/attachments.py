@@ -100,8 +100,7 @@ def ids(store: CloudStore, company_id: str) -> set[str]:
     return {str(a["id"]) for a in listing(store, company_id)}
 
 
-def pick(store: CloudStore, company_id: str, chosen: Any) -> list[tuple[str, str, bytes]]:
-    """The files for one email, only from this company's list."""
+def _wanted(chosen: Any) -> list[str]:
     if not chosen:
         return []
     if not isinstance(chosen, list) or len(chosen) > MAX_PER_EMAIL:
@@ -109,6 +108,22 @@ def pick(store: CloudStore, company_id: str, chosen: Any) -> list[tuple[str, str
     wanted = list(dict.fromkeys(str(c) for c in chosen))
     if not all(ID.match(w) for w in wanted):
         raise CloudError("invalid", "pick attachments from your admin's list")
+    return wanted
+
+
+def describe(store: CloudStore, company_id: str, chosen: Any) -> list[dict[str, Any]]:
+    """Id, name and size of the chosen files (no bytes), only from this company's list."""
+    wanted = _wanted(chosen)
+    ensure(store)
+    known = {str(a["id"]): a for a in listing(store, company_id)}
+    if any(w not in known for w in wanted):
+        raise CloudError("invalid", "pick attachments from your admin's list")
+    return [{"id": w, "name": known[w]["name"], "size": known[w]["size"]} for w in wanted]
+
+
+def pick(store: CloudStore, company_id: str, chosen: Any) -> list[tuple[str, str, bytes]]:
+    """The files for one email (with their bytes), only from this company's list."""
+    wanted = _wanted(chosen)
     ensure(store)
     out = []
     for w in wanted:

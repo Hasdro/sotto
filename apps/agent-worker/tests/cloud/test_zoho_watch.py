@@ -191,3 +191,16 @@ def test_another_company_cannot_use_a_channel(
     hb = {"authorization": f"Bearer {beta['token']}"}
     assert c.get("/api/v1/zoho/changes", headers=hb).json()["changes"] == []
     assert c.get("/api/v1/zoho/watch", headers=hb).json()["watching"] is False
+
+
+def test_an_expired_channel_is_refused(
+    c: TestClient, store: CloudStore, zoho: WatchZoho, clock: Clock
+) -> None:
+    h = connected(c, store)
+    c.post("/api/v1/zoho/watch", headers=h)
+    item = zoho.watches[-1][1]
+    clock.t += 7 * DAY  # past the six-day expiry, not renewed
+    hook = {"channel_id": item["channel_id"], "token": item["token"], "module": "Deals"}
+    r = c.post("/api/hooks/zoho/notify", json={**hook, "ids": [DEAL]})
+    assert r.status_code == 401
+    assert store._q("SELECT * FROM zoho_changes") == []

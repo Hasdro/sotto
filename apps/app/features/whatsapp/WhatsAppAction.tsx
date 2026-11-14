@@ -72,9 +72,11 @@ function Composer({
   const [step, setStep] = useState<Step>({ kind: "compose" });
   const nameNow = useRef(name);
   nameNow.current = name;
+  // Read once at load (plan steps): kept in a ref so loading runs once per composer.
+  const start = useRef({ preset, categories });
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loaded once per composer
   useEffect(() => {
+    const { preset, categories } = start.current;
     allowedTemplates()
       .then((r) => {
         const list = categories
@@ -107,20 +109,23 @@ function Composer({
   };
 
   const fields = template ? fieldsOf(template) : [];
-  const message: Message | null = template
-    ? {
-        template: template.name,
-        language: template.language,
-        recipient: { name: name.trim(), phone },
-        values,
-      }
-    : null;
+  const message: Message | null = useMemo(
+    () =>
+      template
+        ? {
+            template: template.name,
+            language: template.language,
+            recipient: { name: name.trim(), phone },
+            values,
+          }
+        : null,
+    [template, name, phone, values],
+  );
   const filled = fields.every((p) => values[p.name]?.trim());
-  const messageKey = JSON.stringify(message);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reported when the message changes
+  // The follow-up plan prepares its WhatsApp step from the chosen template (INT-08).
   useEffect(() => {
     onChoose?.(message);
-  }, [messageKey]);
+  }, [message, onChoose]);
 
   if (templates === null) return null;
   const preview = () => {

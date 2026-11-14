@@ -98,10 +98,11 @@ def signature_ok(secret: str, raw: bytes, given: str) -> bool:
             keys.append(decoded)
     except (binascii.Error, ValueError):
         pass
+    got = given.strip().encode("latin-1", "ignore")  # bytes: a non-ASCII header is just wrong
     ok = False
     for k in keys:
-        want = base64.b64encode(hmac.new(k, raw, hashlib.sha256).digest()).decode()
-        ok |= hmac.compare_digest(want, given.strip())
+        want = base64.b64encode(hmac.new(k, raw, hashlib.sha256).digest())
+        ok |= hmac.compare_digest(want, got)
     return ok
 
 

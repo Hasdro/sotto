@@ -150,6 +150,6 @@ describe("the agent's follow-up email", () => {
     await waitFor(() => expect(screen.getByTestId("email-preview-attachments")).toBeTruthy());
     expect(screen.queryByTestId("email-warn-attached")).toBeNull();
     const last = mockCalls.filter((c) => c.path === "/api/v1/email/preview").pop();
-    expect((last?.body as { attachments?: string[] }).attachments).toEqual([FILE.id]);
+    expect((last?.body as { attachments?: string[] } | undefined)?.attachments).toEqual([FILE.id]);
   });
 });

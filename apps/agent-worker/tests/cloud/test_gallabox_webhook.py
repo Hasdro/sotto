@@ -97,10 +97,10 @@ def test_bad_signature_is_401_and_valid_status_is_stored(c: TestClient, store: C
     hook = turn_on(c, h)
     assert hook["url"].startswith(f"{ORIGIN}/api/hooks/gallabox/")
     assert c.post("/api/v1/company/gallabox/webhook", headers=ag).status_code == 403
-    send(c, ag, "fu-step-0001")
+    send(c, ag, "wa-step-0001")
     assert (
-        c.get("/api/v1/whatsapp/status?keys=fu-step-0001", headers=ag).json()["status"][
-            "fu-step-0001"
+        c.get("/api/v1/whatsapp/status?keys=wa-step-0001", headers=ag).json()["status"][
+            "wa-step-0001"
         ]["status"]
         == "sent"
     )
@@ -113,15 +113,15 @@ def test_bad_signature_is_401_and_valid_status_is_stored(c: TestClient, store: C
     }
     post(c, hook, status_payload("read"), "Message.WA.Status.Received")
     post(c, hook, status_payload("delivered"), "Message.WA.Status.Received")  # late: no downgrade
-    got = c.get("/api/v1/whatsapp/status?keys=fu-step-0001", headers=ag).json()["status"]
-    assert got["fu-step-0001"]["status"] == "read"
+    got = c.get("/api/v1/whatsapp/status?keys=wa-step-0001", headers=ag).json()["status"]
+    assert got["wa-step-0001"]["status"] == "read"
 
     failed = {"whatsapp": {"id": "msg-123", "error": {"code": 131049}}}
     post(c, hook, failed, "Message.WA.Status.Failed")
-    got = c.get("/api/v1/whatsapp/status?keys=fu-step-0001", headers=ag).json()["status"]
-    assert got["fu-step-0001"] == {
+    got = c.get("/api/v1/whatsapp/status?keys=wa-step-0001", headers=ag).json()["status"]
+    assert got["wa-step-0001"] == {
         "status": "failed",
-        "at": got["fu-step-0001"]["at"],
+        "at": got["wa-step-0001"]["at"],
         "error_code": "131049",
     }
 
@@ -146,7 +146,7 @@ def test_company_a_cannot_read_company_b_statuses(c: TestClient) -> None:
     hb, agb = org(c, "Beta")
     hook_a, hook_b = turn_on(c, ha), turn_on(c, hb)
     turn_on(c, hb)  # rotating replaces the old URL and secret
-    send(c, aga, "fu-shared-key")
+    send(c, aga, "wa-shared-key")
     # B's hook cannot write A's message (it is not a message B sent).
     hook_b = c.post("/api/v1/company/gallabox/webhook", headers=hb).json()
     assert (
@@ -156,9 +156,9 @@ def test_company_a_cannot_read_company_b_statuses(c: TestClient) -> None:
     # A's secret on B's URL fails the signature.
     mixed = {"url": hook_b["url"], "secret": hook_a["secret"]}
     assert post(c, mixed, status_payload("read"), "Message.WA.Status.Received").status_code == 401
-    assert c.get("/api/v1/whatsapp/status?keys=fu-shared-key", headers=agb).json()["status"] == {}
-    assert c.get("/api/v1/whatsapp/status?keys=fu-shared-key", headers=hb).json()["status"] == {}
+    assert c.get("/api/v1/whatsapp/status?keys=wa-shared-key", headers=agb).json()["status"] == {}
+    assert c.get("/api/v1/whatsapp/status?keys=wa-shared-key", headers=hb).json()["status"] == {}
     assert (
-        "fu-shared-key"
-        in c.get("/api/v1/whatsapp/status?keys=fu-shared-key", headers=aga).json()["status"]
+        "wa-shared-key"
+        in c.get("/api/v1/whatsapp/status?keys=wa-shared-key", headers=aga).json()["status"]
     )

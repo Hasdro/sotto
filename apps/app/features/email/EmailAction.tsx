@@ -123,21 +123,23 @@ function Composer({
     }
   }, [chosen, touched]);
 
-  const current: Draft = {
-    sender,
-    format,
-    to: addressList(to),
-    cc: addressList(cc),
-    subject,
-    body,
-    customer_name: name.trim(),
-    ...(chosenFiles.length ? { attachments: chosenFiles } : {}),
-  };
-  const draftKey = JSON.stringify(current);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reported when the draft changes
+  const current: Draft = useMemo(
+    () => ({
+      sender,
+      format,
+      to: addressList(to),
+      cc: addressList(cc),
+      subject,
+      body,
+      customer_name: name.trim(),
+      ...(chosenFiles.length ? { attachments: chosenFiles } : {}),
+    }),
+    [sender, format, to, cc, subject, body, name, chosenFiles],
+  );
+  // The follow-up plan prepares its email step from the current draft (INT-08).
   useEffect(() => {
     onDraft?.(current);
-  }, [draftKey]);
+  }, [current, onDraft]);
   const edit =
     (set: (v: string) => void, marks = false) =>
     (v: string) => {

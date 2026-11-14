@@ -95,7 +95,7 @@ EMAIL = {
     "body": "Here is the pricing.",
     "customer_name": "Jane",
 }
-WA = {
+WA: dict[str, Any] = {
     "template": "meeting_followup",
     "language": "en",
     "recipient": {"name": "Jane Doe", "phone": "+971 50 123 4567"},
@@ -187,16 +187,43 @@ def test_a_step_is_sent_only_by_the_agents_tap_and_never_twice(
     assert len(done) == 3
 
 
-def test_another_agents_send_does_not_complete_my_step(c: TestClient, app: Headers) -> None:
+def test_a_colleague_cannot_use_my_step_key_or_change_my_plan(
+    c: TestClient, app: Headers, mails: list[Outgoing]
+) -> None:
     h, ag = setup(c)
     plan = c.post("/api/v1/followup/plans", json=the_plan(), headers=ag).json()
-    step = plan["steps"][0]
+    step, pid = plan["steps"][0], plan["id"]
     other = agent(c, h, "ag2@acme.test")
-    key = f"fu-{step['id']}"
-    send = {**EMAIL, "confirm": True, "idempotency_key": key}
-    assert c.post("/api/v1/email/send", json=send, headers=other).status_code == 200
-    assert c.post(f"/api/v1/followup/steps/{step['id']}/done", headers=ag).status_code == 409
+    send = {**EMAIL, "confirm": True, "idempotency_key": f"fu-{step['id']}"}
+    # Tenancy review: the step's key is the owner's; a colleague cannot burn it first.
+    assert c.post("/api/v1/email/send", json=send, headers=other).status_code == 403
+    assert c.post("/api/v1/email/send", json=send, headers=h).status_code == 403  # admin too
+    assert mails == []
+    for path in ("pause", "resume", "cancel"):
+        assert c.post(f"/api/v1/followup/plans/{pid}/{path}", headers=other).status_code == 404
+    for path in ("skip", "done"):
+        assert (
+            c.post(f"/api/v1/followup/steps/{step['id']}/{path}", headers=other).status_code == 404
+        )
     assert c.get(f"/api/v1/followup/steps/{step['id']}", headers=other).status_code == 404
+    assert c.get("/api/v1/followup/plans", headers=other).json()["plans"] == []
+    # The owner still sends and completes it.
+    assert c.post("/api/v1/email/send", json=send, headers=ag).status_code == 200
+    assert c.post(f"/api/v1/followup/steps/{step['id']}/done", headers=ag).status_code == 200
+
+
+def test_only_what_a_step_needs_is_kept(c: TestClient, store: CloudStore) -> None:
+    _h, ag = setup(c)
+    extra: dict[str, Any] = {
+        **WA,
+        "free_text": "Hello Jane, any message",
+        "recipient": {**WA["recipient"], "x": 1},
+    }
+    plan = the_plan(steps=[{"kind": "whatsapp", "due_at": T0, "prepared": extra}])
+    assert c.post("/api/v1/followup/plans", json=plan, headers=ag).status_code == 201
+    kept = store._q("SELECT prepared FROM followup_steps")[0]["prepared"]
+    assert "free_text" not in kept
+    assert '"x"' not in kept
 
 
 def test_the_agent_can_pause_resume_and_cancel(c: TestClient, app: Headers) -> None:

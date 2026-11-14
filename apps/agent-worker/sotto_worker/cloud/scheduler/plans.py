@@ -81,16 +81,47 @@ def _text(value: Any, what: str, limit: int) -> str:
     return text
 
 
+# Only what a step needs to be sent later; anything else the client sends is dropped. WhatsApp
+# keeps the template and its parameter values (never free text, D-033); all of it is cleared
+# when the step is done, skipped or cancelled.
+KEEP = {
+    "email": ("sender", "format", "to", "cc", "subject", "body", "customer_name", "attachments"),
+    "whatsapp": ("template", "language", "recipient", "values"),
+    "meeting_reminder": ("template", "language", "recipient", "values", "meeting_at"),
+}
+
+
 def _prepared(kind: str, raw: Any) -> dict[str, Any]:
     if kind == "reminder":
         note = _text((raw or {}).get("note") if isinstance(raw, dict) else "", "note", 200)
         return {"note": note}
     if not isinstance(raw, dict):
         raise CloudError("invalid", f"prepare the {kind} step first")
-    blob = json.dumps(raw, ensure_ascii=False)
+    kept = {k: raw[k] for k in KEEP[kind] if k in raw}
+    if "recipient" in kept:
+        r = kept["recipient"] if isinstance(kept["recipient"], dict) else {}
+        kept["recipient"] = {
+            "name": str(r.get("name", ""))[:100],
+            "phone": str(r.get("phone", ""))[:30],
+        }
+    blob = json.dumps(kept, ensure_ascii=False)
     if len(blob) > MAX_PREPARED:
         raise CloudError("too_large", "the prepared step is too long")
-    return raw
+    return kept
+
+
+def check_step_key(store: CloudStore, who: Principal, idem: str) -> None:
+    """A send with a step's key (`fu-<id>`) is only the step owner's: a colleague cannot use
+    it first and block the step (tenancy review, T-081)."""
+    if not idem.startswith("fu-"):
+        return
+    ensure(store)
+    rows = store._q(
+        "SELECT 1 FROM followup_steps WHERE id = ? AND company_id = ? AND user_id = ?",
+        (idem[3:], who.company, who.user_id),
+    )
+    if not rows:
+        raise CloudError("forbidden", "that follow-up step is not yours")
 
 
 class PlanStore:

@@ -125,6 +125,7 @@ def make_routes(
     def status_route(status: str) -> Callable[[Request], Awaitable[Response]]:
         @app_route
         async def go(r: Request, who: Principal) -> Response:
+            store.require_feature(who, "followup_plan")
             plan_id = r.path_params["id"]
             plans.set_status(who, plan_id, status, now=clock(), ip=ip_of(r))
             return JSONResponse(plans.plan(who, plan_id), headers=NO_STORE)
@@ -144,11 +145,13 @@ def make_routes(
 
     @app_route
     async def skip(r: Request, who: Principal) -> Response:
+        store.require_feature(who, "followup_plan")
         plans.skip(who, r.path_params["id"], now=clock(), ip=ip_of(r))
         return JSONResponse({"status": "skipped"}, headers=NO_STORE)
 
     @app_route
     async def done(r: Request, who: Principal) -> Response:
+        store.require_feature(who, "followup_plan")
         out = plans.complete(who, r.path_params["id"], now=clock(), ip=ip_of(r))
         return JSONResponse(out, headers=NO_STORE)
 

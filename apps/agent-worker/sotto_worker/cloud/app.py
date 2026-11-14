@@ -210,6 +210,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     failure_report_limit = RateLimit(per_key=30, total=20_000, window_s=3600)
     hook_limit = RateLimit(per_key=10, total=200, window_s=3600)
     hook_secret_limit = RateLimit(per_key=10, total=1_000_000, window_s=3600)  # failures only
+    zoho_notify_limit = RateLimit(per_key=60, total=100_000, window_s=60)  # per Zoho channel
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
@@ -927,6 +928,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             origin = "https://" + origin[len("http://") :]
         return origin
 
+    def hook_origin(request: Request) -> str:
+        """Webhook URLs (Gallabox, Zoho) use the configured origin, never the Host header."""
+        return config.public_origin or public_origin_of(request)
+
     def owner_host_ok(request: Request) -> bool:
         """The owner console lives on its own origin (security review M1), so a script on the
         app's origin can never use the owner's cookie."""
@@ -1317,7 +1322,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             app_route=app_route,
             handle=handle,
             ip_of=ip_of,
-            origin_of=public_origin_of,
+            origin_of=hook_origin,
             bad_secret_limit=lambda key: hook_secret_limit.blocked(key),
             bad_secret_record=lambda key: hook_secret_limit.record(key),
             log=config.log,
@@ -1326,8 +1331,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             watch=zoho_watch,
             app_route=app_route,
             handle=handle,
-            origin_of=public_origin_of,
+            origin_of=hook_origin,
             clock=config.clock,
+            ip_of=ip_of,
+            bad_token_limit=lambda key: hook_secret_limit.blocked(key),
+            bad_token_record=lambda key: hook_secret_limit.record(key),
+            channel_limit=lambda key: zoho_notify_limit.hit(key),
         ),
         *followup_routes.make_routes(
             store=store,

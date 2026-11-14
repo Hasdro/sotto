@@ -211,11 +211,12 @@ class ZohoWatch:
                 self.log(f"zoho: renewal skipped for company {who.company}: {e.code}")
         return done
 
-    def owner_of(self, channel_id: str, token: str) -> tuple[str, str] | None:
+    def owner_of(self, channel_id: str, token: str, now: int) -> tuple[str, str] | None:
+        """The channel's owner if the token is ours and the channel has not expired."""
         rows = self.s._q(
             "SELECT company_id, user_id, token_hash, expires_at FROM zoho_watches"
-            " WHERE channel_id = ?",
-            (channel_id,),
+            " WHERE channel_id = ? AND expires_at > ?",
+            (channel_id, now),
         )
         if not rows or not hmac.compare_digest(str(rows[0]["token_hash"]), _hash(token)):
             return None
@@ -281,6 +282,10 @@ def make_routes(
     handle: Wrap,
     origin_of: Callable[[Request], str],
     clock: Callable[[], int] = now_ms,
+    ip_of: Callable[[Request], str] = lambda _r: "",
+    bad_token_limit: Callable[[str], bool] = lambda _key: False,
+    bad_token_record: Callable[[str], None] = lambda _key: None,
+    channel_limit: Callable[[str], bool] = lambda _key: True,
 ) -> list[Route]:
     def notify_url(r: Request) -> str:
         return f"{origin_of(r).rstrip('/')}/api/hooks/zoho/notify"
@@ -306,6 +311,9 @@ def make_routes(
 
     @handle
     async def receive(r: Request) -> Response:
+        ip = ip_of(r)
+        if bad_token_limit(ip):
+            return PlainTextResponse("too many attempts\n", status_code=429)
         raw = b""
         async for chunk in r.stream():
             raw += chunk
@@ -317,9 +325,13 @@ def make_routes(
             return PlainTextResponse("bad request\n", status_code=400)
         if not isinstance(body, dict):
             return PlainTextResponse("bad request\n", status_code=400)
-        owner = watch.owner_of(str(body.get("channel_id", "")), str(body.get("token", "")))
+        channel = str(body.get("channel_id", ""))
+        owner = watch.owner_of(channel, str(body.get("token", "")), clock())
         if owner is None:
+            bad_token_record(ip)
             return PlainTextResponse("unknown channel\n", status_code=401)
+        if not channel_limit(channel):  # a replayed callback cannot drain the org's Zoho credits
+            return JSONResponse({"ok": True, "refreshed": 0})
         who = watch.principal(*owner)
         module = str(body.get("module", ""))
         ids = [str(i) for i in body.get("ids") or [] if RECORD_ID.match(str(i))][:20]
