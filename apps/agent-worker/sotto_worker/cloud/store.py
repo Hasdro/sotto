@@ -358,6 +358,9 @@ class Principal:
         return self.company_id
 
 
+ZOHO_NOTIFY_SCOPE = "ZohoCRM.notifications.ALL"
+
+
 def now_ms() -> int:
     return int(time.time() * 1000)
 
@@ -1659,12 +1662,16 @@ class CloudStore:
                 (company_id,),
             )
         }
-        org_off = {
-            r["feature"]
+        chosen = {
+            str(r["feature"]): bool(r["enabled"])
             for r in self._q(
-                "SELECT feature FROM company_features WHERE company_id = ? AND enabled = 0",
+                "SELECT feature, enabled FROM company_features WHERE company_id = ?",
                 (company_id,),
             )
+        }
+        # D-070, D-071: a default-off feature stays off until the admin turns it on.
+        org_off = {f for f, on in chosen.items() if not on} | {
+            f for f in features.DEFAULT_OFF if not chosen.get(f, False)
         }
         return features.Layers(
             killed=frozenset(killed),
@@ -1677,7 +1684,12 @@ class CloudStore:
         """The org's layers plus the connections this person has made (their own Zoho)."""
         layers = self.feature_layers(who.company)
         if self.zoho_connected(who):
-            return dataclasses.replace(layers, connections=layers.connections | {"zoho"})
+            mine = {"zoho"}
+            # INT-13: the watch needs the Notifications scope on this person's connection
+            # (added to the one scope bundle by D-069); until they reconnect, needs_connection.
+            if ZOHO_NOTIFY_SCOPE in self.zoho_scopes(who):
+                mine.add("zoho_notifications")
+            return dataclasses.replace(layers, connections=layers.connections | mine)
         return layers
 
     def feature_state(self, who: Principal, feature: str) -> features.Effective:
@@ -2528,6 +2540,14 @@ class CloudStore:
                 (who.company_id, who.user_id),
             )
         )
+
+    def zoho_scopes(self, who: Principal) -> set[str]:
+        """The scopes this person's Zoho connection was granted (no token is decrypted)."""
+        rows = self._q(
+            "SELECT scopes FROM zoho_connections WHERE company_id = ? AND user_id = ?",
+            (who.company, who.user_id),
+        )
+        return set(str(rows[0]["scopes"] or "").split(",")) if rows else set()
 
     def zoho_connection(self, who: Principal) -> dict[str, Any] | None:
         """This person's connection with the refresh token decrypted (server-side use only)."""

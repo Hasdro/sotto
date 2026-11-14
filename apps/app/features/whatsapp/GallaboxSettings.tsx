@@ -11,6 +11,7 @@ import {
   Button,
   Disclosure,
   Divider,
+  LtrRun,
   Panel,
   SegmentedControl,
   Stack,
@@ -28,6 +29,7 @@ import {
 } from "../integrations/api";
 import { type IntegrationsKey, useIntegrationsText } from "../integrations/strings";
 import {
+  createWebhook,
   type GallaboxInput,
   type GallaboxStatus,
   gallaboxStatus,
@@ -35,6 +37,8 @@ import {
   removeGallabox,
   saveGallabox,
   type Template,
+  type WebhookStatus,
+  webhookStatus,
 } from "./api";
 import { useWhatsAppText, type WhatsAppKey } from "./strings";
 
@@ -287,8 +291,86 @@ export function GallaboxSettings() {
             {listNote}
           </Text>
         ) : null}
+        {status?.configured ? <DeliveryWebhook /> : null}
       </Stack>
     </Panel>
+  );
+}
+
+/** INT-10 (D-071): the org's status webhook. Off until the admin turns the feature on (and AGN
+ * confirmed the Gallabox plan has webhooks); the secret is shown once, to paste into Gallabox. */
+function DeliveryWebhook() {
+  const t = useWhatsAppText();
+  const [hook, setHook] = useState<WebhookStatus | null>(null);
+  const [made, setMade] = useState<{ url: string; secret: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void webhookStatus()
+      .then(setHook)
+      .catch(() => setHook(null));
+  }, []);
+  if (!hook) return null;
+  const on = hook.state.state === "available";
+  const create = () =>
+    createWebhook()
+      .then((r) => {
+        setMade(r);
+        setHook({ ...hook, configured: true, url: r.url });
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  return (
+    <Stack gap="sm" testID="gallabox-webhook">
+      <Text variant="body" weight="semibold" accessibilityRole="header">
+        {t("hook.title")}
+      </Text>
+      <Text variant="label" tone="muted">
+        {t("hook.hint")}
+      </Text>
+      {!on ? (
+        <Text variant="label" tone="muted" testID="gallabox-webhook-off">
+          {t("hook.off")}
+        </Text>
+      ) : (
+        <>
+          {made ? (
+            <Stack gap="xs">
+              <Text variant="label" weight="medium">
+                {t("hook.url")}
+              </Text>
+              <LtrRun variant="label" selectable testID="gallabox-webhook-url">
+                {made.url}
+              </LtrRun>
+              <Text variant="label" weight="medium">
+                {t("hook.secret")}
+              </Text>
+              <LtrRun variant="label" selectable testID="gallabox-webhook-secret">
+                {made.secret}
+              </LtrRun>
+              <Text variant="label" tone="muted">
+                {t("hook.steps")}
+              </Text>
+            </Stack>
+          ) : hook.configured ? (
+            <Text variant="label" tone="muted">
+              {t("hook.ready")}
+            </Text>
+          ) : null}
+          <Stack direction="row" gap="sm" wrap>
+            <Button
+              variant="secondary"
+              label={hook.configured ? t("hook.rotate") : t("hook.create")}
+              onPress={() => void create()}
+              testID="gallabox-webhook-create"
+            />
+          </Stack>
+        </>
+      )}
+      {error ? (
+        <Text variant="label" tone="danger">
+          {error}
+        </Text>
+      ) : null}
+    </Stack>
   );
 }
 

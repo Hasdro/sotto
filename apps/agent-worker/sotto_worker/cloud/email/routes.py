@@ -11,6 +11,7 @@ idempotency key; a retried key never sends twice."""
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -20,8 +21,9 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from sotto_worker.adapters.email.smtp import Outgoing, SmtpAccount, SmtpSendError, send_mail
-from sotto_worker.cloud.email import data, presets
+from sotto_worker.cloud.email import attachments, data, presets
 from sotto_worker.cloud.email.render import Rendered, render
+from sotto_worker.cloud.scheduler.plans import check_step_key
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
 Wrap = Callable[..., Callable[[Request], Awaitable[Response]]]
@@ -44,6 +46,7 @@ def make_routes(
     log: Callable[[str], None] = lambda _l: None,
 ) -> list[Route]:
     data.ensure(store)
+    attachments.ensure(store)
 
     async def test_send(account: SmtpAccount | None, to: str) -> Response:
         if account is None:
@@ -144,7 +147,9 @@ def make_routes(
             store.require_feature(who, "email_send")
         return JSONResponse({"formats": data.formats(store, who.company)})
 
-    def compose(who: Principal, d: dict[str, Any]) -> tuple[dict[str, Any], Rendered, Outgoing]:
+    def compose(
+        who: Principal, d: dict[str, Any]
+    ) -> tuple[dict[str, Any], Rendered, Outgoing, list[dict[str, Any]]]:
         """Validates a draft and renders it; shared by preview and send so they cannot differ."""
         store.require_feature(who, "email_send")
         choices = {s["id"]: s for s in data.senders(store, who.company)}
@@ -182,32 +187,47 @@ def make_routes(
             ),
         }
         out = render(fmt, subject=subject, body=text, values=values)
-        mail = Outgoing(to=to, cc=cc, subject=out.subject, text=out.text, message_id_seed="")
-        return chosen, out, mail
+        files = d.get("attachments") or []
+        if files:  # INT-14b: only the admin's list for this company
+            store.require_feature(who, "email_attachments")
+        mail = Outgoing(
+            to=to,
+            cc=cc,
+            subject=out.subject,
+            text=out.text,
+            message_id_seed="",
+        )
+        # Names and sizes only here (preview); the bytes are read at send (security review).
+        listed = attachments.describe(store, who.company, files)
+        return chosen, out, mail, listed
 
-    def preview_out(chosen: dict[str, Any], out: Rendered, mail: Outgoing) -> dict[str, Any]:
+    def preview_out(
+        chosen: dict[str, Any], out: Rendered, mail: Outgoing, listed: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         return {
             "from": {"name": chosen["from_name"], "address": chosen["from_address"]},
             "to": list(mail.to),
             "cc": list(mail.cc),
             "subject": out.subject,
             "text": out.text,
+            "attachments": [{"name": a["name"], "size": a["size"]} for a in listed],
         }
 
     @app_route
     async def preview(r: Request, who: Principal) -> Response:
-        chosen, out, mail = compose(who, await body(r))
-        return JSONResponse(preview_out(chosen, out, mail), headers=NO_STORE)
+        chosen, out, mail, listed = compose(who, await body(r))
+        return JSONResponse(preview_out(chosen, out, mail, listed), headers=NO_STORE)
 
     @app_route
     async def send(r: Request, who: Principal) -> Response:
         d = await body(r)
-        chosen, out, mail = compose(who, d)
+        chosen, out, mail, listed = compose(who, d)
         if d.get("confirm") is not True:
             raise CloudError("confirm", "confirm the preview before sending")
         idem = str(d.get("idempotency_key", ""))
         if not IDEM.match(idem):
             raise CloudError("invalid", "missing idempotency key")
+        check_step_key(store, who, idem)
         state = data.claim_send(store, who, idem)
         if state == "sent":
             return JSONResponse({"status": "sent", "duplicate": True}, headers=NO_STORE)
@@ -221,10 +241,14 @@ def make_routes(
         if account is None:
             data.finish_send(store, who, idem, ok=False, detail="no mailbox", ip=ip_of(r))
             raise CloudError("invalid", "no approved sender is set up")
-        mail = Outgoing(
-            to=mail.to, cc=mail.cc, subject=mail.subject, text=mail.text, message_id_seed=idem
+        mail = dataclasses.replace(
+            mail,
+            message_id_seed=idem,
+            attachments=tuple(attachments.pick(store, who.company, [a["id"] for a in listed])),
         )
         recipients = f"to {', '.join(mail.to)}" + (f" cc {', '.join(mail.cc)}" if mail.cc else "")
+        if mail.attachments:
+            recipients += f" · {len(mail.attachments)} attached"
         try:
             await sender(account, mail)
         except SmtpSendError as e:
@@ -240,12 +264,13 @@ def make_routes(
             ip=ip_of(r),
         )
         return JSONResponse(
-            {"status": "sent", "duplicate": False, **preview_out(chosen, out, mail)},
+            {"status": "sent", "duplicate": False, **preview_out(chosen, out, mail, listed)},
             headers=NO_STORE,
         )
 
     api = "/api/v1"
     return [
+        *attachments.make_routes(store=store, app_route=app_route, ip_of=ip_of),
         Route("/api/owner/smtp", owner_route(o_get)),
         Route("/api/owner/smtp", owner_route(o_put, mutating=True), methods=["PUT"]),
         Route("/api/owner/smtp", owner_route(o_delete, mutating=True), methods=["DELETE"]),

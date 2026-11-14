@@ -17,6 +17,11 @@ export const FEATURE_IDS = [
   "prep",
   "card_ratings",
   "learned_instructions",
+  "followup_plan",
+  "meeting_reminders",
+  "whatsapp_status",
+  "zoho_watch",
+  "email_attachments",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

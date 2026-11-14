@@ -48,13 +48,17 @@ export type Draft = {
   subject: string;
   body: string;
   customer_name: string;
+  /** INT-14b: ids from the admin's attachment list. */
+  attachments?: string[];
 };
+export type Attachment = { id: string; name: string; mime: string; size: number };
 export type Preview = {
   from: { name: string; address: string };
   to: string[];
   cc: string[];
   subject: string;
   text: string;
+  attachments?: { name: string; size: number }[];
 };
 export type SendResult = { status: "sent"; duplicate: boolean };
 
@@ -77,6 +81,10 @@ export const sendEmail = (draft: Draft, idempotencyKey: string) =>
     method: "POST",
     body: { ...draft, confirm: true, idempotency_key: idempotencyKey },
   });
+
+/** INT-14b: the files the admin curated; agents pick, never upload. */
+export const emailAttachments = () =>
+  cloudApi<{ attachments: Attachment[] }>("/api/v1/email/attachments");
 
 /** Splits "a@x.com, b@y.com; c@z.com" into addresses; the server validates each one. */
 export function addressList(text: string): string[] {

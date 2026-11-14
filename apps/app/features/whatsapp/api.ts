@@ -71,6 +71,20 @@ export const sendWhatsApp = (m: Message, idempotencyKey: string) =>
     body: { ...m, type: "template", confirm: true, idempotency_key: idempotencyKey },
   });
 
+/** INT-10: the org's Gallabox status webhook (admin). The secret is returned once, on create. */
+export type WebhookStatus = {
+  configured: boolean;
+  url: string | null;
+  events: string[];
+  state: { state: string; cause?: string };
+};
+export const webhookStatus = () =>
+  cloudApi<WebhookStatus>(`/api/v1/company/gallabox/webhook?t=${Date.now()}`);
+export const createWebhook = () =>
+  cloudApi<{ url: string; secret: string }>("/api/v1/company/gallabox/webhook", {
+    method: "POST",
+  });
+
 /** Distinct parameter names: a header and a body may share one ({{name}}), filled once. */
 export function fieldsOf(t: Template): Param[] {
   const seen = new Set<string>();

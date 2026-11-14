@@ -13,6 +13,7 @@ const {
   Menu,
   nativeTheme,
   nativeImage,
+  Notification,
   net,
   protocol,
   session,
@@ -28,6 +29,7 @@ const { callApp } = require("./call-apps.cjs");
 const { parseMicUsage } = require("./win-mic.cjs");
 const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
 const { registerDeepLinks, registerPrivacy } = require("./deep-link.cjs");
+const { registerNotify } = require("./notify.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -289,6 +291,16 @@ app.whenReady().then(() => {
   registerSecureStore({ ipcMain, store: secure, origin: ORIGIN });
   // UX-21: open the OS privacy pane for the microphone or the computer's sound (fixed list).
   registerPrivacy({ ipcMain, shell, platform: process.platform, origin: ORIGIN });
+  // INT-08: due follow-up steps; a click focuses the window and opens the step (never sends).
+  registerNotify({
+    ipcMain,
+    Notification,
+    origin: ORIGIN,
+    onOpen: (stepId) => {
+      focusMain();
+      mainWin?.webContents.send("notify-open", stepId);
+    },
+  });
   // Only audio capture, only for the app's own pages: the microphone, or the computer's sound.
   const own = (url) => typeof url === "string" && url.startsWith(`${ORIGIN}/`);
   const allowed = (wc, permission) =>

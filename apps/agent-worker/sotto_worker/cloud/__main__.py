@@ -202,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         log=lambda s: print(s, flush=True),
         recordings=Recordings(data_dir(env) / "recordings"),
         mailer=load_mailer(data_dir(env) / "email.json", Vault(secret(env, data_dir(env)))),
+        run_scheduler=True,  # T-081: one in-process runner (follow-up steps, weekly jobs)
     )
     app = create_cloud_app(config, store, Seed.load())
     import uvicorn

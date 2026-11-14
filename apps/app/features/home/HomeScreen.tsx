@@ -20,6 +20,7 @@ import { useCloud } from "../../lib/useCloud";
 import type { MeetingCandidate } from "../crm/api";
 import { HomeMeetings } from "../crm/HomeMeetings";
 import { useOpenCount } from "../escalations/store";
+import { DueSteps, useFollowupNotices } from "../followup";
 import { SetupChecklist } from "./SetupChecklist";
 
 const DAY_MS = 86_400_000;
@@ -103,6 +104,8 @@ export function HomeScreen() {
   const calls = deviceCalls();
   const stats = todayStats(calls);
   const [next, setNext] = useState<MeetingCandidate | null>(null);
+  // INT-08: desktop notices for due follow-ups (the master may move this to AppShell).
+  useFollowupNotices();
   const me = cloud.status === "signed_in" ? cloud.me : null;
   const bundle = cloud.status === "signed_in" ? cloud.bundle : null;
   const company = me?.company ?? null;
@@ -198,6 +201,8 @@ export function HomeScreen() {
       </View>
 
       <SetupChecklist />
+
+      <DueSteps />
 
       <View style={styles.tiles}>
         {tiles.map((tile) => (

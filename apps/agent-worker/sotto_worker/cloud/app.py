@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import mimetypes
 import re
 import time
 from collections import OrderedDict, deque
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from pathlib import Path
@@ -30,19 +31,24 @@ from sotto_worker.adapters.email.smtp import Outgoing, send_mail
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.coaching import routes as coaching_routes
 from sotto_worker.cloud.coaching.store import CoachingStore
+from sotto_worker.cloud.email import attachments as email_attachments
 from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.email import routes as email_routes
 from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.gallabox import routes as gallabox_routes
+from sotto_worker.cloud.gallabox import webhook as gallabox_webhook
 from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.owner import routes as owner_routes
 from sotto_worker.cloud.recordings import KINDS, Recordings
+from sotto_worker.cloud.scheduler import routes as followup_routes
+from sotto_worker.cloud.scheduler.runner import DAY_MS, Scheduler
 from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
-from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
+from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms, plan_state
 from sotto_worker.cloud.zoho import routes as zoho_routes
+from sotto_worker.cloud.zoho import webhooks as zoho_webhooks
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
 
@@ -138,6 +144,8 @@ class CloudConfig:
     zoho_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Zoho
     smtp_sender: email_routes.Sender | None = None  # tests: a local fake SMTP server
     gallabox_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Gallabox
+    run_scheduler: bool = False  # T-081: `serve` starts the in-process runner; tests tick by hand
+    clock: Callable[[], int] = field(default=now_ms)  # ms; tests inject a fake clock
 
 
 async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
@@ -179,7 +187,7 @@ async def list_models(provider_id: str, url: str, key: str) -> list[str]:
         return [str(m.get("id", "")).removeprefix("models/") for m in data][:80]
 
 
-def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGIApp:
+def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Headers:
     # Only FAILED sign-ins count, so real users cannot be locked out by volume alone; the owner
     # has a limiter of its own, so a flood on the app login never locks the owner out.
     login_limit = RateLimit(per_key=10, total=300, window_s=600)
@@ -202,11 +210,37 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     failure_report_limit = RateLimit(per_key=30, total=20_000, window_s=3600)
     hook_limit = RateLimit(per_key=10, total=200, window_s=3600)
     hook_secret_limit = RateLimit(per_key=10, total=1_000_000, window_s=3600)  # failures only
+    zoho_notify_limit = RateLimit(per_key=60, total=100_000, window_s=60)  # per Zoho channel
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
     static_root = config.static_dir.resolve() if config.static_dir else None
+    scheduler = Scheduler(store, clock=config.clock, log=config.log)
+    coaching = CoachingStore(store)
+
+    async def digest_job(now: int) -> None:
+        await coaching_routes.weekly_digest_job(
+            coaching,
+            learning,
+            prompts=seed.prompts,
+            origin=config.public_origin or "http://localhost:8788",
+            mailer=config.mailer,
+            now=now,
+        )
+
+    # T-080's hook: safe to call more often than weekly, so once a day is enough.
+    scheduler.register("coaching_weekly_digest", DAY_MS, digest_job)
+    zoho_watch = zoho_webhooks.ZohoWatch(store, transport=config.zoho_transport, log=config.log)
+    notify_url = (
+        f"{(config.public_origin or 'http://localhost:8788').rstrip('/')}/api/hooks/zoho/notify"
+    )
+
+    async def zoho_watch_job(now: int) -> None:
+        # INT-13: channels last at most a week; renew the ones that end within two days.
+        await zoho_watch.renew_all(notify_url, now)
+
+    scheduler.register("zoho_watch_renewal", 6 * 3600 * 1000, zoho_watch_job)
 
     def ip_of(request: Request) -> str:
         return request.client.host if request.client else "?"
@@ -264,6 +298,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "not_rateable": HTTPStatus.UNPROCESSABLE_ENTITY,
         "benchmark_failed": HTTPStatus.CONFLICT,
         "untested": HTTPStatus.CONFLICT,
+        "not_sent": HTTPStatus.CONFLICT,
     }
 
     def handle(
@@ -893,6 +928,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             origin = "https://" + origin[len("http://") :]
         return origin
 
+    def hook_origin(request: Request) -> str:
+        """Webhook URLs (Gallabox, Zoho) use the configured origin, never the Host header."""
+        return config.public_origin or public_origin_of(request)
+
     def owner_host_ok(request: Request) -> bool:
         """The owner console lives on its own origin (security review M1), so a script on the
         app's origin can never use the owner's cookie."""
@@ -1219,7 +1258,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             learning=learning, app_route=app_route, body=body, ip_of=ip_of
         ),
         *coaching_routes.make_routes(
-            coaching=CoachingStore(store),
+            coaching=coaching,
             learning=learning,
             prompts=seed.prompts,
             app_route=app_route,
@@ -1278,16 +1317,62 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             send_invite=send_invite,
             log=config.log,
         ),
+        *gallabox_webhook.make_routes(
+            store=store,
+            app_route=app_route,
+            handle=handle,
+            ip_of=ip_of,
+            origin_of=hook_origin,
+            bad_secret_limit=lambda key: hook_secret_limit.blocked(key),
+            bad_secret_record=lambda key: hook_secret_limit.record(key),
+            log=config.log,
+        ),
+        *zoho_webhooks.make_routes(
+            watch=zoho_watch,
+            app_route=app_route,
+            handle=handle,
+            origin_of=hook_origin,
+            clock=config.clock,
+            ip_of=ip_of,
+            bad_token_limit=lambda key: hook_secret_limit.blocked(key),
+            bad_token_record=lambda key: hook_secret_limit.record(key),
+            channel_limit=lambda key: zoho_notify_limit.hit(key),
+        ),
+        *followup_routes.make_routes(
+            store=store,
+            plans=scheduler.plans,
+            app_route=app_route,
+            body=body,
+            ip_of=ip_of,
+            clock=config.clock,
+            attachment_ids=lambda company: email_attachments.ids(store, company),
+        ),
         Route("/assets/fonts/{file}", font_file),
         Route("/owner", owner_page),
         Route("/owner/{file}", owner_page),
         Route("/{path:path}", static),
     ]
-    return Headers(Starlette(routes=routes))
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: Starlette) -> AsyncIterator[None]:
+        stop = asyncio.Event()
+        task = asyncio.create_task(scheduler.run(stop)) if config.run_scheduler else None
+        try:
+            yield
+        finally:
+            stop.set()
+            if task is not None:
+                await task
+
+    out = Headers(Starlette(routes=routes, lifespan=lifespan))
+    out.scheduler = scheduler
+    return out
 
 
 class Headers:
     """Security headers everywhere; CORS (and preflight) on the app API only."""
+
+    scheduler: Scheduler | None = None  # T-081: the server's one runner (tests call tick)
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app

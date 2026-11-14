@@ -49,6 +49,11 @@ const en: Text = {
     prep: "Call prep",
     card_ratings: "Card ratings",
     learned_instructions: "Learned instructions",
+    followup_plan: "Follow-up plan",
+    meeting_reminders: "Meeting reminders",
+    whatsapp_status: "WhatsApp delivery status",
+    zoho_watch: "Zoho change alerts",
+    email_attachments: "Email attachments",
   },
   about: {
     call_review: "Scores and coaching after each call.",
@@ -64,6 +69,12 @@ const en: Text = {
     prep: "A short brief before each call.",
     card_ratings: "Agents rate AI cards to improve them.",
     learned_instructions: "Short rules learned from card ratings.",
+    followup_plan: "Reminds the agent at each follow-up step; nothing is sent without a tap.",
+    meeting_reminders: "WhatsApp reminder before a booked meeting, one tap each.",
+    whatsapp_status:
+      "Shows sent, delivered, read or failed for each message. Needs Gallabox webhooks.",
+    zoho_watch: "Updates the call brief when the deal or meeting changes in Zoho.",
+    email_attachments: "Files your admin approved, added to follow-up emails.",
   },
   state: {
     available: "On",
@@ -112,6 +123,11 @@ const ar: Text = {
     prep: "التحضير للمكالمة",
     card_ratings: "تقييم البطاقات",
     learned_instructions: "التعليمات المكتسبة",
+    followup_plan: "خطة المتابعة",
+    meeting_reminders: "تذكيرات الاجتماعات",
+    whatsapp_status: "حالة تسليم واتساب",
+    zoho_watch: "تنبيهات تغييرات Zoho",
+    email_attachments: "مرفقات البريد",
   },
   about: {
     call_review: "تقييم وتوجيه بعد كل مكالمة.",
@@ -127,6 +143,12 @@ const ar: Text = {
     prep: "ملخص قصير قبل كل مكالمة.",
     card_ratings: "يقيّم الموظفون بطاقات الذكاء الاصطناعي لتحسينها.",
     learned_instructions: "قواعد قصيرة مستفادة من تقييم البطاقات.",
+    followup_plan: "يذكّر الوكيل بكل خطوة متابعة؛ لا يُرسل شيء دون نقرة.",
+    meeting_reminders: "تذكير واتساب قبل الاجتماع المحجوز، بنقرة لكل تذكير.",
+    whatsapp_status:
+      "يعرض مُرسلة أو مُسلّمة أو مقروءة أو فاشلة لكل رسالة. يتطلب Webhooks في Gallabox.",
+    zoho_watch: "يحدّث ملخص المكالمة عند تغيّر الصفقة أو الاجتماع في Zoho.",
+    email_attachments: "ملفات اعتمدها المسؤول تُضاف إلى بريد المتابعة.",
   },
   state: {
     available: "مفعّلة",
