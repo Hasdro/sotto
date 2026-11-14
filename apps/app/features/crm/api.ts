@@ -55,6 +55,8 @@ export type Brief = {
     title: string;
     email: string;
     phone: string;
+    /** INT-16c: the campaign that brought them (Zoho Campaigns; needs the D-069 scopes). */
+    campaign_info?: { name: string; type: string; status: string };
   } | null;
   account: { name: string; industry: string } | null;
   deals: {
@@ -71,12 +73,17 @@ export type Brief = {
   /** The compact text the live prompt gets (`crm.brief`), capped by the server. */
   text: string;
 };
+export type ZohoFeature = "tasks" | "agn_fields" | "campaigns" | "notifications";
 export type ZohoStatus = {
   connected: boolean;
   connected_at?: number;
   /** Connected before Zoho writes existed: reconnect to allow saving to Zoho. */
   needs_reconnect?: boolean;
   api_domain?: string;
+  /** W4-SCOPES (D-069): connected before the wave-4 scope bundle; one reconnect fixes it. */
+  scopes_outdated?: boolean;
+  /** What the connection's scopes allow (D-069). Missing on older servers: treat as false. */
+  features?: Partial<Record<ZohoFeature, boolean>>;
   feature: { state: string; cause?: string };
   client: "org" | "platform" | null;
 };
@@ -111,7 +118,13 @@ export const zohoMeetingDetail = (id: string) =>
 export const zohoMeetingBrief = (id: string) =>
   cloudApi<{ brief: Brief }>(`/api/v1/zoho/meetings/${encodeURIComponent(id)}`);
 
-export type ActionKind = "meeting" | "lead" | "contact_update" | "deal_note";
+export type ActionKind =
+  | "meeting"
+  | "lead"
+  | "contact_update"
+  | "deal_note"
+  | "task"
+  | "agn_fields";
 /** One approved write (R12). The same key on a retry never writes twice (server table). */
 export const zohoAction = (kind: ActionKind, fields: Record<string, string>, key: string) =>
   cloudApi<{ ok: true; id: string; action?: string; repeat?: boolean }>(
@@ -123,3 +136,46 @@ export const saveCallBrief = (callId: string, brief: Record<string, unknown>) =>
     method: "PUT",
     body: { brief },
   });
+
+// --- wave 4 (T-082) ---------------------------------------------------------------------------
+export type TaskOwner = { id: string; name: string; me: boolean };
+/** INT-02t: who a Task can be assigned to, the connected person first. */
+export const zohoOwners = () =>
+  cloudApi<{ owners: TaskOwner[]; me: string }>("/api/v1/zoho/owners");
+
+export type BlueprintItem = { api_name: string; label: string };
+export type Blueprint = {
+  deal_id: string;
+  process: string;
+  current: string;
+  transitions: {
+    name: string;
+    to: string;
+    ready: boolean;
+    missing: BlueprintItem[];
+    done: BlueprintItem[];
+  }[];
+  /** A suggested Note text; the app never executes a transition (D-056). */
+  note: string;
+};
+export const zohoBlueprint = (dealId: string) =>
+  cloudApi<Blueprint>(`/api/v1/zoho/deals/${encodeURIComponent(dealId)}/blueprint`);
+
+export type AgnField = {
+  api_name: string;
+  label: string;
+  type: string;
+  exists: boolean;
+  writable: boolean;
+};
+/** INT-06 (D-069): preview of the AGN Deal fields; nothing is created until confirm. */
+export const agnFields = () => cloudApi<{ fields: AgnField[] }>("/api/v1/zoho/agn-fields");
+export const createAgnFields = () =>
+  cloudApi<{ created: string[]; fields: AgnField[] }>("/api/v1/zoho/agn-fields", {
+    method: "POST",
+    body: { confirm: true },
+  });
+
+/** INT-12 (D-072): the weekly CSV path (the caller's company, admins). */
+export const weeklyExportPath = (week?: string) =>
+  `/api/v1/export/weekly.csv${week ? `?week=${encodeURIComponent(week)}` : ""}`;

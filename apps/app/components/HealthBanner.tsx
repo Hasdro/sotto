@@ -8,14 +8,20 @@ import { Button, radius, space, Text, useTheme } from "@sotto/ui";
 import { router } from "expo-router";
 import { type ReactNode, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
+import { type CrmKey, useCrmText } from "../features/crm/strings";
 import { type ConfigHealth, configHealth, type HealthReason, refreshFeatures } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
 import { canOpen, type ViewRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
 
-const AGENT_CODES: ReadonlySet<HealthReason["code"]> = new Set(["zoho_token_expired"]);
+// W4-SCOPES (D-069): connected before the wave-4 scope bundle; each person reconnects once.
+export const SCOPES_OUTDATED = "zoho_scopes_outdated";
+/** Where `zoho_scopes_outdated` is fixed (the server's HEALTH_FIX names the same route). */
+export const SCOPES_FIX = "/settings#zoho";
+const AGENT_CODES: ReadonlySet<string> = new Set(["zoho_token_expired", SCOPES_OUTDATED]);
 const KNOWN: ReadonlySet<string> = new Set([
   "zoho_token_expired",
+  SCOPES_OUTDATED,
   "smtp_failing",
   "minutes_low",
   "trial_ending",
@@ -49,7 +55,12 @@ export function useHealthBanner(role: ViewRole): ReactNode {
 
 function HealthLine({ reason }: { reason: HealthReason }) {
   const { t } = useI18n();
+  const ct = useCrmText();
   const { color } = useTheme();
+  // Labels for codes newer than lib/i18n.ts live with their feature (D-058).
+  // lib/cloud.ts's HealthReason union does not name it yet (hub file): compare as text.
+  const outdated = (reason.code as string) === SCOPES_OUTDATED;
+  const label = (key: string) => (outdated ? ct(key as CrmKey) : t(key as Parameters<typeof t>[0]));
   return (
     <View
       testID="health-banner"
@@ -57,12 +68,12 @@ function HealthLine({ reason }: { reason: HealthReason }) {
       style={[styles.bar, { backgroundColor: color.noticeFill, borderColor: color.noticeBorder }]}
     >
       <Text variant="label" weight="medium" color={color.noticeText} style={styles.text}>
-        {t(`health.${reason.code}`)}
+        {label(`health.${reason.code}`)}
       </Text>
       <Button
         variant="ghost"
-        label={t(`health.fix.${reason.code}`)}
-        onPress={() => router.push(reason.fix)}
+        label={label(`health.fix.${reason.code}`)}
+        onPress={() => router.push(outdated ? SCOPES_FIX : reason.fix)}
         testID="health-fix"
       />
     </View>

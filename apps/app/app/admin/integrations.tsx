@@ -6,8 +6,10 @@
  */
 import { Button, EmptyState, Panel, Stack, Text } from "@sotto/ui";
 import { useEffect, useState } from "react";
+import { AgnFieldsPanel } from "../../features/crm/AgnFieldsPanel";
 import { type ClientStatus, orgClient, removeOrgClient } from "../../features/crm/api";
 import { useZoho } from "../../features/crm/useZoho";
+import { WeeklyExport } from "../../features/crm/WeeklyExport";
 import { ZohoConnect } from "../../features/crm/ZohoConnect";
 import { SmtpSettings } from "../../features/email/SmtpSettings";
 import { useIntegrationsText } from "../../features/integrations/strings";
@@ -25,10 +27,17 @@ export default function IntegrationsScreen() {
   return (
     <Stack gap="xl" testID="admin-integrations">
       <ConnectionPanel />
+      <AgnPart />
+      <WeeklyExport />
       <SmtpSettings />
       <GallaboxSettings />
     </Stack>
   );
+}
+
+function AgnPart() {
+  const zoho = useZoho();
+  return <AgnFieldsPanel zoho={zoho} />;
 }
 
 type OrgClient = ClientStatus["org"] & { client_id_tail?: string };
