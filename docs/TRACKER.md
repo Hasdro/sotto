@@ -224,7 +224,8 @@ Wave 2
 - [x] T-077 `review-home-shell` — UX-10 (+ZC-09, DD-8), UX-03h, UX-25, UX-26, UX-43b, UX-29, UX-39 (+UX-39r), ZC-14c, ZC-map-agent, W2-A11Y (practice step left out, owner Q15)
   - Evidence (13 Nov, `phase9/review-home-shell`): app jest 66 suites / 398 tests green with `--maxWorkers=2` (new: home-first-run, admin-company, health-banner, account-signin, reset-password, settings-personal, locale-os), typecheck/boundaries green, biome clean on owned files, `pnpm a11y` 64 checks 0 serious (routes + /home, /settings, /reset-password, /admin/integrations, /admin/company), signed-in screenshots against a local cloud (`SOTTO_SHOT_BASE`) in `docs/evidence/phase9/review-home-shell/`. No live-path change, so no replay.
 Wave 3
-- [ ] T-078 `review-integrations` — ready (`docs/prompts/review-integrations.md`; + W3-PRACTICE, owner Q15/D-073) — UX-30, UX-32 (+ZC-03), ZC-07, ZC-13, UX-44c, W3-INT-EVID
+- [x] T-078 `review-integrations` — done on `phase9/review-integrations` (awaiting master merge): UX-30, UX-32 (+ZC-03), ZC-07, ZC-13, UX-44c, W3-PRACTICE (D-073), W3-INT-EVID
+  - Evidence: app jest 491, worker pytest 635, desktop 25, lint + typecheck + boundaries green; replay p50 576 / p95 978 ms, R4 0; 24 screenshots + axe 0 serious in `docs/evidence/phase9/review-integrations/`. Needs the master's `bundle.py` practice line before practice works on a server.
 - [ ] T-079 `review-owner-platform` — ready (`docs/prompts/review-owner-platform.md`) — ZC-01, ZC-06, DD-1, DD-2, ZC-10, W3-OWN-A11Y
 - [ ] T-080 `review-company-coaching` — ready (`docs/prompts/review-company-coaching.md`) — ZC-11c, DD-4, DD-5, ZC-B10, UX-31, UX-06c, INT-05, INT-15
 Wave 4
@@ -351,6 +352,11 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 (h) · local · Opus 5.5 · phase9/review-integrations
+- **Done (T-078):** server: SMTP presets from the admin's domain (`/company/smtp/preset`, known map + MX via `dnspython`, D-052); Gallabox `discover` (numbers as opaque refs, APPROVED templates, guessed parameter sources, only unmapped shown) + `channel` pick, the allow-list saves the mapping, and a send without a number is refused; `/zoho/team` preview + `/zoho/team/invite` (confirm, seats all-or-nothing, audited, isolation-tested). App: Integrations order Zoho → Email → WhatsApp, the org client form is gone (override line only, D-064), SMTP only-password presets + test email on save, Gallabox pick lists, invite from Zoho, reasons on disabled buttons; practice call (`seed/practice/practice.json`, `/call?practice=1`, Home step, nothing kept).
+- **Evidence:** jest 491, pytest 635, desktop 25; replay p50 576 / p95 978 ms; axe 0 serious on 24 shots (local server with a fake Gallabox and SMTP; nothing external).
+- **Next:** master adds `"practice"` to `cloud/bundle.py` and `client_id_tail` to `store.zoho_client_status`, then merges. Note: `lib/callSource.ts` shows the source name "Practice" in English on the Arabic call header.
 
 ### 2026-11-14 (g) · local · Opus 5.5 · claude/friendly-gates-fbhqdv (master, subagent)
 - **Done:** owner answered the 15 backlog questions "all recommended". Recorded D-042…D-058 (backlog technical drafts, same numbers as the code comments) and D-059…D-073 (one per owner answer, Q1…Q15) in `docs/DECISIONS.md`, with pointers on D-019, D-022, D-024, D-031, D-038, D-039 and the phase 9 brief line (D-043). REQUIREMENTS: R3 self-signup (D-068) and BYO note (D-059), R4 "(platform default)" (D-062), R6 Keys & providers and prompt studio in the owner console (D-059, D-061); R12 untouched. Six wave 3–4 prompts in `docs/prompts/review-*.md`; T-078…T-083 ready. Practice call (Q15, T-038) assigned to T-078.

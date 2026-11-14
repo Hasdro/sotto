@@ -69,7 +69,7 @@ export function ZohoInvite({ connected }: { connected: boolean }) {
   };
 
   return (
-    <Disclosure title={ti("zohoTeam.title")} summary={ti("zohoTeam.body")} testID="zoho-invite">
+    <Disclosure title={ti("zohoTeam.title")} testID="zoho-invite">
       <Stack gap="md">
         <Text variant="label" tone="muted">
           {ti("zohoTeam.body")}

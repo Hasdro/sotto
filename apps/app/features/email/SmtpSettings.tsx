@@ -216,7 +216,6 @@ export function SmtpSettings() {
             {passwordField}
             <Disclosure
               title={ti("smtp.preset.advanced")}
-              summary={ti("smtp.preset.advancedSummary", { host, port })}
               testID="smtp-advanced"
             >
               <Stack gap="md">{serverFields}</Stack>
