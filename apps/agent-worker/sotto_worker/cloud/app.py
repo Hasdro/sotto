@@ -31,6 +31,7 @@ from sotto_worker.adapters.email.smtp import Outgoing, send_mail
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.coaching import routes as coaching_routes
 from sotto_worker.cloud.coaching.store import CoachingStore
+from sotto_worker.cloud.email import attachments as email_attachments
 from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.email import routes as email_routes
 from sotto_worker.cloud.features import FeatureUnavailable
@@ -1317,6 +1318,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             body=body,
             ip_of=ip_of,
             clock=config.clock,
+            attachment_ids=lambda company: email_attachments.ids(store, company),
         ),
         Route("/assets/fonts/{file}", font_file),
         Route("/owner", owner_page),

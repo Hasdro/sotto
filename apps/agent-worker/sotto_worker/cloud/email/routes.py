@@ -11,6 +11,7 @@ idempotency key; a retried key never sends twice."""
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -20,7 +21,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from sotto_worker.adapters.email.smtp import Outgoing, SmtpAccount, SmtpSendError, send_mail
-from sotto_worker.cloud.email import data, presets
+from sotto_worker.cloud.email import attachments, data, presets
 from sotto_worker.cloud.email.render import Rendered, render
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
@@ -44,6 +45,7 @@ def make_routes(
     log: Callable[[str], None] = lambda _l: None,
 ) -> list[Route]:
     data.ensure(store)
+    attachments.ensure(store)
 
     async def test_send(account: SmtpAccount | None, to: str) -> Response:
         if account is None:
@@ -182,7 +184,17 @@ def make_routes(
             ),
         }
         out = render(fmt, subject=subject, body=text, values=values)
-        mail = Outgoing(to=to, cc=cc, subject=out.subject, text=out.text, message_id_seed="")
+        files = d.get("attachments") or []
+        if files:  # INT-14b: only the admin's list for this company
+            store.require_feature(who, "email_attachments")
+        mail = Outgoing(
+            to=to,
+            cc=cc,
+            subject=out.subject,
+            text=out.text,
+            message_id_seed="",
+            attachments=tuple(attachments.pick(store, who.company, files)),
+        )
         return chosen, out, mail
 
     def preview_out(chosen: dict[str, Any], out: Rendered, mail: Outgoing) -> dict[str, Any]:
@@ -192,6 +204,7 @@ def make_routes(
             "cc": list(mail.cc),
             "subject": out.subject,
             "text": out.text,
+            "attachments": [{"name": n, "size": len(b)} for n, _t, b in mail.attachments],
         }
 
     @app_route
@@ -221,10 +234,10 @@ def make_routes(
         if account is None:
             data.finish_send(store, who, idem, ok=False, detail="no mailbox", ip=ip_of(r))
             raise CloudError("invalid", "no approved sender is set up")
-        mail = Outgoing(
-            to=mail.to, cc=mail.cc, subject=mail.subject, text=mail.text, message_id_seed=idem
-        )
+        mail = dataclasses.replace(mail, message_id_seed=idem)
         recipients = f"to {', '.join(mail.to)}" + (f" cc {', '.join(mail.cc)}" if mail.cc else "")
+        if mail.attachments:
+            recipients += f" · {len(mail.attachments)} attached"
         try:
             await sender(account, mail)
         except SmtpSendError as e:
@@ -246,6 +259,7 @@ def make_routes(
 
     api = "/api/v1"
     return [
+        *attachments.make_routes(store=store, app_route=app_route, ip_of=ip_of),
         Route("/api/owner/smtp", owner_route(o_get)),
         Route("/api/owner/smtp", owner_route(o_put, mutating=True), methods=["PUT"]),
         Route("/api/owner/smtp", owner_route(o_delete, mutating=True), methods=["DELETE"]),
