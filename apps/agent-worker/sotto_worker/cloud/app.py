@@ -1039,6 +1039,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             "tokens.css",
             "components.css",
             "fonts.css",
+            "favicon.svg",
         }:
             return PlainTextResponse("not found\n", status_code=404)
         return FileResponse(
