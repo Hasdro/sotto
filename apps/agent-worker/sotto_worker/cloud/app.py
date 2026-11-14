@@ -8,12 +8,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import mimetypes
 import re
 import time
 from collections import OrderedDict, deque
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from pathlib import Path
@@ -40,8 +41,10 @@ from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.owner import routes as owner_routes
 from sotto_worker.cloud.recordings import KINDS, Recordings
+from sotto_worker.cloud.scheduler import routes as followup_routes
+from sotto_worker.cloud.scheduler.runner import DAY_MS, Scheduler
 from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
-from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
+from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms, plan_state
 from sotto_worker.cloud.zoho import routes as zoho_routes
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
@@ -138,6 +141,8 @@ class CloudConfig:
     zoho_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Zoho
     smtp_sender: email_routes.Sender | None = None  # tests: a local fake SMTP server
     gallabox_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Gallabox
+    run_scheduler: bool = False  # T-081: `serve` starts the in-process runner; tests tick by hand
+    clock: Callable[[], int] = field(default=now_ms)  # ms; tests inject a fake clock
 
 
 async def mint_stt_token(vendor: str, key: str) -> dict[str, Any]:
@@ -179,7 +184,7 @@ async def list_models(provider_id: str, url: str, key: str) -> list[str]:
         return [str(m.get("id", "")).removeprefix("models/") for m in data][:80]
 
 
-def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGIApp:
+def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Headers:
     # Only FAILED sign-ins count, so real users cannot be locked out by volume alone; the owner
     # has a limiter of its own, so a flood on the app login never locks the owner out.
     login_limit = RateLimit(per_key=10, total=300, window_s=600)
@@ -207,6 +212,21 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     tester = config.key_tester or list_models
     stt_key_env = {"assemblyai": "ASSEMBLYAI_API_KEY", "speechmatics": "SPEECHMATICS_API_KEY"}
     static_root = config.static_dir.resolve() if config.static_dir else None
+    scheduler = Scheduler(store, clock=config.clock, log=config.log)
+    coaching = CoachingStore(store)
+
+    async def digest_job(now: int) -> None:
+        await coaching_routes.weekly_digest_job(
+            coaching,
+            learning,
+            prompts=seed.prompts,
+            origin=config.public_origin or "http://localhost:8788",
+            mailer=config.mailer,
+            now=now,
+        )
+
+    # T-080's hook: safe to call more often than weekly, so once a day is enough.
+    scheduler.register("coaching_weekly_digest", DAY_MS, digest_job)
 
     def ip_of(request: Request) -> str:
         return request.client.host if request.client else "?"
@@ -264,6 +284,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "not_rateable": HTTPStatus.UNPROCESSABLE_ENTITY,
         "benchmark_failed": HTTPStatus.CONFLICT,
         "untested": HTTPStatus.CONFLICT,
+        "not_sent": HTTPStatus.CONFLICT,
     }
 
     def handle(
@@ -1219,7 +1240,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             learning=learning, app_route=app_route, body=body, ip_of=ip_of
         ),
         *coaching_routes.make_routes(
-            coaching=CoachingStore(store),
+            coaching=coaching,
             learning=learning,
             prompts=seed.prompts,
             app_route=app_route,
@@ -1278,16 +1299,39 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             send_invite=send_invite,
             log=config.log,
         ),
+        *followup_routes.make_routes(
+            store=store,
+            plans=scheduler.plans,
+            app_route=app_route,
+            body=body,
+            ip_of=ip_of,
+            clock=config.clock,
+        ),
         Route("/assets/fonts/{file}", font_file),
         Route("/owner", owner_page),
         Route("/owner/{file}", owner_page),
         Route("/{path:path}", static),
     ]
-    return Headers(Starlette(routes=routes))
+    @contextlib.asynccontextmanager
+    async def lifespan(_app: Starlette) -> AsyncIterator[None]:
+        stop = asyncio.Event()
+        task = asyncio.create_task(scheduler.run(stop)) if config.run_scheduler else None
+        try:
+            yield
+        finally:
+            stop.set()
+            if task is not None:
+                await task
+
+    out = Headers(Starlette(routes=routes, lifespan=lifespan))
+    out.scheduler = scheduler
+    return out
 
 
 class Headers:
     """Security headers everywhere; CORS (and preflight) on the app API only."""
+
+    scheduler: Scheduler | None = None  # T-081: the server's one runner (tests call tick)
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
