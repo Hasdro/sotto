@@ -1,6 +1,6 @@
 ---
 key: crm_brief
-version: 3
+version: 4
 scope: platform
 stage: suggest
 description: Appended to the live suggestion's per-turn message when the call has a brief — the CRM record the agent confirmed and/or the structured brief they wrote (context rail, R10, T-056). Clients without it simply skip the block.
@@ -9,6 +9,8 @@ variables:
 # INT-03 (D-048): one short line keyed by the Deal stage, added to {{crm.brief}} by the server
 # when the brief is built ("as of prep": the stage can change during the call). Matched by the
 # start of the stage name, case-insensitive; an unknown stage adds nothing. Each ≤ 150 tokens.
+# INT-16c (D-069): the campaign that brought the person, read from Zoho Campaigns (type, status).
+campaign_label: "Campaign: {name} ({details})"
 stage_label: "Stage guidance (stage as of prep: {stage})"
 stage_guidance:
   qualification: "Confirm need, budget, timing and who decides; ask before pitching."

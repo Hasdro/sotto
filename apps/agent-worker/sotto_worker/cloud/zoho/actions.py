@@ -1,12 +1,13 @@
 """Zoho writes the agent approves one by one (R12, D-031, T-062): a Meeting, a Lead, a Contact
-update, a Note on a Deal. Each kind has a closed list of fields; anything else (a Deal stage or
+update, a Note on a Deal, the call log, a next-step Task (INT-02t) and the AGN fields on a Deal
+(INT-06, D-069). Each kind has a closed list of fields; anything else (a Deal stage or
 amount, an owner, an arbitrary module) is refused before a request is built."""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sotto_worker.adapters.crm.zoho import ZohoCRMReader
@@ -14,7 +15,17 @@ from sotto_worker.cloud.store import CloudError
 
 RECORD_ID = re.compile(r"^\d{5,25}$")
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
-KINDS = ("meeting", "lead", "contact_update", "deal_note", "call_log")
+KINDS = ("meeting", "lead", "contact_update", "deal_note", "call_log", "task", "agn_fields")
+# W4-SCOPES (D-069): the scope group a kind needs beyond the base set (oauth.FEATURE_SCOPES).
+KIND_FEATURE = {"task": "tasks", "agn_fields": "agn_fields"}
+DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# INT-06: the app's names for the AGN fields → Zoho API names (adapter AGN_DEAL_FIELDS).
+AGN_MAP = {
+    "score": "AGN_Call_Score",
+    "chance_band": "AGN_Chance_Band",
+    "top_objection": "AGN_Top_Objection",
+    "last_call_date": "AGN_Last_Call_Date",
+}
 # INT-01 (draft D-047 (backlog)): the after-call log is the review's structured summary, never
 # transcript text;
 # the caps keep a pasted transcript out. Parent order: Deal, else Contact, else Lead.
@@ -59,6 +70,26 @@ FIELDS: dict[str, dict[str, int]] = {
         "next_step": 200,
         "chance_band": 6,
     },
+    # INT-02t: the next-step Task, agent-confirmed (due date and owner both checked in the app).
+    "task": {
+        "call_id": 50,
+        "subject": 255,
+        "due_date": 10,
+        "owner_id": 25,
+        "deal_id": 25,
+        "contact_id": 25,
+        "lead_id": 25,
+        "description": 2000,
+    },
+    # INT-06: only these four, and only on a Deal (D-069). There is no stage or amount field.
+    "agn_fields": {
+        "call_id": 50,
+        "deal_id": 25,
+        "score": 3,
+        "chance_band": 6,
+        "top_objection": 255,
+        "last_call_date": 10,
+    },
 }
 REQUIRED = {
     "meeting": ("title", "start", "end"),
@@ -66,6 +97,8 @@ REQUIRED = {
     "contact_update": ("contact_id",),
     "deal_note": ("deal_id", "content"),
     "call_log": ("call_id", "summary"),
+    "task": ("call_id", "subject", "due_date", "owner_id"),
+    "agn_fields": ("call_id", "deal_id"),
 }
 MAX_MEETING = timedelta(hours=8)
 
@@ -105,7 +138,7 @@ def plan(kind: str, raw: Any) -> Planned:
     for name in REQUIRED[kind]:
         if not fields.get(name):
             raise CloudError("invalid", f"{name} is required")
-    for name in ("contact_id", "deal_id", "lead_id"):
+    for name in ("contact_id", "deal_id", "lead_id", "owner_id"):
         if name in fields and not RECORD_ID.match(fields[name]):
             raise CloudError("invalid", f"{name} is not a Zoho record id")
     if "email" in fields and not EMAIL.match(fields["email"]):
@@ -115,6 +148,28 @@ def plan(kind: str, raw: Any) -> Planned:
         if not timedelta(0) < end - start <= MAX_MEETING:
             raise CloudError("invalid", "the meeting must end after it starts, within 8 hours")
     key = None
+    if kind in ("call_log", "task", "agn_fields") and not CALL_ID.match(fields["call_id"]):
+        raise CloudError("invalid", "call_id is not valid")
+    if kind == "task":
+        due = _day(fields["due_date"])
+        if due < date.today() - timedelta(days=1):  # a day of slack for time zones
+            raise CloudError("invalid", "the due date is in the past")
+        return Planned(kind, "Tasks", fields, f"task-{fields['call_id']}")
+    if kind == "agn_fields":
+        if not set(fields) & set(AGN_MAP):
+            raise CloudError("invalid", "pick at least one AGN field")
+        if "score" in fields and not (fields["score"].isdigit() and int(fields["score"]) <= 100):
+            raise CloudError("invalid", "score must be 0 to 100")
+        if fields.get("chance_band", "medium") not in CHANCE_BANDS:
+            raise CloudError("invalid", "chance_band must be low, medium or high")
+        if "last_call_date" in fields:
+            _day(fields["last_call_date"])
+        return Planned(
+            kind,
+            f"AGN fields on Deals:{fields['deal_id']}",
+            fields,
+            f"agn_fields-{fields['call_id']}",
+        )
     if kind == "call_log":
         if not CALL_ID.match(fields["call_id"]):
             raise CloudError("invalid", "call_id is not valid")
@@ -132,6 +187,15 @@ def plan(kind: str, raw: Any) -> Planned:
         "deal_note": f"Notes on Deals:{fields.get('deal_id', '')}",
     }[kind]
     return Planned(kind, summary, fields)
+
+
+def _day(value: str) -> date:
+    if not DAY.match(value):
+        raise CloudError("invalid", "dates must be YYYY-MM-DD")
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise CloudError("invalid", "that date does not exist") from None
 
 
 def _when(value: str) -> datetime:
@@ -193,6 +257,31 @@ async def execute(writer: ZohoCRMReader, p: Planned) -> dict[str, Any]:
         if not record:
             raise CloudError("invalid", "change at least one field")
         return await writer.update("Contacts", f["contact_id"], record)
+    if p.kind == "task":
+        task: dict[str, Any] = {
+            "Subject": f["subject"],
+            "Due_Date": f["due_date"],
+            "Owner": {"id": f["owner_id"]},
+            "Status": "Not Started",
+        }
+        if f.get("description"):
+            task["Description"] = f["description"]
+        if f.get("contact_id"):
+            task["Who_Id"] = {"id": f["contact_id"]}
+        if f.get("deal_id"):
+            task["What_Id"] = {"id": f["deal_id"]}
+            task["$se_module"] = "Deals"
+        elif f.get("lead_id"):
+            task["What_Id"] = {"id": f["lead_id"]}
+            task["$se_module"] = "Leads"
+        return await writer.create("Tasks", task)
+    if p.kind == "agn_fields":
+        record = {AGN_MAP[k]: f[k] for k in AGN_MAP if f.get(k)}
+        if "AGN_Call_Score" in record:
+            record["AGN_Call_Score"] = int(record["AGN_Call_Score"])
+        if "AGN_Chance_Band" in record:
+            record["AGN_Chance_Band"] = record["AGN_Chance_Band"].capitalize()
+        return await writer.update_deal_fields(f["deal_id"], record)
     if p.kind == "call_log":
         field, module = next((fl, m) for fl, m in CALL_LOG_PARENTS if f.get(fl))
         lines = [f"Summary: {f['summary']}"]

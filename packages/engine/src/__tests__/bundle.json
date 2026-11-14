@@ -235,7 +235,7 @@
    },
    "crm_brief": {
     "key": "crm_brief",
-    "version": 3,
+    "version": 4,
     "stage": "suggest",
     "variables": [
      "crm.brief"
