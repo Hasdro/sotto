@@ -73,15 +73,22 @@ class _JitterLLM:
             spread,
             chunk_ms,
         )
+        self.requests = 0
+        self.in_chars = 0  # what a real model would bill as input (system + messages)
+        self.out_chars = 0
 
     async def warm(self) -> None:
         return None
 
     async def stream(self, req: LLMRequest) -> AsyncIterator[LLMChunk]:
+        self.requests += 1
+        self.in_chars += len(req.system) + sum(len(m.content) for m in req.messages)
         await self._clock.sleep(self._rng.lognormvariate(0, self._spread) * self._p50)
         if self._down:
             raise ProvidersDown("simulated outage")
-        for i, word in enumerate(demo_fake_text(req).split(" ")):
+        text = demo_fake_text(req)
+        self.out_chars += len(text)
+        for i, word in enumerate(text.split(" ")):
             if i:
                 await self._clock.sleep(self._chunk)
             yield LLMChunk(text=word if i == 0 else f" {word}")
@@ -101,6 +108,10 @@ class ReplayReport:
     escalations: int = 0
     # Top-1 playbook score of each customer turn that got a card (T-033: matching quality).
     top1_scores: list[float] = field(default_factory=list)
+    # W4-COST: what the calls would bill. Per stage: [requests, input chars, output chars]; the
+    # scripted call time (both tracks stream for the whole call).
+    llm_usage: dict[str, list[int]] = field(default_factory=dict)
+    call_ms: int = 0
 
     @property
     def summary(self) -> LatencySummary:
@@ -190,6 +201,12 @@ async def replay_synthetic(
             check_line(report, scenario, line, new_cards)
             record_match(report, base.playbook, line, new_cards)
         await session.close()
+        for stage, model in (("suggest", primary), ("suggest_backup", backup)):
+            used = report.llm_usage.setdefault(stage, [0, 0, 0])
+            used[0] += model.requests
+            used[1] += model.in_chars
+            used[2] += model.out_chars
+        report.call_ms += t
         report.cards += len(records)
         report.escalations += len(escalations)
         report.records += records

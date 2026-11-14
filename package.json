@@ -17,6 +17,7 @@
     "test:worker": "cd apps/agent-worker && uv run --frozen pytest -q && uv run --frozen python scripts/check_coverage.py",
     "test:scripts": "bash scripts/tests/run.sh",
     "replay": "cd apps/agent-worker && uv run --frozen python -m replay",
+    "cost:estimate": "cd apps/agent-worker && uv run --frozen python -m replay.cost",
     "replay:live": "cd apps/agent-worker && uv run --frozen --env-file ../../.env python -m replay --live",
     "stt:live": "cd apps/agent-worker && uv run --frozen --env-file ../../.env python -m replay.stt_live",
     "spoken:live": "cd apps/agent-worker && uv run --frozen python -m replay.spoken_live",

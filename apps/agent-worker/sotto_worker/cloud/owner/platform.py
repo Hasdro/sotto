@@ -26,6 +26,9 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from sotto_worker.cloud import features
+from sotto_worker.cloud.bootstrap.store import SCHEMA as BOOTSTRAP_SCHEMA
+from sotto_worker.cloud.metering.store import SCHEMA as METERING_SCHEMA
+from sotto_worker.cloud.routing.store import SCHEMA as ROUTING_SCHEMA
 from sotto_worker.cloud.store import KEY_ENV, CloudError, Principal, now_ms
 from sotto_worker.server.vault import VaultError
 
@@ -134,12 +137,23 @@ CREATE TABLE IF NOT EXISTS signups (
   invited_at INTEGER,
   approved_at INTEGER           -- security review H1: AGN's keys only after the owner approves
 );
+-- ZC-12 (D-061): the key a rotation replaced, kept only for its window (then deleted).
+CREATE TABLE IF NOT EXISTS platform_keys_retiring (
+  key_env TEXT PRIMARY KEY,
+  ciphertext BLOB NOT NULL,
+  rotated_at INTEGER NOT NULL,
+  retire_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
 """
+
+# Wave 4 tables, each defined in its own module, created with the platform tables at store start
+# (in place: CREATE TABLE IF NOT EXISTS keeps every existing row).
+SCHEMA = ";\n".join((SCHEMA, ROUTING_SCHEMA, METERING_SCHEMA, BOOTSTRAP_SCHEMA)) + ";\n"
 
 BYO = "byo_providers"  # the entitlement's id in 403 bodies and the feature map (not a catalog id)
 LIVE_STAGES = ("trigger", "suggest", "suggest_backup")
@@ -155,6 +169,9 @@ PROMPT_SCOPES = ("platform", "company", "team", "campaign")
 PROMPT_MAX_CHARS = 20_000
 SCOPE_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 INVITE_TTL_MS = 7 * 86_400_000
+# ZC-12: apps refetch the bundle on the 10-minute config refresh (D-036); a retiring key is kept
+# for two refresh cycles, so every device has switched before the owner revokes it at the vendor.
+ROTATE_WINDOW_MS = 20 * 60_000
 
 
 def _owner(who: Principal) -> None:
@@ -245,10 +262,63 @@ def set_key(store: CloudStore, owner: Principal, key_env: str, value: str, *, ip
         store.audit(db, "owner.key.set", key_env, actor=owner, ip=ip)
 
 
+def rotate_key(
+    store: CloudStore, owner: Principal, key_env: str, value: str, *, ip: str, t: int | None = None
+) -> dict[str, Any]:
+    """ZC-12: the next key becomes the one every bundle carries from the next config refresh; the
+    old one is marked retiring for ROTATE_WINDOW_MS (shown in the console, then deleted). No
+    release, and no key in the answer."""
+    _owner(owner)
+    t = now_ms() if t is None else t
+    rows = store._q("SELECT ciphertext FROM platform_keys WHERE key_env = ?", (key_env,))
+    if not rows:
+        raise CloudError("not_found", "there is no key to rotate; add one first")
+    if platform_key(store, key_env) == value.strip():
+        raise CloudError("invalid", "the next key must be a new key")
+    set_key(store, owner, key_env, value, ip=ip)
+    retire_at = t + ROTATE_WINDOW_MS
+    with store._tx() as db:
+        db.execute(
+            "INSERT OR REPLACE INTO platform_keys_retiring(key_env, ciphertext, rotated_at,"
+            " retire_at) VALUES (?,?,?,?)",
+            (key_env, rows[0]["ciphertext"], t, retire_at),
+        )
+        store.audit(db, "owner.key.rotated", key_env, actor=owner, ip=ip)
+    return {"key_env": key_env, "rotated_at": t, "retire_at": retire_at}
+
+
+def purge_retired(store: CloudStore, t: int | None = None) -> list[str]:
+    """Deletes retiring keys past their window; the names, for the log."""
+    t = now_ms() if t is None else t
+    rows = store._q("SELECT key_env FROM platform_keys_retiring WHERE retire_at <= ?", (t,))
+    if rows:
+        with store._tx() as db:
+            db.execute("DELETE FROM platform_keys_retiring WHERE retire_at <= ?", (t,))
+            for r in rows:
+                store.audit(db, "owner.key.retired", str(r["key_env"]))
+    return [str(r["key_env"]) for r in rows]
+
+
+def retiring_key(store: CloudStore, key_env: str, t: int | None = None) -> str | None:
+    """The replaced key while its window lasts (server-side fallback only; never in a bundle)."""
+    t = now_ms() if t is None else t
+    rows = store._q(
+        "SELECT ciphertext FROM platform_keys_retiring WHERE key_env = ? AND retire_at > ?",
+        (key_env, t),
+    )
+    if not rows:
+        return None
+    try:
+        return store._vault.decrypt(_key_vault(key_env), rows[0]["ciphertext"])
+    except VaultError:
+        return None
+
+
 def delete_key(store: CloudStore, owner: Principal, key_env: str, *, ip: str) -> None:
     _owner(owner)
     with store._tx() as db:
         db.execute("DELETE FROM platform_keys WHERE key_env = ?", (key_env,))
+        db.execute("DELETE FROM platform_keys_retiring WHERE key_env = ?", (key_env,))
         store.audit(db, "owner.key.deleted", key_env, actor=owner, ip=ip)
 
 
@@ -277,7 +347,12 @@ def platform_keys(store: CloudStore, names: Iterable[str] | None = None) -> dict
 
 
 def platform_key_status(store: CloudStore) -> dict[str, dict[str, Any]]:
-    """Status only (set, when, last test): never a key, not even a part of one."""
+    """Status only (set, when, last test, rotation window): never a key, not even a part."""
+    purge_retired(store)
+    retiring = {
+        str(r["key_env"]): {"rotated_at": int(r["rotated_at"]), "retire_at": int(r["retire_at"])}
+        for r in store._q("SELECT key_env, rotated_at, retire_at FROM platform_keys_retiring")
+    }
     return {
         str(r["key_env"]): {
             "updated_at": int(r["updated_at"]),
@@ -288,6 +363,7 @@ def platform_key_status(store: CloudStore) -> dict[str, dict[str, Any]]:
                 "at": int(r["tested_at"]),
                 "detail": str(r["test_detail"] or ""),
             },
+            "retiring": retiring.get(str(r["key_env"])),
         }
         for r in store._q("SELECT * FROM platform_keys")
     }
@@ -380,6 +456,22 @@ def set_route(
     ip: str,
 ) -> None:
     _owner(owner)
+    write_route(store, seed, stage, provider_id, model, actor=owner, ip=ip)
+
+
+def write_route(
+    store: CloudStore,
+    seed: Seed,
+    stage: str,
+    provider_id: str,
+    model: str,
+    *,
+    actor: Principal | None,
+    ip: str = "",
+    action: str = "owner.route.set",
+) -> None:
+    """A platform route change with history (for rollback), behind R6's benchmark guard. The
+    owner (set_route) and the routing job (actor None, ZC-05) both come through here."""
     model = model.strip()
     check_route(seed, stage, provider_id, model)
     bench = benchmark(store, provider_id, model, stage)
@@ -399,9 +491,9 @@ def set_route(
         db.execute(
             "INSERT INTO platform_route_history(stage, provider_id, model, at, actor_id)"
             " VALUES (?,?,?,?,?)",
-            (stage, provider_id, model, t, owner.user_id),
+            (stage, provider_id, model, t, actor.user_id if actor else None),
         )
-        store.audit(db, "owner.route.set", f"{stage}={provider_id}/{model}", actor=owner, ip=ip)
+        store.audit(db, action, f"{stage}={provider_id}/{model}", actor=actor, ip=ip)
 
 
 def reset_route(store: CloudStore, owner: Principal, stage: str, *, ip: str) -> None:
@@ -454,7 +546,10 @@ def rollback_route(
 
 def effective_routes(store: CloudStore, company_id: str) -> dict[str, tuple[str, str]]:
     """Seed ← AGN's platform routes ← the company's own (only while AGN allows BYO)."""
+    from sotto_worker.cloud.routing.store import canary_routes
+
     routes = platform_routes(store)
+    routes.update(canary_routes(store, company_id))  # ZC-05: only AGN's demo org runs a canary
     if byo_on(store, company_id):
         routes.update(store.routes(company_id))
     return routes
