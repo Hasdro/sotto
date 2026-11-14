@@ -58,6 +58,12 @@ const OWNER_VIEWS = [
   "audit",
   "account",
 ];
+// A state that must be on screen when axe runs, so a crash or a missing panel cannot pass as
+// "0 violations". /admin/settings holds the consent panel in its new-admin state (no record
+// yet): the same panel the first-run "Who processes your calls" sheet shows (DD-4, T-081).
+const MUST_SHOW = {
+  "/admin/settings": ['[data-testid="consent-vendors"]', '[data-testid="consent-save"]'],
+};
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 13, 9, 0, 0);
 const OWNER_COMPANY = {
@@ -151,6 +157,13 @@ function serve() {
         return res.writeHead(404).end();
       }
     }
+    // No server behind the export: the app falls back to its local sample values. Answering
+    // /api/* with index.html (200, not JSON) crashed /admin/keys and /admin/settings to a blank
+    // page that axe then passed (wave-4 hardening).
+    if (path.startsWith("/api/")) {
+      res.writeHead(404, { "content-type": "application/json" });
+      return res.end('{"error":"not_found"}');
+    }
     let file = join(dist, path);
     if (!file.startsWith(dist)) return res.writeHead(404).end();
     try {
@@ -186,9 +199,24 @@ try {
       [mode.locale],
     );
     const page = await context.newPage();
+    let pageErrors = [];
+    page.on("pageerror", (err) => pageErrors.push(String(err)));
     for (const path of PAGES) {
+      pageErrors = [];
       await page.goto(base + path, { waitUntil: "networkidle" });
       await page.waitForTimeout(300); // fonts and the first render settle
+      const missing = [];
+      for (const sel of MUST_SHOW[path] ?? []) if (!(await page.$(sel))) missing.push(sel);
+      const empty = (await page.evaluate(() => document.body.innerText.trim().length)) === 0;
+      if (pageErrors.length || missing.length || empty) {
+        checked += 1;
+        failures += 1;
+        console.log(`FAIL  ${path} (${mode.scheme}, ${mode.locale}): page did not render`);
+        for (const e of pageErrors.slice(0, 3)) console.log(`      error: ${e}`);
+        for (const sel of missing) console.log(`      missing: ${sel}`);
+        if (empty) console.log("      empty page");
+        continue;
+      }
       await page.addScriptTag({ content: axeSource });
       const result = await page.evaluate(async () =>
         globalThis.axe.run(document, {

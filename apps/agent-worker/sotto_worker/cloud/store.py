@@ -1585,6 +1585,18 @@ class CloudStore:
             )
         return call_id
 
+    def require_own_call(self, who: Principal, call_id: str) -> None:
+        """The call was started or reported by this person in this company; anything else is
+        "no such call" (404), so a client-sent id cannot write on someone else's call."""
+        key = f"{who.company}:{_clean(call_id, 'call_id', 64)}"
+        rows = self._q(
+            "SELECT 1 FROM call_starts WHERE id = ? AND company_id = ? AND user_id = ?"
+            " UNION ALL SELECT 1 FROM usage WHERE id = ? AND company_id = ? AND user_id = ?",
+            (key, who.company, who.user_id, key, who.company, who.user_id),
+        )
+        if not rows:
+            raise CloudError("not_found", "no such call")
+
     def recording_call(self, who: Principal, call_id: str, *, upload: bool) -> str:
         """The call's own company-scoped id, if this person may upload (the agent who made the
         call) or play (that agent, or the company's admins and managers) its recording."""

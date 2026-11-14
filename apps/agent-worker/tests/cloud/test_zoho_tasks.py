@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import date, timedelta
 from typing import Any
 
@@ -11,6 +12,8 @@ from starlette.testclient import TestClient
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudError, CloudStore
 from sotto_worker.cloud.zoho import actions
+from tests.cloud.test_coaching import member
+from tests.cloud.test_zoho import signup
 from tests.cloud.test_zoho_actions import CONTACT_ID, DEAL_ID
 from tests.cloud.test_zoho_scopes import (
     ME_ID,
@@ -33,7 +36,10 @@ def c4(store: CloudStore, seed: Seed, z4: FakeZohoW4) -> TestClient:
 
 @pytest.fixture
 def a4(c4: TestClient) -> dict[str, str]:
-    return connected_admin(c4)
+    a = connected_admin(c4)
+    r = c4.post("/api/v1/calls/start", json={"call_id": "call-abc"}, headers=a)
+    assert r.status_code == 200  # the write checks the call is the caller's own
+    return a
 
 
 DUE = (date.today() + timedelta(days=3)).isoformat()
@@ -104,3 +110,28 @@ def test_task_needs_the_tasks_scope(
     assert r.status_code == 409
     assert r.json()["code"] == "zoho_reconnect"
     assert not [w for w in z4.writes if w[1] == "Tasks"]
+
+
+def test_a_task_on_another_persons_or_companys_call_is_404(
+    c4: TestClient, a4: dict[str, str], z4: FakeZohoW4, store: CloudStore
+) -> None:
+    """The call_id comes from the app: it must be a call this person started in this company."""
+    b = signup(c4, "Beta", "admin@beta.test")  # company B, its own call
+    assert c4.post("/api/v1/calls/start", json={"call_id": "call-b"}, headers=b).status_code == 200
+    mate = member(c4, store, a4, "bo@acme.test", "Bo Seller", "agent")  # same company, other user
+    r = c4.post("/api/v1/calls/start", json={"call_id": "call-mate"}, headers=mate)
+    assert r.status_code == 200
+    for call_id in ("call-b", "call-mate", "call-never-started"):
+        r = task(c4, a4, call_id=call_id)
+        assert r.status_code == 404, (call_id, r.text)
+        assert r.json()["code"] == "not_found"
+    assert not [w for w in z4.writes if w[1] == "Tasks"]  # nothing reached Zoho
+    # A reported call (no start row, e.g. the start request was lost) is still the caller's.
+    rep = {
+        "call_id": "call-reported",
+        "started_at": int(time.time() * 1000) - 120_000,
+        "duration_s": 60,
+        **dict.fromkeys(("cards", "playbook_cards", "ai_cards", "holding_lines", "escalations"), 0),
+    }
+    assert c4.post("/api/v1/usage", json=rep, headers=a4).status_code in (200, 201)
+    assert task(c4, a4, call_id="call-reported").status_code == 200

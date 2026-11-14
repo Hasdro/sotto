@@ -79,6 +79,16 @@ describe("AI-vendor consent step", () => {
     for (const v of SUBPROCESSORS) expect(screen.getByTestId(`vendor-${v.id}`)).toBeOnTheScreen();
   });
 
+  it("marks every vendor as a list item (axe aria-required-children, T-081)", async () => {
+    await wrap();
+    const list = await screen.findByTestId("consent-vendors");
+    expect(list.props.accessibilityRole ?? list.props.role).toBe("list");
+    for (const v of SUBPROCESSORS) {
+      const item = screen.getByTestId(`vendor-${v.id}`).parent;
+      expect(item?.props.accessibilityRole).toBe("listitem");
+    }
+  });
+
   it("shows the DRAFT marker in Arabic too", async () => {
     await wrap("ar");
     expect(await screen.findByText("مسودة — ليست نصًا قانونيًا")).toBeOnTheScreen();

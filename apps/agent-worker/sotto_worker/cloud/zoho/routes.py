@@ -624,6 +624,8 @@ def make_routes(
         planned = actions.plan(r.path_params["kind"], data.get("fields"))
         store.require_feature(who, "zoho")
         require_scopes(who, actions.KIND_FEATURE.get(planned.kind))
+        if planned.kind in ("task", "agn_fields"):
+            store.require_own_call(who, planned.fields["call_id"])
         key = planned.idem_key or str(data.get("idempotency_key", ""))
         earlier = store.zoho_write_begin(who, key, planned.kind)
         if earlier is not None:
