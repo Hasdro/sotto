@@ -235,7 +235,8 @@ Wave 3
   - Master merge evidence (14 Nov): app jest 81 suites / 522, worker pytest 687 (cov 91.0%), engine vitest 75, lint + typecheck + boundaries green, replay p50 576 / p95 978 ms, R4 0, a11y 79 checks 0 serious.
 Wave 4
 - [ ] T-081 `review-followup-automation` — ready after wave 3 (`docs/prompts/review-followup-automation.md`) — INT-08, INT-09, INT-10, INT-13, INT-14b
-- [ ] T-082 `review-zoho-scopes` — ready after wave 3 (`docs/prompts/review-zoho-scopes.md`) — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
+- [x] T-082 `review-zoho-scopes` — done on `phase9/review-zoho-scopes`, awaiting master merge + hub lines — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
+  - Evidence: worker pytest 738, app jest 540, desktop 25, lint/typecheck/boundaries green, replay p50 576 / p95 978 ms R4 0, a11y 79 checks 0 serious; 32 shots + axe 0 serious in `docs/evidence/phase9/review-zoho-scopes/`.
 - [ ] T-083 `review-ai-autoconfig` — ready after wave 3 (`docs/prompts/review-ai-autoconfig.md`; routing job off until golden calls P0.5 and the owner's cap) — ZC-04, ZC-05, ZC-12
 - [x] T-084 `design-system` — Quiet Paper Glass from the owner's muse-ai reference (D-041): `docs/design/DESIGN-SYSTEM.md`, tokens + primitives in `packages/ui`, `tokens.css`/`components.css` for HTML, Inter + IBM Plex Sans Arabic, gallery screens in `docs/design/screens/` (branch `phase9/design-system`, `docs/design/READY`)
 - [x] T-085 `redesign-app` — the desktop/web app on Quiet Paper Glass (D-041): shell (gray-fill nav rows, neutral unread count, glass phone top bar, inset banners), page header 34 px, Home, live-call chrome (Live pill, chip rail toggle, glass composer/listen capsules, glass End dialog), glass overlays (palette, profile, peek, tutorial), 22 px outlined cards, desktop window canvas; screens in `docs/design/screens/app/` (branch `phase9/redesign-app`)
@@ -357,6 +358,11 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-14 · local · Opus 5.5 · phase9/review-zoho-scopes
+- T-082 built (wave 4). W4-SCOPES (D-069): `oauth.py` `FEATURE_SCOPES` bundle (tasks.CREATE, deals.UPDATE, settings.fields.READ/CREATE, campaigns.READ, notifications.ALL), names checked against Zoho v8 docs; per-feature gating so old connections keep their reads/writes; `/zoho/status` gives `scopes_outdated` + `features`. Blueprint is read per record with deals.READ (no Blueprint/layout scope).
+- INT-02t `task` kind (owner + due date confirmed, `task-{call_id}` idempotent, audited; `GET /zoho/owners`). INT-06 `agn_fields` kind + adapter allow-list (`update_deal_fields`; Stage/Amount and any other Deal field refused before a request, R12 tests), admin `GET/POST /zoho/agn-fields` creates only missing fields. INT-04 `GET /zoho/deals/{id}/blueprint` + rail checklist (read only, "add to prep notes"). INT-16c campaign line (`crm_brief` v4 `campaign_label`, `pnpm gen`). INT-12 `cloud/export/` weekly CSV (admins, own company, no call text, formula-safe) + `weekly_export_job`, mounted from `zoho/routes.py`.
+- Security/tenancy review: 0 C/H; fixed CSV formula cells, export join by user, ASCII ids. Open (to master): HEALTH_FIX/config_health line, HealthReason union, isolation test line, `trigger: []` choice, call_id ownership check.
 
 ### 2026-11-14 (i) · local · Opus 5.5 · claude/friendly-gates-fbhqdv (master, subagent)
 - Merged wave 3 with `--no-ff`: `phase9/review-owner-platform` (3100918), `phase9/review-integrations` (92ddfc7), `phase9/review-company-coaching` (04f1541); tracker conflicts kept both sides.
