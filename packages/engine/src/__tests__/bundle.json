@@ -22,11 +22,13 @@
   "stages": {
    "stt": {
     "provider": "assemblyai",
-    "model": "universal-streaming-english"
+    "model": "universal-streaming-english",
+    "vendor": "assemblyai"
    },
    "stt_backup": {
     "provider": "speechmatics",
-    "model": "standard"
+    "model": "standard",
+    "vendor": "speechmatics"
    },
    "suggest": {
     "provider": "openai_compatible",
@@ -38,7 +40,8 @@
      "reasoning_effort": "low"
     },
     "base_url": "https://api.groq.com/openai/v1",
-    "api_key_env": "GROQ_API_KEY"
+    "api_key_env": "GROQ_API_KEY",
+    "vendor": "groq"
    },
    "suggest_backup": {
     "provider": "openai_compatible",
@@ -50,7 +53,8 @@
      "reasoning_effort": "none"
     },
     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-    "api_key_env": "GEMINI_API_KEY"
+    "api_key_env": "GEMINI_API_KEY",
+    "vendor": "gemini"
    },
    "summary": {
     "provider": "openai_compatible",
@@ -59,7 +63,8 @@
      "reasoning_effort": "medium"
     },
     "base_url": "https://api.groq.com/openai/v1",
-    "api_key_env": "GROQ_API_KEY"
+    "api_key_env": "GROQ_API_KEY",
+    "vendor": "groq"
    }
   },
   "overrides": [],
