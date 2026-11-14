@@ -86,6 +86,14 @@ def connected(c: TestClient, store: CloudStore, *, scope: bool = True) -> dict[s
                 "UPDATE zoho_connections SET scopes = COALESCE(scopes, '') || ?",
                 ("," + ZOHO_NOTIFY_SCOPE,),
             )
+    else:
+        # T-082's D-069 bundle requests the scope on every new connect; an older connection
+        # (granted before the bundle) does not have it.
+        with store._tx() as db:
+            db.execute(
+                "UPDATE zoho_connections SET scopes = REPLACE(scopes, ?, '')",
+                (ZOHO_NOTIFY_SCOPE,),
+            )
     return h
 
 

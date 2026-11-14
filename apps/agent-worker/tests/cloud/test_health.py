@@ -9,6 +9,7 @@ from starlette.testclient import TestClient
 
 from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.store import DAY_MS, CloudStore, now_ms
+from sotto_worker.cloud.zoho.oauth import BASE_SCOPES, SCOPES
 from tests.cloud.conftest import SignUp
 from tests.cloud.test_zoho import REFRESH
 
@@ -103,6 +104,7 @@ def test_zoho_token_expired(client: TestClient, sign_up: SignUp, store: CloudSto
         accounts_server="https://accounts.zoho.com",
         api_domain="https://www.zohoapis.com",
         client_scope="org",
+        scopes=",".join(SCOPES),  # connected with the D-069 bundle (T-082)
     )
     assert codes(health(client, s["auth"])) == []
     store._db.execute("UPDATE zoho_connections SET failed_at = ?", (now_ms(),))
@@ -120,3 +122,22 @@ def test_company_a_never_sees_b_health(
     set_company(store, company_of(store, "admin@beta.test"), trial_ends_at=now_ms() + DAY_MS)
     assert codes(health(client, a["auth"])) == []
     assert codes(health(client, b["auth"])) == ["trial_ending"]
+
+
+def test_zoho_scopes_outdated(client: TestClient, sign_up: SignUp, store: CloudStore) -> None:
+    """T-082 (D-069): a connection made before the scope bundle asks for one reconnect."""
+    s = sign_up()
+    company = company_of(store, "admin@acme.test")
+    fresh_trial(store, company)
+    user = store._q("SELECT id FROM users")[0]["id"]
+    store.zoho_save_connection(
+        company,
+        user,
+        refresh_token=REFRESH,
+        accounts_server="https://accounts.zoho.com",
+        api_domain="https://www.zohoapis.com",
+        client_scope="org",
+        scopes=",".join(BASE_SCOPES),
+    )
+    h = health(client, s["auth"])
+    assert h["reasons"] == [{"code": "zoho_scopes_outdated", "fix": "/settings#zoho"}]

@@ -192,7 +192,10 @@ def make_routes(
     log: Callable[[str], None] = lambda _l: None,
     secure_cookies: bool = False,
     read_limit: Callable[[str], bool] = lambda _key: True,
+    expose: dict[str, Any] | None = None,
 ) -> list[Route]:
+    """`expose`, when given, receives `zoho_call` (the per-person reader) for other modules, e.g.
+    the ZC-04 playbook bootstrap's Zoho source (T-083 hub line 5)."""
     cache = AccessCache()
 
     def http() -> httpx.AsyncClient:
@@ -491,6 +494,9 @@ def make_routes(
                     cache.drop((who.company, who.user_id))
                     raise CloudError("zoho_reconnect", "connect Zoho again") from None
                 raise CloudError("zoho_unavailable", str(e)) from None
+
+    if expose is not None:
+        expose["zoho_call"] = zoho_call
 
     def limited(who: Principal) -> None:
         if not read_limit(f"{who.company}:{who.user_id}"):

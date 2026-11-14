@@ -33,7 +33,12 @@ const call = (id, title) => ({
   p50_ms: 600,
   p95_ms: 900,
   transcript: [
-    { kind: "line", speaker: "customer", text: "Please send me the proposal and a reminder.", at_ms: 1000 },
+    {
+      kind: "line",
+      speaker: "customer",
+      text: "Please send me the proposal and a reminder.",
+      at_ms: 1000,
+    },
     { kind: "line", speaker: "agent", text: "Of course, I'll send it today.", at_ms: 4000 },
   ],
 });
@@ -101,7 +106,12 @@ for (const scheme of ["light", "dark"])
         const sev = res.violations.filter((v) => ["serious", "critical"].includes(v.impact));
         console.log(`${sev.length ? "FAIL" : "ok  "} ${name} ${tag}`);
         for (const v of sev)
-          console.log(`     ${v.impact}: ${v.id} — ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`);
+          console.log(
+            `     ${v.impact}: ${v.id} — ${v.nodes
+              .map((n) => n.target.join(" "))
+              .slice(0, 3)
+              .join(" | ")}`,
+          );
         bad += sev.length;
       }
       await ctx.close();

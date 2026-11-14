@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import mimetypes
 import re
@@ -34,15 +35,18 @@ from sotto_worker.cloud.coaching.store import CoachingStore
 from sotto_worker.cloud.email import attachments as email_attachments
 from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.email import routes as email_routes
+from sotto_worker.cloud.export.routes import weekly_export_job
 from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.gallabox import routes as gallabox_routes
 from sotto_worker.cloud.gallabox import webhook as gallabox_webhook
 from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
+from sotto_worker.cloud.metering.store import Metering
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.owner import routes as owner_routes
 from sotto_worker.cloud.recordings import KINDS, Recordings
+from sotto_worker.cloud.routing.job import weekly as routing_weekly
 from sotto_worker.cloud.scheduler import routes as followup_routes
 from sotto_worker.cloud.scheduler.runner import DAY_MS, Scheduler
 from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
@@ -241,6 +245,50 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         await zoho_watch.renew_all(notify_url, now)
 
     scheduler.register("zoho_watch_renewal", 6 * 3600 * 1000, zoho_watch_job)
+    # ZC-12 (T-083 hub lines 1-4): spend caps are enforced on key and STT-token delivery, and
+    # the owner gets one email per company, month and level (80 %, 100 %).
+    metering = Metering(store, seed)
+
+    async def notify_owner(subject: str, text: str) -> None:
+        if config.mailer is None:
+            config.log(f"spend alert (no platform mailbox): {subject}")
+            return
+        key = hashlib.sha256(subject.encode()).hexdigest()[:16]
+        for r in store._q("SELECT email FROM users WHERE role = 'owner'"):
+            try:
+                await config.mailer.send(
+                    EmailMessage(to=str(r["email"]), subject=subject, text=text),
+                    idempotency_key=f"spend-{key}",
+                )
+            except Exception as err:  # the alert row is recorded; the console shows the level
+                config.log(f"spend alert email failed: {type(err).__name__}")
+
+    def cap_withheld(company_id: str) -> bool:
+        return metering.cap_reached(company_id)
+
+    async def spend_check_job(now: int) -> None:
+        await metering.check_all(notify_owner, now)
+
+    async def routing_job(_now: int) -> None:
+        # ZC-05: off (a no-op) until the owner sets routing.monthly_cap_usd and golden calls exist.
+        await asyncio.to_thread(routing_weekly, store, seed)
+
+    async def purge_keys_job(now: int) -> None:
+        platform.purge_retired(store, now)  # ZC-12: retired keys go after their 20 minutes
+
+    async def csv_export_job(_now: int) -> None:
+        await asyncio.to_thread(weekly_export_job, store)  # INT-12 (T-082); safe to run daily
+
+    # T-083 hub line 5: the bootstrap's Zoho source uses the Zoho module's own per-person reader.
+    zoho_exposed: dict[str, Any] = {}
+
+    async def bootstrap_zoho_call(who: Principal, fn: Callable[[Any], Awaitable[Any]]) -> Any:
+        return await zoho_exposed["zoho_call"](who, fn)
+
+    scheduler.register("spend_cap_check", DAY_MS, spend_check_job)
+    scheduler.register("routing_weekly", 7 * DAY_MS, routing_job)
+    scheduler.register("key_rotation_purge", 3600 * 1000, purge_keys_job)
+    scheduler.register("zoho_csv_weekly", 7 * DAY_MS, csv_export_job)
 
     def ip_of(request: Request) -> str:
         return request.client.host if request.client else "?"
@@ -299,6 +347,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         "benchmark_failed": HTTPStatus.CONFLICT,
         "untested": HTTPStatus.CONFLICT,
         "not_sent": HTTPStatus.CONFLICT,
+        # ZC-04 bootstrap (T-083 hub line 6)
+        "consent_required": HTTPStatus.CONFLICT,
+        "off_domain": HTTPStatus.UNPROCESSABLE_ENTITY,
+        "private_address": HTTPStatus.UNPROCESSABLE_ENTITY,
     }
 
     def handle(
@@ -609,7 +661,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             demoted=platform.demotions(store),
             own_playbook=store.playbook(who.company),
             keys=(
-                store.keys_for_call(who, needed_keys(who), ip=ip_of(_request))
+                store.keys_for_call(
+                    who,
+                    needed_keys(who),
+                    ip=ip_of(_request),
+                    platform_withheld=cap_withheld(who.company),
+                )
                 if state["can_call"]
                 else None
             ),
@@ -631,10 +688,15 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         )
         if not state["can_call"]:
             raise CloudError("plan_blocked", state["blocked_reason"] or "calls are blocked")
+        withheld = cap_withheld(who.company)
+        if withheld and not platform.byo_on(store, who.company):
+            raise CloudError("plan_blocked", "this month's AI budget is used up; AGN is notified")
         if not token_limit.hit(who.user_id):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many calls started")
-        key = store.effective_key(who, stt_key_env[vendor])
+        key = store.effective_key(who, stt_key_env[vendor], platform_withheld=withheld)
         if not key:
+            if withheld:
+                raise CloudError("plan_blocked", "this month's AI budget is used up")
             raise CloudError("no_key", f"no {vendor} key is set up; ask AGN support")
         try:
             return JSONResponse(await minter(vendor, key), headers={"Cache-Control": "no-store"})
@@ -657,6 +719,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     @app_route
     async def usage(request: Request, who: Principal) -> Response:
         call_id = store.report_usage(who, await body(request), platform_of(request))
+        await metering.check(who.company, notify_owner)  # ZC-12: 80 % / 100 % alerts, once each
         return JSONResponse({"ok": True, "id": call_id})
 
     def recordings_on() -> Recordings:
@@ -1279,6 +1342,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             log=config.log,
             secure_cookies=config.secure_cookies,
             read_limit=lambda key: zoho_limit.hit(key),
+            expose=zoho_exposed,
         ),
         *email_routes.make_routes(
             store=store,
@@ -1316,6 +1380,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             bad_secret_record=lambda key: hook_secret_limit.record(key),
             send_invite=send_invite,
             log=config.log,
+            zoho_call=bootstrap_zoho_call,
         ),
         *gallabox_webhook.make_routes(
             store=store,

@@ -13,28 +13,81 @@ const axe = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.mi
 const ALL = { tasks: true, agn_fields: true, campaigns: true, notifications: true };
 const DEAL = "4150868000000400001";
 const BRIEF = {
-  person: { module: "Contacts", id: "4150868000000224005", name: "Jane Doe", title: "CFO",
-    email: "jane@zylker.test", phone: "+971 4 555 0102",
-    campaign_info: { name: "Dubai Expo 2026", type: "Trade Show", status: "Active" } },
+  person: {
+    module: "Contacts",
+    id: "4150868000000224005",
+    name: "Jane Doe",
+    title: "CFO",
+    email: "jane@zylker.test",
+    phone: "+971 4 555 0102",
+    campaign_info: { name: "Dubai Expo 2026", type: "Trade Show", status: "Active" },
+  },
   account: { name: "Zylker Corp", industry: "Retail" },
-  deals: [{ id: DEAL, name: "Zylker renewal", stage: "Qualification", amount: "12000",
-    currency: "AED", close_date: "2026-12-01", owner: "Ada Admin" }],
-  notes: [], text: "Contact: Jane Doe",
+  deals: [
+    {
+      id: DEAL,
+      name: "Zylker renewal",
+      stage: "Qualification",
+      amount: "12000",
+      currency: "AED",
+      close_date: "2026-12-01",
+      owner: "Ada Admin",
+    },
+  ],
+  notes: [],
+  text: "Contact: Jane Doe",
 };
-const BP = { deal_id: DEAL, process: "Sales process", current: "Qualification",
-  transitions: [{ name: "Qualify", to: "Proposal", ready: false,
-    missing: [{ api_name: "Budget_Confirmed", label: "Budget confirmed" },
-      { api_name: "Decision_Maker", label: "Decision maker" }],
-    done: [{ api_name: "Need", label: "Need" }] },
-    { name: "Lose", to: "Closed Lost", ready: true, missing: [], done: [] }],
-  note: "To move to Proposal: still need Budget confirmed, Decision maker." };
+const BP = {
+  deal_id: DEAL,
+  process: "Sales process",
+  current: "Qualification",
+  transitions: [
+    {
+      name: "Qualify",
+      to: "Proposal",
+      ready: false,
+      missing: [
+        { api_name: "Budget_Confirmed", label: "Budget confirmed" },
+        { api_name: "Decision_Maker", label: "Decision maker" },
+      ],
+      done: [{ api_name: "Need", label: "Need" }],
+    },
+    { name: "Lose", to: "Closed Lost", ready: true, missing: [], done: [] },
+  ],
+  note: "To move to Proposal: still need Budget confirmed, Decision maker.",
+};
 const AGN = [
-  { api_name: "AGN_Call_Score", label: "AGN Call Score", type: "integer", exists: false, writable: true },
-  { api_name: "AGN_Chance_Band", label: "AGN Chance Band", type: "picklist", exists: false, writable: true },
-  { api_name: "AGN_Top_Objection", label: "AGN Top Objection", type: "text", exists: true, writable: true },
-  { api_name: "AGN_Last_Call_Date", label: "AGN Last Call Date", type: "date", exists: false, writable: true },
+  {
+    api_name: "AGN_Call_Score",
+    label: "AGN Call Score",
+    type: "integer",
+    exists: false,
+    writable: true,
+  },
+  {
+    api_name: "AGN_Chance_Band",
+    label: "AGN Chance Band",
+    type: "picklist",
+    exists: false,
+    writable: true,
+  },
+  {
+    api_name: "AGN_Top_Objection",
+    label: "AGN Top Objection",
+    type: "text",
+    exists: true,
+    writable: true,
+  },
+  {
+    api_name: "AGN_Last_Call_Date",
+    label: "AGN Last Call Date",
+    type: "date",
+    exists: false,
+    writable: true,
+  },
 ];
-const json = (route, body) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+const json = (route, body) =>
+  route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
 
 async function stub(ctx, mode) {
   const patch = async (route) => {
@@ -44,25 +97,59 @@ async function stub(ctx, mode) {
     f.zoho = { state: "available" };
     if (d.features) d.features = f;
     if (mode === "reconnect")
-      d.health = { status: "needs_attention", reasons: [{ code: "zoho_scopes_outdated", fix: "/settings#zoho" }] };
+      d.health = {
+        status: "needs_attention",
+        reasons: [{ code: "zoho_scopes_outdated", fix: "/settings#zoho" }],
+      };
     await route.fulfill({ response: res, body: JSON.stringify(d) });
   };
   await ctx.route("**/api/v1/features*", patch);
   await ctx.route("**/api/v1/me", patch);
-  await ctx.route("**/api/v1/zoho/status*", (r) => json(r, {
-    connected: true, connected_at: Date.now(), api_domain: "https://www.zohoapis.com",
-    needs_reconnect: mode === "reconnect", scopes_outdated: mode === "reconnect",
-    features: mode === "reconnect" ? {} : ALL, feature: { state: "available" }, client: "platform", dc: "us" }));
-  await ctx.route("**/api/v1/company/zoho/client", (r) => json(r, {
-    platform: { configured: true, dc: "us" }, org: { configured: false }, active: "platform" }));
-  await ctx.route("**/api/v1/zoho/meetings*", (r) => json(r, { meetings: [], page: 1, more: false }));
-  await ctx.route("**/api/v1/zoho/search*", (r) => json(r, { candidates: [{ module: "Contacts",
-    id: BRIEF.person.id, name: "Jane Doe", title: "CFO", company: "Zylker Corp",
-    email: "jane@zylker.test", phone: "+971 4 555 0102", evidence: { field: "name", value: "Jane" } }] }));
+  await ctx.route("**/api/v1/zoho/status*", (r) =>
+    json(r, {
+      connected: true,
+      connected_at: Date.now(),
+      api_domain: "https://www.zohoapis.com",
+      needs_reconnect: mode === "reconnect",
+      scopes_outdated: mode === "reconnect",
+      features: mode === "reconnect" ? {} : ALL,
+      feature: { state: "available" },
+      client: "platform",
+      dc: "us",
+    }),
+  );
+  await ctx.route("**/api/v1/company/zoho/client", (r) =>
+    json(r, {
+      platform: { configured: true, dc: "us" },
+      org: { configured: false },
+      active: "platform",
+    }),
+  );
+  await ctx.route("**/api/v1/zoho/meetings*", (r) =>
+    json(r, { meetings: [], page: 1, more: false }),
+  );
+  await ctx.route("**/api/v1/zoho/search*", (r) =>
+    json(r, {
+      candidates: [
+        {
+          module: "Contacts",
+          id: BRIEF.person.id,
+          name: "Jane Doe",
+          title: "CFO",
+          company: "Zylker Corp",
+          email: "jane@zylker.test",
+          phone: "+971 4 555 0102",
+          evidence: { field: "name", value: "Jane" },
+        },
+      ],
+    }),
+  );
   await ctx.route("**/api/v1/zoho/records/**", (r) => json(r, { brief: BRIEF }));
   await ctx.route("**/api/v1/zoho/deals/*/blueprint", (r) => json(r, BP));
   await ctx.route("**/api/v1/zoho/agn-fields", (r) => json(r, { fields: AGN }));
-  await ctx.route("**/api/v1/zoho/team*", (r) => json(r, { people: [], fallback: false, seats_left: 3 }));
+  await ctx.route("**/api/v1/zoho/team*", (r) =>
+    json(r, { people: [], fallback: false, seats_left: 3 }),
+  );
 }
 
 const browser = await chromium.launch();
@@ -86,10 +173,18 @@ await login.close();
 let bad = 0;
 async function check(page, name) {
   await page.evaluate(axe);
-  const res = await page.evaluate(() => globalThis.axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }));
+  const res = await page.evaluate(() =>
+    globalThis.axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }),
+  );
   const sev = res.violations.filter((v) => ["serious", "critical"].includes(v.impact));
   console.log(`${sev.length ? "FAIL" : "ok  "} ${name}`);
-  for (const v of sev) console.log(`     ${v.impact}: ${v.id} — ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`);
+  for (const v of sev)
+    console.log(
+      `     ${v.impact}: ${v.id} — ${v.nodes
+        .map((n) => n.target.join(" "))
+        .slice(0, 3)
+        .join(" | ")}`,
+    );
   bad += sev.length;
 }
 async function shot(page, testId, file) {
@@ -104,7 +199,12 @@ for (const scheme of ["light", "dark"])
     for (const width of [1280, 390]) {
       const tag = `${width}-${scheme}-${locale === "ar" ? "rtl" : "ltr"}`;
       const mk = async (mode) => {
-        const ctx = await browser.newContext({ colorScheme: scheme, viewport: { width, height: width > 500 ? 900 : 844 }, storageState: state, reducedMotion: "reduce" });
+        const ctx = await browser.newContext({
+          colorScheme: scheme,
+          viewport: { width, height: width > 500 ? 900 : 844 },
+          storageState: state,
+          reducedMotion: "reduce",
+        });
         await ctx.addInitScript((l) => localStorage.setItem("sotto.locale", l), locale);
         await stub(ctx, mode);
         return ctx;

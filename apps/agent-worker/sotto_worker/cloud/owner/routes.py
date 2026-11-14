@@ -51,6 +51,7 @@ def make_routes(
     bad_secret_record: Callable[[str], None],
     send_invite: Callable[[str, str, str], Awaitable[None]],
     log: Callable[[str], None],
+    zoho_call: bootstrap_routes.ZohoCall | None = None,
 ) -> list[Route]:
     catalog = seed.catalog
     metering = Metering(store, seed)
@@ -485,9 +486,8 @@ def make_routes(
         Route(f"{api}/company/prompts/{{id}}/publish", c_prompt_publish, methods=["POST"]),
         Route(f"{api}/company/prompts/{{id}}/unpublish", c_prompt_unpublish, methods=["POST"]),
         Route("/hooks/zoho-forms/signup", signup_hook, methods=["POST"]),
-        # ZC-04: mounted here this wave (D-058: app.py is another stream's hub); the Zoho source
-        # needs `zoho_call` from cloud/zoho/routes.py (master hub line).
+        # ZC-04: the Zoho source reads through cloud/zoho/routes.py `zoho_call` (app.py passes it).
         *bootstrap_routes.make_routes(
-            bootstrap=bootstrap, app_route=app_route, body=body, ip_of=ip_of
+            bootstrap=bootstrap, app_route=app_route, body=body, ip_of=ip_of, zoho_call=zoho_call
         ),
     ]

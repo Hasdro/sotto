@@ -81,16 +81,22 @@ def test_cap_alerts_once_at_80_and_caps_at_100(
     s = sign_up()
     cid = s["company"]["id"]
     one = _per_call(seed, 10, 4)
-    r = owner.put(f"/api/owner/companies/{cid}/spend-cap", json={"cap_usd": one * 10}, headers=H)
-    assert r.status_code == 200, r.text
+
+    def set_cap(cap: float | None) -> None:
+        r = owner.put(f"/api/owner/companies/{cid}/spend-cap", json={"cap_usd": cap}, headers=H)
+        assert r.status_code == 200, r.text
+
     m = Metering(store, seed)
     sent: list[tuple[str, str]] = []
 
     async def send(subject: str, text: str) -> None:
         sent.append((subject, text))
 
+    # Usage is reported while no cap is set, so the app's own check on /usage (T-083 hub line 3,
+    # covered in test_spend_enforcement) records nothing and this test drives `check` itself.
     for i in range(8):  # 80 %
         _report(owner, s, f"x{i}", 10, 4)
+    set_cap(one * 10)
     assert asyncio.run(m.check(cid, send)) == [80]
     assert asyncio.run(m.check(cid, send)) == []  # one alert, not one per check
     assert len(sent) == 1
@@ -98,8 +104,10 @@ def test_cap_alerts_once_at_80_and_caps_at_100(
     assert m.cap_reached(cid) is False
     assert m.state(cid)["status"] == "alert"
 
+    set_cap(None)
     for i in range(8, 10):  # 100 %
         _report(owner, s, f"x{i}", 10, 4)
+    set_cap(one * 10)
     assert asyncio.run(m.check_all(send)) == {cid: [100]}
     assert m.cap_reached(cid) is True
     assert m.state(cid)["status"] == "capped"

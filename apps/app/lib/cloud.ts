@@ -682,7 +682,12 @@ export async function changePassword(current: string, next: string): Promise<voi
 
 /** ZC-14 (draft D-057 (backlog)): one org status, refreshed with the feature map. */
 export type HealthReason = {
-  code: "zoho_token_expired" | "smtp_failing" | "minutes_low" | "trial_ending";
+  code:
+    | "zoho_token_expired"
+    | "zoho_scopes_outdated"
+    | "smtp_failing"
+    | "minutes_low"
+    | "trial_ending";
   /** The app route that fixes it. */
   fix: string;
 };

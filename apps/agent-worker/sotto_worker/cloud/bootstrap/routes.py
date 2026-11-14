@@ -69,7 +69,9 @@ def make_routes(
             {
                 "consent": bootstrap.consent(who.company) is not None,
                 "domains": bootstrap.domains(who.company),
-                "zoho": zoho_call is not None,
+                # Wired and this person's own Zoho connection works (else "Connect Zoho first").
+                "zoho": zoho_call is not None
+                and bootstrap.s.feature_state(who, "zoho").state == "available",
                 "drafts": bootstrap.list(who),
             },
             headers=NO_STORE,

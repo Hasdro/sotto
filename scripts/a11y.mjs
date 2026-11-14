@@ -37,6 +37,7 @@ const PAGES = [
   "/admin/features",
   "/admin/instructions",
   "/admin/integrations",
+  "/admin/attachments",
   "/admin/company",
   "/coaching",
   "/gallery",

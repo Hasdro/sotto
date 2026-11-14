@@ -260,8 +260,12 @@ def test_free_mail_domains_are_never_the_companys_website(
 def test_zoho_source_needs_the_zoho_lookup(client: TestClient, sign_up: SignUp) -> None:
     s = sign_up()
     _consent(client, s)
+    assert client.get(API, headers=s["auth"]).json()["zoho"] is False
     r = client.post(f"{API}/material", json={"source": "zoho"}, headers=s["auth"])
-    assert r.json()["code"] == "zoho_reconnect"
+    # Wired to the Zoho module's reader (T-083 hub line 5): without a connection it is refused.
+    assert r.status_code == 403
+    assert r.json()["code"] == "feature_unavailable"
+    assert r.json()["state"] == "needs_connection"
 
 
 def test_zoho_material_reads_won_deals_and_notes_only() -> None:

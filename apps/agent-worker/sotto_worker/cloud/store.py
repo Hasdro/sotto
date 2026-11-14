@@ -70,6 +70,7 @@ MAX_VENDORS = 30
 # ZC-14 (draft D-057 (backlog)): where each health reason is fixed in the apps.
 HEALTH_FIX = {
     "zoho_token_expired": "/settings#zoho",
+    "zoho_scopes_outdated": "/settings#zoho",  # T-082 (D-069): reconnect once for the bundle
     "smtp_failing": "/admin/integrations#email",
     "minutes_low": "/account#plan",
     "trial_ending": "/account#plan",
@@ -1183,29 +1184,41 @@ class CloudStore:
             out.update({env: (at, "company") for env, at in self.own_key_status(who).items()})
         return out
 
-    def effective_key(self, who: Principal, key_env: str) -> str | None:
-        """The key a server-side use (a short-lived STT token) takes for this company."""
+    def effective_key(
+        self, who: Principal, key_env: str, *, platform_withheld: bool = False
+    ) -> str | None:
+        """The key a server-side use (a short-lived STT token) takes for this company.
+        `platform_withheld` (ZC-12 spend cap reached) leaves only the company's own BYO key."""
         from sotto_worker.cloud.owner import platform
 
         if who.company_id is not None and platform.byo_on(self, who.company):
             own = self.stored_key(who, key_env)
             if own:
                 return own
+        if platform_withheld:
+            return None
         if who.company_id is not None and platform.pending_signup(self, who.company):
             return None
         return platform.platform_key(self, key_env)
 
     def keys_for_call(
-        self, who: Principal, needed: set[str] | None = None, *, ip: str = ""
+        self,
+        who: Principal,
+        needed: set[str] | None = None,
+        *,
+        ip: str = "",
+        platform_withheld: bool = False,
     ) -> dict[str, str]:
         """Decrypted keys for a signed-in user of this company whose plan allows calls (D-022):
         only the ones in `needed` (the keys the company's current model routes use), never a key
-        that has a short-lived token path. Each delivery is in the audit log."""
+        that has a short-lived token path. Each delivery is in the audit log. `platform_withheld`
+        (ZC-12: the company reached its monthly spend cap) drops AGN's platform keys; BYO keys
+        are the company's own spend and still go out (D-059)."""
         from sotto_worker.cloud.owner import platform
 
         out = (
             {}
-            if platform.pending_signup(self, who.company)
+            if platform_withheld or platform.pending_signup(self, who.company)
             else platform.platform_keys(self, needed)
         )
         if platform.byo_on(self, who.company):  # D-059: the company's own keys only with BYO
@@ -2804,6 +2817,14 @@ class CloudStore:
             args = (*args, who.user_id)
         if self._q(sql + " LIMIT 1", args):
             reasons.append("zoho_token_expired")
+        # T-082 (D-069): a connection made before the scope bundle needs one reconnect.
+        from sotto_worker.cloud.zoho.oauth import scopes_outdated
+
+        scope_sql = "SELECT scopes FROM zoho_connections WHERE company_id = ?"
+        if who.role != "admin":
+            scope_sql += " AND user_id = ?"
+        if any(scopes_outdated(r["scopes"]) for r in self._q(scope_sql, args)):
+            reasons.append("zoho_scopes_outdated")
         try:
             last = self._q(
                 "SELECT status FROM email_sends WHERE company_id = ? AND status IN"

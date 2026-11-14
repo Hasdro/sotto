@@ -35,6 +35,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ConsentStep } from "../features/admin/ConsentStep";
 import { useOpenCount } from "../features/escalations/store";
+import { useFollowupNotices } from "../features/followup";
 import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -108,6 +109,8 @@ export function ShellBanner() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  // INT-08 (T-081 hub line): desktop notices for due follow-ups on every page, once per app.
+  useFollowupNotices();
   const wide = useIsWide();
   const { color } = useTheme();
   const { role } = useRole();

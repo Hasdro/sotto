@@ -65,6 +65,8 @@ def test_company_b_cannot_read_or_change_company_a(
         "admin@b.test"
     ]
     assert client.get("/api/v1/company/usage", headers=hb).json()["calls"] == []
+    # INT-12 (T-082): company B's weekly CSV never holds company A's calls.
+    assert "a-call" not in client.get("/api/v1/export/weekly.csv?week=1970-W01", headers=hb).text
     assert all(
         d["id"] != ids["device"]
         for d in client.get("/api/v1/devices?all=1", headers=hb).json()["devices"]
