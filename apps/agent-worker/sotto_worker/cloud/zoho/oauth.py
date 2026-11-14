@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlencode
 
@@ -91,6 +92,28 @@ class Client:
     client_id: str
     client_secret: str
     dc: str
+    # ZC-01 (D-064): the platform client per DC family, {dc: {client_id, client_secret}}. With
+    # multi-DC on, Zoho keeps the client ID and gives each DC its own secret, so the swap at a
+    # DC's accounts server must use that DC's credentials.
+    by_dc: Mapping[str, Mapping[str, str]] = field(default_factory=dict)
+
+    def credentials_for(self, accounts_server: str) -> tuple[str, str]:
+        """(client_id, client_secret) for the DC that owns this accounts server."""
+        found = self.by_dc.get(DC_OF_SERVER.get(accounts_server.rstrip("/"), ""))
+        if found and found.get("client_id") and found.get("client_secret"):
+            return str(found["client_id"]), str(found["client_secret"])
+        return self.client_id, self.client_secret
+
+    @classmethod
+    def from_store(cls, c: Mapping[str, object]) -> Client:
+        """From `CloudStore.zoho_client(...)`."""
+        by_dc = c.get("by_dc")
+        return cls(
+            str(c["client_id"]),
+            str(c["client_secret"]),
+            str(c["dc"]),
+            by_dc if isinstance(by_dc, Mapping) else {},
+        )
 
 
 def authorize_url(client: Client, redirect_uri: str, state: str, *, dc: str | None = None) -> str:
@@ -99,7 +122,9 @@ def authorize_url(client: Client, redirect_uri: str, state: str, *, dc: str | No
     query = urlencode(
         {
             "scope": ",".join(SCOPES),
-            "client_id": client.client_id,
+            "client_id": client.credentials_for(ACCOUNTS[dc])[0]
+            if dc in ACCOUNTS
+            else client.client_id,
             "response_type": "code",
             "access_type": "offline",
             # Zoho sends a refresh token only on consent; always ask so a reconnect gets one.
@@ -154,13 +179,14 @@ async def exchange_code(
     """Returns refresh_token, access_token, api_domain, expires_in."""
     if accounts_server not in ACCOUNTS_SERVERS:
         raise ZohoAuthError("unknown accounts server")
+    client_id, client_secret = client.credentials_for(accounts_server)
     try:
         r = await http.post(
             f"{accounts_server}/oauth/v2/token",
             data={
                 "grant_type": "authorization_code",
-                "client_id": client.client_id,
-                "client_secret": client.client_secret,
+                "client_id": client_id,
+                "client_secret": client_secret,
                 "redirect_uri": redirect_uri,
                 "code": code,
             },
@@ -193,13 +219,14 @@ async def refresh_access(
     """A fresh access token and its lifetime in seconds."""
     if accounts_server not in ACCOUNTS_SERVERS:
         raise ZohoAuthError("unknown accounts server")
+    client_id, client_secret = client.credentials_for(accounts_server)
     try:
         r = await http.post(
             f"{accounts_server}/oauth/v2/token",
             data={
                 "grant_type": "refresh_token",
-                "client_id": client.client_id,
-                "client_secret": client.client_secret,
+                "client_id": client_id,
+                "client_secret": client_secret,
                 "refresh_token": refresh_token,
             },
             timeout=TIMEOUT_S,

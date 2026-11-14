@@ -7,6 +7,8 @@ from typing import Any
 
 from starlette.testclient import TestClient
 
+from sotto_worker.cloud.store import CloudStore
+from tests.cloud.byo import allow_byo
 from tests.cloud.conftest import SignUp
 
 
@@ -41,8 +43,11 @@ def _seed_company_a(client: TestClient, a: dict[str, Any]) -> dict[str, str]:
     return {"entry": entry, "escalation": esc, "member": member, "device": device}
 
 
-def test_company_b_cannot_read_or_change_company_a(client: TestClient, sign_up: SignUp) -> None:
+def test_company_b_cannot_read_or_change_company_a(
+    client: TestClient, sign_up: SignUp, store: CloudStore
+) -> None:
     a = sign_up("Alpha", "admin@a.test")
+    allow_byo(store, a)  # A brings its own key (D-059 BYO): it must still never reach B
     b = sign_up("Beta", "admin@b.test")
     ids = _seed_company_a(client, a)
     hb = b["auth"]

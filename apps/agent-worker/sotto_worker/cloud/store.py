@@ -459,6 +459,33 @@ class CloudStore:
         self.last_escalation_new = False  # set by add_escalation: was the question new?
         self._db.executescript(SCHEMA)
         self._add_missing_columns()
+        self._platform_schema()
+
+    def _platform_schema(self) -> None:
+        """T-079 tables (owner platform). On the first start after the upgrade, every company that
+        already has its own keys or model routes keeps them working: BYO is switched on for it
+        (D-059 BYO, so nothing a company set up stops working; the owner may switch it off)."""
+        from sotto_worker.cloud.owner.platform import SCHEMA as PLATFORM_SCHEMA
+
+        self._db.executescript(PLATFORM_SCHEMA)
+        done = self._db.execute(
+            "SELECT 1 FROM platform_settings WHERE key = 'byo_migrated'"
+        ).fetchone()
+        if done is None:
+            t = now_ms()
+            self._db.execute("BEGIN IMMEDIATE")
+            self._db.execute(
+                "INSERT OR IGNORE INTO company_byo(company_id, enabled_at)"
+                " SELECT company_id, ? FROM company_keys UNION"
+                " SELECT company_id, ? FROM company_routes",
+                (t, t),
+            )
+            self._db.execute(
+                "INSERT INTO platform_settings(key, value, updated_at)"
+                " VALUES ('byo_migrated', '1', ?)",
+                (t,),
+            )
+            self._db.execute("COMMIT")
 
     def _add_missing_columns(self) -> None:
         """Columns added after a database was created (CREATE TABLE IF NOT EXISTS keeps the old
@@ -1122,10 +1149,37 @@ class CloudStore:
             return None
 
     def key_status(self, who: Principal) -> dict[str, int]:
+        """The keys a call of this company can use (D-059): AGN's platform keys, and the
+        company's own while BYO is on (its own key wins). Times only, never a key."""
+        return {env: at for env, (at, _source) in self.key_sources(who).items()}
+
+    def own_key_status(self, who: Principal) -> dict[str, int]:
         rows = self._q(
             "SELECT key_env, updated_at FROM company_keys WHERE company_id = ?", (who.company,)
         )
         return {r["key_env"]: int(r["updated_at"]) for r in rows}
+
+    def key_sources(self, who: Principal) -> dict[str, tuple[int, str]]:
+        """{key name: (updated_at, "platform" | "company")}."""
+        from sotto_worker.cloud.owner import platform
+
+        out = {
+            env: (int(s["updated_at"]), "platform")
+            for env, s in platform.platform_key_status(self).items()
+        }
+        if who.company_id is not None and platform.byo_on(self, who.company):
+            out.update({env: (at, "company") for env, at in self.own_key_status(who).items()})
+        return out
+
+    def effective_key(self, who: Principal, key_env: str) -> str | None:
+        """The key a server-side use (a short-lived STT token) takes for this company."""
+        from sotto_worker.cloud.owner import platform
+
+        if who.company_id is not None and platform.byo_on(self, who.company):
+            own = self.stored_key(who, key_env)
+            if own:
+                return own
+        return platform.platform_key(self, key_env)
 
     def keys_for_call(
         self, who: Principal, needed: set[str] | None = None, *, ip: str = ""
@@ -1133,22 +1187,27 @@ class CloudStore:
         """Decrypted keys for a signed-in user of this company whose plan allows calls (D-022):
         only the ones in `needed` (the keys the company's current model routes use), never a key
         that has a short-lived token path. Each delivery is in the audit log."""
-        rows = self._q(
-            "SELECT key_env, ciphertext FROM company_keys WHERE company_id = ?", (who.company,)
-        )
-        rows = [r for r in rows if needed is None or r["key_env"] in needed]
-        if needed is not None and rows:
+        from sotto_worker.cloud.owner import platform
+
+        out = platform.platform_keys(self, needed)
+        if platform.byo_on(self, who.company):  # D-059: the company's own keys only with BYO
+            rows = self._q(
+                "SELECT key_env, ciphertext FROM company_keys WHERE company_id = ?",
+                (who.company,),
+            )
+            for r in rows:
+                if needed is not None and r["key_env"] not in needed:
+                    continue
+                try:
+                    out[r["key_env"]] = self._vault.decrypt(
+                        self._vault_name(who.company, r["key_env"]), r["ciphertext"]
+                    )
+                except VaultError:
+                    continue
+        if needed is not None and out:
             with self._tx() as db:
-                names = ",".join(sorted(r["key_env"] for r in rows))
+                names = ",".join(sorted(out))
                 self.audit(db, "keys.delivered", names, company_id=who.company, actor=who, ip=ip)
-        out: dict[str, str] = {}
-        for r in rows:
-            try:
-                out[r["key_env"]] = self._vault.decrypt(
-                    self._vault_name(who.company, r["key_env"]), r["ciphertext"]
-                )
-            except VaultError:
-                continue
         return out
 
     # --- routes (which vendor/model per stage) --------------------------------------------------
@@ -1625,7 +1684,17 @@ class CloudStore:
         """The person's effective map: what the session config carries."""
         if who.company_id is None:
             return {}
-        return features.effective_map(who.role, self.person_layers(who))
+        from sotto_worker.cloud.owner import platform
+
+        out = features.effective_map(who.role, self.person_layers(who))
+        # D-059: not a catalog feature (no Admin → Features toggle); AGN's entitlement only.
+        byo = platform.byo_state(self, who.company)
+        out[platform.BYO] = (
+            byo
+            if byo.state != "available" or who.role == "admin"
+            else features.Effective("no_permission")
+        ).out()
+        return out
 
     def company_features(self, who: Principal) -> list[dict[str, Any]]:
         """Admin → Features: only the features AGN entitled this organisation to, each with the
@@ -2152,6 +2221,56 @@ class CloudStore:
                 db, "zoho_client.set", self._zoho_dc(dc), company_id=who.company, actor=who, ip=ip
             )
 
+    def owner_set_org_zoho_client(
+        self,
+        owner: Principal,
+        company_id: str,
+        client_id: str,
+        client_secret: str,
+        dc: str,
+        *,
+        ip: str = "",
+    ) -> None:
+        """D-064: the per-org client is an owner-console override now."""
+        if not owner.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        self.company_row(company_id)
+        blob = self._vault.encrypt(
+            f"zoho-client:{company_id}", self._zoho_client_blob(client_id, client_secret)
+        )
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO company_zoho_client(company_id, ciphertext, dc, updated_at)"
+                " VALUES (?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET"
+                " ciphertext = excluded.ciphertext, dc = excluded.dc,"
+                " updated_at = excluded.updated_at",
+                (company_id, blob, self._zoho_dc(dc), now_ms()),
+            )
+            self.audit(
+                db,
+                "owner.zoho_client.override",
+                self._zoho_dc(dc),
+                company_id=company_id,
+                actor=owner,
+                ip=ip,
+            )
+
+    def owner_delete_org_zoho_client(
+        self, owner: Principal, company_id: str, *, ip: str = ""
+    ) -> None:
+        if not owner.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        with self._tx() as db:
+            db.execute("DELETE FROM company_zoho_client WHERE company_id = ?", (company_id,))
+            self.audit(
+                db,
+                "owner.zoho_client.override_removed",
+                "",
+                company_id=company_id,
+                actor=owner,
+                ip=ip,
+            )
+
     def delete_org_zoho_client(self, who: Principal, *, ip: str = "") -> None:
         who.require("admin")
         with self._tx() as db:
@@ -2161,7 +2280,9 @@ class CloudStore:
     def zoho_client_status(self, company_id: str | None) -> dict[str, Any]:
         """What the screens may know: whether each client exists, its data centre and date."""
         out: dict[str, Any] = {}
-        rows = self._q("SELECT dc, updated_at FROM zoho_platform_client")
+        rows = self._q("SELECT dc, updated_at FROM zoho_platform_client") or self._q(
+            "SELECT dc, updated_at FROM zoho_dc_clients ORDER BY dc = 'us' DESC, dc LIMIT 1"
+        )  # ZC-01: per-DC platform clients count as the platform client too
         out["platform"] = (
             {"configured": True, "dc": rows[0]["dc"], "updated_at": int(rows[0]["updated_at"])}
             if rows
@@ -2186,26 +2307,62 @@ class CloudStore:
             )
         return out
 
-    def zoho_client(self, company_id: str) -> dict[str, str] | None:
-        """The OAuth client this org's people use: its own when set, else the platform's.
+    def zoho_client_main(self) -> dict[str, Any] | None:
+        """The platform client (server-side), with its home DC and date."""
+        rows = self._q("SELECT ciphertext, dc, updated_at FROM zoho_platform_client")
+        if not rows:
+            return None
+        try:
+            data = json.loads(self._vault.decrypt(self.PLATFORM_ZOHO, rows[0]["ciphertext"]))
+        except VaultError:
+            return None
+        return {**data, "dc": str(rows[0]["dc"]), "updated_at": int(rows[0]["updated_at"])}
+
+    def zoho_client(self, company_id: str, dc: str | None = None) -> dict[str, Any] | None:
+        """The OAuth client this org's people use (ZC-01, D-064): the owner-set override for the
+        org, else the platform client of the person's DC family, else the main platform client.
+        `by_dc` carries the platform's per-DC credentials, so the code swap at another DC's
+        accounts server uses that DC's secret (Zoho multi-DC: same client ID, a secret per DC).
         Server-side use only (`scope` says which, for the connection row)."""
-        for name, sql, args in (
-            (
-                f"zoho-client:{company_id}",
-                "SELECT ciphertext, dc FROM company_zoho_client WHERE company_id = ?",
-                (company_id,),
-            ),
-            (self.PLATFORM_ZOHO, "SELECT ciphertext, dc FROM zoho_platform_client", ()),
-        ):
-            rows = self._q(sql, args)
-            if rows:
-                try:
-                    data = json.loads(self._vault.decrypt(name, rows[0]["ciphertext"]))
-                except VaultError:
-                    return None
-                scope = "org" if name != self.PLATFORM_ZOHO else "platform"
-                return {**data, "dc": str(rows[0]["dc"]), "scope": scope}
+        from sotto_worker.cloud.owner import platform
+
+        org = self._zoho_org_client(company_id)
+        if org is not None:
+            return {**org, "by_dc": {}}
+        per_dc = platform.dc_clients(self)
+        main = self.zoho_client_main()
+        by_dc = {
+            k: {"client_id": v["client_id"], "client_secret": v["client_secret"]}
+            for k, v in per_dc.items()
+        }
+        if dc is not None and dc in per_dc:
+            return {**per_dc[dc], "dc": dc, "scope": "platform", "by_dc": by_dc}
+        if main is not None:
+            return {
+                "client_id": main["client_id"],
+                "client_secret": main["client_secret"],
+                "dc": main["dc"],
+                "scope": "platform",
+                "by_dc": by_dc,
+            }
+        if per_dc:  # only per-DC clients: the US one first, else any
+            first = "us" if "us" in per_dc else sorted(per_dc)[0]
+            return {**per_dc[first], "dc": first, "scope": "platform", "by_dc": by_dc}
         return None
+
+    def _zoho_org_client(self, company_id: str) -> dict[str, str] | None:
+        rows = self._q(
+            "SELECT ciphertext, dc FROM company_zoho_client WHERE company_id = ?", (company_id,)
+        )
+        if not rows:
+            return None
+        try:
+            data = json.loads(
+                self._vault.decrypt(f"zoho-client:{company_id}", rows[0]["ciphertext"])
+            )
+        except VaultError:
+            return None
+        return {**data, "dc": str(rows[0]["dc"]), "scope": "org"}
 
     def zoho_new_state(
         self, who: Principal, redirect_uri: str, *, ttl_ms: int = 10 * 60_000

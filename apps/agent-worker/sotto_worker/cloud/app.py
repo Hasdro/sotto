@@ -35,6 +35,8 @@ from sotto_worker.cloud.gallabox import routes as gallabox_routes
 from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
+from sotto_worker.cloud.owner import platform
+from sotto_worker.cloud.owner import routes as owner_routes
 from sotto_worker.cloud.recordings import KINDS, Recordings
 from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, plan_state
@@ -193,6 +195,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
     reset_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # per address
     reset_client_limit = RateLimit(per_key=20, total=1_000_000, window_s=3600)  # per client
     reset_guess_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # failed confirms
+    # ZC-06: each person reports failures at most this often; ZC-10: Zoho Forms sign-ups per
+    # client address and in total (abuse cap: the owner rotates the secret if it leaks).
+    failure_report_limit = RateLimit(per_key=30, total=20_000, window_s=3600)
+    hook_limit = RateLimit(per_key=10, total=200, window_s=3600)
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
@@ -253,6 +259,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         "rate_limited": HTTPStatus.TOO_MANY_REQUESTS,
         "too_few_ratings": HTTPStatus.CONFLICT,
         "not_rateable": HTTPStatus.UNPROCESSABLE_ENTITY,
+        "benchmark_failed": HTTPStatus.CONFLICT,
+        "untested": HTTPStatus.CONFLICT,
     }
 
     def handle(
@@ -354,6 +362,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
                 "features": store.features_for(who),
                 "learned_version": learning.version_of(who),
                 "health": store.config_health(who),
+                # ZC-06: vendors demoted for everyone; a change makes the app reload the bundle.
+                "demoted": platform.demotions(store),
             },
             headers={"Cache-Control": "no-store"},
         )
@@ -523,7 +533,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         """The model keys the company's current routes use. Speech keys never leave the server:
         devices get short-lived tokens for them instead (security review H1). The after-call
         model's key goes only to people who may review or draft follow-ups (D-036)."""
-        routing = apply_overrides(seed.routing, seed.catalog, store.routes(who.company))
+        routing = apply_overrides(
+            seed.routing, seed.catalog, platform.effective_routes(store, who.company)
+        )
         stages = ["suggest", "suggest_backup"]
         if any(store.feature_state(who, f).state == "available" for f in AFTER_CALL):
             stages.append("summary")
@@ -549,7 +561,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             seed,
             company_name=str(company["name"]),
             settings=settings,
-            routes=store.routes(who.company),
+            routes=platform.effective_routes(store, who.company),
+            # Only the company's own choices are "overrides" on its Models page (BYO, D-059).
+            overrides=list(store.routes(who.company))
+            if platform.byo_on(store, who.company)
+            else [],
+            prompts=platform.effective_prompts(store, seed, who.company),
+            demoted=platform.demotions(store),
             own_playbook=store.playbook(who.company),
             keys=(
                 store.keys_for_call(who, needed_keys(who), ip=ip_of(_request))
@@ -559,6 +577,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         )
         out["plan"] = state
         out["key_status"] = store.key_status(who)
+        out["key_source"] = {env: src for env, (_at, src) in store.key_sources(who).items()}
         out["features"] = store.features_for(who)
         out["learned"] = learning.active_for_call(who)  # R11: applies from the next call
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
@@ -575,9 +594,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             raise CloudError("plan_blocked", state["blocked_reason"] or "calls are blocked")
         if not token_limit.hit(who.user_id):
             return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many calls started")
-        key = store.stored_key(who, stt_key_env[vendor])
+        key = store.effective_key(who, stt_key_env[vendor])
         if not key:
-            raise CloudError("no_key", f"add the {vendor} key in Keys & providers first")
+            raise CloudError("no_key", f"no {vendor} key is set up; ask AGN support")
         try:
             return JSONResponse(await minter(vendor, key), headers={"Cache-Control": "no-store"})
         except httpx.HTTPError as e:
@@ -669,17 +688,23 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         store.set_settings(who, data, ip=ip_of(request))
         return JSONResponse({"settings": store.settings(who.company)})
 
+    def byo_admin(who: Principal) -> None:
+        """D-059: a company changes keys, models and prompts only when AGN allows BYO."""
+        who.require("admin")
+        platform.require_byo(store, who)
+
     @app_route
     async def key_put(request: Request, who: Principal) -> Response:
+        byo_admin(who)
         data = await body(request)
         store.set_key(
             who, request.path_params["env"], str(data.get("value", "")), ip=ip_of(request)
         )
-        return JSONResponse({"ok": True, "key_status": store.key_status(who)})
+        return JSONResponse({"ok": True, "key_status": store.own_key_status(who)})
 
     @app_route
     async def key_test(request: Request, who: Principal) -> Response:
-        who.require("admin")
+        byo_admin(who)
         env = request.path_params["env"]
         provider = next((p for p in seed.catalog.providers.values() if p.key_env == env), None)
         if provider is None:
@@ -711,11 +736,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def key_delete(request: Request, who: Principal) -> Response:
+        byo_admin(who)
         store.delete_key(who, request.path_params["env"], ip=ip_of(request))
-        return JSONResponse({"ok": True, "key_status": store.key_status(who)})
+        return JSONResponse({"ok": True, "key_status": store.own_key_status(who)})
 
     @app_route
     async def route_put(request: Request, who: Principal) -> Response:
+        byo_admin(who)
         data = await body(request)
         stage = request.path_params["stage"]
         provider, model = str(data.get("provider", "")), str(data.get("model", ""))
@@ -731,6 +758,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
 
     @app_route
     async def route_delete(request: Request, who: Principal) -> Response:
+        byo_admin(who)
         store.reset_route(who, request.path_params["stage"], ip=ip_of(request))
         return JSONResponse({"ok": True})
 
@@ -1011,6 +1039,23 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
         store.change_password(who, str(data.get("current", "")), str(data.get("new", "")))
         return JSONResponse({"ok": True})
 
+    async def send_invite(email: str, name: str, token: str) -> None:
+        """ZC-10: the first admin's invite, from AGN's platform mailbox (D-065 fallback)."""
+        origin = config.public_origin or "http://localhost:8788"
+        link = f"{origin}/reset-password#token={token}"  # a fragment: never in server logs
+        text = (
+            f"Hello {name or 'there'},\n\nYour AGN Sales Shield trial is ready (14 days).\n\n"
+            f"Choose your password here (the link works once, for 7 days):\n{link}\n\n"
+            "Then sign in with this email address. If you did not sign up, ignore this email."
+        )
+        if config.mailer is None:
+            config.log("signup invite: no platform mailbox is set up")
+            return
+        await config.mailer.send(
+            EmailMessage(to=email, subject="Your AGN Sales Shield trial", text=text),
+            idempotency_key=f"invite-{token[:12]}",
+        )
+
     # --- pages -----------------------------------------------------------------------------------
     async def healthz(_r: Request) -> Response:
         return JSONResponse({"ok": True, "service": "sotto-cloud"})
@@ -1198,6 +1243,22 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> ASGI
             ip_of=ip_of,
             transport=config.gallabox_transport,
             send_limit=lambda key: send_limit.hit(key),
+            log=config.log,
+        ),
+        *owner_routes.make_routes(
+            store=store,
+            seed=seed,
+            owner_route=owner_route,
+            app_route=app_route,
+            handle=handle,
+            body=body,
+            ip_of=ip_of,
+            ip_key=ip_key,
+            tester=tester,
+            minter=minter,
+            report_limit=lambda key: failure_report_limit.hit(key),
+            signup_limit=lambda key: hook_limit.hit(key),
+            send_invite=send_invite,
             log=config.log,
         ),
         Route("/assets/fonts/{file}", font_file),

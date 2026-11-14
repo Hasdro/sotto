@@ -10,6 +10,7 @@ from starlette.testclient import TestClient
 from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
+from tests.cloud.byo import allow_byo
 from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD, PASSWORD, SignUp, fake_minter
 
 
@@ -24,6 +25,7 @@ def test_h1_devices_get_only_the_model_keys_their_calls_use(
     client: TestClient, sign_up: SignUp, store: CloudStore
 ) -> None:
     s = sign_up()
+    allow_byo(store, s)
     for env in ("GROQ_API_KEY", "OPENAI_API_KEY", "ASSEMBLYAI_API_KEY"):
         client.put(
             f"/api/v1/company/keys/{env}",
@@ -55,6 +57,7 @@ def test_keys_are_tested_on_the_server_by_admins_only(store: CloudStore, seed: S
         json={"company": "K", "name": "K", "email": "k@k.test", "password": PASSWORD},
     )
     auth = {"authorization": f"Bearer {r.json()['token']}"}
+    allow_byo(store, r.json())
     client.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": "gsk_" + "t" * 20}, headers=auth)
     r = client.post("/api/v1/company/keys/GROQ_API_KEY/test", headers=auth)
     assert r.json() == {
