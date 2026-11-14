@@ -1,7 +1,7 @@
 /**
  * Desktop notifications for due follow-up steps (INT-08, D-055). While the app is open it asks the
  * server for due steps every minute and shows one system notification per new step; clicking it
- * opens that step on Home (`/?step=<id>`). The notification only opens the step: sending is the
+ * opens that step on Home (`/home?step=<id>`). The notification only opens the step: sending is the
  * agent's own tap there. Phones and the browser show the same steps on Home without a notice.
  */
 import { useRouter } from "expo-router";
@@ -60,7 +60,7 @@ export function useFollowupNotices(): void {
         .catch(() => 0);
     poll();
     const timer = setInterval(poll, POLL_MS);
-    const off = d.onNotifyOpen?.((stepId) => router.push(`/?step=${stepId}`));
+    const off = d.onNotifyOpen?.((stepId) => router.push(`/home?step=${stepId}`));
     return () => {
       stopped = true;
       clearInterval(timer);

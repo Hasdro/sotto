@@ -1,6 +1,6 @@
 /**
  * Due follow-up steps on Home (INT-08): what the scheduler made due. A desktop notification opens
- * the same step (`/?step=<id>`). Each step opens its prepared draft in the usual composer: the
+ * the same step (`/home?step=<id>`). Each step opens its prepared draft in the usual composer: the
  * agent previews, taps Send (with the step's own key, so a retry never sends twice), and the
  * step is marked done. A call reminder is done by the tap itself. Nothing here sends on its own.
  */

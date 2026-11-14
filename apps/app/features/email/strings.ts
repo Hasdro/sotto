@@ -143,7 +143,7 @@ const ar: Record<EmailKey, string> = {
   "att.add": "أضف ملفًا",
   "att.uploading": "جارٍ الرفع…",
   "att.delete": "حذف",
-  "att.deleteOne": "احذف {name}",
+  "att.deleteOne": "حذف {name}",
   "att.tooBig": "الحد الأقصى للملف 5 ميغابايت.",
   "att.limits":
     "PDF أو PNG أو JPEG أو Word أو Excel أو PowerPoint. حتى 5 ميغابايت للملف، و20 ملفًا، و25 ميغابايت إجمالًا.",
