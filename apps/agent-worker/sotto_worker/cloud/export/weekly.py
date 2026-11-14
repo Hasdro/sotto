@@ -51,7 +51,7 @@ COLUMNS = (
     "zoho_task_id",
 )
 WEEK = re.compile(r"^(\d{4})-W(\d{2})$")
-ZOHO_ID = re.compile(r"^\d{5,25}$")
+ZOHO_ID = re.compile(r"^[0-9]{5,25}$")
 PERSON_MODULES = ("Contacts", "Leads")
 MAX_ROWS = 20_000
 DAY_MS = 86_400_000
@@ -76,6 +76,16 @@ def week_range(week: str | None, now: datetime | None = None) -> tuple[str, int,
     return f"{y}-W{w:02d}", ms, ms + 7 * DAY_MS
 
 
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _cell(value: Any) -> Any:
+    """No spreadsheet formula from a client-sent value (call ids, emails): prefix a quote."""
+    if isinstance(value, str) and value.startswith(FORMULA_START):
+        return "'" + value
+    return value
+
+
 def _zid(value: Any) -> str:
     v = "" if value is None else str(value)
     return v if ZOHO_ID.match(v) else ""
@@ -84,7 +94,7 @@ def _zid(value: Any) -> str:
 def _rows(store: CloudStore, company_id: str, start: int, end: int) -> list[sqlite3.Row]:
     return store._q(
         "SELECT u.id, u.started_at, u.duration_s, u.cards, u.playbook_cards, u.ai_cards,"
-        " u.holding_lines, u.escalations, u.p95_ms, u.review_json, us.email"
+        " u.holding_lines, u.escalations, u.p95_ms, u.review_json, u.user_id, us.email"
         " FROM usage u JOIN users us ON us.id = u.user_id AND us.company_id = u.company_id"
         " WHERE u.company_id = ? AND u.started_at >= ? AND u.started_at < ?"
         " ORDER BY u.started_at LIMIT ?",
@@ -107,7 +117,7 @@ def build_csv(store: CloudStore, company_id: str, week: str | None = None) -> tu
     ids = [str(r["id"]).removeprefix(prefix) for r in calls]
     themes: dict[str, set[str]] = {}
     briefs: dict[str, dict[str, Any]] = {}
-    writes: dict[str, str] = {}
+    writes: dict[tuple[str, str], str] = {}
     if ids:
         id_list = json.dumps(ids)
         for r in _by_call(
@@ -134,12 +144,13 @@ def build_csv(store: CloudStore, company_id: str, week: str | None = None) -> tu
         keys = [f"task-{i}" for i in ids] + [f"agn_fields-{i}" for i in ids]
         for r in _by_call(
             store,
-            "SELECT idem_key, zoho_id FROM zoho_writes WHERE company_id = ? AND status = 'done'"
+            "SELECT user_id, idem_key, zoho_id FROM zoho_writes WHERE company_id = ?"
+            " AND status = 'done'"
             " AND idem_key IN (SELECT value FROM json_each(?))",
             company_id,
             json.dumps(keys),
         ):
-            writes[str(r["idem_key"])] = _zid(r["zoho_id"])
+            writes[(str(r["user_id"]), str(r["idem_key"]))] = _zid(r["zoho_id"])
     out = io.StringIO()
     w = csv.writer(out, lineterminator="\n")
     w.writerow(COLUMNS)
@@ -163,14 +174,15 @@ def build_csv(store: CloudStore, company_id: str, week: str | None = None) -> tu
         person: dict[str, Any] = raw_person if isinstance(raw_person, dict) else {}
         module = str(person.get("module") or "")
         module = module if module in PERSON_MODULES else ""
+        uid = str(r["user_id"])
         w.writerow(
             [
-                call_id,
+                _cell(call_id),
                 datetime.fromtimestamp(int(r["started_at"]) / 1000, UTC).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"
                 ),
                 label,
-                str(r["email"]),
+                _cell(str(r["email"])),
                 int(r["duration_s"]),
                 int(r["cards"]),
                 int(r["playbook_cards"]),
@@ -185,9 +197,9 @@ def build_csv(store: CloudStore, company_id: str, week: str | None = None) -> tu
                 ";".join(sorted(themes.get(call_id, set()))),
                 module,
                 _zid(person.get("id")) if module else "",
-                writes.get(f"agn_fields-{call_id}") or _zid(crm.get("deal_id")),
+                writes.get((uid, f"agn_fields-{call_id}")) or _zid(crm.get("deal_id")),
                 _zid(crm.get("meeting_id")),
-                writes.get(f"task-{call_id}", ""),
+                writes.get((uid, f"task-{call_id}"), ""),
             ]
         )
     return label, out.getvalue()

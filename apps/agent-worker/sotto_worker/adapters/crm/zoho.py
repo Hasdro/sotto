@@ -237,7 +237,7 @@ class ZohoCRMReader:
     async def update_deal_fields(self, deal_id: str, record: dict[str, Any]) -> dict[str, Any]:
         """INT-06 (D-069): the one Deal write. Every key must be an AGN field; Stage, Amount and
         any other field are refused before a request is built (R12)."""
-        if not deal_id.isdigit():
+        if not (deal_id.isascii() and deal_id.isdigit()):
             raise ValueError("deal id")
         if not record:
             raise FieldNotAllowed("nothing to write")
@@ -295,7 +295,7 @@ class ZohoCRMReader:
 
     async def blueprint(self, deal_id: str) -> dict[str, Any]:
         """INT-04 (D-056): the Deal's Blueprint state and next transitions, read only."""
-        if not deal_id.isdigit():
+        if not (deal_id.isascii() and deal_id.isdigit()):
             raise ValueError("deal id")
         data = await self._get(f"Deals/{deal_id}/actions/blueprint")
         bp = data.get("blueprint")

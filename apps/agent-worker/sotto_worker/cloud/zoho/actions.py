@@ -13,12 +13,12 @@ from typing import Any
 from sotto_worker.adapters.crm.zoho import ZohoCRMReader
 from sotto_worker.cloud.store import CloudError
 
-RECORD_ID = re.compile(r"^\d{5,25}$")
+RECORD_ID = re.compile(r"^[0-9]{5,25}$")
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,190}\.[^@\s]{2,24}$")
 KINDS = ("meeting", "lead", "contact_update", "deal_note", "call_log", "task", "agn_fields")
 # W4-SCOPES (D-069): the scope group a kind needs beyond the base set (oauth.FEATURE_SCOPES).
 KIND_FEATURE = {"task": "tasks", "agn_fields": "agn_fields"}
-DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DAY = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 # INT-06: the app's names for the AGN fields → Zoho API names (adapter AGN_DEAL_FIELDS).
 AGN_MAP = {
     "score": "AGN_Call_Score",
@@ -158,7 +158,9 @@ def plan(kind: str, raw: Any) -> Planned:
     if kind == "agn_fields":
         if not set(fields) & set(AGN_MAP):
             raise CloudError("invalid", "pick at least one AGN field")
-        if "score" in fields and not (fields["score"].isdigit() and int(fields["score"]) <= 100):
+        if "score" in fields and not (
+            re.fullmatch(r"[0-9]{1,3}", fields["score"]) and int(fields["score"]) <= 100
+        ):
             raise CloudError("invalid", "score must be 0 to 100")
         if fields.get("chance_band", "medium") not in CHANCE_BANDS:
             raise CloudError("invalid", "chance_band must be low, medium or high")

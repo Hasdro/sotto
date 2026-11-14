@@ -237,3 +237,31 @@ def test_only_admins_preview_or_create_fields(
     r = c4.post("/api/v1/zoho/agn-fields", json={"confirm": True}, headers=agent)
     assert r.status_code == 403
     assert z4.created_fields == []
+
+
+def test_only_three_callers_reach_the_raw_write() -> None:
+    """R12 now rests on code (deals.UPDATE is granted, D-069): `_request` stays reachable only
+    from `_send` (module allow-list), `update_deal_fields` (AGN allow-list) and nothing else
+    that writes a Deal; `create_agn_fields` posts its own fixed body."""
+    import ast
+    import inspect
+
+    from sotto_worker.adapters.crm import zoho as adapter
+
+    tree = ast.parse(inspect.getsource(adapter))
+    callers = sorted(
+        fn.name
+        for fn in ast.walk(tree)
+        if isinstance(fn, ast.AsyncFunctionDef)
+        for n in ast.walk(fn)
+        if isinstance(n, ast.Attribute) and n.attr == "_request" and fn.name != "_request"
+    )
+    assert callers == ["_send", "update_deal_fields"]
+
+
+def test_non_ascii_digits_are_refused() -> None:
+    for bad in ("١٢٣٤٥٦", "²²²²²"):
+        with pytest.raises(CloudError):
+            actions.plan("agn_fields", {"call_id": "c1", "deal_id": bad, "score": "5"})
+    with pytest.raises(CloudError):
+        actions.plan("agn_fields", {"call_id": "c1", "deal_id": DEAL_ID, "score": "²"})

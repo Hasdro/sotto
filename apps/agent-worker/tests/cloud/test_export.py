@@ -135,6 +135,19 @@ def test_weekly_job_keeps_one_file_per_company_and_week(
     label = week_range(None)[0]
     r = client.get(f"/api/v1/export/weekly.csv?week={label}", headers=two["a"])
     assert "beta-1" not in r.text
+    b_company = store._q("SELECT company_id FROM users WHERE email = 'admin@b.test'")[0][0]
+    kept_b = store._q("SELECT csv FROM export_weeks WHERE company_id = ?", (b_company,))
+    assert "acme-1" not in kept_b[0]["csv"]
+    assert "beta-1" in kept_b[0]["csv"]
     assert "acme-1" in r.text
     later = datetime.now(UTC) + timedelta(days=7)
     assert weekly_export_job(store, now=later) == 0  # no calls that week
+
+
+def test_cells_never_start_a_formula(store: CloudStore) -> None:
+    from sotto_worker.cloud.export.weekly import _cell
+
+    for bad in ("=HYPERLINK(1)", "+1", "-1", "@x", "\tx"):
+        assert _cell(bad).startswith("'")
+    assert _cell("acme-1") == "acme-1"
+    assert _cell(5) == 5
