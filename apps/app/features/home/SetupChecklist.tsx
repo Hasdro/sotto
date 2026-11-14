@@ -12,8 +12,10 @@ import { useI18n } from "../../lib/locale";
 import { setPrefs, usePrefs } from "../../lib/prefs";
 import { useRole } from "../../lib/role";
 import { useCloud } from "../../lib/useCloud";
+import { practiceScenario } from "../call/practice";
 import { useZoho } from "../crm/useZoho";
-import { type SetupFacts, setupFor } from "./setup";
+import { type SetupFacts, type SetupStep, setupFor } from "./setup";
+import { isHomeKey, useHomeText } from "./strings";
 
 export function SetupChecklist() {
   const cloud = useCloud();
@@ -62,12 +64,15 @@ function useFacts(): SetupFacts {
     playbookEntries: signedIn ? (cloud.bundle?.playbook.length ?? 0) : 0,
     seatsUsed: signedIn ? (cloud.me.company?.seats_used ?? 0) : 0,
     messagingConnected: false,
+    practiceOffered: signedIn && practiceScenario(cloud.bundle) !== null,
     markedDone: p.setupDone,
   };
 }
 
 function Checklist({ facts }: { facts: SetupFacts }) {
   const { t } = useI18n();
+  const th = useHomeText();
+  const labelOf = (step: SetupStep) => (isHomeKey(step.label) ? th(step.label) : t(step.label));
   const { color } = useTheme();
   const { pending, total } = setupFor(facts);
   if (pending.length === 0) return null;
@@ -90,7 +95,7 @@ function Checklist({ facts }: { facts: SetupFacts }) {
           <View style={styles.grow}>
             <ChecklistRow
               checked={false}
-              label={t(step.label)}
+              label={labelOf(step)}
               onToggle={() => setPrefs({ setupDone: [...facts.markedDone, step.id] })}
               testID={`setup-${step.id}`}
             />
@@ -98,7 +103,7 @@ function Checklist({ facts }: { facts: SetupFacts }) {
           <Button
             variant="secondary"
             label={t("setup.open")}
-            accessibilityHint={t(step.label)}
+            accessibilityHint={labelOf(step)}
             onPress={() => router.push(step.href)}
             testID={`setup-${step.id}-open`}
           />

@@ -2,9 +2,25 @@
  * Admin → Integrations › Email (T-063, D-039): the org's SMTP mailbox (write-only: the login is
  * never sent back), "Send test email" to the admin's own address with the server's exact
  * error, and the formats whose opening and signature are sent verbatim (D-032).
+ * UX-32 (D-052, D-065): the admin's domain picks a preset (Google, Microsoft 365, Hostinger,
+ * Zoho Mail); for a known one only the password is asked, the rest sits under "Server
+ * settings". Saving sends the test email and shows the result inline. The org's mailbox is the
+ * default sender; AGN's stays the fallback.
  */
-import { Badge, Button, Divider, Panel, SegmentedControl, Stack, Text, TextField } from "@sotto/ui";
+import {
+  Badge,
+  Button,
+  Disclosure,
+  Divider,
+  Panel,
+  SegmentedControl,
+  Stack,
+  Text,
+  TextField,
+} from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
+import { type SmtpPreset, smtpPreset } from "../integrations/api";
+import { useIntegrationsText } from "../integrations/strings";
 import {
   type EmailFormat,
   emailFormats,
@@ -24,7 +40,9 @@ const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function SmtpSettings() {
   const t = useEmailText();
+  const ti = useIntegrationsText();
   const [status, setStatus] = useState<SmtpStatus | null>(null);
+  const [preset, setPreset] = useState<SmtpPreset | null>(null);
   const [host, setHost] = useState("");
   const [port, setPort] = useState<Port>("465");
   const [username, setUsername] = useState("");
@@ -47,12 +65,25 @@ export function SmtpSettings() {
 
   useEffect(() => {
     smtpStatus()
-      .then(fill)
+      .then((s) => {
+        fill(s);
+        if (s.org.configured) return;
+        // Nothing saved yet: pre-fill from the admin's own domain (UX-32).
+        return smtpPreset().then((p) => {
+          setPreset(p);
+          if (p.preset.id === "other") return;
+          setHost(p.preset.host);
+          setPort(String(p.preset.port) as Port);
+          setUsername(p.username);
+          setFromAddress(p.from_address || p.username);
+          setFromName(p.from_name);
+        });
+      })
       .catch(() => {});
   }, [fill]);
 
   const saved = status?.org.configured === true;
-  const run = (p: Promise<SmtpStatus>) => {
+  const run = (p: Promise<SmtpStatus>, test = false) => {
     setBusy(true);
     setNote(null);
     p.then((s) => {
@@ -60,6 +91,7 @@ export function SmtpSettings() {
       setUsername("");
       setPassword("");
       setNote(t("integrations.smtp.saved"));
+      if (test && s.org.configured) sendTest(); // UX-32: every save is proven by a test email
     })
       .catch((e) => setNote(t("integrations.smtp.failed", { error: errorOf(e) })))
       .finally(() => setBusy(false));
@@ -71,8 +103,81 @@ export function SmtpSettings() {
       .catch((e) => setTest({ ok: false, to: "", error: errorOf(e) }));
   };
   const active = status?.active;
-  const ready = host.trim() && fromName.trim() && fromAddress.trim() && (saved || password);
+  const known = !saved && preset !== null && preset.preset.id !== "other";
+  // UX-44c: a disabled Save says what is missing.
+  const why = busy
+    ? ti("smtp.why.busy")
+    : !host.trim()
+      ? ti("smtp.why.host")
+      : !saved && !username.trim()
+        ? ti("smtp.why.username")
+        : !fromName.trim() || !fromAddress.trim()
+          ? ti("smtp.why.from")
+          : !saved && !password
+            ? ti("smtp.why.password")
+            : undefined;
 
+  const passwordField = (
+    <TextField
+      label={t("integrations.smtp.password")}
+      value={password}
+      onChangeText={setPassword}
+      placeholder={saved ? t("integrations.smtp.kept") : undefined}
+      secureTextEntry
+      autoCapitalize="none"
+      autoCorrect={false}
+      testID="smtp-password"
+    />
+  );
+  const serverFields = (
+    <>
+      <TextField
+        label={t("integrations.smtp.host")}
+        value={host}
+        onChangeText={setHost}
+        placeholder="smtp.hostinger.com"
+        autoCapitalize="none"
+        autoCorrect={false}
+        testID="smtp-host"
+      />
+      <Stack gap="xs">
+        <Text variant="label" weight="medium" tone="muted">
+          {t("integrations.smtp.port")}
+        </Text>
+        <SegmentedControl
+          options={PORTS.map((p) => ({ value: p, label: t(`integrations.smtp.port.${p}`) }))}
+          value={port}
+          onChange={setPort}
+          accessibilityLabel={t("integrations.smtp.port")}
+          testID="smtp-port"
+        />
+      </Stack>
+      <TextField
+        label={t("integrations.smtp.username")}
+        value={username}
+        onChangeText={setUsername}
+        placeholder={saved ? t("integrations.smtp.kept") : undefined}
+        autoCapitalize="none"
+        autoCorrect={false}
+        testID="smtp-username"
+      />
+      <TextField
+        label={t("integrations.smtp.fromName")}
+        value={fromName}
+        onChangeText={setFromName}
+        testID="smtp-from-name"
+      />
+      <TextField
+        label={t("integrations.smtp.fromAddress")}
+        value={fromAddress}
+        onChangeText={setFromAddress}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        testID="smtp-from-address"
+      />
+    </>
+  );
   return (
     <Panel testID="smtp-settings">
       <Stack gap="md">
@@ -96,65 +201,37 @@ export function SmtpSettings() {
             )}
           />
         </Stack>
-        <TextField
-          label={t("integrations.smtp.host")}
-          value={host}
-          onChangeText={setHost}
-          placeholder="smtp.hostinger.com"
-          autoCapitalize="none"
-          autoCorrect={false}
-          testID="smtp-host"
-        />
-        <Stack gap="xs">
-          <Text variant="label" weight="medium" tone="muted">
-            {t("integrations.smtp.port")}
+        {preset ? (
+          <Text variant="body" testID="smtp-preset">
+            {preset.preset.id === "other"
+              ? ti("smtp.preset.other", { domain: preset.domain || "—" })
+              : ti("smtp.preset.found", {
+                  provider: preset.preset.label,
+                  domain: preset.domain,
+                })}
           </Text>
-          <SegmentedControl
-            options={PORTS.map((p) => ({ value: p, label: t(`integrations.smtp.port.${p}`) }))}
-            value={port}
-            onChange={setPort}
-            accessibilityLabel={t("integrations.smtp.port")}
-            testID="smtp-port"
-          />
-        </Stack>
-        <TextField
-          label={t("integrations.smtp.username")}
-          value={username}
-          onChangeText={setUsername}
-          placeholder={saved ? t("integrations.smtp.kept") : undefined}
-          autoCapitalize="none"
-          autoCorrect={false}
-          testID="smtp-username"
-        />
-        <TextField
-          label={t("integrations.smtp.password")}
-          value={password}
-          onChangeText={setPassword}
-          placeholder={saved ? t("integrations.smtp.kept") : undefined}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          testID="smtp-password"
-        />
-        <TextField
-          label={t("integrations.smtp.fromName")}
-          value={fromName}
-          onChangeText={setFromName}
-          testID="smtp-from-name"
-        />
-        <TextField
-          label={t("integrations.smtp.fromAddress")}
-          value={fromAddress}
-          onChangeText={setFromAddress}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          testID="smtp-from-address"
-        />
+        ) : null}
+        {known ? (
+          <>
+            {passwordField}
+            <Disclosure
+              title={ti("smtp.preset.advanced")}
+              testID="smtp-advanced"
+            >
+              <Stack gap="md">{serverFields}</Stack>
+            </Disclosure>
+          </>
+        ) : (
+          <>
+            {serverFields}
+            {passwordField}
+          </>
+        )}
         <Stack direction="row" gap="sm" wrap>
           <Button
-            label={t("integrations.smtp.save")}
-            disabled={busy || !ready || (!saved && !username.trim())}
+            label={ti("smtp.saveAndTest")}
+            disabled={Boolean(why)}
+            helper={why}
             onPress={() =>
               run(
                 saveSmtp({
@@ -165,6 +242,7 @@ export function SmtpSettings() {
                   from_name: fromName.trim(),
                   from_address: fromAddress.trim(),
                 }),
+                true,
               )
             }
             testID="smtp-save"
@@ -173,6 +251,7 @@ export function SmtpSettings() {
             variant="secondary"
             label={t(test === "testing" ? "integrations.smtp.testing" : "integrations.smtp.test")}
             disabled={!active || test === "testing"}
+            helper={active ? undefined : ti("smtp.why.test")}
             onPress={sendTest}
             testID="smtp-test"
           />

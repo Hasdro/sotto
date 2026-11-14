@@ -622,6 +622,94 @@ def make_routes(
         )
         return JSONResponse({"ok": True, "id": result["id"], "action": result["action"]})
 
+    # --- ZC-13: invite the org's Zoho users in sales roles -------------------------------------
+    def seats_left(company_id: str) -> int:
+        seats = store._q("SELECT seats FROM companies WHERE id = ?", (company_id,))
+        used = store._q(
+            "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND active = 1", (company_id,)
+        )
+        return max(0, int(seats[0]["seats"]) - int(used[0]["n"])) if seats else 0
+
+    async def candidates(who: Principal) -> tuple[list[dict[str, Any]], bool]:
+        who.require("admin")
+        store.require_feature(who, "zoho")
+        limited(who)
+        conn = store.zoho_connection(who)
+        if conn is None or "ZohoCRM.users.READ" in missing_scopes(conn.get("scopes")):
+            raise CloudError("zoho_reconnect", "connect Zoho again to read your team")
+        users = await zoho_call(who, lookup.zoho_users)
+        people, fallback = lookup.team_candidates(users)
+        members = {m["email"].lower() for m in store.team(who)}
+        for p in people:
+            p["member"] = p["email"] in members
+        return people, fallback
+
+    @app_route
+    async def team_preview(r: Request, who: Principal) -> Response:
+        """Read-only: who would be invited. Nothing is created until the admin confirms."""
+        people, fallback = await candidates(who)
+        left = seats_left(who.company)
+        store.zoho_audit(who, "zoho.team.read", f"{len(people)} in sales roles", ip=ip_of(r))
+        return JSONResponse(
+            {
+                "people": [{**p, "role": "agent"} for p in people],
+                "fallback": fallback,
+                "seats_left": left,
+            },
+            headers=NO_STORE,
+        )
+
+    @app_route
+    async def team_invite(r: Request, who: Principal) -> Response:
+        """Invites the picked people (ids re-read from Zoho, never emails from the browser),
+        each with its own seat check and audit row; all are refused when seats run short."""
+        d = await body(r)
+        if d.get("confirm") is not True:
+            raise CloudError("confirm", "confirm the list before inviting")
+        raw = d.get("invites")
+        picks: list[Any] = raw if isinstance(raw, list) else []
+        wanted: dict[str, str] = {}
+        for item in picks[:200]:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role") or "agent")
+            if role not in ("agent", "manager"):
+                raise CloudError("invalid", "invite as agent or manager")
+            wanted[str(item.get("zoho_id", ""))] = role
+        if not wanted:
+            raise CloudError("invalid", "pick at least one person")
+        people, _fallback = await candidates(who)
+        by_id = {p["zoho_id"]: p for p in people if not p["member"]}
+        chosen = [(by_id[i], role) for i, role in wanted.items() if i in by_id]
+        if not chosen:
+            raise CloudError("invalid", "none of them can be invited")
+        left = seats_left(who.company)
+        if len(chosen) > left:
+            raise CloudError("no_seats", f"{len(chosen)} picked but {left} seats left; untick some")
+        invited, skipped = [], []
+        for p, role in chosen:
+            try:
+                uid, password = store.invite(who, p["email"], p["name"], role, ip=ip_of(r))
+            except CloudError as e:
+                skipped.append({"email": p["email"], "reason": e.code})
+                continue
+            invited.append(
+                {
+                    "id": uid,
+                    "email": p["email"],
+                    "name": p["name"],
+                    "role": role,
+                    "temporary_password": password,
+                }
+            )
+        store.zoho_audit(
+            who,
+            "zoho.team.invited",
+            f"{len(invited)} invited from Zoho, {len(skipped)} skipped",
+            ip=ip_of(r),
+        )
+        return JSONResponse({"invited": invited, "skipped": skipped}, headers=NO_STORE)
+
     @app_route
     async def modules(_r: Request, who: Principal) -> Response:
         who.require("admin")
@@ -642,6 +730,8 @@ def make_routes(
         Route(f"{api}/zoho/search", search),
         Route(f"{api}/zoho/records/{{module}}/{{id}}", record),
         Route(f"{api}/zoho/modules", modules),
+        Route(f"{api}/zoho/team", team_preview),
+        Route(f"{api}/zoho/team/invite", team_invite, methods=["POST"]),
         Route(f"{api}/zoho/meetings", meetings),
         Route(f"{api}/zoho/meetings/{{id}}", meeting),
         Route(f"{api}/zoho/meetings/{{id}}/detail", meeting_detail),

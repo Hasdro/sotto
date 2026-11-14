@@ -16,7 +16,7 @@ from sotto_worker.server.vault import VaultError
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS company_gallabox (
   company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
-  ciphertext BLOB NOT NULL,          -- {api_key, api_secret, account_id, channel_id}
+  ciphertext BLOB NOT NULL,          -- {api_key, api_secret, account_id, channel_id, channel_label}
   updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS gallabox_templates (
@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_sends (
 );
 """
 FIELDS = ("api_key", "api_secret", "account_id", "channel_id")
+# ZC-07: the channel can be picked from what Gallabox returns after the key is saved.
+OPTIONAL = frozenset({"channel_id"})
 TOKEN = re.compile(r"^[A-Za-z0-9_.:\-]{4,300}$")
 _ready: weakref.WeakSet[CloudStore] = weakref.WeakSet()
 
@@ -73,11 +75,34 @@ def save(store: CloudStore, who: Principal, raw: dict[str, Any], *, ip: str = ""
     creds: dict[str, str] = {}
     for f in FIELDS:
         value = str(raw.get(f) or "").strip() or old.get(f, "")
+        if not value and f in OPTIONAL:
+            creds[f] = ""
+            continue
         if not value:
             raise CloudError("invalid", f"{f.replace('_', ' ')} is required")
         if not TOKEN.match(value):
             raise CloudError("invalid", f"that does not look like a Gallabox {f.replace('_', ' ')}")
         creds[f] = value
+    if creds["channel_id"] and creds["channel_id"] == old.get("channel_id"):
+        creds["channel_label"] = old.get("channel_label", "")
+    _write(store, who, creds, old, ip=ip)
+
+
+def save_channel(
+    store: CloudStore, who: Principal, channel_id: str, label: str, *, ip: str = ""
+) -> None:
+    """The WhatsApp number picked from the discovered list (the id never left the server)."""
+    ensure(store)
+    who.require("admin")
+    old = credentials(store, who.company)
+    if old is None:
+        raise CloudError("gallabox_no_credentials", "add the Gallabox keys first")
+    _write(store, who, {**old, "channel_id": channel_id, "channel_label": label}, old, ip=ip)
+
+
+def _write(
+    store: CloudStore, who: Principal, creds: dict[str, str], old: dict[str, str], *, ip: str
+) -> None:
     blob = store._vault.encrypt(f"gallabox:{who.company}", json.dumps(creds))
     with store._tx() as db:
         db.execute(
@@ -114,9 +139,15 @@ def configured(store: CloudStore, company_id: str) -> bool:
 def status(store: CloudStore, company_id: str) -> dict[str, Any]:
     ensure(store)
     rows = store._q("SELECT updated_at FROM company_gallabox WHERE company_id = ?", (company_id,))
+    creds = credentials(store, company_id) if rows else None
     return {
         "configured": bool(rows),
         **({"updated_at": int(rows[0]["updated_at"])} if rows else {}),
+        # Whether a WhatsApp number is chosen, and its display name (never its id).
+        "channel": {
+            "set": bool(creds and creds.get("channel_id")),
+            "label": (creds or {}).get("channel_label", ""),
+        },
         "templates": [t.out() for t in allowed(store, company_id)],
     }
 

@@ -1,11 +1,11 @@
 /**
  * First-run steps on Home (UX-10, ZC-09): what this role still has to do before the product
- * works, each with the page that does it. Data, not layout: a new step (e.g. the practice call,
- * owner Q15) is one more entry. A step leaves the list once it is done, or once the person
+ * works, each with the page that does it. Data, not layout: a new step is one more entry. A step leaves the list once it is done, or once the person
  * marks it done by hand; the whole checklist hides when nothing is left.
  */
 import type { StringKey } from "../../lib/i18n";
 import { canOpen, type ViewRole } from "../../lib/role";
+import type { HomeTextKey } from "./strings";
 
 export type SetupFacts = {
   role: ViewRole;
@@ -16,13 +16,16 @@ export type SetupFacts = {
   playbookEntries: number;
   seatsUsed: number;
   messagingConnected: boolean;
+  /** D-073: the server's bundle carries the practice script. */
+  practiceOffered: boolean;
   markedDone: readonly string[];
 };
 
 export type SetupStep = {
   id: string;
   roles: readonly ViewRole[];
-  label: StringKey;
+  /** An i18n key, or a Home-local one (features/home/strings.ts, D-058). */
+  label: StringKey | HomeTextKey;
   href: string;
   /** Hidden from the list entirely (not offered, still loading). */
   hidden?: (f: SetupFacts) => boolean;
@@ -45,7 +48,15 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     href: "/call?check=audio",
     done: (f) => f.audioChecked,
   },
-  // Owner Q15: "Try a practice call" goes here once practice in real accounts is decided.
+  {
+    // D-073 (owner Q15): done once a practice call starts (call.tsx marks it), or by hand.
+    id: "practice",
+    roles: ["agent", "manager", "admin"],
+    label: "setup.practice",
+    href: "/call?practice=1",
+    hidden: (f) => !f.practiceOffered,
+    done: () => false,
+  },
   {
     id: "playbook",
     roles: ["manager", "admin"],

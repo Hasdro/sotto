@@ -2,6 +2,8 @@
 
 /api/v1/company/gallabox                     credentials (admin; write-only) + allow-list
 /api/v1/company/gallabox/templates/load      every template Gallabox has, for the dropdown
+/api/v1/company/gallabox/discover            channels + APPROVED templates with guessed mappings
+/api/v1/company/gallabox/channel             pick the WhatsApp number (by an opaque ref)
 /api/v1/company/gallabox/templates           save the allow-list (parameters cached)
 /api/v1/whatsapp/templates|preview|send      the agent's approved template send
 
@@ -11,6 +13,8 @@ anything from Gallabox's embedded `channel` object."""
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -20,7 +24,15 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from sotto_worker.adapters.whatsapp.gallabox import VAR, Gallabox, GallaboxError, Template, digits
+from sotto_worker.adapters.whatsapp.gallabox import (
+    SOURCES,
+    VAR,
+    Channel,
+    Gallabox,
+    GallaboxError,
+    Template,
+    digits,
+)
 from sotto_worker.cloud.gallabox import data
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
@@ -44,6 +56,23 @@ def check_value(name: str, value: Any) -> str:
 
 def preview_text(template: Template, values: dict[str, str]) -> str:
     return VAR.sub(lambda m: values.get(m.group(1), m.group(0)), template.body)
+
+
+def channel_ref(company_id: str, channel_id: str) -> str:
+    """What the screen gets instead of a channel id (D-039): stable per org, not reversible."""
+    return hashlib.sha256(f"gallabox-channel:{company_id}:{channel_id}".encode()).hexdigest()[:16]
+
+
+def with_mapping(template: Template, mapping: Any) -> Template:
+    """The admin's choices for unmapped parameters; a guessed one may be changed too."""
+    given: dict[str, Any] = mapping if isinstance(mapping, dict) else {}
+    params = []
+    for p in template.params:
+        source = given.get(p.name, p.source)
+        if not isinstance(source, str) or (source and source not in SOURCES):
+            raise CloudError("invalid", f"unknown source for {p.name}")
+        params.append(dataclasses.replace(p, source=source))
+    return dataclasses.replace(template, params=tuple(params))
 
 
 def mask(phone: str) -> str:
@@ -84,7 +113,60 @@ def make_routes(
             except GallaboxError as e:
                 raise failed(e) from None
 
+    async def live_discover(company_id: str) -> tuple[list[Template], list[Channel]]:
+        async with http() as h:
+            try:
+                return await client(h, company_id).discover()
+            except GallaboxError as e:
+                raise failed(e) from None
+
     # --- admin ---------------------------------------------------------------------------------
+    @app_route
+    async def discover(r: Request, who: Principal) -> Response:
+        """ZC-07: after a valid key, the pick lists. Only APPROVED templates are offered; each
+        parameter carries a guessed source, and `unmapped` names the ones the admin must pick.
+        With one WhatsApp number on the account and none chosen yet, it is chosen here."""
+        who.require("admin")
+        store.require_feature(who, "integrations")
+        found, channels = await live_discover(who.company)
+        creds = data.credentials(store, who.company) or {}
+        if len(channels) == 1 and not creds.get("channel_id"):
+            data.save_channel(store, who, channels[0].id, channels[0].label, ip=ip_of(r))
+            creds = data.credentials(store, who.company) or {}
+        approved = [t for t in found if t.status == "APPROVED"]
+        return JSONResponse(
+            {
+                "channels": [
+                    {
+                        "ref": channel_ref(who.company, c.id),
+                        "label": c.label or f"WhatsApp {i + 1}",
+                        "selected": c.id == creds.get("channel_id"),
+                    }
+                    for i, c in enumerate(channels)
+                ],
+                "templates": [t.out() for t in approved],
+                "unmapped": {
+                    f"{t.name}/{t.language}": [p.name for p in t.params if not p.source]
+                    for t in approved
+                },
+                "hidden": len(found) - len(approved),
+                "status": data.status(store, who.company),
+            },
+            headers=NO_STORE,
+        )
+
+    @app_route
+    async def channel(r: Request, who: Principal) -> Response:
+        who.require("admin")
+        store.require_feature(who, "integrations")
+        ref = str((await body(r)).get("ref", ""))
+        _found, channels = await live_discover(who.company)
+        picked = next((c for c in channels if channel_ref(who.company, c.id) == ref), None)
+        if picked is None:
+            raise CloudError("invalid", "that WhatsApp number is not on the Gallabox account")
+        data.save_channel(store, who, picked.id, picked.label, ip=ip_of(r))
+        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
+
     @app_route
     async def org_get(_r: Request, who: Principal) -> Response:
         who.require("admin")
@@ -124,6 +206,11 @@ def make_routes(
             for p in picked
             if isinstance(p, dict)
         }
+        mappings = {
+            (str(p.get("name", "")), str(p.get("language", ""))): p.get("mapping")
+            for p in picked
+            if isinstance(p, dict)
+        }
         live = (
             {(t.name, t.language): t for t in await live_templates(who.company)} if wanted else {}
         )
@@ -132,7 +219,7 @@ def make_routes(
             raise CloudError(
                 "invalid", f"not in Gallabox: {', '.join(n for n, _ in sorted(missing))}"
             )
-        chosen = [live[k] for k in sorted(wanted)]
+        chosen = [with_mapping(live[k], mappings.get(k)) for k in sorted(wanted)]
         unapproved = [t.name for t in chosen if t.status and t.status != "APPROVED"]
         if unapproved:
             raise CloudError("invalid", f"not approved by WhatsApp yet: {', '.join(unapproved)}")
@@ -204,6 +291,8 @@ def make_routes(
         async with http() as h:
             try:
                 gb = client(h, who.company)
+                if not (data.credentials(store, who.company) or {}).get("channel_id"):
+                    raise CloudError("gallabox_no_channel", "your admin has to pick a number")
                 # Re-checked right before sending (D-033). Only an authoritative "open" could
                 # ever allow free text; it is never offered in v1, so this is informational.
                 window = await gb.window_status(phone)
@@ -222,7 +311,7 @@ def make_routes(
                 raise failed(e) from None
             except CloudError:
                 data.finish_send(
-                    store, who, idem, ok=False, detail=f"{detail}: no keys", ip=ip_of(r)
+                    store, who, idem, ok=False, detail=f"{detail}: not set up", ip=ip_of(r)
                 )
                 raise
         data.finish_send(store, who, idem, ok=True, detail=detail, ip=ip_of(r))
@@ -238,6 +327,8 @@ def make_routes(
         Route(f"{api}/company/gallabox", org_delete, methods=["DELETE"]),
         Route(f"{api}/company/gallabox/templates/load", load, methods=["POST"]),
         Route(f"{api}/company/gallabox/templates", allow, methods=["PUT"]),
+        Route(f"{api}/company/gallabox/discover", discover, methods=["POST"]),
+        Route(f"{api}/company/gallabox/channel", channel, methods=["PUT"]),
         Route(f"{api}/whatsapp/templates", templates),
         Route(f"{api}/whatsapp/preview", preview, methods=["POST"]),
         Route(f"{api}/whatsapp/send", send, methods=["POST"]),

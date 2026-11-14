@@ -43,7 +43,7 @@ const FEATURES = {
 
 function signedIn(
   role: ViewRole,
-  extra: { playbook?: number; seats?: number; features?: object } = {},
+  extra: { playbook?: number; seats?: number; features?: object; practice?: boolean } = {},
 ) {
   mockCloud = {
     status: "signed_in",
@@ -67,6 +67,16 @@ function signedIn(
       stages: { suggest: { provider: "anthropic", model: "claude-test-model" } },
       providers: { anthropic: { name: "Anthropic", key_env: "K" } },
       stage_slots: {},
+      scenarios: [],
+      ...(extra.practice
+        ? {
+            practice: {
+              id: "practice",
+              title: "Practice call",
+              lines: [{ speaker: "customer", text: "Hi", gap_ms: 0, duration_ms: 1 }],
+            },
+          }
+        : {}),
     },
   };
 }
@@ -92,7 +102,7 @@ beforeEach(() => {
 });
 
 describe("first-run checklist (UX-10)", () => {
-  it("agent sees Connect Zoho and Test audio, and no practice step (owner Q15)", async () => {
+  it("agent sees Connect Zoho and Test audio; no practice step without the server's script", async () => {
     signedIn("agent");
     await wrap("agent");
     expect(screen.getByTestId("home-setup")).toBeOnTheScreen();
@@ -118,6 +128,25 @@ describe("first-run checklist (UX-10)", () => {
     expect(screen.queryByText("Connect your Zoho CRM")).toBeNull();
     await fireEvent.press(screen.getByTestId("setup-messaging-open"));
     expect(mockPush).toHaveBeenCalledWith("/admin/integrations");
+  });
+
+  it.each(["agent", "manager", "admin"] as const)(
+    "%s gets 'Try a practice call', which opens the practice call (D-073)",
+    async (role) => {
+      signedIn(role, { practice: true });
+      await wrap(role);
+      expect(screen.getByText("Try a practice call")).toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId("setup-practice-open"));
+      expect(mockPush).toHaveBeenCalledWith("/call?practice=1");
+    },
+  );
+
+  it("the practice step is in Arabic too, and leaves once practised", async () => {
+    signedIn("agent", { practice: true });
+    await wrap("agent", "ar");
+    expect(screen.getByText("جرّب مكالمة تدريبية")).toBeOnTheScreen();
+    await act(async () => setPrefs({ setupDone: ["practice"] }));
+    expect(screen.queryByText("جرّب مكالمة تدريبية")).toBeNull();
   });
 
   it("a manager sees only the playbook step", async () => {
@@ -154,19 +183,18 @@ describe("first-run checklist (UX-10)", () => {
       playbookEntries: 0,
       seatsUsed: 1,
       messagingConnected: false,
+      practiceOffered: false,
       markedDone: [],
     };
     expect(setupFor(facts).pending).toEqual([]);
-    const practice = {
-      id: "practice",
+    const extra = {
+      id: "extra",
       roles: ["agent" as const],
       label: "setup.audio" as const,
       href: "/call",
       done: () => false,
     };
-    expect(setupFor(facts, [...SETUP_STEPS, practice]).pending.map((s) => s.id)).toEqual([
-      "practice",
-    ]);
+    expect(setupFor(facts, [...SETUP_STEPS, extra]).pending.map((s) => s.id)).toEqual(["extra"]);
   });
 });
 

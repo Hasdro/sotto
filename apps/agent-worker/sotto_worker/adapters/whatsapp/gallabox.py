@@ -31,12 +31,59 @@ class GallaboxError(RuntimeError):
         return self.code in STOP_CODES
 
 
+# Where a template parameter's value comes from on the agent's screen (ZC-07). "" = the agent
+# types it. The app fills what it knows (customer, agent, company); the rest stay editable.
+SOURCES = frozenset(
+    {
+        "customer.name",
+        "customer.first_name",
+        "customer.phone",
+        "agent.name",
+        "agent.first_name",
+        "company.name",
+        "meeting.date",
+        "meeting.time",
+        "meeting.place",
+        "deal.name",
+    }
+)
+_GUESSES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rf"^(?:{pattern})$"), source)
+    for pattern, source in (
+        (r"full_?name|customer_?full_?name|contact_?name", "customer.name"),
+        (
+            r"name|first_?name|f_?name|customer|customer_?name|client|client_?name",
+            "customer.first_name",
+        ),
+        (r"phone|mobile|customer_?phone|whatsapp", "customer.phone"),
+        (r"agent|agent_?name|rep|rep_?name|sales_?rep|advisor|consultant|sender", "agent.name"),
+        (r"agent_?first_?name", "agent.first_name"),
+        (r"company|company_?name|business|brand|org|organi[sz]ation", "company.name"),
+        (r"date|meeting_?date|day|appointment_?date", "meeting.date"),
+        (r"time|meeting_?time|slot|appointment_?time|hour", "meeting.time"),
+        (r"place|venue|location|address|meeting_?place|meeting_?location", "meeting.place"),
+        (r"deal|deal_?name|project|property|product|unit", "deal.name"),
+    )
+)
+
+
+def guess_source(name: str) -> str:
+    """A parameter's likely source from its name (`customer_name` → customer.first_name);
+    "" when nothing fits, e.g. Meta's numbered `{{1}}`."""
+    key = re.sub(r"[\s.\-]+", "_", name.strip().lower())
+    for pattern, source in _GUESSES:
+        if pattern.match(key):
+            return source
+    return ""
+
+
 @dataclass(frozen=True)
 class Param:
     name: str
     component: str  # header | body | button
     type: str  # text (only text parameters are sent in v1)
     example: str = ""
+    source: str = ""  # one of SOURCES, or "" (the agent types it)
 
     def out(self) -> dict[str, str]:
         return {
@@ -44,6 +91,7 @@ class Param:
             "component": self.component,
             "type": self.type,
             "example": self.example,
+            "source": self.source,
         }
 
 
@@ -107,7 +155,7 @@ def parse_template(raw: dict[str, Any]) -> Template | None:
             if (kind, var) not in seen:
                 seen.add((kind, var))
                 ex = examples[i] if i < len(examples) else ""
-                params.append(Param(var, kind, "text", ex))
+                params.append(Param(var, kind, "text", ex, guess_source(var)))
     variables = raw.get("variables")
     for var in variables if isinstance(variables, list) else []:
         if isinstance(var, dict):
@@ -132,6 +180,30 @@ def parse_template(raw: dict[str, Any]) -> Template | None:
     )
 
 
+@dataclass(frozen=True)
+class Channel:
+    """A WhatsApp number on the account. `id` is server-side only (D-039); screens get a ref."""
+
+    id: str
+    label: str
+
+
+def parse_channel(raw: dict[str, Any]) -> Channel | None:
+    """The channel a template belongs to. Only the id and a display name are read from the
+    embedded `channel` object (its other fields are credential-like and never copied)."""
+    inner = raw.get("channel")
+    ch: dict[str, Any] = inner if isinstance(inner, dict) else {}
+    cid = _s(raw.get("channelId") or ch.get("id") or ch.get("_id"), 120)
+    if not cid:
+        return None
+    label = _s(ch.get("name") or ch.get("displayName"), 80)
+    phone = digits(_s(ch.get("phone") or ch.get("phoneNumber"), 30))
+    if phone and len(phone) >= 4:
+        masked = f"+{'•' * max(0, len(phone) - 4)}{phone[-4:]}"
+        label = f"{label} ({masked})" if label else masked
+    return Channel(cid, label)
+
+
 def digits(phone: str) -> str:
     return re.sub(r"\D", "", phone or "")
 
@@ -146,8 +218,9 @@ class Gallabox:
         api_key: str,
         api_secret: str,
         account_id: str,
-        channel_id: str,
+        channel_id: str = "",
         base: str = BASE,
+        **_extra: str,
     ) -> None:
         self._http = http
         self._headers = {"apiKey": api_key, "apiSecret": api_secret}
@@ -176,11 +249,25 @@ class Gallabox:
             raise GallaboxError(message, status=r.status_code, code=code)
         return r.json() if r.content else {}
 
-    async def templates(self) -> list[Template]:
+    async def _template_rows(self) -> list[dict[str, Any]]:
         data = await self._call("GET", f"/accounts/{self._account}/whatsappTemplates")
         rows = data if isinstance(data, list) else (data.get("data") or data.get("templates") or [])
-        out = [t for t in (parse_template(r) for r in rows if isinstance(r, dict)) if t]
-        return out[:500]
+        return [r for r in rows if isinstance(r, dict)][:500]
+
+    async def templates(self) -> list[Template]:
+        return [t for t in (parse_template(r) for r in await self._template_rows()) if t]
+
+    async def discover(self) -> tuple[list[Template], list[Channel]]:
+        """Templates and the channels they belong to, from one read. Gallabox documents no
+        channel list endpoint (REFERENCES § Gallabox), so channels come from the templates."""
+        rows = await self._template_rows()
+        templates = [t for t in (parse_template(r) for r in rows) if t]
+        channels: dict[str, Channel] = {}
+        for r in rows:
+            ch = parse_channel(r)
+            if ch and (ch.id not in channels or not channels[ch.id].label):
+                channels[ch.id] = ch
+        return templates, list(channels.values())
 
     async def window_status(self, _phone: str) -> Window:
         """No documented window signal (REFERENCES § Gallabox): never claim "open"."""
