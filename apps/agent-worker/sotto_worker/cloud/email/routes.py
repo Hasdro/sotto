@@ -2,6 +2,7 @@
 
 /api/owner/smtp, /api/owner/smtp/test          platform mailbox (fallback; owner console)
 /api/v1/company/smtp, /api/v1/company/smtp/test the org's own mailbox (admin; org wins)
+/api/v1/company/smtp/preset                     host/port from the admin's domain (UX-32)
 /api/v1/company/email/formats                   formats with static blocks (admin)
 /api/v1/email/senders|formats|preview|send      the agent's post-call email
 
@@ -19,7 +20,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from sotto_worker.adapters.email.smtp import Outgoing, SmtpAccount, SmtpSendError, send_mail
-from sotto_worker.cloud.email import data
+from sotto_worker.cloud.email import data, presets
 from sotto_worker.cloud.email.render import Rendered, render
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
@@ -102,6 +103,28 @@ def make_routes(
             raise CloudError("rate_limited", "too many test emails; wait a minute")
         scope = data.active_scope(store, who.company)
         return await test_send(data.account(store, scope) if scope else None, who.email)
+
+    @app_route
+    async def org_preset(r: Request, who: Principal) -> Response:
+        """The mailbox provider behind an email domain (the admin's own by default), so the form
+        shows only the password for Google, Microsoft 365, Hostinger and Zoho Mail (D-052)."""
+        who.require("admin")
+        email = r.query_params.get("email") or who.email
+        preset, found_by, domain = await presets.preset_for(email)
+        return JSONResponse(
+            {
+                "domain": domain,
+                "found_by": found_by,
+                "preset": preset.out(),
+                "username": email.strip().lower() if preset.id != "other" else "",
+                "from_address": who.email if domain_matches(who.email, domain) else "",
+                "from_name": data.company_name(store, who.company),
+            },
+            headers=NO_STORE,
+        )
+
+    def domain_matches(email: str, domain: str) -> bool:
+        return bool(domain) and presets.domain_of(email) == domain
 
     @app_route
     async def formats_put(r: Request, who: Principal) -> Response:
@@ -231,6 +254,7 @@ def make_routes(
         Route(f"{api}/company/smtp", org_put, methods=["PUT"]),
         Route(f"{api}/company/smtp", org_delete, methods=["DELETE"]),
         Route(f"{api}/company/smtp/test", org_test, methods=["POST"]),
+        Route(f"{api}/company/smtp/preset", org_preset),
         Route(f"{api}/company/email/formats", formats_put, methods=["PUT"]),
         Route(f"{api}/email/senders", senders_get),
         Route(f"{api}/email/formats", formats_get),
