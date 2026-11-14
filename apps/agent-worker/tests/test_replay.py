@@ -92,3 +92,20 @@ async def test_replay_records_the_top_match_score_of_each_customer_turn() -> Non
     assert all(0.0 <= s <= 1.0 + 1e-9 for s in report.top1_scores)
     playbook_cards = sum(1 for r in report.records if r.source == "playbook")
     assert sum(1 for s in report.top1_scores if s >= 0.42) == playbook_cards
+
+
+def test_cost_estimate_prints_cost_per_minute_per_stage_with_sources(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """W4-COST (D-060): `pnpm cost:estimate` is labelled an estimate; each row cites a source."""
+    from replay import cost
+
+    assert cost.main() == 0
+    out = capsys.readouterr().out
+    assert out.startswith("ESTIMATE")
+    for stage in ("stt", "suggest", "suggest_backup", "summary"):
+        row = next(line for line in out.splitlines() if line.startswith(stage + " "))
+        assert "https://" in row, row
+        assert "checked 2026-" in row, row
+    total = next(line for line in out.splitlines() if line.startswith("total"))
+    assert float(total.split()[1]) > 0

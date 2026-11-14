@@ -1,0 +1,54 @@
+# Vendor prices for the cost-per-minute ESTIMATE (D-060, W4-COST). Seed data, not a quote: check
+# each source before pricing a plan. `confidence: vendor` = the vendor's own page; `aggregator` =
+# third-party trackers agree; `upper_bound` = a higher tier's rate used until the real one is checked.
+# Units: per_hour (audio streamed), per_mtok_in / per_mtok_out (USD per million tokens).
+version: 1
+checked: 2026-11-14
+prices:
+  - vendor: assemblyai
+    model: universal-streaming-english
+    unit: per_hour
+    usd: 0.15
+    source: https://www.assemblyai.com/pricing
+    confidence: vendor
+    checked: 2026-11-14
+  - vendor: speechmatics
+    model: standard
+    unit: per_hour
+    usd: 0.54
+    source: https://soniox.com/compare/stt/pricing
+    confidence: upper_bound  # Real-time Enhanced rate; the Standard rate is not confirmed
+    checked: 2026-11-14
+  - vendor: groq
+    model: openai/gpt-oss-20b
+    unit: per_mtok
+    in_usd: 0.075
+    out_usd: 0.30
+    source: https://groq.com/pricing
+    confidence: aggregator  # trackers agree; Groq's launch post listed 0.10 / 0.50
+    checked: 2026-11-14
+  - vendor: groq
+    model: openai/gpt-oss-120b
+    unit: per_mtok
+    in_usd: 0.15
+    out_usd: 0.60
+    source: https://groq.com/pricing
+    confidence: aggregator  # launch post: 0.15 / 0.75
+    checked: 2026-11-14
+  - vendor: gemini
+    model: gemini-2.5-flash
+    unit: per_mtok
+    in_usd: 0.30
+    out_usd: 2.50
+    source: https://ai.google.dev/gemini-api/docs/pricing
+    confidence: aggregator
+    checked: 2026-11-14
+
+# What one call minute uses, for metering client-reported calls (the apps report minutes and
+# card counts, not tokens). Set from `pnpm cost:estimate` (synthetic replay, 2026-11-14); output
+# tokens are each route's max_tokens (an upper bound: reasoning models count hidden tokens there).
+usage:
+  stt_tracks: 2               # customer + agent (agent track as context, D-062 platform default)
+  suggest_in_tokens: 700      # per AI card request
+  summary_in_tokens: 1500     # per call (transcript + prompt)
+  chars_per_token: 4

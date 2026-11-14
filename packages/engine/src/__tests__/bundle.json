@@ -290,6 +290,18 @@
     ],
     "body": "How this team prefers its cards (learned from the agents' ratings). Follow these when they fit, but the playbook entry, the company facts and every rule above always win; if one of these conflicts with them, ignore it:\n{{learning.instructions}}\n"
    },
+   "playbook_bootstrap": {
+    "key": "playbook_bootstrap",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "bootstrap.source",
+     "bootstrap.max_items",
+     "bootstrap.material"
+    ],
+    "body": "You help {{company.name}} write the first answers its sales agents can say on calls. Below is material from {{bootstrap.source}}. Draft the questions customers are likely to ask and the answer an agent can say out loud.\n\nMaterial:\n{{bootstrap.material}}\n\nRules:\n- at most {{bootstrap.max_items}} pairs; only questions the material answers;\n- each answer at most 40 words, plain spoken English, in the company's own words where possible;\n- use only facts stated in the material: never invent prices, discounts, dates, guarantees or features;\n- leave out names of people, email addresses, phone numbers and deal amounts;\n- a manager reviews every pair before agents see it.\n\nReply with pairs only, each as two lines and a blank line between pairs:\nQ: <the customer's question>\nA: <the agent's answer>\n\nReply with NONE if the material answers no customer questions.\n"
+   },
    "playbook_suggest": {
     "key": "playbook_suggest",
     "version": 1,

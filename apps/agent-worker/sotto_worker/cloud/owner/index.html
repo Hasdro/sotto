@@ -36,6 +36,8 @@
       <button type="button" data-view="features"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 7h8a5 5 0 0 1 0 10H8A5 5 0 0 1 8 7zM16 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg><span>Features</span></button>
       <button type="button" data-view="providers"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 7a4 4 0 1 1-3.9 5H4v3h3v3h3v-3h1.1A4 4 0 0 1 15 7z"/></svg><span>Providers and keys</span></button>
       <button type="button" data-view="routing"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h6l4 6-4 6H4M14 12h6"/></svg><span>Model routing</span></button>
+      <button type="button" data-view="routingjob"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M7 7l2 2M15 15l2 2M7 17l2-2M15 9l2-2"/></svg><span>Routing job</span></button>
+      <button type="button" data-view="spend"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18M16 7H10a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6H8"/></svg><span>Spend</span></button>
       <button type="button" data-view="prompts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 4h10l4 4v12H5zM8 11h8M8 15h6"/></svg><span>Prompt studio</span></button>
       <button type="button" data-view="health"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>Health</span></button>
       <button type="button" data-view="zoho"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 12a8 8 0 1 0 16 0 8 8 0 0 0-16 0M4 12h16M12 4a12 12 0 0 1 0 16"/></svg><span>Zoho clients</span></button>
@@ -105,6 +107,29 @@
       <section class="table-wrap" tabindex="0" aria-label="Model routing table"><table id="routing">
         <thead><tr><th scope="col">Stage</th><th scope="col">Now</th><th scope="col">Benchmark</th><th scope="col">Change to</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
         <tbody></tbody></table></section></div>
+    </section>
+
+    <section id="v-routingjob" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Routing job</h1><p class="ss-lead ss-muted">Weekly: benchmarks candidate models per live stage on the golden calls, stages the fastest one that meets R1 as a canary on AGN's demo org, then promotes it to everyone or rolls it back on a worse p95 or quality (D-067).</p></header>
+      <div class="panel" id="routingJobState" aria-live="polite"></div>
+      <div class="panel"><h2>Settings <small>no defaults: the job stays off until a monthly cap is set</small></h2>
+        <label for="routingCap">Monthly cap (US dollars), <code>routing.monthly_cap_usd</code></label><input id="routingCap" type="number" min="1" step="1" inputmode="decimal" placeholder="Not set">
+        <label for="routingDemo">Demo org for canaries</label><select id="routingDemo"></select>
+        <p><button type="button" class="primary" id="routingJobSave">Save</button> <button type="button" class="ghost" id="routingCapClear">Clear cap</button></p>
+      </div>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Routing job runs table"><table id="routingRuns">
+        <thead><tr><th scope="col">When</th><th scope="col">Result</th><th scope="col">Source</th><th scope="col">Details</th></tr></thead>
+        <tbody></tbody></table></section></div>
+    </section>
+
+    <section id="v-spend" class="view" hidden>
+      <header class="page-head"><h1 class="ss-page-title">Spend</h1><p class="ss-lead ss-muted">Estimated AI and speech-to-text spend on AGN's keys this month, from the calls each company's apps report and the seed price table (D-060, D-061). With a cap, you get one alert at 80 %; at 100 % AGN's keys are withheld for that company until you raise the cap or the month ends.</p></header>
+      <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
+      <section class="table-wrap" tabindex="0" aria-label="Spend table"><table id="spend">
+        <thead><tr><th scope="col">Company</th><th scope="col">This month (estimate)</th><th scope="col">Cap</th><th scope="col">State</th><th scope="col">New cap (USD)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody></tbody></table></section></div>
+      <p class="ss-muted" id="spendNote"></p>
     </section>
 
     <section id="v-prompts" class="view" hidden>

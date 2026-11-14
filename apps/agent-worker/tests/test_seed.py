@@ -100,3 +100,38 @@ def test_prompt_front_matter_is_complete(path: Path) -> None:
 def test_prompt_uses_exactly_the_declared_variables(path: Path) -> None:
     meta, body = _split(path)
     assert set(VARIABLE.findall(body)) == set(meta["variables"])
+
+
+# --- W4-COST and ZC-12 seed tables ---------------------------------------------------------------
+def test_every_price_cites_a_source_and_a_date() -> None:
+    from sotto_worker.cloud.metering.prices import PriceTable
+
+    table = PriceTable.load()
+    assert table.prices, "seed/models/prices.yaml lists no prices"
+    for p in table.prices.values():
+        assert p.source.startswith("https://"), p
+        assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.checked), p
+        assert p.confidence in ("vendor", "aggregator", "upper_bound"), p
+        assert (p.usd > 0) if p.unit == "per_hour" else (p.in_usd > 0 and p.out_usd > 0), p
+
+
+def test_default_routes_have_a_price() -> None:
+    from sotto_worker.cloud.metering.prices import PriceTable
+    from sotto_worker.server.catalog import Catalog
+
+    table = PriceTable.load()
+    catalog = Catalog.load(SEED / "models" / "providers.yaml")
+    from sotto_worker.router import RoutingConfig
+
+    config = RoutingConfig.load(SEED / "models" / "default.yaml")
+    for stage in ("stt", "stt_backup", "suggest", "suggest_backup", "summary"):
+        assert table.for_route(catalog, config.stages[stage]) is not None, stage
+
+
+def test_tenant_auth_research_covers_every_catalogue_vendor() -> None:
+    providers = yaml.safe_load((SEED / "models" / "providers.yaml").read_text())["providers"]
+    research = yaml.safe_load((SEED / "models" / "tenant-auth.yaml").read_text())["vendors"]
+    assert set(research) == set(providers)
+    for vendor, row in research.items():
+        assert row["mode"] in ("short_token", "sub_key", "console_only", "none"), vendor
+        assert row["source"].startswith("https://"), vendor

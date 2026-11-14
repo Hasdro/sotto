@@ -113,6 +113,8 @@ function show(view) {
     // T-079 views live in platform.js (loaded after this file).
     providers: () => window.platformViews.providers(),
     routing: () => window.platformViews.routing(),
+    routingjob: () => window.platformViews.routingjob(),
+    spend: () => window.platformViews.spend(),
     prompts: () => window.platformViews.prompts(),
     health: () => window.platformViews.health(),
     zoho: () => window.platformViews.zoho(),

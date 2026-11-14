@@ -70,6 +70,14 @@ function renderProviders(data) {
           "td",
           {},
           p.key_set ? status(true, `Saved ${fmtDate(p.updated_at)}`) : h("span", {}, "Not set"),
+          p.retiring
+            ? h(
+                "small",
+                { class: "kill-note" },
+                h("br"),
+                `Rotated ${fmtWhen(p.retiring.rotated_at)}; old key retiring until ${fmtWhen(p.retiring.retire_at)}. Revoke it at the vendor after that.`,
+              )
+            : null,
         ),
         h(
           "td",
@@ -80,7 +88,28 @@ function renderProviders(data) {
         h(
           "td",
           { class: "act" },
-          btn("Save", save, "primary"),
+          btn(p.key_set ? "Replace" : "Save", save, p.key_set ? "ghost" : "primary"),
+          p.key_set
+            ? btn(
+                "Rotate",
+                () => {
+                  if (!input.value.trim()) return toast("Paste the next key first");
+                  return run(async () => {
+                    renderProviders(
+                      await api(`/api/owner/keys/${p.key_env}/rotate`, {
+                        method: "POST",
+                        body: { value: input.value.trim() },
+                      }),
+                    );
+                  }, `${p.name}: apps switch to the next key within 10 minutes`);
+                },
+                "primary",
+                {
+                  title:
+                    "Apps switch on their next config refresh; the old key retires after 20 minutes",
+                },
+              )
+            : null,
           p.key_set
             ? btn("Test", () =>
                 run(async () => {
@@ -579,8 +608,143 @@ $("#hookRotate").addEventListener("click", () =>
   }),
 );
 
+// --- routing job (ZC-05) ---------------------------------------------------------------------
+const JOB_STATE = {
+  cap_unset: ["bad", "Off · Set a monthly cap to enable"],
+  waiting_golden: ["bad", "Waiting for golden calls"],
+  ready: ["ok", "Ready · runs weekly"],
+};
+async function loadRoutingJob() {
+  await companyOptions($("#routingDemo"), true);
+  renderRoutingJob(await api("/api/owner/routing-job"));
+}
+function renderRoutingJob(s) {
+  const [tone, text] = JOB_STATE[s.status] || ["bad", s.status];
+  const lines = [
+    h("h2", {}, "State"),
+    h("p", {}, h("span", { class: `status ${tone}` }, text)),
+    h(
+      "p",
+      { class: "note" },
+      s.monthly_cap_usd === null
+        ? "Monthly cap: not set. Nothing runs and nothing is spent."
+        : `Monthly cap: ${s.monthly_cap_usd.toFixed(2)} USD · spent this month: ${s.spent_usd.toFixed(2)} USD`,
+    ),
+  ];
+  if (s.status === "waiting_golden")
+    lines.push(
+      h(
+        "p",
+        { class: "note" },
+        "The job is built and tested on the synthetic calls; it benchmarks real models only on recorded golden calls (P0.5), which do not exist yet.",
+      ),
+    );
+  for (const c of s.canaries)
+    lines.push(
+      h(
+        "p",
+        {},
+        `Canary on ${c.stage}: ${c.provider_id}/${c.model} since ${fmtWhen(c.since)} (benchmark p95 ${c.bench_p95} ms)`,
+      ),
+    );
+  $("#routingJobState").replaceChildren(...lines);
+  $("#routingCap").value = s.monthly_cap_usd ?? "";
+  $("#routingDemo").value = s.demo_company_id ?? "";
+  $("#routingRuns tbody").replaceChildren(
+    ...(s.runs.length
+      ? s.runs.map((r) =>
+          h(
+            "tr",
+            {},
+            h("td", {}, fmtWhen(r.at)),
+            h("td", {}, r.status),
+            h("td", {}, r.source),
+            h(
+              "td",
+              {},
+              r.detail
+                .map((d) => `${d.stage}: ${d.staged || d.canary || d.result || ""}`)
+                .join("; ") || "—",
+            ),
+          ),
+        )
+      : [h("tr", {}, h("td", { colspan: "4" }, "No runs yet."))]),
+  );
+}
+const saveRoutingJob = (body) =>
+  run(async () => {
+    renderRoutingJob(await api("/api/owner/routing-job", { method: "PUT", body }));
+  }, "Routing job saved");
+$("#routingJobSave").addEventListener("click", () => {
+  const raw = $("#routingCap").value.trim();
+  const body = { demo_company_id: $("#routingDemo").value || null };
+  if (raw) body.monthly_cap_usd = Number(raw);
+  return saveRoutingJob(body);
+});
+$("#routingCapClear").addEventListener("click", () => saveRoutingJob({ monthly_cap_usd: null }));
+
+// --- spend (ZC-12) -------------------------------------------------------------------------
+const SPEND_STATE = {
+  cap_not_set: ["bad", "Cap not set"],
+  ok: ["ok", "Under 80 %"],
+  alert: ["bad", "Over 80 % · owner alerted"],
+  capped: ["bad", "Cap reached · AGN keys withheld"],
+};
+async function loadSpend() {
+  const data = await api("/api/owner/spend");
+  $("#spendNote").textContent =
+    `Estimates from seed/models/prices.yaml (checked ${data.checked}); not a vendor bill. Stages a company runs on its own keys (BYO) are not counted.`;
+  $("#spend tbody").replaceChildren(
+    ...data.companies.map((c) => {
+      const input = h("input", {
+        type: "number",
+        min: "1",
+        step: "1",
+        inputmode: "decimal",
+        "aria-label": `New monthly cap for ${c.name}`,
+        placeholder: c.cap_usd === null ? "Not set" : String(c.cap_usd),
+      });
+      const [tone, text] = SPEND_STATE[c.status];
+      const pct = c.ratio === null ? "" : ` · ${Math.round(c.ratio * 100)} %`;
+      const put = (cap) =>
+        run(
+          async () => {
+            await api(`/api/owner/companies/${c.id}/spend-cap`, {
+              method: "PUT",
+              body: { cap_usd: cap },
+            });
+            await loadSpend();
+          },
+          cap === null ? `${c.name}: cap removed` : `${c.name}: cap saved`,
+        );
+      return h(
+        "tr",
+        {},
+        h("th", { scope: "row" }, c.name),
+        h("td", { class: "num" }, `${c.spend_usd.toFixed(2)} USD`),
+        h("td", { class: "num" }, c.cap_usd === null ? "—" : `${c.cap_usd.toFixed(2)} USD`),
+        h("td", {}, h("span", { class: `status ${tone}` }, text + pct)),
+        h("td", {}, input),
+        h(
+          "td",
+          { class: "act" },
+          btn(
+            "Set cap",
+            () =>
+              input.value.trim() ? put(Number(input.value)) : toast("Enter a cap in US dollars"),
+            "primary",
+          ),
+          c.cap_usd === null ? null : btn("Remove cap", () => put(null)),
+        ),
+      );
+    }),
+  );
+}
+
 window.platformViews = {
   providers: loadProviders,
+  routingjob: loadRoutingJob,
+  spend: loadSpend,
   routing: loadRouting,
   prompts: loadPrompts,
   health: loadHealth,

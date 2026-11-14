@@ -1,0 +1,56 @@
+# ZC-12 (D-061): what each catalogue vendor offers instead of shipping AGN's shared key to devices.
+# Researched 2026-11-14 (source-driven-development). `mode`:
+#   short_token  the server mints a short-lived token per call; the key never leaves the server
+#   sub_key      the server can create a key per company with its own spend limit (via an API)
+#   console_only per-project keys/limits exist, but only by hand in the vendor console
+#   none         nothing found: the device gets the shared key (metering + caps + rotation apply)
+# `in_app`: the server already uses it (cloud/app.py mint_stt_token). Creating sub-keys needs a
+# vendor adapter (adapters/llm, D-058) and the owner's go; nothing here was created on a real account.
+version: 1
+checked: 2026-11-14
+vendors:
+  assemblyai:
+    mode: short_token
+    in_app: true
+    detail: "GET streaming.assemblyai.com/v3/token, expires_in_seconds, max_session_duration_seconds"
+    source: https://www.assemblyai.com/docs/speech-to-text/universal-streaming
+  speechmatics:
+    mode: short_token
+    in_app: true
+    detail: "POST mp.speechmatics.com/v1/api_keys?type=rt with a ttl: a temporary real-time key"
+    source: https://docs.speechmatics.com/introduction/authentication
+  deepgram:
+    mode: short_token
+    in_app: false  # the apps do not run Deepgram yet (catalogue client: false)
+    detail: "POST /v1/auth/grant: JWT, ttl_seconds 1-3600 (default 30); key needs Member role"
+    source: https://developers.deepgram.com/docs/token-based-authentication
+  elevenlabs:
+    mode: short_token
+    in_app: false
+    detail: "POST /v1/single-use-token/realtime_scribe: one use, 15 minutes"
+    source: https://elevenlabs.io/docs/api-reference/tokens/create
+  openrouter:
+    mode: sub_key
+    in_app: false
+    detail: "Management key: POST /api/v1/keys with limit (USD) per key; one key per company"
+    source: https://openrouter.ai/docs/guides/overview/auth/management-api-keys
+  openai:
+    mode: console_only
+    in_app: false
+    detail: "Project keys and project budgets; ephemeral client secrets exist only for the Realtime API"
+    source: https://platform.openai.com/docs/api-reference/realtime-sessions
+  anthropic:
+    mode: console_only
+    in_app: false
+    detail: "Workspaces with spend limits in the Console; the Admin API lists and archives keys but was not found to create them"
+    source: https://docs.anthropic.com/en/api/administration-api
+  gemini:
+    mode: console_only
+    in_app: false
+    detail: "Ephemeral tokens only for the Live API (not generateContent); project spend caps in AI Studio (unverified)"
+    source: https://ai.google.dev/gemini-api/docs/ephemeral-tokens
+  groq:
+    mode: none
+    in_app: false
+    detail: "No token or key-creation API found; project keys and limits in the console only (unverified)"
+    source: https://console.groq.com/docs/api-keys

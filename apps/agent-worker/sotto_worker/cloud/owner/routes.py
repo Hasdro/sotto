@@ -15,9 +15,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from sotto_worker.cloud.bootstrap import routes as bootstrap_routes
+from sotto_worker.cloud.bootstrap.store import BootstrapStore
 from sotto_worker.cloud.bundle import Seed
+from sotto_worker.cloud.metering.store import Metering
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.owner.prompt_check import check_prompt
+from sotto_worker.cloud.routing import job as routing_job
+from sotto_worker.cloud.routing import store as routing_store
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
 Handler = Callable[[Request], Awaitable[Response]]
@@ -48,6 +53,8 @@ def make_routes(
     log: Callable[[str], None],
 ) -> list[Route]:
     catalog = seed.catalog
+    metering = Metering(store, seed)
+    bootstrap = BootstrapStore(store)
     vendor_ids = tuple(p.id for p in catalog.providers.values() if p.kind == "llm")
 
     # --- providers and keys ----------------------------------------------------------------------
@@ -68,6 +75,7 @@ def make_routes(
                 "key_set": p.key_env in keys,
                 "updated_at": keys.get(p.key_env, {}).get("updated_at"),
                 "test": keys.get(p.key_env, {}).get("test"),
+                "retiring": keys.get(p.key_env, {}).get("retiring"),
             }
             for p in catalog.providers.values()
             if not p.custom
@@ -112,6 +120,34 @@ def make_routes(
         provider_by_env(env)
         platform.set_key(store, who, env, str((await body(r)).get("value", "")), ip=ip_of(r))
         return JSONResponse(providers_out(), headers=NO_STORE)
+
+    async def o_key_rotate(r: Request, who: Principal) -> Response:
+        """ZC-12: the next key; apps switch on their next config refresh. Status only back."""
+        env = r.path_params["env"]
+        provider_by_env(env)
+        out = platform.rotate_key(
+            store, who, env, str((await body(r)).get("value", "")), ip=ip_of(r)
+        )
+        return JSONResponse({"rotation": out, **providers_out()}, headers=NO_STORE)
+
+    # --- routing job (ZC-05) and spend (ZC-12) ----------------------------------------------------
+    async def o_routing_job(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(routing_job.state(store), headers=NO_STORE)
+
+    async def o_routing_job_put(r: Request, who: Principal) -> Response:
+        routing_store.set_settings(store, who, await body(r), ip=ip_of(r))
+        return JSONResponse(routing_job.state(store), headers=NO_STORE)
+
+    async def o_spend(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(
+            {"companies": metering.overview(), "checked": metering.table.checked},
+            headers=NO_STORE,
+        )
+
+    async def o_spend_cap(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
+        metering.set_cap(who, cid, (await body(r)).get("cap_usd"), ip=ip_of(r))
+        return JSONResponse(metering.state(cid), headers=NO_STORE)
 
     async def o_key_delete(r: Request, who: Principal) -> Response:
         platform.delete_key(store, who, r.path_params["env"], ip=ip_of(r))
@@ -416,6 +452,11 @@ def make_routes(
         o("keys/{env}", o_key_put, "PUT"),
         o("keys/{env}", o_key_delete, "DELETE"),
         o("keys/{env}/test", o_key_test, "POST"),
+        o("keys/{env}/rotate", o_key_rotate, "POST"),
+        o("routing-job", o_routing_job),
+        o("routing-job", o_routing_job_put, "PUT"),
+        o("spend", o_spend),
+        o("companies/{id}/spend-cap", o_spend_cap, "PUT"),
         o("routes/{stage}", o_route_put, "PUT"),
         o("routes/{stage}", o_route_delete, "DELETE"),
         o("routes/{stage}/rollback", o_route_rollback, "POST"),
@@ -444,4 +485,9 @@ def make_routes(
         Route(f"{api}/company/prompts/{{id}}/publish", c_prompt_publish, methods=["POST"]),
         Route(f"{api}/company/prompts/{{id}}/unpublish", c_prompt_unpublish, methods=["POST"]),
         Route("/hooks/zoho-forms/signup", signup_hook, methods=["POST"]),
+        # ZC-04: mounted here this wave (D-058: app.py is another stream's hub); the Zoho source
+        # needs `zoho_call` from cloud/zoho/routes.py (master hub line).
+        *bootstrap_routes.make_routes(
+            bootstrap=bootstrap, app_route=app_route, body=body, ip_of=ip_of
+        ),
     ]
