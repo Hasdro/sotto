@@ -509,3 +509,64 @@ async def build_meeting_brief(
     brief["meeting"] = meeting
     brief["text"] = brief_text(brief)
     return brief
+
+
+# --- ZC-13: the org's Zoho users in sales roles, for "Invite everyone" ---------------------------
+USERS_PAGES = 3  # 600 users: well past any plan's seat count
+SALES_ROLE = re.compile(
+    r"sales|agent|\brep\b|representative|executive|account|business development|\bbd\b|"
+    r"telesales|advisor|consultant|closer|broker",
+    re.IGNORECASE,
+)
+ADMIN_PROFILE = re.compile(r"^administrator$", re.IGNORECASE)
+
+
+async def zoho_users(reader: ZohoCRMReader) -> list[dict[str, Any]]:
+    """Active, confirmed users of the org (ZohoCRM.users.READ, GET /crm/v8/users)."""
+    out: list[dict[str, Any]] = []
+    for page in range(1, USERS_PAGES + 1):
+        data = await reader._get(
+            "users", {"type": "ActiveConfirmedUsers", "page": page, "per_page": 200}
+        )
+        rows = [u for u in data.get("users") or [] if isinstance(u, dict)]
+        out.extend(rows)
+        raw_info = data.get("info")
+        info: dict[str, Any] = raw_info if isinstance(raw_info, dict) else {}
+        if not info.get("more_records"):
+            break
+    return out
+
+
+def _named(value: Any) -> str:
+    return _s(value.get("name")) if isinstance(value, dict) else ""
+
+
+def team_candidates(users: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
+    """(people in sales roles, fallback). Sales = the role or profile name says so. An org
+    with no such names (only the default CEO/Manager tree) gets everyone but administrators,
+    and `fallback` says so, so the screen can explain the list."""
+    people = []
+    for u in users:
+        uid, email = _s(u.get("id")), _s(u.get("email")).lower()
+        if not RECORD_ID.match(uid) or not EMAIL.match(email):
+            continue
+        if _s(u.get("status")).lower() not in ("", "active") or u.get("confirm") is False:
+            continue
+        role, profile = _named(u.get("role")), _named(u.get("profile"))
+        name = _s(u.get("full_name")) or " ".join(
+            x for x in (_s(u.get("first_name")), _s(u.get("last_name"))) if x
+        )
+        people.append(
+            {
+                "zoho_id": uid,
+                "email": email,
+                "name": (name or email.split("@")[0])[:100],
+                "zoho_role": role[:80],
+                "sales": bool(SALES_ROLE.search(role) or SALES_ROLE.search(profile)),
+                "admin": bool(ADMIN_PROFILE.match(profile)),
+            }
+        )
+    sales = [p for p in people if p["sales"]]
+    if sales:
+        return sales, False
+    return [p for p in people if not p["admin"]], True
