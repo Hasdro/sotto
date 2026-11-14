@@ -109,7 +109,7 @@ export function StepPanel({ id, onFinished }: { id: string; onFinished: () => vo
     );
   const p = step.prepared ?? {};
   return (
-    <Stack gap="sm" testID={`step-${step.kind}`}>
+    <Stack gap="sm" testID={`step-open-${step.kind}`}>
       {step.kind === "email" ? (
         <EmailAction
           callId={step.call_id}

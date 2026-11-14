@@ -33,6 +33,7 @@ jest.mock("expo-router", () => ({
   router: { push: (h: string) => mockPush(h) },
   useRouter: () => ({ push: (h: string) => mockPush(h), navigate: (h: string) => mockPush(h) }),
   Link: ({ children }: { children: React.ReactNode }) => children,
+  useLocalSearchParams: () => ({}),
 }));
 
 const FEATURES = {
