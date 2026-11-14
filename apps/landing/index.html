@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AGN Sales Shield: one suggestion card, from the customer's side of the call</title>
-<meta name="description" content="AGN Sales Shield listens to the customer's side of a live sales call and shows the agent one short suggestion card, with Zoho CRM before and after the call. For macOS and Windows.">
+<title>AGN Sales Shield: the answer on screen while your customer is still listening</title>
+<meta name="description" content="AGN Sales Shield listens to the customer's side of a live sales call and shows the agent one short suggestion card within 1.5 seconds, with Zoho CRM before and after the call. For macOS and Windows.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="icon-512.png">
 <meta name="color-scheme" content="light dark">
+<link rel="preload" href="fonts/inter-600SemiBold.woff" as="font" type="font/woff" crossorigin>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="fonts.css">
 <link rel="stylesheet" href="components.css">
@@ -16,144 +17,252 @@
 </head>
 <body>
 <a class="skip" href="#main" data-i18n="ui.skip">Skip to content</a>
-<header class="top ss-topbar ss-glass"><div class="wrap">
-  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><defs><mask id="logo-cut"><rect width="64" height="64" fill="#fff"/><g transform="translate(14.5 14.5) scale(0.55)"><g fill="#000"><rect x="6.5" y="8.5" width="21" height="14" rx="6.5" transform="rotate(-38 17 15.5)"/><rect x="36.5" y="41.5" width="21" height="14" rx="6.5" transform="rotate(-52 47 48.5)"/></g><path d="M15 17 C9 33 23 51 46 50" fill="none" stroke="#000" stroke-width="10" stroke-linecap="round"/></g></mask></defs><path d="M32 3 L57 11 V29 C57 45 46.5 55 32 61 C17.5 55 7 45 7 29 V11 Z" fill="currentColor" mask="url(#logo-cut)"/></svg><span class="brand-name" data-i18n="brand">AGN Sales Shield</span></a>
+
+<header class="top"><div class="top-bar ss-glass">
+  <a class="brand" href="index.html"><img class="logo logo--light" src="logo.svg" width="28" height="28" alt=""><img class="logo logo--dark" src="logo-dark.svg" width="28" height="28" alt=""><span class="brand-name" data-i18n="brand">AGN Sales Shield</span></a>
+  <nav class="top-nav" aria-label="Sections">
+    <a href="#how" data-i18n="nav.how">How it works</a>
+    <a href="#trust" data-i18n="nav.trust">Privacy and control</a>
+    <a href="#contact" data-i18n="nav.contact">For teams</a>
+  </nav>
   <div class="tools">
-    <button class="ss-btn ss-btn--ghost" id="theme-btn" type="button" aria-pressed="false">Dark</button>
-    <button class="ss-btn ss-btn--ghost" id="lang-btn" type="button" lang="ar">العربية</button>
-    <a class="ss-btn top-dl" href="#download" data-i18n="nav.download">Download</a>
+    <button class="ss-btn ss-btn--ghost tool-btn" id="theme-btn" type="button" aria-pressed="false">Dark</button>
+    <button class="ss-btn ss-btn--ghost tool-btn" id="lang-btn" type="button" lang="ar">العربية</button>
+    <a class="ss-btn ss-btn--primary top-dl" href="#download" data-i18n="nav.download">Download</a>
   </div>
 </div></header>
 
 <main id="main">
-<div class="wrap">
 
-  <!-- Hero: the live card is the product, so it is the focal point (DESIGN-SYSTEM §5.7). -->
+  <!-- Hero: short claim, then the live call window as the page's one big image (DESIGN-SYSTEM §5.7). -->
   <section class="hero" aria-labelledby="hero-h">
-    <div class="hero-copy">
-      <h1 id="hero-h" class="ss-display" data-i18n="hero.h1">Your customer asks. The answer is on your screen within 1.5 seconds.</h1>
-      <p class="lead" data-i18n="hero.lead">AGN Sales Shield listens to the customer's side of a live call, not yours, and shows you one short card: an answer from your playbook, a question to ask back, or a plain warning when the playbook has nothing safe to say.</p>
-      <div id="hero-dl" class="hero-dl" aria-live="polite"><p class="meta" data-i18n="dl.loading">Checking the latest version…</p></div>
-      <p class="hero-team"><span data-i18n="hero.team">Setting it up for a sales team?</span> <a href="#contact" data-i18n="hero.teamLink">Talk to us</a></p>
-    </div>
-    <figure class="demo" aria-labelledby="demo-cap">
-      <p class="demo-status"><span class="ss-status"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="demo.live">Live</span> <span class="clock" dir="ltr">00:11</span></span></p>
-      <p class="ss-bubble demo-bubble"><span class="who who--customer" data-i18n="demo.customer">Customer</span><span data-i18n="demo.q">Can it see my meetings in Zoho before the call?</span></p>
-      <div class="ss-suggestion demo-card">
-        <p class="ss-suggestion__meta"><span class="demo-glyph" aria-hidden="true">“</span><span data-i18n="demo.type">Answer · from your playbook</span></p>
-        <p class="demo-text" data-i18n="demo.a">Yes. It reads today's meeting and contact from Zoho, and saves notes only after you approve them.</p>
+    <div class="wrap hero-copy">
+      <p class="kicker" data-i18n="hero.kicker">For sales calls on macOS and Windows</p>
+      <h1 id="hero-h" class="hero-h" data-i18n="hero.h1">Your customer asks. The answer is already on your screen.</h1>
+      <p class="hero-lead" data-i18n="hero.lead">AGN Sales Shield listens to the customer's side of the call and shows you one short card within 1.5 seconds, drawn from your own playbook.</p>
+      <div class="hero-actions">
+        <div id="hero-dl" class="hero-dl" aria-live="polite"><p class="meta" data-i18n="dl.loading">Checking the latest version…</p></div>
+        <a class="ss-btn ss-btn--lg hero-team" href="#contact" data-i18n="hero.teamLink">Talk to us about your team</a>
       </div>
-      <figcaption id="demo-cap" class="ss-caption" data-i18n="demo.cap">An example card. The wording comes from your company's playbook.</figcaption>
-    </figure>
-  </section>
-
-  <!-- Who triggers a card: the product's most distinctive rule (R4), shown as the two audio tracks. -->
-  <section class="tracks" aria-labelledby="tracks-h">
-    <div class="tracks-copy">
-      <h2 id="tracks-h" data-i18n="tracks.h2">It listens to one side of the call</h2>
-      <p class="section-lead" data-i18n="tracks.p">On your computer the call audio is the customer and your microphone is you. Only the customer's track can bring up a card, so the app never answers your own sentences back to you.</p>
     </div>
-    <ul class="track-list">
-      <li class="track">
-        <p class="ss-bubble track-bubble track-bubble--customer"><span class="who who--customer" data-i18n="demo.customer">Customer</span><span data-i18n="tracks.c">What does onboarding cost for 40 seats?</span></p>
-        <p class="track-rule"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="tracks.cRule">Brings up a card</span></p>
-      </li>
-      <li class="track track--agent">
-        <p class="ss-bubble track-bubble track-bubble--agent"><span class="who" data-i18n="tracks.you">You</span><span data-i18n="tracks.a">Good question, let me pull that up.</span></p>
-        <p class="track-rule"><span class="ss-dot" aria-hidden="true"></span><span data-i18n="tracks.aRule">Context only, never a trigger</span></p>
-      </li>
-    </ul>
+
+    <div class="wrap">
+      <figure class="stage stage--hero" aria-labelledby="demo-cap">
+        <div class="window" aria-hidden="true">
+          <div class="window-bar">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <span class="window-title" data-i18n="brand">AGN Sales Shield</span>
+            <span class="lights lights--ghost"><i></i><i></i><i></i></span>
+          </div>
+          <div class="window-body">
+            <div class="call-bar">
+              <span class="ss-status call-live"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="demo.live">Live</span> <span class="clock" dir="ltr">04:12</span></span>
+              <span class="call-who" data-i18n="demo.meeting">Renewal call · from Zoho</span>
+              <span class="call-ctx" data-i18n="demo.ctx">Context</span>
+            </div>
+            <div class="demo-said">
+              <span class="who who--customer" data-i18n="demo.customer">Customer</span>
+              <span data-i18n="demo.q">We already have a dialer. Why would we add another tool?</span>
+            </div>
+            <div class="ss-suggestion demo-card">
+              <p class="ss-suggestion__meta" data-i18n="demo.type">Objection · from your playbook</p>
+              <p class="demo-text" data-i18n="demo.a">It doesn't replace your dialer. It sits next to it and only speaks up when your customer asks something.</p>
+            </div>
+            <div class="call-foot">
+              <span data-i18n="demo.next">Next card appears when the customer asks again</span>
+            </div>
+          </div>
+        </div>
+        <p class="float float--a ss-glass" aria-hidden="true"><span class="float-k" data-i18n="float.a.k">Customer stopped speaking</span><span class="float-v" data-i18n="float.a.v">Card on screen in 1.5 s or less</span></p>
+        <p class="float float--b ss-glass" aria-hidden="true"><span class="float-k" data-i18n="float.b.k">Your microphone</span><span class="float-v" data-i18n="float.b.v">Context only, never a trigger</span></p>
+        <figcaption id="demo-cap" class="stage-cap" data-i18n="demo.cap">An example card during a live call. The wording comes from your company's playbook.</figcaption>
+      </figure>
+    </div>
   </section>
 
-  <!-- The call in order. Real app screens (scripts/landing-shots.mjs), alternating sides on wide screens. -->
-  <section class="moments" aria-labelledby="moments-h">
-    <h2 id="moments-h" data-i18n="m.h2">Around the call</h2>
-    <ol class="moment-list">
-      <li class="moment">
-        <div class="moment-copy">
-          <p class="moment-when" data-i18n="m1.when">Before you dial</p>
+  <!-- The call in order: before, during, after. Three steps because the product has three moments. -->
+  <section id="how" class="band how" aria-labelledby="how-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="how-h" class="h2" data-i18n="how.h2">One app for the whole call</h2>
+        <p class="section-lead" data-i18n="how.p">It prepares you before you dial, stays quiet until the customer asks, and lines up the follow-up when you hang up.</p>
+      </div>
+      <ol class="how-list">
+        <li class="how-step">
+          <div class="vignette" aria-hidden="true">
+            <div class="mini ss-card">
+              <p class="mini-k" data-i18n="v1.k">Meeting brief · Zoho CRM</p>
+              <dl class="brief">
+                <div><dt data-i18n="v1.o">Objective</dt><dd data-i18n="v1.ov">Agree the renewal scope</dd></div>
+                <div><dt data-i18n="v1.a">Attending</dt><dd data-i18n="v1.av">Two from the customer</dd></div>
+                <div><dt data-i18n="v1.n">Next step</dt><dd data-i18n="v1.nv">Send the revised quote</dd></div>
+              </dl>
+              <p class="mini-actions"><span class="pill pill--primary" data-i18n="v1.yes">Use this brief</span><span class="pill" data-i18n="v1.skip">Skip</span></p>
+            </div>
+          </div>
+          <p class="how-when"><span class="how-n" dir="ltr">1</span><span data-i18n="m1.when">Before you dial</span></p>
           <h3 data-i18n="m1.h">Your Zoho meeting, already open</h3>
-          <p data-i18n="m1.p">Connect your own Zoho CRM account. Pick an upcoming meeting and the app writes a short brief: the objective, who is attending, open points and the next step. Nothing is attached to the call until you confirm it, and a brief can be written by hand without Zoho.</p>
-        </div>
-        <figure class="moment-shot"><img src="shot-meetings.png" width="660" height="560" loading="lazy" decoding="async" alt="" data-i18n-alt="shots.alt3"><figcaption data-i18n="m1.cap">Upcoming meetings from Zoho, in the app</figcaption></figure>
-      </li>
-      <li class="moment">
-        <div class="moment-copy">
-          <p class="moment-when" data-i18n="m2.when">When the playbook has no answer</p>
-          <h3 data-i18n="m2.h">It says so instead of guessing</h3>
-          <p data-i18n="m2.p">An answer from outside your playbook is marked "Not in playbook, check before promising". If your company switches those answers off, you get a holding line to say, and your sales manager gets the question by email. The manager's reply can then go into the playbook for the next call.</p>
-        </div>
-        <figure class="moment-shot"><img src="shot-call-card.png" width="604" height="242" loading="lazy" decoding="async" alt="" data-i18n-alt="shots.alt1"><figcaption data-i18n="m2.cap">A live card marked as outside the playbook</figcaption></figure>
-      </li>
-      <li class="moment">
-        <div class="moment-copy">
-          <p class="moment-when" data-i18n="m3.when">After you hang up</p>
-          <h3 data-i18n="m3.h">You approve every update before it leaves</h3>
-          <p data-i18n="m3.p">The app suggests what to record: a meeting, a lead, a contact change, a deal note, a follow-up email or a WhatsApp message. Each one waits for your tick and shows you what will be saved or sent.</p>
-        </div>
-        <figure class="moment-shot"><img src="shot-after-call.png" width="570" height="452" loading="lazy" decoding="async" alt="" data-i18n-alt="shots.alt2"><figcaption data-i18n="m3.cap">Suggested Zoho updates, unticked until you choose</figcaption></figure>
-      </li>
-    </ol>
+          <p data-i18n="m1.p">Connect your own Zoho CRM account and pick an upcoming meeting. The app writes a short brief: objective, attendees, open points and the next step. Nothing is attached until you confirm it.</p>
+        </li>
+        <li class="how-step">
+          <div class="vignette" aria-hidden="true">
+            <div class="mini mini--card">
+              <p class="mini-k mini-k--on" data-i18n="v2.k">Question to ask · from your playbook</p>
+              <p class="mini-text" data-i18n="v2.t">How many agents would use it on day one?</p>
+            </div>
+          </div>
+          <p class="how-when"><span class="how-n" dir="ltr">2</span><span data-i18n="m2.when">While the customer talks</span></p>
+          <h3 data-i18n="m2.h">One card, only when it helps</h3>
+          <p data-i18n="m2.p">An answer, a question to ask back or an objection reply, shown within 1.5 seconds of the customer's last word. One card at a time, large enough to read at a glance.</p>
+        </li>
+        <li class="how-step">
+          <div class="vignette" aria-hidden="true">
+            <div class="mini ss-card">
+              <p class="mini-k" data-i18n="v3.k">Suggested after the call</p>
+              <ul class="checks">
+                <li><span class="box box--on"></span><span data-i18n="v3.1">Deal note in Zoho</span></li>
+                <li><span class="box box--on"></span><span data-i18n="v3.2">Follow-up email</span></li>
+                <li><span class="box"></span><span data-i18n="v3.3">WhatsApp message</span></li>
+              </ul>
+              <p class="mini-actions"><span class="pill pill--primary" data-i18n="v3.go">Review and send 2</span></p>
+            </div>
+          </div>
+          <p class="how-when"><span class="how-n" dir="ltr">3</span><span data-i18n="m3.when">After you hang up</span></p>
+          <h3 data-i18n="m3.h">You approve every update</h3>
+          <p data-i18n="m3.p">The app suggests a meeting, a lead, a contact change, a deal note, a follow-up email or a WhatsApp message. Each one waits for your tick and shows exactly what will be saved or sent.</p>
+        </li>
+      </ol>
+    </div>
   </section>
 
-  <!-- Limits stated plainly: these are product rules (R4, R12), not marketing claims. -->
-  <section class="limits" aria-labelledby="limits-h">
-    <h2 id="limits-h" data-i18n="no.h2">What it will not do</h2>
-    <ul class="limit-list">
-      <li data-i18n="no.1">Bring up a card because of something you said.</li>
-      <li data-i18n="no.2">Write to Zoho, send an email or send a WhatsApp message without your approval.</li>
-      <li data-i18n="no.3">Change a deal's stage or amount in Zoho.</li>
-      <li data-i18n="no.4">Present a guess as if it came from your playbook.</li>
-      <li data-i18n="no.5">Keep a copy of your WhatsApp conversations.</li>
-    </ul>
+  <!-- Two product rules that set it apart, each beside its own picture; sides alternate on wide screens. -->
+  <section class="feature" aria-labelledby="tracks-h">
+    <div class="wrap feature-grid">
+      <div class="feature-copy">
+        <h2 id="tracks-h" class="h2" data-i18n="tracks.h2">It listens to one side of the call</h2>
+        <p class="section-lead" data-i18n="tracks.p">On your computer the call audio is the customer and your microphone is you. Only the customer's track can bring up a card, so the app never answers your own sentences back to you.</p>
+      </div>
+      <div class="stage stage--soft" aria-hidden="true">
+        <div class="tracks-panel ss-card">
+          <div class="track">
+            <p class="track-name"><span class="who who--customer" data-i18n="demo.customer">Customer</span><span class="track-src" data-i18n="tracks.cSrc">Call audio</span></p>
+            <svg aria-hidden="true" class="wave wave--customer" viewBox="0 0 240 40" preserveAspectRatio="none"><path d="M2 20h0M10 12v16M18 6v28M26 14v12M34 9v22M42 4v32M50 13v14M58 8v24M66 16v8M74 10v20M82 5v30M90 14v12M98 18v4M106 11v18M114 7v26M122 15v10M130 9v22M138 13v14M146 19v2M154 10v20M162 6v28M170 14v12M178 17v6M186 8v24M194 12v16M202 18v4M210 10v20M218 15v10M226 19v2M234 13v14"/></svg>
+            <p class="track-rule track-rule--on"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="tracks.cRule">Brings up a card</span></p>
+          </div>
+          <div class="track">
+            <p class="track-name"><span class="who" data-i18n="tracks.you">You</span><span class="track-src" data-i18n="tracks.aSrc">Microphone</span></p>
+            <svg aria-hidden="true" class="wave wave--agent" viewBox="0 0 240 40" preserveAspectRatio="none"><path d="M10 17v6M18 14v12M26 18v4M34 12v16M42 15v10M50 19v2M58 13v14M66 16v8M74 18v4M82 11v18M90 15v10M98 19v2M106 14v12M114 17v6M122 12v16M130 18v4M138 15v10M146 19v2M154 13v14M162 16v8M170 18v4M178 14v12M186 17v6M194 19v2M202 15v10M210 18v4M218 16v8M226 19v2M234 17v6"/></svg>
+            <p class="track-rule"><span class="ss-dot" aria-hidden="true"></span><span data-i18n="tracks.aRule">Context only, never a trigger</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="feature feature--flip" aria-labelledby="gap-h">
+    <div class="wrap feature-grid">
+      <div class="feature-copy">
+        <h2 id="gap-h" class="h2" data-i18n="gap.h2">When the playbook has no answer, it says so</h2>
+        <p class="section-lead" data-i18n="gap.p">An answer from outside your playbook is marked "Not in playbook, check before promising". If your company turns those off, you get a holding line to say, and your sales manager gets the question by email. Their reply can go into the playbook for the next call.</p>
+      </div>
+      <div class="stage stage--soft" aria-hidden="true">
+        <div class="gap-stack">
+          <div class="ss-suggestion ss-suggestion--warning gap-card">
+            <p class="ss-suggestion__meta gap-meta" data-i18n="gap.k1">Not in playbook · check before promising</p>
+            <p class="gap-text" data-i18n="gap.t1">A discount for paying yearly may be possible.</p>
+          </div>
+          <div class="ss-suggestion ss-suggestion--holding gap-card gap-card--back">
+            <p class="ss-suggestion__meta gap-meta gap-meta--hold" data-i18n="gap.k2">Holding line</p>
+            <p class="gap-text" data-i18n="gap.t2">Good question. Let me confirm that and send it to you today.</p>
+          </div>
+          <p class="gap-mail ss-glass"><span class="ss-dot ss-dot--signal" aria-hidden="true"></span><span data-i18n="gap.mail">Question emailed to your sales manager</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Limits stated plainly: product rules (R4, R12), not marketing claims. The one inverse panel on the page. -->
+  <section id="trust" class="trust" aria-labelledby="trust-h">
+    <div class="wrap">
+      <div class="trust-panel">
+        <div class="trust-head">
+          <h2 id="trust-h" class="h2" data-i18n="no.h2">What it will not do</h2>
+          <p class="trust-lead" data-i18n="no.p">You stay in charge of the call and of your CRM. These are rules in the product, not settings someone can forget.</p>
+        </div>
+        <ul class="trust-list">
+          <li><svg class="no" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg><span data-i18n="no.1">Bring up a card because of something you said.</span></li>
+          <li><svg class="no" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg><span data-i18n="no.2">Write to Zoho, send an email or send a WhatsApp message without your approval.</span></li>
+          <li><svg class="no" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg><span data-i18n="no.3">Change a deal's stage or amount in Zoho.</span></li>
+          <li><svg class="no" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg><span data-i18n="no.4">Present a guess as if it came from your playbook.</span></li>
+          <li><svg class="no" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg><span data-i18n="no.5">Keep a copy of your WhatsApp conversations.</span></li>
+        </ul>
+      </div>
+    </div>
   </section>
 
   <section id="download" class="download" aria-labelledby="dl-h">
-    <h2 id="dl-h" data-i18n="dl.h2">Download for your desktop</h2>
-    <p class="section-lead" id="dl-lead" data-i18n="dl.lead">macOS and Windows, same version on both.</p>
-    <div class="platforms">
-      <div class="platform ss-card">
-        <h3>macOS</h3>
-        <p class="meta" data-i18n="req.mac">macOS 12 or later, Apple silicon or Intel.</p>
-        <div class="platform-files" id="dl-mac" aria-live="polite"><p class="meta" data-i18n="dl.loading">Checking the latest version…</p></div>
-        <details class="first-open">
-          <summary data-i18n="inst.mac.h">First time opening it on a Mac</summary>
-          <ol class="steps"><li data-i18n="inst.mac.1"></li><li data-i18n="inst.mac.2"></li><li data-i18n="inst.mac.3"></li></ol>
-        </details>
-      </div>
-      <div class="platform ss-card">
-        <h3>Windows</h3>
-        <p class="meta" data-i18n="req.win">Windows 10 or later, 64-bit.</p>
-        <div class="platform-files" id="dl-win" aria-live="polite"><p class="meta" data-i18n="dl.loading">Checking the latest version…</p></div>
-        <details class="first-open">
-          <summary data-i18n="inst.win.h">First time opening it on Windows</summary>
-          <ol class="steps"><li data-i18n="inst.win.1"></li><li data-i18n="inst.win.2"></li><li data-i18n="inst.win.3"></li></ol>
-        </details>
+    <div class="wrap">
+      <div class="stage stage--dl">
+        <div class="section-head section-head--center">
+          <h2 id="dl-h" class="h2" data-i18n="dl.h2">Download for your desktop</h2>
+          <p class="section-lead" id="dl-lead" data-i18n="dl.lead">macOS and Windows, same version on both.</p>
+        </div>
+        <div class="platforms">
+          <div class="platform">
+            <h3>macOS</h3>
+            <p class="meta" data-i18n="req.mac">macOS 12 or later, Apple silicon or Intel.</p>
+            <div class="platform-files" id="dl-mac" aria-live="polite"><p class="meta" data-i18n="dl.loading">Checking the latest version…</p></div>
+            <details class="first-open">
+              <summary data-i18n="inst.mac.h">First time opening it on a Mac</summary>
+              <ol class="steps"><li data-i18n="inst.mac.1"></li><li data-i18n="inst.mac.2"></li><li data-i18n="inst.mac.3"></li></ol>
+            </details>
+          </div>
+          <div class="platform">
+            <h3>Windows</h3>
+            <p class="meta" data-i18n="req.win">Windows 10 or later, 64-bit.</p>
+            <div class="platform-files" id="dl-win" aria-live="polite"><p class="meta" data-i18n="dl.loading">Checking the latest version…</p></div>
+            <details class="first-open">
+              <summary data-i18n="inst.win.h">First time opening it on Windows</summary>
+              <ol class="steps"><li data-i18n="inst.win.1"></li><li data-i18n="inst.win.2"></li><li data-i18n="inst.win.3"></li></ol>
+            </details>
+          </div>
+        </div>
+        <p class="meta dl-note" data-i18n="req.net">You need an internet connection and a microphone.</p>
       </div>
     </div>
-    <p class="meta" data-i18n="req.net">You need an internet connection and a microphone.</p>
   </section>
 
   <section id="contact" class="contact" aria-labelledby="contact-h">
-    <div class="contact-copy">
-      <h2 id="contact-h" data-i18n="form.h2">Setting it up for your team?</h2>
-      <p class="section-lead" data-i18n="form.p">Tell us about your team and the CRM you use. We reply by email.</p>
-      <p class="meta"><span data-i18n="form.fallback">Form not loading?</span> <a id="form-mailto" href="mailto:sotto@agncompu.com?subject=AGN%20Sales%20Shield" data-i18n="form.mail">Email us instead</a></p>
-      <p class="meta"><span data-i18n="form.privacy">We use what you send only to reply to you.</span> <a href="privacy.html" data-i18n="nav.privacy">Privacy</a></p>
-    </div>
-    <div class="form-box ss-card">
-      <p class="form-loading" id="form-loading" data-i18n="form.loading">Loading the form…</p>
-      <iframe id="zoho-form" class="zoho-form" aria-label="Sales Shield Signup" title="Sales Shield Signup" loading="lazy"
-        src="https://forms.zohopublic.com/agncomputerllc/form/SalesShieldSignup/formperma/95zC6xcBOHVHXpGkfczaurMCdOmUN1bSpPIhPdLDy-Q"
-        width="100%" height="500" frameborder="0" style="border:0"></iframe>
+    <div class="wrap contact-grid">
+      <div class="contact-copy">
+        <h2 id="contact-h" class="h2" data-i18n="form.h2">Setting it up for your team?</h2>
+        <p class="section-lead" data-i18n="form.p">Tell us about your team and the CRM you use. We reply by email.</p>
+        <p class="meta"><span data-i18n="form.fallback">Form not loading?</span> <a id="form-mailto" href="mailto:sotto@agncompu.com?subject=AGN%20Sales%20Shield" data-i18n="form.mail">Email us instead</a></p>
+        <p class="meta"><span data-i18n="form.privacy">We use what you send only to reply to you.</span> <a href="privacy.html" data-i18n="nav.privacy">Privacy</a></p>
+      </div>
+      <div class="form-box ss-card">
+        <p class="form-loading" id="form-loading" data-i18n="form.loading">Loading the form…</p>
+        <iframe id="zoho-form" class="zoho-form" aria-label="Sales Shield Signup" title="Sales Shield Signup" loading="lazy"
+          src="https://forms.zohopublic.com/agncomputerllc/form/SalesShieldSignup/formperma/95zC6xcBOHVHXpGkfczaurMCdOmUN1bSpPIhPdLDy-Q"
+          width="100%" height="500" frameborder="0" style="border:0"></iframe>
+      </div>
     </div>
   </section>
 
-</div>
 </main>
-<footer class="foot"><div class="wrap">
-  <span>© AGN IT Services</span>
-  <nav class="legal" aria-label="Legal"><a href="privacy.html" data-i18n="nav.privacy">Privacy</a><a href="terms.html" data-i18n="nav.terms">Terms</a></nav>
+<footer class="foot"><div class="wrap foot-grid">
+  <div class="foot-brand">
+    <a class="brand" href="index.html"><img class="logo logo--light" src="logo.svg" width="28" height="28" alt="" loading="lazy"><img class="logo logo--dark" src="logo-dark.svg" width="28" height="28" alt="" loading="lazy"><span class="brand-name" data-i18n="brand">AGN Sales Shield</span></a>
+    <p class="meta" data-i18n="foot.tag">A live-call copilot for sales teams. Made by AGN IT Services.</p>
+  </div>
+  <nav class="foot-nav" aria-label="Footer">
+    <a href="#how" data-i18n="nav.how">How it works</a>
+    <a href="#download" data-i18n="nav.download">Download</a>
+    <a href="#contact" data-i18n="nav.contact">For teams</a>
+    <a href="privacy.html" data-i18n="nav.privacy">Privacy</a>
+    <a href="terms.html" data-i18n="nav.terms">Terms</a>
+  </nav>
+  <p class="foot-copy meta">© AGN IT Services</p>
 </div></footer>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
