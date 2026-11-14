@@ -7,8 +7,8 @@ from pathlib import Path
 from starlette.testclient import TestClient
 
 from sotto_worker.cloud.app import APP_CSP, CloudConfig, create_cloud_app
-from sotto_worker.cloud.store import CloudStore
 from sotto_worker.cloud.bundle import Seed
+from sotto_worker.cloud.store import CloudStore
 from tests.cloud.conftest import ORIGIN, fake_minter
 
 

@@ -162,6 +162,16 @@ function CallList({
                 <Fact icon="cards" text={String(cards)} />
                 <Fact icon={meta.icon} text={meta.name} />
               </View>
+              {snippets?.get(call.id) ? (
+                <Text
+                  variant="secondary"
+                  tone="muted"
+                  numberOfLines={1}
+                  testID={`history-snippet-${call.id}`}
+                >
+                  {snippets.get(call.id)}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.meta}>
               <Badge
