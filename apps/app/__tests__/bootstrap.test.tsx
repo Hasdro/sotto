@@ -69,12 +69,12 @@ describe("playbook bootstrap", () => {
 
   it("drafts from a website page on the device and sends only the pairs for review", async () => {
     let drafts: unknown[] = [];
-    mockApi.mockImplementation(async (path: string, init?: { body?: unknown }) => {
+    mockApi.mockImplementation(async (path: string, init: { body: { items: unknown[] } }) => {
       if (path === "/api/v1/playbook/bootstrap") return state({ drafts });
       if (path.endsWith("/material")) return { source: "website", text: "Installation: two days." };
       if (path.endsWith("/drafts")) {
         drafts = [DRAFT];
-        return { added: (init?.body as { items: unknown[] }).items.length };
+        return { added: init.body.items.length };
       }
       throw new Error(path);
     });
