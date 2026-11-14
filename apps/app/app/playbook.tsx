@@ -35,17 +35,23 @@ const PLAYBOOK_GUIDE: readonly Step[] = [
   { mascot: "reviewing", title: "playbook.guide.4.title", body: "playbook.guide.4.body" },
 ];
 
+import { BootstrapPanel } from "../features/bootstrap/BootstrapPanel";
 import { MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
 import { useEscalations } from "../features/escalations/store";
 import { type PlaybookEntry, searchPlaybook } from "../features/playbook/mock";
 import { Suggestions } from "../features/playbook/Suggestions";
 import { type EntryInput, parseTags, useServerPlaybook } from "../features/playbook/server";
-import { cloudActive, sampleDataAllowed } from "../lib/cloud";
+import { cloudActive, cloudState, sampleDataAllowed } from "../lib/cloud";
 import { formatDate } from "../lib/format";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useRole } from "../lib/role";
 import { ApiError } from "../lib/server";
+
+function signedInBundle() {
+  const s = cloudState();
+  return s.status === "signed_in" ? s.bundle : null;
+}
 
 const SOURCE_LABEL: Record<NonNullable<PlaybookEntry["source"]>, StringKey> = {
   file: "playbook.source.file",
@@ -112,6 +118,9 @@ export default function PlaybookScreen() {
       </View>
       {/* INT-15: approval cards for managers; nothing is added without "Approve". */}
       {canEdit && cloudActive() ? <Suggestions onApproved={() => void server.reload()} /> : null}
+      {canEdit && cloudActive() ? (
+        <BootstrapPanel bundle={signedInBundle()} onApproved={() => void server.reload()} />
+      ) : null}
       {editing === "new" ? (
         <Panel style={styles.formPanel}>
           <EntryForm
