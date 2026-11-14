@@ -241,7 +241,7 @@ async function deviceId(): Promise<string> {
   }
   return id;
 }
-export const APP_VERSION = "0.5.1";
+export const APP_VERSION = "0.5.2";
 
 // --- the session store ----------------------------------------------------------------------
 let state: CloudState = cloudOrigin() ? { status: "loading" } : { status: "off" };

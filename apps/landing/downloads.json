@@ -1,21 +1,21 @@
 {
-  "version": "0.5.1",
-  "generatedAt": "2026-11-14T05:47:17.123Z",
+  "version": "0.5.2",
+  "generatedAt": "2026-11-14T06:22:15.137Z",
   "files": {
     "mac-arm64": {
-      "file": "AGN Sales Shield-0.5.1-arm64.dmg",
-      "size": 127947621,
-      "sha256": "4f6cfc251691b2c036df6e590c7d748b0b669f87b0a67e944a078ead75198e03"
+      "file": "AGN Sales Shield-0.5.2-arm64.dmg",
+      "size": 127962233,
+      "sha256": "da57c5c3e6f135e4edcc40435114d2142e9687c7c00440fc7dbbb498097a4a3a"
     },
     "mac-x64": {
-      "file": "AGN Sales Shield-0.5.1.dmg",
-      "size": 134699377,
-      "sha256": "d412d11c26429be859c6469cd337159eacec8ed02cc2ede18a4a733d3eba5036"
+      "file": "AGN Sales Shield-0.5.2.dmg",
+      "size": 134712894,
+      "sha256": "442a2330916ea56e5c4acdd095508ef1970f3f4e46585d0fa29333655c9e5f3d"
     },
     "win-x64": {
-      "file": "AGN Sales Shield Setup 0.5.1.exe",
-      "size": 115131914,
-      "sha256": "3726a0a6b65921dbfde1857f2f40cdbdaedd0a791d4bec9a4fe40af42d6cc29f"
+      "file": "AGN Sales Shield Setup 0.5.2.exe",
+      "size": 115129001,
+      "sha256": "b08c847f19d93e691037d08fe12975002ce7c7197dbdc348f6f9f822f9c72af6"
     }
   }
 }
