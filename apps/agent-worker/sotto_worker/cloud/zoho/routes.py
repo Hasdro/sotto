@@ -22,13 +22,22 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
-from sotto_worker.adapters.crm.zoho import ModuleNotAllowed, ZohoCRMReader, ZohoError
+from sotto_worker.adapters.crm.zoho import (
+    AGN_FIELD_DEFS,
+    FieldNotAllowed,
+    ModuleNotAllowed,
+    ZohoCRMReader,
+    ZohoError,
+)
+from sotto_worker.cloud.export import routes as export_routes
 from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 from sotto_worker.cloud.zoho import actions, lookup
 from sotto_worker.cloud.zoho.oauth import (
     ACCOUNTS,
+    BASE_SCOPES,
     DC_NAMES,
+    FEATURE_SCOPES,
     SCOPES,
     AccessCache,
     Client,
@@ -36,6 +45,7 @@ from sotto_worker.cloud.zoho.oauth import (
     authorize_url,
     detect_dc,
     exchange_code,
+    has_feature,
     missing_scopes,
     probe_order,
     refresh_access,
@@ -53,8 +63,8 @@ BROWSER_COOKIE = "sotto_zoho_flow"
 # UX-35 / draft D-054 (backlog): the desktop app's "return to the app" link. It never carries a
 # token or code.
 APP_LINK = "agn-sales-shield://zoho/connected"
-READS = "meetings, contacts, deals"
-WRITES = "meetings and notes after you approve them"
+READS = "meetings, contacts, deals, campaigns, Blueprint steps"
+WRITES = "meetings, notes, tasks and the AGN fields on deals, each after you approve it"
 
 
 # Quiet Paper Glass (D-041, DESIGN-SYSTEM.md §5.6): the design-system tokens (the owner console's
@@ -250,11 +260,18 @@ def make_routes(
     async def status(_r: Request, who: Principal) -> Response:
         state = store.feature_state(who, "zoho")
         clients = store.zoho_client_status(who.company)
+        conn = store.zoho_connection(who)
+        granted = conn.get("scopes") if conn else None
         return JSONResponse(
             {
                 **store.zoho_connection_status(who),
                 "feature": state.out(),
                 "client": clients["active"],
+                # W4-SCOPES (D-069): one reconnect unlocks all of these.
+                "scopes_outdated": conn is not None and bool(missing_scopes(granted)),
+                "features": {
+                    f: conn is not None and has_feature(granted, f) for f in FEATURE_SCOPES
+                },
             },
             headers=NO_STORE,
         )
@@ -479,6 +496,19 @@ def make_routes(
         if not read_limit(f"{who.company}:{who.user_id}"):
             raise CloudError("rate_limited", "too many Zoho lookups; wait a minute")
 
+    def granted(who: Principal) -> str | None:
+        conn = store.zoho_connection(who)
+        return conn.get("scopes") if conn else None
+
+    def require_scopes(who: Principal, feature: str | None = None) -> None:
+        """The base scopes, plus one W4 feature's group (D-069); else one reconnect prompt."""
+        conn = store.zoho_connection(who)
+        have = set(str((conn or {}).get("scopes") or "").split(","))
+        if conn is None or any(s not in have for s in BASE_SCOPES):
+            raise CloudError("zoho_reconnect", "connect Zoho again to allow saving")
+        if feature and not has_feature(conn.get("scopes"), feature):
+            raise CloudError("zoho_reconnect", "connect Zoho again to use this")
+
     @app_route
     async def search(r: Request, who: Principal) -> Response:
         limited(who)
@@ -498,7 +528,10 @@ def make_routes(
             raise CloudError("forbidden", "only contacts and leads can be attached")
         if not lookup.RECORD_ID.match(record_id):
             raise CloudError("invalid", "unknown record")
-        brief = await zoho_call(who, lambda rd: lookup.build_brief(rd, module, record_id))
+        camp = has_feature(granted(who), "campaigns")
+        brief = await zoho_call(
+            who, lambda rd: lookup.build_brief(rd, module, record_id, campaigns=camp)
+        )
         if brief is None:
             raise CloudError("not_found", "that record is gone")
         store.zoho_audit(who, "zoho.read", f"{module}:{record_id}", ip=ip_of(r))
@@ -545,8 +578,12 @@ def make_routes(
         if not lookup.RECORD_ID.match(event_id):
             raise CloudError("invalid", "unknown meeting")
 
+        camp = has_feature(granted(who), "campaigns")
+
         async def go(rd: ZohoCRMReader) -> dict[str, Any] | None:
-            return await lookup.build_meeting_brief(rd, event_id, await my_zoho_id(rd, who))
+            return await lookup.build_meeting_brief(
+                rd, event_id, await my_zoho_id(rd, who), campaigns=camp
+            )
 
         brief = await zoho_call(who, go)
         if brief is None:
@@ -580,9 +617,7 @@ def make_routes(
             raise CloudError("invalid", "approve the action first")
         planned = actions.plan(r.path_params["kind"], data.get("fields"))
         store.require_feature(who, "zoho")
-        conn = store.zoho_connection(who)
-        if conn is None or missing_scopes(conn.get("scopes")):
-            raise CloudError("zoho_reconnect", "connect Zoho again to allow saving")
+        require_scopes(who, actions.KIND_FEATURE.get(planned.kind))
         key = planned.idem_key or str(data.get("idempotency_key", ""))
         earlier = store.zoho_write_begin(who, key, planned.kind)
         if earlier is not None:
@@ -592,6 +627,9 @@ def make_routes(
                 rd = await reader(h, who)  # fails before anything is sent: key freed below
                 try:
                     result = await actions.execute(rd, planned)
+                except (FieldNotAllowed, ModuleNotAllowed):  # refused before anything was sent
+                    store.zoho_write_failed(who, key, planned.kind, "not allowed")
+                    raise CloudError("forbidden", "that Zoho write is not allowed") from None
                 except ZohoError as e:
                     if 400 <= e.status < 500:  # Zoho refused it: nothing was written
                         if e.status == 401:
@@ -710,6 +748,90 @@ def make_routes(
         )
         return JSONResponse({"invited": invited, "skipped": skipped}, headers=NO_STORE)
 
+    # --- INT-04 (D-056): Blueprint checklist for the linked Deal, read only -------------------
+    @app_route
+    async def blueprint(r: Request, who: Principal) -> Response:
+        limited(who)
+        deal_id = r.path_params["id"]
+        if not lookup.RECORD_ID.match(deal_id):
+            raise CloudError("invalid", "unknown deal")
+        try:
+            check = await zoho_call(who, lambda rd: lookup.blueprint_checklist(rd, deal_id))
+        except CloudError as e:
+            if e.code != "zoho_unavailable":
+                raise
+            # No Blueprint on this Deal's layout (Zoho answers 4xx): an empty checklist.
+            check = {"deal_id": deal_id, "process": "", "current": "", "transitions": []}
+        store.zoho_audit(who, "zoho.read", f"Blueprint Deals:{deal_id}", ip=ip_of(r))
+        return JSONResponse({**check, "note": lookup.blueprint_note(check)}, headers=NO_STORE)
+
+    # --- INT-02t: who a Task can be assigned to ------------------------------------------------
+    @app_route
+    async def task_owners(_r: Request, who: Principal) -> Response:
+        limited(who)
+        require_scopes(who, "tasks")
+
+        async def go(rd: ZohoCRMReader) -> dict[str, Any]:
+            me = await my_zoho_id(rd, who)
+            users = await lookup.zoho_users(rd)
+            return {"owners": lookup.task_owners(users, me), "me": me}
+
+        return JSONResponse(await zoho_call(who, go), headers=NO_STORE)
+
+    # --- INT-06 (D-069): create the AGN Deal fields (admin, preview then confirm) -------------
+    async def agn_state(who: Principal) -> list[dict[str, Any]]:
+        who.require("admin")
+        store.require_feature(who, "zoho")
+        require_scopes(who, "agn_fields")
+        existing = await zoho_call(who, lambda rd: rd.fields("Deals"))
+        by_api = {f["api_name"]: f for f in existing}
+        by_label = {f["field_label"].strip().lower(): f for f in existing}
+        out = []
+        for d in AGN_FIELD_DEFS:
+            hit = by_api.get(d["api_name"]) or by_label.get(d["field_label"].lower())
+            out.append(
+                {
+                    "api_name": d["api_name"],
+                    "label": d["field_label"],
+                    "type": d["data_type"],
+                    "exists": hit is not None,
+                    # Same label, other API name (made by hand): left alone and not written.
+                    "writable": hit is None or hit["api_name"] == d["api_name"],
+                }
+            )
+        return out
+
+    @app_route
+    async def agn_preview(r: Request, who: Principal) -> Response:
+        limited(who)
+        fields = await agn_state(who)
+        store.zoho_audit(who, "zoho.fields.read", "AGN fields on Deals", ip=ip_of(r))
+        return JSONResponse({"fields": fields}, headers=NO_STORE)
+
+    @app_route
+    async def agn_create(r: Request, who: Principal) -> Response:
+        """Creates only the AGN fields that are missing; an existing field is never changed."""
+        limited(who)
+        d = await body(r)
+        if d.get("confirm") is not True:
+            raise CloudError("confirm", "confirm the list before creating fields")
+        fields = await agn_state(who)
+        missing = [f["api_name"] for f in fields if not f["exists"]]
+        defs = [x for x in AGN_FIELD_DEFS if x["api_name"] in missing]
+        created: list[str] = []
+        if defs:
+            created = await zoho_call(who, lambda rd: rd.create_agn_fields(defs))
+        store.zoho_audit(
+            who,
+            "zoho.fields.created",
+            f"AGN fields on Deals: {len(defs)} created ({', '.join(missing) or 'none'})",
+            ip=ip_of(r),
+        )
+        return JSONResponse(
+            {"created": missing, "ids": created, "fields": await agn_state(who)},
+            headers=NO_STORE,
+        )
+
     @app_route
     async def modules(_r: Request, who: Principal) -> Response:
         who.require("admin")
@@ -736,6 +858,12 @@ def make_routes(
         Route(f"{api}/zoho/meetings/{{id}}", meeting),
         Route(f"{api}/zoho/meetings/{{id}}/detail", meeting_detail),
         Route(f"{api}/zoho/actions/{{kind}}", action, methods=["POST"]),
+        Route(f"{api}/zoho/deals/{{id}}/blueprint", blueprint),
+        Route(f"{api}/zoho/owners", task_owners),
+        Route(f"{api}/zoho/agn-fields", agn_preview),
+        Route(f"{api}/zoho/agn-fields", agn_create, methods=["POST"]),
+        # INT-12 (D-072): mounted here so no hub file changes (D-058).
+        *export_routes.make_routes(store=store, app_route=app_route, ip_of=ip_of),
         Route("/auth/zoho/start", handle(start)),
         Route("/auth/zoho/callback/", handle(callback)),
         Route("/auth/zoho/cancel", handle(cancel)),

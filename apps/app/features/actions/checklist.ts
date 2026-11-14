@@ -7,11 +7,18 @@
 import { type CallReview, chanceBand } from "@sotto/engine";
 import { LRI, PDI } from "@sotto/ui";
 import type { StringKey } from "../../lib/i18n";
-import type { Brief } from "../crm/api";
+import type { Brief, TaskOwner } from "../crm/api";
 import { isoWithOffset, localToIso } from "./ActionCard";
 import type { ActionsT } from "./strings";
 
-export type ItemId = "call_log" | "meeting" | "contact_update" | "lead" | "deal_note";
+export type ItemId =
+  | "call_log"
+  | "meeting"
+  | "task"
+  | "contact_update"
+  | "lead"
+  | "deal_note"
+  | "agn_fields";
 export type Field = { name: string; label: string; multiline?: boolean };
 export type Item = {
   id: ItemId;
@@ -252,7 +259,128 @@ function dealNoteItem(t: T, at: ActionsT, brief: Brief, notes: string): Item | n
   };
 }
 
-/** The suggested updates, in order: call log, meeting, contact or lead, deal note. */
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Today on this device as YYYY-MM-DD. */
+export function today(now = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+export function validDay(v: string | undefined): boolean {
+  if (!v || !DAY.test(v)) return false;
+  const d = new Date(`${v}T00:00:00`);
+  return !Number.isNaN(d.getTime()) && today(d) === v;
+}
+
+/** What the Task confirmation covers: a changed date or owner needs a fresh tick (INT-02t). */
+export const taskConfirmation = (v: Record<string, string>) =>
+  `${v.due_date ?? ""}|${v.owner_id ?? ""}`;
+
+/** INT-02t: the next-step Task, prefilled from the review; the agent confirms date and owner. */
+function taskItem(
+  at: ActionsT,
+  callId: string,
+  brief: Brief | null,
+  review: CallReview | null,
+  owners: readonly TaskOwner[],
+): Item | null {
+  const step = review?.next_step ?? null;
+  if (!step?.text && !(review?.commitments?.length ?? 0)) return null;
+  const me = owners.find((o) => o.me) ?? owners[0];
+  const parent = callLogParent(brief);
+  const contactId = brief?.person?.module === "Contacts" ? brief.person.id : "";
+  return {
+    id: "task",
+    label: (v) => {
+      const owner = owners.find((o) => o.id === v.owner_id)?.name ?? "";
+      return v.due_date && owner
+        ? at("after.task", { when: `${LRI}${v.due_date}${PDI}`, owner: `${LRI}${owner}${PDI}` })
+        : at("after.task.unset");
+    },
+    fields: [
+      { name: "subject", label: at("after.task.subject") },
+      { name: "due_date", label: at("after.task.due") },
+      { name: "description", label: at("after.task.description"), multiline: true },
+    ],
+    initial: {
+      subject: (step?.text || review?.commitments?.[0] || "").slice(0, 255),
+      due_date: step?.date ?? "",
+      owner_id: me?.id ?? "",
+      description: (review?.commitments ?? []).join("; ").slice(0, 2000),
+      confirmed: "",
+    },
+    build: (v) => {
+      if (!validDay(v.due_date)) return at("after.task.badDate");
+      if (!v.owner_id) return at("after.task.noOwner");
+      return {
+        call_id: callId,
+        ...trimmed(v, ["subject", "due_date", "owner_id", "description"]),
+        ...(parent && parent.field !== "contact_id" ? { [parent.field]: parent.id } : {}),
+        ...(contactId ? { contact_id: contactId } : {}),
+      };
+    },
+    // The agent confirms the due date and the owner before the row can be ticked.
+    ready: (v) =>
+      Boolean((v.subject ?? "").trim()) &&
+      validDay(v.due_date) &&
+      Boolean(v.owner_id) &&
+      v.confirmed === taskConfirmation(v),
+    blockedHint: at("after.task.confirmFirst"),
+    parent: parent ? { module: parent.module, id: parent.id } : undefined,
+  };
+}
+
+/** The 0–100 call score written to AGN_Call_Score: mean of the six skills × 10. */
+export function callScore(review: CallReview): number {
+  const vals = Object.values(review.scores);
+  if (vals.length === 0) return 0;
+  return Math.round((vals.reduce((a, b) => a + b, 0) * 10) / vals.length);
+}
+
+/** INT-06 (D-069): the AGN fields on the linked Deal; never Stage or Amount. */
+function agnItem(
+  at: ActionsT,
+  callId: string,
+  brief: Brief,
+  review: CallReview | null,
+): Item | null {
+  const deal = brief.deals.find((d) => d.id);
+  if (!deal || !review) return null;
+  const band = chanceBand(review.success);
+  return {
+    id: "agn_fields",
+    label: (v) =>
+      at("after.agn", {
+        deal: `${LRI}${deal.name}${PDI}`,
+        score: `${LRI}${v.score ?? ""}${PDI}`,
+      }),
+    fields: [
+      { name: "score", label: at("after.agn.score") },
+      { name: "top_objection", label: at("after.agn.objection") },
+    ],
+    initial: {
+      score: String(callScore(review)),
+      chance_band: band,
+      top_objection: (review.objections?.[0] ?? "").slice(0, 255),
+      last_call_date: today(),
+    },
+    build: (v) => {
+      const score = Number(v.score);
+      if (!/^\d{1,3}$/.test(v.score ?? "") || score > 100) return at("after.agn.badScore");
+      return {
+        call_id: callId,
+        deal_id: deal.id,
+        ...trimmed(v, ["score", "chance_band", "top_objection", "last_call_date"]),
+      };
+    },
+    ready: (v) => /^\d{1,3}$/.test(v.score ?? "") && Number(v.score) <= 100,
+    parent: { module: "Deals", id: deal.id },
+  };
+}
+
+/** The suggested updates, in order: call log, meeting, task, contact or lead, deal note, AGN
+ * fields. Task and AGN fields appear only when the connection has the D-069 scopes. */
 export function buildItems(opts: {
   t: T;
   at: ActionsT;
@@ -263,17 +391,23 @@ export function buildItems(opts: {
   note: string;
   /** Prep notes typed before the call (the Deal note). */
   prepNotes: string;
+  /** What the Zoho connection's scopes allow (D-069). */
+  features?: { tasks?: boolean; agn_fields?: boolean };
+  /** INT-02t: who a Task can go to (empty until read). */
+  owners?: readonly TaskOwner[];
 }): Item[] {
-  const { t, at, callId, brief, review, note, prepNotes } = opts;
+  const { t, at, callId, brief, review, note, prepNotes, features, owners = [] } = opts;
   const items: (Item | null)[] = [
     callLogItem(at, callId, brief, review, note),
     meetingItem(t, at, brief, review),
+    features?.tasks ? taskItem(at, callId, brief, review, owners) : null,
     brief?.person?.module === "Contacts"
       ? contactItem(t, at, brief)
       : brief?.person
         ? null
         : leadItem(t, at),
     brief ? dealNoteItem(t, at, brief, prepNotes) : null,
+    brief && features?.agn_fields ? agnItem(at, callId, brief, review) : null,
   ];
   return items.filter((i): i is Item => i !== null);
 }

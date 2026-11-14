@@ -112,6 +112,8 @@ export function saveBriefFor(callId: string): Promise<void> {
           crm: {
             text: crm.text,
             meeting_id: crm.meeting?.id ?? null,
+            // INT-12: the Zoho Deal id for the weekly export (ids only, no text).
+            deal_id: crm.deals.find((d) => d.id)?.id ?? null,
             person: crm.person ? { module: crm.person.module, id: crm.person.id } : null,
           },
         }

@@ -23,7 +23,7 @@ import { callNotes } from "../../lib/callNotes";
 import { CloudError, saveCallLog } from "../../lib/cloud";
 import { deviceCall, setAfterCallItem } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
-import { type ActionKind, zohoAction } from "../crm/api";
+import { type ActionKind, type TaskOwner, zohoAction, zohoOwners } from "../crm/api";
 import { PREP_FIELDS, useAttachedState } from "../crm/attached";
 import { useZoho } from "../crm/useZoho";
 import { newKey, type Perform } from "./ActionCard";
@@ -33,6 +33,7 @@ import {
   deviceTimeZone,
   type Item,
   type ItemId,
+  taskConfirmation,
   zohoWebUrl,
 } from "./checklist";
 import { useActionsText } from "./strings";
@@ -81,9 +82,23 @@ export function AfterCallChecklist({
     .map((f) => `${t(`prep.${f}`)}: ${prep[f].trim()}`)
     .join("\n");
   const note = deviceCall(callId)?.notes ?? callNotes();
+  // W4-SCOPES (D-069): the Task and AGN-field rows need the new scopes.
+  const features = conn.status?.features;
+  const [owners, setOwners] = useState<TaskOwner[]>([]);
+  useEffect(() => {
+    if (!features?.tasks) return;
+    let live = true;
+    zohoOwners().then(
+      (r) => live && setOwners(r.owners),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [features?.tasks]);
   const items = useMemo(
-    () => buildItems({ t, at, callId, brief, review, note, prepNotes }),
-    [t, at, callId, brief, review, note, prepNotes],
+    () => buildItems({ t, at, callId, brief, review, note, prepNotes, features, owners }),
+    [t, at, callId, brief, review, note, prepNotes, features, owners],
   );
   const [rows, setRows] = useState<Partial<Record<ItemId, Row>>>({});
   const [toast, setToast] = useState<Item | null>(null);
@@ -207,6 +222,7 @@ export function AfterCallChecklist({
             item={item}
             row={row(item.id)}
             review={review}
+            owners={owners}
             onValues={(values) => {
               const current = row(item.id).values;
               // A changed date or time needs a fresh confirmation (INT-02m).
@@ -269,6 +285,7 @@ function RowView({
   item,
   row,
   review,
+  owners,
   onValues,
   onTick,
   onSkip,
@@ -276,6 +293,7 @@ function RowView({
   item: Item;
   row: Row;
   review: CallReview | null;
+  owners: readonly TaskOwner[];
   onValues: (values: Record<string, string>) => void;
   onTick: (ticked: boolean) => void;
   onSkip: () => void;
@@ -330,6 +348,50 @@ function RowView({
               onValueChange={(on) => onValues({ ...v, confirmed: on ? tz : "" })}
               testID="after-meeting-confirm"
             />
+          ) : null}
+          {item.id === "task" ? (
+            <Stack gap="xs" testID="after-task-owners">
+              <Text variant="label" weight="semibold">
+                {at("after.task.owner")}
+              </Text>
+              <Stack direction="row" gap="xs" wrap>
+                {owners.slice(0, 12).map((o) => (
+                  <Button
+                    key={o.id}
+                    variant={v.owner_id === o.id ? "primary" : "secondary"}
+                    label={o.me ? at("after.task.me", { name: o.name }) : o.name}
+                    accessibilityLabel={
+                      v.owner_id === o.id
+                        ? at("after.task.ownerPicked", {
+                            name: o.me ? at("after.task.me", { name: o.name }) : o.name,
+                          })
+                        : undefined
+                    }
+                    onPress={() => onValues({ ...v, owner_id: o.id })}
+                    disabled={busy}
+                    testID={`after-task-owner-${o.id}`}
+                  />
+                ))}
+              </Stack>
+              <ToggleRow
+                label={at("after.task.confirm")}
+                value={v.confirmed === taskConfirmation(v) && Boolean(v.owner_id && v.due_date)}
+                onValueChange={(on) => onValues({ ...v, confirmed: on ? taskConfirmation(v) : "" })}
+                testID="after-task-confirm"
+              />
+            </Stack>
+          ) : null}
+          {item.id === "agn_fields" ? (
+            <Panel sunken testID="after-agn-preview">
+              <Stack gap="xs">
+                <Text variant="label" weight="semibold">
+                  {at("after.agn.preview")}
+                </Text>
+                <Text variant="label" selectable>
+                  {`AGN_Call_Score: ${v.score ?? ""}\nAGN_Chance_Band: ${v.chance_band ?? ""}\nAGN_Top_Objection: ${v.top_objection ?? ""}\nAGN_Last_Call_Date: ${v.last_call_date ?? ""}`}
+                </Text>
+              </Stack>
+            </Panel>
           ) : null}
           {item.id === "call_log" && (review?.risks?.length ?? 0) > 0 ? (
             <ToggleRow

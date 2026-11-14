@@ -14,9 +14,11 @@ import yaml
 
 from sotto_worker.adapters.crm.zoho import (
     ACCOUNT_FIELDS,
+    CAMPAIGN_FIELDS,
     DEAL_DETAIL_FIELDS,
     DEAL_FIELDS,
     EVENT_FIELDS,
+    FIELD_NAME,
     NOTE_FIELDS,
     PERSON_FIELDS,
     ZohoCRMReader,
@@ -38,13 +40,26 @@ SOURCE_CHARS = 80
 
 
 @functools.cache
+def _seed_meta() -> dict[str, Any]:
+    _, front, _ = (SEED / "prompts" / "crm_brief.md").read_text(encoding="utf-8").split("---\n", 2)
+    meta = yaml.safe_load(front) or {}
+    return meta if isinstance(meta, dict) else {}
+
+
 def _stage_seed() -> tuple[str, dict[str, str]]:
     """INT-03 (draft D-048 (backlog)): the stage label and guidance lines from
     seed/prompts/crm_brief.md."""
-    _, front, _ = (SEED / "prompts" / "crm_brief.md").read_text(encoding="utf-8").split("---\n", 2)
-    meta = yaml.safe_load(front) or {}
+    meta = _seed_meta()
     table = {str(k).lower(): str(v) for k, v in (meta.get("stage_guidance") or {}).items()}
     return str(meta.get("stage_label") or "{stage}"), table
+
+
+def campaign_line(c: dict[str, str]) -> str:
+    """INT-16c: the campaign attribution line (label from seed/prompts/crm_brief.md)."""
+    label = str(_seed_meta().get("campaign_label") or "Campaign: {name}")
+    extra = ", ".join(x for x in (c.get("type", ""), c.get("status", "")) if x)
+    line = label.replace("{name}", c.get("name", "")).replace("{details}", extra)
+    return line.replace(" ()", "")
 
 
 def _norm(stage: str) -> str:
@@ -150,8 +165,31 @@ def _recent(note: dict[str, Any], since: datetime) -> bool:
         return False
 
 
+async def campaign_of(reader: ZohoCRMReader, ref: Any) -> dict[str, str] | None:
+    """INT-16c: name, type and status of the Campaign_Source lookup (campaigns.READ). A failed
+    read only drops the line: the brief never waits on it twice."""
+    if not isinstance(ref, dict) or not RECORD_ID.match(str(ref.get("id", ""))):
+        return None
+    try:
+        rec = await reader.record("Campaigns", str(ref["id"]), CAMPAIGN_FIELDS)
+    except ZohoError:
+        rec = None
+    if not rec:
+        return None
+    return {
+        "name": _s(rec.get("Campaign_Name") or ref.get("name"))[:SOURCE_CHARS],
+        "type": _s(rec.get("Type"))[:40],
+        "status": _s(rec.get("Status"))[:40],
+    }
+
+
 async def build_brief(
-    reader: ZohoCRMReader, module: str, record_id: str, *, now: datetime | None = None
+    reader: ZohoCRMReader,
+    module: str,
+    record_id: str,
+    *,
+    now: datetime | None = None,
+    campaigns: bool = False,
 ) -> dict[str, Any] | None:
     if module not in PERSON_MODULES or not RECORD_ID.match(record_id):
         raise ValueError("pick a contact or lead")
@@ -179,7 +217,14 @@ async def build_brief(
         tasks.append(reader.related(module, record_id, "Deals", DEAL_FIELDS, 20))
         if isinstance(acct_ref, dict) and RECORD_ID.match(str(acct_ref.get("id", ""))):
             tasks.append(reader.record("Accounts", str(acct_ref["id"]), ACCOUNT_FIELDS))
-    results = await asyncio.gather(*tasks)
+    camp_task = campaign_of(reader, rec.get("Campaign_Source")) if campaigns else None
+    if camp_task is not None:
+        results_all = await asyncio.gather(*tasks, camp_task)
+        results, camp = list(results_all[:-1]), results_all[-1]
+    else:
+        results, camp = list(await asyncio.gather(*tasks)), None
+    if camp:
+        person["campaign_info"] = camp
     notes_raw: list[dict[str, Any]] = results[0]
     if module == "Contacts":
         deals = [
@@ -242,12 +287,15 @@ def brief_text(brief: dict[str, Any]) -> str:
     if p:
         head = ", ".join(x for x in (p["name"], p["title"]) if x)
         lines.append(f"{'Lead' if p['module'] == 'Leads' else 'Contact'}: {head}")
+        info = p.get("campaign_info")
         origin = [
             p.get("source") and f"source {p['source']}",
-            p.get("campaign") and f"campaign {p['campaign']}",
+            not info and p.get("campaign") and f"campaign {p['campaign']}",
         ]
         if any(origin):
             lines.append("Came from: " + ", ".join(o for o in origin if o))
+        if info:
+            lines.append(campaign_line(info))
     a = brief.get("account")
     if a and a.get("name"):
         lines.append("Account: " + a["name"] + (f" ({a['industry']})" if a.get("industry") else ""))
@@ -434,7 +482,12 @@ async def meeting_detail(
 
 
 async def build_meeting_brief(
-    reader: ZohoCRMReader, event_id: str, user_id: str, *, now: datetime | None = None
+    reader: ZohoCRMReader,
+    event_id: str,
+    user_id: str,
+    *,
+    now: datetime | None = None,
+    campaigns: bool = False,
 ) -> dict[str, Any] | None:
     """The brief for a picked meeting: the meeting, its Contact (Who_Id, else the first contact
     or lead participant), the related Deal (What_Id) and its Account, and recent notes."""
@@ -462,7 +515,7 @@ async def build_meeting_brief(
     brief: dict[str, Any] | None = None
     if person:
         try:
-            brief = await build_brief(reader, person[0], person[1], now=now)
+            brief = await build_brief(reader, person[0], person[1], now=now, campaigns=campaigns)
         except ZohoError:  # a deleted or unreadable contact must not hide the meeting
             brief = None
     if brief is None:
@@ -570,3 +623,89 @@ def team_candidates(users: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], 
     if sales:
         return sales, False
     return [p for p in people if not p["admin"]], True
+
+
+def task_owners(users: list[dict[str, Any]], me: str) -> list[dict[str, Any]]:  # INT-02t
+    """INT-02t: active users a Task can be assigned to, the connected person first."""
+    out = []
+    for u in users:
+        uid = _s(u.get("id"))
+        if not RECORD_ID.match(uid):
+            continue
+        if _s(u.get("status")).lower() not in ("", "active") or u.get("confirm") is False:
+            continue
+        name = _s(u.get("full_name")) or _s(u.get("email")).split("@")[0]
+        out.append({"id": uid, "name": name[:100], "me": uid == me})
+    out.sort(key=lambda o: (not o["me"], str(o["name"]).lower()))
+    return out[:200]
+
+
+# --- INT-04 (D-056): Blueprint checklist, read only ---------------------------------------------
+MAX_TRANSITIONS = 4
+MAX_BP_FIELDS = 12
+
+
+def _filled(value: Any) -> bool:
+    if value is None or value is False:
+        return False
+    if isinstance(value, (str, list, dict)):
+        return bool(value.strip() if isinstance(value, str) else value)
+    return True
+
+
+async def blueprint_checklist(reader: ZohoCRMReader, deal_id: str) -> dict[str, Any]:
+    """What the Deal still needs for each next Blueprint transition: the transition's fields that
+    are empty on the Deal now. Two reads (the Blueprint, then the Deal with only those fields);
+    nothing is written and no transition is ever executed (D-031, R12)."""
+    if not RECORD_ID.match(deal_id):
+        raise ValueError("deal id")
+    bp = await reader.blueprint(deal_id)
+    raw_info = bp.get("process_info")
+    info: dict[str, Any] = raw_info if isinstance(raw_info, dict) else {}
+    raw = [t for t in bp.get("transitions") or [] if isinstance(t, dict)][:MAX_TRANSITIONS]
+    names: list[str] = []
+    for t in raw:
+        for f in t.get("fields") or []:
+            api = str(f.get("api_name", "")) if isinstance(f, dict) else ""
+            if FIELD_NAME.match(api) and api not in names:
+                names.append(api)
+    names = names[: MAX_BP_FIELDS * MAX_TRANSITIONS]
+    deal = await reader.record("Deals", deal_id, ",".join(names)) if names else None
+    deal = deal or {}
+    transitions = []
+    for t in raw:
+        missing: list[dict[str, str]] = []
+        done: list[dict[str, str]] = []
+        for f in (t.get("fields") or [])[:MAX_BP_FIELDS]:
+            if not isinstance(f, dict) or not FIELD_NAME.match(str(f.get("api_name", ""))):
+                continue
+            item = {
+                "api_name": str(f["api_name"]),
+                "label": _s(f.get("display_label") or f.get("field_label"))[:80],
+            }
+            (done if _filled(deal.get(item["api_name"])) else missing).append(item)
+        transitions.append(
+            {
+                "name": _s(t.get("name"))[:80],
+                "to": _s(t.get("next_field_value"))[:80],
+                "ready": not missing,
+                "missing": missing,
+                "done": done,
+            }
+        )
+    return {
+        "deal_id": deal_id,
+        "process": _s(info.get("name"))[:80],
+        "current": _s(info.get("field_value"))[:80],
+        "transitions": transitions,
+    }
+
+
+def blueprint_note(check: dict[str, Any]) -> str:
+    """A suggested Note (the agent edits and approves it as a deal_note); never a transition."""
+    lines = []
+    for t in check.get("transitions") or []:
+        if t["missing"]:
+            items = ", ".join(m["label"] or m["api_name"] for m in t["missing"])
+            lines.append(f"To move to {t['to'] or t['name']}: still need {items}.")
+    return "\n".join(lines)[:1000]

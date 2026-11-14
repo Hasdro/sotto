@@ -51,9 +51,15 @@ DC_NAMES: dict[str, str] = {
 # The CRM API host the token response names; only these may receive an access token.
 API_DOMAIN = re.compile(r"^https://(www\.)?zohoapis\.(com|eu|in|com\.au|jp|ca|com\.cn|sa|uk)$")
 # D-031 v1 matrix: read Leads, Contacts, Accounts, Deals, Meetings (Events), Notes; write Leads,
-# Contacts, Meetings and Notes. No Deals/Accounts write scope is ever requested, so Zoho itself
-# refuses a Deal stage or amount change even if a bug let one through.
-SCOPES = (
+# Contacts, Meetings and Notes. D-069 (W4-SCOPES) adds one bundle so every agent reconnects once:
+# Tasks (INT-02t), Deal update for the AGN field allow-list only (INT-06; the adapter refuses any
+# other Deal field, Stage and Amount above all, R12), field metadata read + create (INT-06),
+# Campaigns read (INT-16c) and Notifications (INT-13, T-081). Blueprint (INT-04) is read per
+# record through `GET /Deals/{id}/actions/blueprint`, which Zoho serves with deals.READ, so no
+# Blueprint or layout settings scope is asked for (least privilege). Names checked against
+# https://www.zoho.com/crm/developer/docs/api/v8/scopes.html, …/create-custom-field.html,
+# …/blueprint-details.html and …/notifications/enable.html (14 Nov 2026).
+BASE_SCOPES = (
     "ZohoCRM.modules.contacts.READ",
     "ZohoCRM.modules.contacts.UPDATE",
     "ZohoCRM.modules.leads.READ",
@@ -69,6 +75,19 @@ SCOPES = (
     # zoho-meetings: who "me" is, so the list shows only meetings this person owns.
     "ZohoCRM.users.READ",
 )
+# W4-SCOPES (D-069): what each new feature needs; the union is the bundle.
+FEATURE_SCOPES: dict[str, tuple[str, ...]] = {
+    "tasks": ("ZohoCRM.modules.tasks.CREATE",),
+    "agn_fields": (
+        "ZohoCRM.modules.deals.UPDATE",
+        "ZohoCRM.settings.fields.READ",
+        "ZohoCRM.settings.fields.CREATE",
+    ),
+    "campaigns": ("ZohoCRM.modules.campaigns.READ",),
+    "notifications": ("ZohoCRM.notifications.ALL",),
+}
+BUNDLE_SCOPES = tuple(s for group in FEATURE_SCOPES.values() for s in group)
+SCOPES = BASE_SCOPES + BUNDLE_SCOPES
 
 
 def missing_scopes(granted: str | None) -> list[str]:
@@ -76,6 +95,18 @@ def missing_scopes(granted: str | None) -> list[str]:
     the app asks that person to connect again."""
     have = set((granted or "").split(","))
     return [s for s in SCOPES if s not in have]
+
+
+def has_feature(granted: str | None, feature: str) -> bool:
+    """Whether a connection's scopes cover one W4 feature (an older connection keeps the reads
+    and writes it had until the person reconnects)."""
+    have = set((granted or "").split(","))
+    return all(s in have for s in FEATURE_SCOPES[feature])
+
+
+def scopes_outdated(granted: str | None) -> bool:
+    """Health reason `zoho_scopes_outdated`: connected before the D-069 bundle."""
+    return bool(missing_scopes(granted))
 
 
 ACCESS_TTL_S = 55 * 60

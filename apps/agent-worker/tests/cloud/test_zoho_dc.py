@@ -184,7 +184,7 @@ def test_connect_page_lists_reads_writes_dc_and_cancel(zc: TestClient) -> None:
     state, page = begin(zc, auth)
     text = page.text
     assert "meetings, contacts, deals" in text
-    assert "meetings and notes after you approve them" in text
+    assert "each after you approve it" in text
     assert "Zoho data centre" in text
     assert "Change" in text
     assert f"/auth/zoho/cancel?state={state}" in text

@@ -159,7 +159,9 @@ def test_oauth_pages_keep_all_css_in_the_head(zc: TestClient) -> None:
     assert "{" not in re.sub(r"<svg.*?</svg>", "", done.text.split("</head>", 1)[1])
 
 
-def test_connect_asks_for_write_scopes_but_never_deals_or_accounts_writes(zc: TestClient) -> None:
+def test_connect_asks_for_write_scopes_but_only_deal_update_for_agn_fields(zc: TestClient) -> None:
+    """D-069 amends D-031: deals.UPDATE is asked for the AGN field allow-list only (the adapter
+    refuses Stage/Amount, test_agn_fields.py). No Deal create/delete/ALL, no Account write."""
     a = signup(zc, "Acme", "admin@acme.test")
     set_org_client(zc, a)
     url = zc.post("/api/v1/zoho/connect", headers=a).json()["url"]
@@ -168,12 +170,13 @@ def test_connect_asks_for_write_scopes_but_never_deals_or_accounts_writes(zc: Te
     scopes = parse_qs(to.query)["scope"][0].split(",")
     assert "ZohoCRM.modules.events.CREATE" in scopes
     assert "ZohoCRM.modules.notes.CREATE" in scopes
-    assert not [
+    assert [
         s
         for s in scopes
         if s.startswith(("ZohoCRM.modules.deals.", "ZohoCRM.modules.accounts."))
         and not s.endswith(".READ")
-    ]
+    ] == ["ZohoCRM.modules.deals.UPDATE"]
+    assert not [s for s in scopes if s.endswith(".ALL") and s != "ZohoCRM.notifications.ALL"]
 
 
 def test_old_read_only_connections_are_asked_to_reconnect(

@@ -43,6 +43,8 @@ import {
   skipCrm,
   useAttachedState,
 } from "../../crm/attached";
+import { BlueprintChecklist } from "../../crm/BlueprintChecklist";
+import { useCrmText } from "../../crm/strings";
 import { type MeetingSource, UpcomingMeetings } from "../../crm/UpcomingMeetings";
 import { useZoho } from "../../crm/useZoho";
 import { ZohoConnect } from "../../crm/ZohoConnect";
@@ -556,7 +558,10 @@ export function dealLine(
 export function BriefView({ brief }: { brief: Brief }) {
   const { t, locale } = useI18n();
   const tc = useCallText();
+  const ct = useCrmText();
   const p = brief.person;
+  const camp = p?.campaign_info;
+  const firstDeal = brief.deals.find((d) => d.id);
   const m = brief.meeting;
   return (
     <Stack gap="sm" testID="crm-brief">
@@ -581,6 +586,15 @@ export function BriefView({ brief }: { brief: Brief }) {
           <Text variant="label" tone="muted">
             {[p.title, p.email, p.phone].filter(Boolean).join(" · ")}
           </Text>
+          {camp?.name ? (
+            <Text variant="label" tone="muted" testID="crm-campaign">
+              {ct("campaign.line", {
+                name: [camp.name, [camp.type, camp.status].filter(Boolean).join(", ")]
+                  .filter(Boolean)
+                  .join(" · "),
+              })}
+            </Text>
+          ) : null}
         </View>
       ) : null}
       {brief.account?.name ? (
@@ -611,6 +625,7 @@ export function BriefView({ brief }: { brief: Brief }) {
           )}
         </View>
       ) : null}
+      {firstDeal ? <BlueprintChecklist dealId={firstDeal.id} /> : null}
       {p ? (
         <View>
           <Text variant="label" weight="semibold">
