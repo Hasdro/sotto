@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "The feature catalog (D-028). One list for the server and the app: the server computes each person's state from it; the app only reads ids and shows strings for them. 'roles' = who the feature is for (others get no_permission and never see it); 'requires' = connections it needs; 'depends' = other features it needs; 'built' = false until the version that ships it (needs_connection until then).",
+  "about": "The feature catalog (D-028). One list for the server and the app: the server computes each person's state from it; the app only reads ids and shows strings for them. 'roles' = who the feature is for (others get no_permission and never see it); 'requires' = connections it needs; 'depends' = other features it needs; 'built' = false until the version that ships it (needs_connection until then); 'default' = 'off' keeps it off_by_org until the admin turns it on.",
   "features": [
     {
       "id": "call_review",
@@ -85,6 +85,43 @@
       "roles": ["admin", "manager", "agent"],
       "requires": [],
       "depends": ["card_ratings"],
+      "built": true
+    },
+    {
+      "id": "followup_plan",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": ["follow_up"],
+      "built": true
+    },
+    {
+      "id": "meeting_reminders",
+      "roles": ["admin", "manager", "agent"],
+      "requires": ["gallabox"],
+      "depends": ["followup_plan", "whatsapp"],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "whatsapp_status",
+      "roles": ["admin", "manager", "agent"],
+      "requires": ["gallabox"],
+      "depends": ["whatsapp"],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "zoho_watch",
+      "roles": ["admin", "manager", "agent"],
+      "requires": ["zoho_notifications"],
+      "depends": ["zoho"],
+      "built": true
+    },
+    {
+      "id": "email_attachments",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": ["email_send"],
       "built": true
     }
   ]

@@ -39,6 +39,7 @@ class Feature:
     requires: tuple[str, ...]  # connections
     depends: tuple[str, ...]  # other features
     built: bool
+    default_on: bool = True  # False: off_by_org until the admin turns it on (D-070, D-071)
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,7 @@ def load_catalog(path: Path = CATALOG_FILE) -> dict[str, Feature]:
             requires=tuple(f["requires"]),
             depends=tuple(f["depends"]),
             built=bool(f["built"]),
+            default_on=f.get("default", "on") != "off",
         )
     for f in out.values():
         for dep in f.depends:
@@ -70,6 +72,7 @@ def load_catalog(path: Path = CATALOG_FILE) -> dict[str, Feature]:
 
 CATALOG = load_catalog()
 FEATURE_IDS = tuple(CATALOG)
+DEFAULT_OFF = frozenset(f.id for f in CATALOG.values() if not f.default_on)
 
 
 class FeatureUnavailable(Exception):

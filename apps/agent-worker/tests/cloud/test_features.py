@@ -44,7 +44,14 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
     }
     learning = {"card_ratings", "learned_instructions"}  # built in 0.5.0 (T-058, T-059)
     planned = {"gallabox", "email_send", "whatsapp"}
-    assert set(features.CATALOG) == existing | learning | planned | {"zoho"}
+    followup = {  # T-081 (INT-08, INT-09, INT-10, INT-13, INT-14b)
+        "followup_plan",
+        "meeting_reminders",
+        "whatsapp_status",
+        "zoho_watch",
+        "email_attachments",
+    }
+    assert set(features.CATALOG) == existing | learning | planned | followup | {"zoho"}
     assert all(features.CATALOG[f].built for f in existing | learning)
     for f in learning:
         assert evaluate(f, "agent", NONE).state == "available", f
@@ -402,3 +409,41 @@ def test_shipped_features_are_built_so_no_later_version_label_shows() -> None:
     )
     for fid in features.CATALOG:
         assert features.evaluate(fid, "admin", layers).cause != "release", fid
+
+
+# --- T-081: default-off features (D-070, D-071) ---------------------------------------------------
+def test_meeting_reminders_and_whatsapp_status_are_off_until_the_admin_turns_them_on(
+    client: Any, sign_up: Any, store: Any
+) -> None:
+    from sotto_worker.cloud.gallabox import data as gb
+
+    admin = sign_up()
+    h = admin["auth"]
+    gb.ensure(store)
+    company = store._q("SELECT id FROM companies")[0]["id"]
+    with store._tx() as db:  # pretend Gallabox is configured: only the default decides then
+        db.execute(
+            "INSERT INTO company_gallabox(company_id, ciphertext, updated_at) VALUES (?,?,0)",
+            (company, b"x"),
+        )
+    assert features.DEFAULT_OFF == {"meeting_reminders", "whatsapp_status"}
+    m = client.get("/api/v1/features", headers=h).json()["features"]
+    assert m["meeting_reminders"]["state"] == "off_by_org"
+    assert m["whatsapp_status"]["state"] == "off_by_org"
+    rows = {r["id"]: r for r in client.get("/api/v1/company/features", headers=h).json()["features"]}
+    assert rows["meeting_reminders"]["enabled"] is False
+    r = client.put("/api/v1/company/features/whatsapp_status", json={"enabled": True}, headers=h)
+    assert r.status_code == 200, r.text
+    m = client.get("/api/v1/features", headers=h).json()["features"]
+    assert m["whatsapp_status"]["state"] != "off_by_org"
+    assert m["meeting_reminders"]["state"] == "off_by_org"
+
+
+def test_zoho_watch_needs_the_notifications_scope_on_the_connection() -> None:
+    zoho = layers(connections={"zoho"})
+    assert evaluate("zoho_watch", "agent", zoho).out() == {
+        "state": "needs_connection",
+        "cause": "zoho_notifications",
+    }
+    both = layers(connections={"zoho", "zoho_notifications"})
+    assert evaluate("zoho_watch", "agent", both).state == "available"
