@@ -1,8 +1,9 @@
 import { chromium } from "playwright";
+
 const OUT = "apps/landing/";
 const BASE = "http://localhost:8099";
 const b = await chromium.launch();
-async function card(p, text, file, tweak) {
+async function card(p, text, file) {
   const h = await p
     .getByText(text)
     .first()

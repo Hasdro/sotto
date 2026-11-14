@@ -8,7 +8,8 @@ from starlette.testclient import TestClient
 
 from sotto_worker.cloud.app import APP_CSP, CloudConfig, create_cloud_app
 from sotto_worker.cloud.store import CloudStore
-from tests.cloud.conftest import ORIGIN, Seed, fake_minter
+from sotto_worker.cloud.bundle import Seed
+from tests.cloud.conftest import ORIGIN, fake_minter
 
 
 def _client(root: Path, store: CloudStore, seed: Seed) -> TestClient:
