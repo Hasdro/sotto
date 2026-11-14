@@ -6,7 +6,9 @@
 //                               macOS template image, black + alpha), tray.ico (Windows, colour)
 //   apps/app/assets/brand/      symbol.svg, symbol-dark.svg, symbol-mono.svg, icon-512.png,
 //                               favicon-32.png, favicon-48.png (landing and web)
-//   apps/app/assets/            icon.png and favicon.png (what app.json points at)
+//   apps/app/assets/            icon.png, favicon.png (what app.json points at), Android adaptive layers, splash
+//   apps/landing/               favicon.svg, favicon-32.png, icon-512.png, logo.svg, logo-dark.svg
+//   cloud/owner/favicon.svg     (owner console)
 import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,8 +27,10 @@ const desk = join(root, "apps", "desktop", "build-assets");
 const brand = join(root, "apps", "app", "assets", "brand");
 mkdirSync(desk, { recursive: true });
 mkdirSync(brand, { recursive: true });
-/** Favicons and the Windows tray (light or dark taskbar). On white (#ffffff) 4.4:1 and on a dark tab strip (#202124) 3.7:1. */
-const FAVICON_INK = "#178680";
+/** Brand ink (build.mjs INK): what the colour SVGs are drawn in. */
+const INK = { light: "#005bbf", dark: "#6aa8f7" };
+/** Favicons and the Windows tray (light or dark taskbar): a mid blue, 4.0:1 on white (#ffffff) and on a dark tab strip (#202124). */
+const FAVICON_INK = "#2f7fe0";
 const read = (name) => readFileSync(join(here, name), "utf8");
 const svgs = {
   tile: read(`${id}-tile.svg`),
@@ -44,7 +48,7 @@ async function png(svg, px) {
   await page.setContent(
     `<html><body style="margin:0;background:transparent">${sized}</body></html>`,
   );
-  return page.locator("svg").screenshot({ omitBackground: true });
+  return page.locator("body > svg").screenshot({ omitBackground: true });
 }
 
 // An .ico file whose entries are PNGs (supported since Windows Vista).
@@ -93,8 +97,8 @@ try {
   writeFileSync(
     join(desk, "tray.ico"),
     ico([
-      [16, await png(svgs.small.replaceAll("#0b5f63", FAVICON_INK), 16)],
-      [32, await png(svgs.small.replaceAll("#0b5f63", FAVICON_INK), 32)],
+      [16, await png(svgs.small.replaceAll(INK.light, FAVICON_INK), 16)],
+      [32, await png(svgs.small.replaceAll(INK.light, FAVICON_INK), 32)],
     ]),
   );
 
@@ -102,8 +106,8 @@ try {
   writeFileSync(join(brand, "symbol-dark.svg"), read(`${id}-dark.svg`));
   writeFileSync(join(brand, "symbol-mono.svg"), svgs.mono);
   writeFileSync(join(brand, "icon-512.png"), await png(svgs.tile, 512));
-  // Favicons sit on light and dark browser tabs: a mid-teal that keeps >= 3:1 on both.
-  const fav = svgs.small.replaceAll("#0b5f63", FAVICON_INK);
+  // Favicons sit on light and dark browser tabs: a mid blue that keeps >= 3:1 on both.
+  const fav = svgs.small.replaceAll(INK.light, FAVICON_INK);
   writeFileSync(join(brand, "favicon-32.png"), await png(fav, 32));
   writeFileSync(join(brand, "favicon-16.png"), await png(fav, 16));
   // The SVG favicon switches ink with the tab's colour scheme.
@@ -111,12 +115,45 @@ try {
     join(brand, "favicon.svg"),
     svgs.small.replace(
       "<title>",
-      "<style>path{fill:#0b5f63}@media (prefers-color-scheme: dark){path{fill:#5fc4bb}}</style><title>",
+      `<style>path{fill:${INK.light}}@media (prefers-color-scheme: dark){path{fill:${INK.dark}}}</style><title>`,
     ),
   );
   const fav48 = await png(fav, 48);
   writeFileSync(join(brand, "favicon-48.png"), fav48);
   writeFileSync(join(root, "apps", "app", "assets", "favicon.png"), fav48);
+  // T-088: the landing page and the owner console keep their own copies (same file names, so no
+  // HTML change when the logo changes).
+  const landing = join(root, "apps", "landing");
+  copyFileSync(join(brand, "favicon.svg"), join(landing, "favicon.svg"));
+  copyFileSync(join(brand, "favicon-32.png"), join(landing, "favicon-32.png"));
+  copyFileSync(join(brand, "icon-512.png"), join(landing, "icon-512.png"));
+  copyFileSync(join(brand, "symbol.svg"), join(landing, "logo.svg"));
+  copyFileSync(join(brand, "symbol-dark.svg"), join(landing, "logo-dark.svg"));
+  const owner = join(root, "apps", "agent-worker", "sotto_worker", "cloud", "owner");
+  copyFileSync(join(brand, "favicon.svg"), join(owner, "favicon.svg"));
+
+  // Expo (mobile, on hold under D-027): Android adaptive icon and the splash image. The adaptive
+  // foreground keeps the symbol inside the 66 % safe zone; the monochrome layer is alpha only.
+  const inset = (svg, pct) => {
+    const pad = (100 - pct) / 2;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${svg.replace(
+      "<svg ",
+      `<svg x="${pad}" y="${pad}" width="${pct}" height="${pct}" `,
+    )}</svg>`;
+  };
+  const assets = join(root, "apps", "app", "assets");
+  const paper = svgs.light.replaceAll(INK.light, "#f4f6f8");
+  writeFileSync(join(assets, "android-icon-foreground.png"), await png(inset(paper, 50), 512));
+  writeFileSync(
+    join(assets, "android-icon-background.png"),
+    await png(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="${INK.light}"/></svg>`,
+      512,
+    ),
+  );
+  writeFileSync(join(assets, "android-icon-monochrome.png"), await png(inset(svgs.mono, 50), 432));
+  writeFileSync(join(assets, "splash-icon.png"), await png(inset(svgs.light, 60), 1024));
+
   writeFileSync(join(brand, "DIRECTION"), `${id}\n`);
 } finally {
   await browser.close();

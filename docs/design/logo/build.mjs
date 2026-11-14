@@ -13,8 +13,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// The palette of the reskin (packages/ui tokens): ink-teal brand, one warm signal accent.
-const INK = { light: "#0b5f63", dark: "#5fc4bb" };
+// The palette of the D-041 redesign (packages/ui tokens): the one blue accent, `color.primary`
+// light and dark (T-088 replaced the T-050 ink-teal). One warm signal accent for directions a/b.
+const INK = { light: "#005bbf", dark: "#6aa8f7" };
 const SIGNAL = { light: "#c27a0e", dark: "#f0b54a" };
 const PAPER = "#f4f6f8";
 
@@ -77,7 +78,7 @@ function variants(d) {
     small: svg(mk({ ink: INK.light, signal: SIGNAL.light, small: true })),
     smallDark: svg(mk({ ink: INK.dark, signal: SIGNAL.dark, small: true })),
     monoSmall: svg(mk({ ink: "#000", signal: "#000", small: true })),
-    // App icon: the symbol in paper on an ink-teal rounded square (824 of 1024, macOS grid).
+    // App icon: the symbol in paper on a brand-blue rounded square (824 of 1024, macOS grid).
     tile: svg(
       `<rect x="100" y="100" width="824" height="824" rx="185" fill="${INK.light}"/>
   <g transform="translate(232 232) scale(8.75)">${mk({ ink: PAPER, signal: SIGNAL.dark })}</g>`,
@@ -132,8 +133,8 @@ const html = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sales Shield logo directions</title>
 <style>
-  :root { --bg:#f2f4f6; --surface:#fff; --ink:#15212c; --muted:#4d5b69; --line:#d5dce3; --teal:${INK.light}; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0e151c; --surface:#151f28; --ink:#e7edf2; --muted:#9ba9b6; --line:#26333f; --teal:${INK.dark}; } }
+  :root { --bg:#f2f4f6; --surface:#fff; --ink:#15212c; --muted:#4d5b69; --line:#d5dce3; --brand:${INK.light}; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0e151c; --surface:#151f28; --ink:#e7edf2; --muted:#9ba9b6; --line:#26333f; --brand:${INK.dark}; } }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
   main { max-width:1180px; margin:0 auto; padding:40px 16px 64px; }
@@ -142,7 +143,7 @@ const html = `<!doctype html>
   .dir { border-top:1px solid var(--line); padding:32px 0; }
   .dir header { display:grid; grid-template-columns: minmax(0,1fr); gap:4px; margin-bottom:20px; max-width:70ch; }
   h2 { font-size:20px; font-weight:600; margin:0; display:flex; align-items:center; gap:12px; }
-  .key { display:inline-grid; place-items:center; width:32px; height:32px; border-radius:10px; background:var(--teal); color:var(--bg); font-size:16px; }
+  .key { display:inline-grid; place-items:center; width:32px; height:32px; border-radius:10px; background:var(--brand); color:var(--bg); font-size:16px; }
   .dir p { margin:0; color:var(--muted); }
   .row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
   .pane { margin:0; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:16px; border:1px solid var(--line); }
