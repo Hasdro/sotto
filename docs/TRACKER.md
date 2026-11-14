@@ -227,7 +227,7 @@ Wave 3
 - [ ] T-078 `review-integrations` — ready (`docs/prompts/review-integrations.md`; + W3-PRACTICE, owner Q15/D-073) — UX-30, UX-32 (+ZC-03), ZC-07, ZC-13, UX-44c, W3-INT-EVID
 - [ ] T-079 `review-owner-platform` — ready (`docs/prompts/review-owner-platform.md`) — ZC-01, ZC-06, DD-1, DD-2, ZC-10, W3-OWN-A11Y
 - [x] T-080 `review-company-coaching` — done on `phase9/review-company-coaching`, needs hub lines at merge — ZC-11c, DD-4, DD-5, ZC-B10, UX-31, UX-06c, INT-05, INT-15
-  - Evidence: app jest 78 suites / 499 tests, worker pytest 628, engine vitest 68, typecheck + ruff/mypy + boundaries green, a11y 64 checks 0 serious, replay p50 576 / p95 978 ms, R4 0; screenshots `docs/evidence/phase9/review-company-coaching/`.
+  - Evidence: app jest 78 suites / 493 tests, worker pytest 628, engine vitest 68, typecheck + ruff/mypy + boundaries green, a11y 64 checks 0 serious, replay p50 576 / p95 978 ms, R4 0; screenshots `docs/evidence/phase9/review-company-coaching/`.
 Wave 4
 - [ ] T-081 `review-followup-automation` — ready after wave 3 (`docs/prompts/review-followup-automation.md`) — INT-08, INT-09, INT-10, INT-13, INT-14b
 - [ ] T-082 `review-zoho-scopes` — ready after wave 3 (`docs/prompts/review-zoho-scopes.md`) — W4-SCOPES, INT-02t, INT-04, INT-06, INT-16c, INT-12
