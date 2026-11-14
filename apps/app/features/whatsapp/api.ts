@@ -9,6 +9,8 @@ export type Param = {
   component: "header" | "body" | "button";
   type: string;
   example: string;
+  /** ZC-07: where the app fills it from ("" = the agent types it). */
+  source?: string;
 };
 export type Template = {
   name: string;
@@ -18,7 +20,13 @@ export type Template = {
   body: string;
   params: Param[];
 };
-export type GallaboxStatus = { configured: boolean; updated_at?: number; templates: Template[] };
+export type GallaboxStatus = {
+  configured: boolean;
+  updated_at?: number;
+  /** ZC-07: whether a WhatsApp number is chosen, and its display name (never its id). */
+  channel?: { set: boolean; label: string };
+  templates: Template[];
+};
 export type GallaboxInput = {
   api_key: string;
   api_secret: string;
@@ -73,12 +81,30 @@ export function fieldsOf(t: Template): Param[] {
   });
 }
 
-/** Obvious prefills from the call: the customer's name for a name-like parameter. */
-export function prefill(t: Template, customer: { name?: string }): Record<string, string> {
+export type PrefillContext = {
+  name?: string;
+  phone?: string;
+  agent?: string;
+  company?: string;
+};
+
+/** Prefills from the call: each parameter's mapped source (ZC-07), else a name-like guess. */
+export function prefill(t: Template, ctx: PrefillContext): Record<string, string> {
   const out: Record<string, string> = {};
-  const first = (customer.name ?? "").trim().split(/\s+/)[0] ?? "";
+  const firstOf = (v?: string) => (v ?? "").trim().split(/\s+/)[0] ?? "";
+  const known: Record<string, string> = {
+    "customer.first_name": firstOf(ctx.name),
+    "customer.name": (ctx.name ?? "").trim(),
+    "customer.phone": (ctx.phone ?? "").trim(),
+    "agent.name": (ctx.agent ?? "").trim(),
+    "agent.first_name": firstOf(ctx.agent),
+    "company.name": (ctx.company ?? "").trim(),
+  };
   for (const p of fieldsOf(t)) {
-    out[p.name] = /^(name|first_?name|customer_?name)$/i.test(p.name) && first ? first : "";
+    const source =
+      p.source ??
+      (/^(name|first_?name|customer_?name)$/i.test(p.name) ? "customer.first_name" : "");
+    out[p.name] = known[source] ?? "";
   }
   return out;
 }

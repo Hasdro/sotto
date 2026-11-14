@@ -153,16 +153,24 @@ describe("SmtpSettings", () => {
 });
 
 describe("GallaboxSettings", () => {
-  it("loads templates into the picker, refuses unapproved ones and saves the choice", async () => {
+  it("after the keys, fills the template pick list (approved only) and saves the choice", async () => {
     signedIn("admin");
-    let status = { configured: true, templates: [] as unknown[] };
+    let status = {
+      configured: true,
+      channel: { set: true, label: "Sales line" },
+      templates: [] as unknown[],
+    };
     mockRoutes = {
       "GET /api/v1/company/gallabox": () => status,
-      "POST /api/v1/company/gallabox/templates/load": () => ({
-        templates: [TEMPLATE, { ...TEMPLATE, name: "promo", status: "PENDING", params: [] }],
+      "POST /api/v1/company/gallabox/discover": () => ({
+        channels: [{ ref: "r1", label: "Sales line", selected: true }],
+        templates: [TEMPLATE],
+        unmapped: { "meeting_followup/en": [] },
+        hidden: 1,
+        status,
       }),
       "PUT /api/v1/company/gallabox/templates": () => {
-        status = { configured: true, templates: [TEMPLATE] };
+        status = { ...status, templates: [TEMPLATE] };
         return status;
       },
     };
@@ -170,13 +178,10 @@ describe("GallaboxSettings", () => {
     for (const id of ["api_key", "api_secret"]) {
       expect(screen.getByTestId(`gallabox-${id}`).props.secureTextEntry).toBe(true);
     }
-    await waitFor(() => expect(screen.getByText("No templates on the list yet.")).toBeTruthy());
-    await fireEvent.press(screen.getByTestId("gallabox-load"));
     await waitFor(() => expect(screen.getByTestId("gallabox-picker")).toBeTruthy());
-    expect(screen.getByText("Fills: name, date")).toBeTruthy();
-    expect(screen.getByText("Not approved yet (PENDING)")).toBeTruthy();
-    await fireEvent(screen.getByTestId("gallabox-pick-promo/en"), "valueChange", true);
-    await fireEvent(screen.getByTestId("gallabox-pick-meeting_followup/en"), "valueChange", true);
+    expect(screen.getByText(/1 more wait for WhatsApp approval/)).toBeTruthy();
+    // The allow-list starts with every approved template ticked.
+    expect(screen.getByTestId("gallabox-pick-meeting_followup/en").props.value).toBe(true);
     await fireEvent.press(screen.getByTestId("gallabox-save-list"));
     await waitFor(() => expect(screen.getByText("Saved 1 templates.")).toBeTruthy());
     expect(mockCalls.find((c) => c.method === "PUT")?.body).toEqual({
