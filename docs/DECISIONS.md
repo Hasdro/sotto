@@ -226,6 +226,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - Phase 6 gains P6.7.
   - `docs/PROVIDER-KEYS.md` is the source for the panel's provider catalogue.
   - D-016's host binding moves from code into that catalogue in P6.7.
+- **Later:** placement moved by D-038, then to the owner console by D-059.
 
 ## D-020 — A hosted Sotto server for the demo, with the keys panel and a spoken customer track
 2026-10-20 (night) · accepted by Claude under the owner's standing instruction for this run ("even if you need my decision and it is something reversible go ahead with your recommendation"); owner reviews in the morning
@@ -303,6 +304,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
   - Devices receive only the model keys that the company's current routes use. They never receive speech keys; those go out as short-lived tokens only. Each delivery is written to the audit log, and key tests run on the server.
   - The owner console moved to its own origin, `https://owner.<domain>` (`SOTTO_OWNER_ORIGIN`). Its pages and the app never share an origin.
   - Usage minutes are capped by the server's own record of when each call started (`/api/v1/calls/start`).
+- **Later:** provider keys amended by D-061 (shared platform keys; per-company keys are the D-059 BYO case).
 
 ## D-023 — Phones open navigation from the left: a menu button and a drawer (was bottom tabs)
 2026-10-20 · owner feedback after installing the Android APK ("the dashboard (navigation menu) must be on the left"). Supersedes the narrow-screen part of DESIGN.md §6 (bottom tabs).
@@ -331,6 +333,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 **Why:** the owner's real calls run in Zoom, Meet and Yeastar on the Mac; the speakers carry only the other side, so capture is exact without telephony integration (Phase 4 stays the path for a dial pad and real numbers inside the app).
 
 **Trade-offs:** macOS asks once for "system audio recording" (must be allowed by the user; launched from a terminal, macOS checks the terminal instead). All system sound is heard, including notifications, during a call. The agent's own track is not captured on the desktop yet.
+- **Later:** amended by D-073 (practice calls in real accounts, one neutral script).
 
 ## D-025 — The main AI gets 1150 ms before the backup is raced (owner, 21 Oct 2026)
 
@@ -377,6 +380,7 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Decision:** Each agent connects their own Zoho account (server-based OAuth; the client secret and each user's refresh token stay on the server, AES-GCM encrypted like provider keys). All Zoho reads and writes go through the management server, which checks the flag state, the org permission matrix and the approval, writes the audit row, and makes writes idempotent. Data centre chosen at connect, remembered per org (US, EU, IN, AU, JP, CA, CN). v1 matrix: read Leads, Contacts, Accounts, Deals, Meetings, Notes; write Leads, Contacts, Meetings, and Notes on Deals. No Deal stage/amount or Account writes. The meeting record is the CRM Meetings module; its API name is verified against the owner's org with `GET /crm/v8/settings/modules` before coding, mapped if it differs; never silently create an Event.
 - **Why server-side:** the OAuth client secret cannot ship in a client (D-022 "no key in a build"); approval, audit and idempotency must not depend on the client.
 - **Amends D-022:** the server now proxies CRM calls. It still never carries call audio or live suggestions.
+- **Later:** data centre detection D-046; the "no Deal writes" line is amended by D-069 for allow-listed AGN fields (Stage/Amount still blocked).
 
 ## D-032 — Email: org-approved senders, formats with static blocks
 2026-11-12 · owner (phase 9 brief)
@@ -410,10 +414,12 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 ## D-038 — Model and prompt configuration lives in the web admin panel only
 2026-11-13 · owner
 - **Decision:** models, providers, keys, router and prompt studio are configured in the web admin panel (company admin) and owner console (platform). The desktop client hides those screens and only fetches the effective config. Supersedes the in-app placement of D-019's panel; its write-only key rules stay.
+- **Later:** superseded by D-059 (owner console; company BYO only when AGN enables it).
 
 ## D-039 — SMTP and Gallabox credentials per org in Admin → Integrations
 2026-11-13 · owner
 - **Decision:** SMTP (host, port, user, password, from) and Gallabox (API key, secret, channel, template allow-list) are entered per org in Admin → Integrations, write-only and encrypted, with a platform fallback in the owner console (org wins), the same pattern as the Zoho client (D-037). Credentials are never collected in chat or stored in git.
+- **Later:** the Zoho-client part is amended by D-064 (owner-console override).
 
 ## D-040 — Learned instructions go in the cacheable system part through their own prompt
 2026-11-13 · Claude (technical, learning-admin)
@@ -426,3 +432,156 @@ Format: `D-NNN — Title` · date · status · decision · why · rejected optio
 - **Departures from the reference (requirements win):** 44 pt targets, outlined inputs (WCAG 1.4.11), focus rings, a red warning card, a dark theme, slightly taller line heights for Arabic (DESIGN-SYSTEM §10). Muse's mascot, fonts and copy are not reused.
 - **Consequence:** the app and admin/HTML redesigns build on branch `phase9/design-system`; tests keep every contrast pair at AA.
 
+
+---
+
+Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058 are the master's technical decisions drafted there on 13 Nov and already cited in code as "draft D-0NN (backlog)"; they keep their numbers and are accepted as written. D-059…D-073 record the owner's answers to the 15 questions in that file's § Needs the owner ("all recommended", 14 Nov 2026), one entry per question (Q1 → D-059 … Q15 → D-073).
+
+## D-042 — The live call carries no rating question, no timing line and no CRM form
+2026-11-13 · Claude (technical, review backlog; UX-02, UX-11, UX-19) · accepted 2026-11-14
+- **Decision:** the live hero card has no rating controls and no "On screen x s after…" line; the live rail has no CRM form. Ratings sit on collapsed cards, after the call and in History.
+- **Unchanged:** R11 (only AI advice cards are rateable); R1 timing is still logged per card and shown in History detail and Reports.
+
+## D-043 — No during-call side panel for Lead/Contact
+2026-11-13 · Claude (technical, review backlog; UX-19, INT-11) · accepted 2026-11-14
+- **Decision:** unknown callers get a dedupe search and a prefilled Lead before the call starts and in the after-call checklist. During the call there is one "Note for after the call" field.
+- **Supersedes:** the phase 9 brief line "During the call, a side panel limited to lead creation and contact updates" (`docs/phases/phase-9-product-round.md`).
+
+## D-044 — After-call checklist approval
+2026-11-13 · Claude (technical, review backlog; UX-04) · accepted 2026-11-14
+- **Decision:** nothing is pre-ticked. Each ticked item is its own approval, its own idempotent write and its own audit row; "Save n to Zoho" submits only the ticked items. R12 holds.
+
+## D-045 — One follow-up card
+2026-11-13 · Claude (technical, review backlog; UX-05) · accepted 2026-11-14
+- **Decision:** the `followup` draft becomes the email body; WhatsApp is the second tab; there is one send path per channel.
+
+## D-046 — Zoho data centre detected from the OAuth callback
+2026-11-13 · Claude (technical, review backlog; ZC-02) · accepted 2026-11-14
+- **Decision:** the server reads `location` / `accounts-server` from the OAuth callback and stores the data centre per user. A "Change" link keeps R10's "chosen data centre". Refines D-031's "chosen at connect".
+
+## D-047 — Call-log Note
+2026-11-13 · Claude (technical, review backlog; INT-01) · accepted 2026-11-14
+- **Decision:** one structured Note per call; parent order Deal → Contact → Lead; no transcript text, only the review's structured summary; idempotency key per call and kind; audited.
+
+## D-048 — Stage and source guidance is seed data in `crm_brief`
+2026-11-13 · Claude (technical, review backlog; INT-03, INT-16) · accepted 2026-11-14
+- **Decision:** stage guidance, `Lead_Source` and campaign name reach the brief through `seed/prompts/crm_brief.md`, at most 150 tokens, labelled "as of prep". Replay p95 ≤ 1500 ms is the gate.
+
+## D-049 — Recording is an org policy
+2026-11-13 · Claude (technical, review backlog; ZC A4) · accepted 2026-11-14
+- **Decision:** the admin sets `record_calls` once for the company; the per-agent toggle becomes a read-only line.
+
+## D-050 — Agents never see model names, admin stats, the Inbox or the playbook editor
+2026-11-13 · Claude (technical, review backlog; UX-25, ZC app map) · accepted 2026-11-14
+- **Decision:** in line with the R3 role table. A page outside the role's areas says why, whatever the URL.
+
+## D-051 — Desktop admin in four groups; Keys & providers leaves the desktop
+2026-11-13 · Claude (technical, review backlog; UX-29) · accepted 2026-11-14
+- **Decision:** the admin area has four groups: People, Connections, AI, Company. Keys & providers is not on the desktop app (applies D-038; D-059 then moves it to the owner console).
+
+## D-052 — SMTP presets from the admin's domain
+2026-11-13 · Claude (technical, review backlog; ZC-03) · accepted 2026-11-14
+- **Decision:** presets (Google, Microsoft 365, Hostinger, Zoho Mail, Other) are picked from a known-domain map plus an MX lookup with `dnspython` (small, pure-Python, judged not major). If it cannot be added, the static map plus "Other" ships alone.
+- **Related:** D-065 (customer SMTP is the default sender).
+
+## D-053 — Password reset by email
+2026-11-13 · Claude (technical, review backlog; UX-39) · accepted 2026-11-14
+- **Decision:** emailed single-use token, 30 minutes, rate-limited per address and per client, audited, no account enumeration; using it revokes the user's other refresh tokens (D-029).
+
+## D-054 — Desktop deep link scheme `agn-sales-shield://`
+2026-11-13 · Claude (technical, review backlog; UX-35) · accepted 2026-11-14
+- **Decision:** used only for "return to the app" (for example after the Zoho connect); it never carries a token.
+
+## D-055 — Follow-up steps re-ask the agent
+2026-11-13 · Claude (technical, review backlog; INT-08) · accepted 2026-11-14
+- **Decision:** an in-process scheduler on the management server (no new dependency) creates a desktop notification per step; nothing is sent without the agent's tap (R12, D-033).
+
+## D-056 — Blueprint is read-only
+2026-11-13 · Claude (technical, review backlog; INT-04) · accepted 2026-11-14
+- **Decision:** the rail shows a Blueprint checklist ("to move to X you still need …") and may suggest a Note; transitions are never executed (D-031, R12).
+
+## D-057 — Config health is computed by the server
+2026-11-13 · Claude (technical, review backlog; ZC-14) · accepted 2026-11-14
+- **Decision:** one status per org (`ok` / `needs_attention` + reason) shipped in the session config with the feature map (D-036); the apps only render it with a fix link.
+
+## D-058 — Review-backlog file ownership
+2026-11-13 · Claude (technical, review backlog) · accepted 2026-11-14
+- **Decision:** within a wave, each hub file has one owner: `apps/app/lib/i18n.ts`, `cloud/app.py`, `cloud/store.py`, `cloud/features.json`, `cloud/bundle.py`, `apps/app/components/AppShell.tsx`, `apps/app/app/admin/_layout.tsx`, `apps/desktop/**`. New strings go in feature-local `strings.ts` files (pattern of `features/email/strings.ts`). Any other stream that needs a line in a hub writes the exact line in its report; the master adds it at merge. Builds on D-035 (no two sessions touch the same files).
+
+## D-059 — Providers, keys, model routing and the prompt studio move to the owner console (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q1 → 1a)
+- **Decision:** the Keys & providers panel, the model router settings and the prompt studio are run by AGN in the owner console (DD-1, DD-2). A company admin sees and edits them only when AGN enables "bring your own" (BYO) for that company (platform entitlement, default off). Company overrides of prompts are owner-only.
+- **Amends:** R6 "Keys & providers panel" and "Prompt studio" audience (REQUIREMENTS). **Supersedes:** D-038 (web admin as the place for model and prompt configuration); D-019's write-only key rules stay.
+- **Rejected:** keys and models only (1b); today's split (1c).
+
+## D-060 — AGN pays vendor usage, bundled in the plan minutes (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q2 → 2a)
+- **Decision:** AI and speech-to-text usage on AGN's platform keys is paid by AGN and included in the plan minutes (DD-3). Before pricing is set, AGN gets a cost-per-minute estimate from the live replay.
+- **Open (owner):** running `pnpm replay:live` with real keys spends money; the owner starts it. Until then the estimate tool reports from the synthetic replay and the seed price table, marked "estimate".
+- **Rejected:** metered overage (2b); customers bring their own keys as the default (2c; still possible per D-059 BYO).
+
+## D-061 — Shared platform keys with per-tenant sub-keys, spend caps and alerts (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q3 → 3a)
+- **Decision:** one set of AGN platform keys serves every company (ZC-12, B2). Where a vendor offers per-tenant sub-keys or short-lived tokens, the server hands out those instead of the raw key; keys rotate without a release; usage is metered per company with a spend cap and an 80 % alert.
+- **Cap values come from the owner.** The setting ships with no default spend: an unset cap means metering and the 80 % alert are off for that company and the owner console marks it "Cap not set".
+- **Amends:** D-022 "Provider keys" (per-company keys entered by the admin are now the BYO case of D-059).
+- **Rejected:** one vendor account per company (3b); an AGN relay for all model traffic (3c, adds a hop against R1).
+
+## D-062 — The agent track as context is a platform default, not a company setting (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q4 → 4a)
+- **Decision:** the admin toggle "transcribe the agent track as context" is removed (DD-5). AGN sets it platform-wide; today's behaviour is unchanged. The agent track still never triggers a card (R4).
+- **Amends:** R4 "(setting)" → "(platform default)".
+
+## D-063 — AI-vendor consent step with placeholder legal text (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q5 → 5a)
+- **Decision:** onboarding gets a "Who processes your calls" step (DD-4): sub-processor list, the admin's choice and timestamp audited, a "primary vendors only" switch. The text ships as "DRAFT — not legal text".
+- **Open (owner):** the sub-processor list and the legal wording come from the owner or counsel before the release that shows the step to customers.
+
+## D-064 — Zoho multi-DC on the existing client; per-org client becomes an owner override (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q6 → 6a)
+- **Decision:** the owner enables multi-DC on the existing Zoho API client (Zoho API console). The server picks the client by the detected data centre (D-046). The per-org Zoho client form leaves Admin › Integrations and becomes an override in the owner console (ZC-01, DD-6).
+- **Amends:** D-039's Zoho-client placement (the SMTP and Gallabox parts of D-039 stay in Admin › Integrations).
+- **Open (owner):** the multi-DC switch in the Zoho API console is the owner's step.
+
+## D-065 — Customer SMTP with presets is the default sender; AGN's Hostinger SMTP is the fallback (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q7 → 7a)
+- **Decision:** companies send from their own SMTP, set up through presets (D-052); AGN's Hostinger SMTP stays the platform fallback (D-039). No paid transactional vendor is added.
+- **Consistent with:** D-032 (Resend stays optional, not the default).
+
+## D-066 — Playbook bootstrap from CRM, website and documents, after consent (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q8 → 8a)
+- **Decision:** the playbook can be bootstrapped from Zoho, the company website and a pasted document (ZC-04), only after the consent step (D-063). Every generated entry lands as "needs review" and never answers on a call until a manager approves it. Prompts and models go through the registry and router.
+
+## D-067 — Automatic model routing, weekly, under an owner-set monthly cap (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q9 → 9a)
+- **Decision:** a benchmark-based routing job (ZC-05) runs weekly on the golden calls, stages a candidate, canaries it on AGN's demo org and rolls back on failure; R6's "only a model whose last benchmark meets R1" holds.
+- **Cap value comes from the owner.** The monthly spend cap setting ships with no default: while it is unset the job does not run.
+- **Depends on:** golden calls (P0.5). Until they exist the job is built and tested on the synthetic set and stays off.
+
+## D-068 — Self-signup creates a trial company (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q10 → 10a)
+- **Decision:** the Zoho Forms sign-up on the landing page creates a trial company and the first admin invite (ZC-10), rate-limited, and lists it in an owner sign-up queue where AGN can suspend or delete it.
+- **Amends:** R3 ("Create companies" is no longer platform-owner-only).
+
+## D-069 — One Zoho scope bundle; allow-listed AGN fields on Deals (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q11 → 11a)
+- **Decision:** Tasks (INT-02), Blueprint definitions (INT-04, read-only per D-056), custom Deal fields (INT-06), Campaigns (INT-16) and the Notifications scope T-081 needs (INT-13) ship in one release with one reconnect per agent. INT-06 creates AGN-owned custom fields in the customer's Zoho org (score, chance band, top objection, last call date) and may write only those fields on Deals, each write approved (R12).
+- **Amends:** D-031's v1 matrix "no Deal writes" for that allow-list only. Stage and Amount stay blocked by test (R12 unchanged).
+
+## D-070 — WhatsApp meeting reminders need one tap each (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q12 → 12a)
+- **Decision:** meeting reminders (INT-09, UTILITY template, org flag default off) are sent only after the agent taps once per reminder. No standing approval. R12 and D-033 unchanged.
+
+## D-071 — Gallabox delivery/read status, status only (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q13 → 13a)
+- **Decision:** an HMAC-verified Gallabox status webhook (INT-10) records sent/delivered/read/failed per sent message; no message text is stored (D-033).
+- **Open (owner):** it works only if AGN's Gallabox plan includes webhooks (Essential/Advanced); the feature stays off until the owner confirms.
+
+## D-072 — Zoho Analytics through a weekly CSV export only (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q14 → 14a)
+- **Decision:** a weekly CSV export (scores, counts, categories, Zoho ids; no transcript) for Zoho Analytics (INT-12). No live push and no new vendor integration.
+
+## D-073 — Practice calls in real accounts (owner, 14 Nov 2026)
+2026-11-14 · owner (backlog Q15 → 15a; tracker T-038)
+- **Decision:** real accounts may run a practice call, labelled "Practice", never saved to History, Reports, ratings or learning, and never uploaded. The first-run checklist gets its "Try a practice call" step.
+- **Amends:** D-024 "real accounts carry no demo data", for one neutral practice script only.

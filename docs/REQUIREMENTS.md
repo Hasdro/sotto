@@ -50,6 +50,9 @@ top FAQs from the playbook index, streamed cards.
 | See team calls, reports, escalations       | support only   | yes           | own team      | no    |
 | Take calls, see suggestions, own history   | no             | yes           | yes           | yes   |
 
+Self-signup (D-068): the Zoho Forms sign-up on the landing page also creates a **trial** company and its first admin invite, rate-limited and listed in the owner's sign-up queue; every other company is created by the platform owner.
+Prompts and models (D-059): the company admin's "yes" applies only when AGN enables "bring your own" for that company; otherwise AGN sets them in the owner console.
+
 Plan states: **trial** (default 14 days, seat + minute limits, banner with days left),
 **active**, **expired/suspended** (sign-in works, calls blocked, data kept 30 days).
 
@@ -58,6 +61,7 @@ Plan states: **trial** (default 14 days, seat + minute limits, banner with days 
   insert, update or delete rows of company B. Runs in CI.
 - Same profile and history on phone and laptop; per-device sign-out; admin can revoke a device.
 - Trial blocks calling the day after expiry; reminder email 3 days before.
+- A self-signup creates exactly one trial company and one admin invite, is rate-limited, and shows in the owner sign-up queue (D-068).
 - Every admin action (role, playbook, prompt, model, plan change) is in the audit log.
 
 ## R4 — Listen only to the customer
@@ -72,7 +76,7 @@ separate audio track.
 | Normal call from the phone's own dialer | Not possible: iOS and Android block call audio for apps | Blocked |
 | Speakerphone / in-person | Agent voice sample (30 s) + speaker matching drops agent speech | Approximate, badge shown |
 
-The agent track may be transcribed as context only (setting); it never triggers a card.
+The agent track may be transcribed as context only (platform default, D-062); it never triggers a card.
 
 **Acceptance tests**
 - Replay: nothing the agent says ever triggers a card.
@@ -96,6 +100,7 @@ Nothing about prompts or models is hard-coded. Companies (and the platform owner
 change them without a code release.
 
 **Prompt studio**
+- Run by AGN in the owner console; a company admin edits company-level prompts only when AGN enables "bring your own" for that company (D-059).
 - Every prompt (trigger classifier, suggestion, summary, escalation email, judge…) is a
   versioned record with variables, e.g. `{{playbook.match}}`, `{{transcript.last_60s}}`,
   `{{crm.deal.stage}}`, `{{company.tone}}`.
@@ -112,7 +117,8 @@ change them without a code release.
 - A stage may only use a model whose last benchmark on the golden set meets R1 for that
   stage; the settings screen shows that benchmark next to each model.
 
-**Keys & providers panel** (owner request, 2026-10-20, D-019)
+**Keys & providers panel** (owner request, 2026-10-20, D-019; moved to the owner console by D-059)
+- The panel and the model router settings live in the owner console and use AGN's shared platform keys (D-061). A company admin sees them only when AGN enables "bring your own" (BYO) for that company; "company admins" below means that BYO case.
 - The platform owner and company admins add, test, replace and remove provider keys in the app. Each vendor has a "Get a key" link and short instructions.
 - Each stage's vendor is chosen in the same panel. Keys are write-only, encrypted, never shown again after saving, and only sent to their own vendor.
 

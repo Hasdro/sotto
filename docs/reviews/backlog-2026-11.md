@@ -10,7 +10,7 @@ Size: **S** ≤ 1–2 days · **M** ≈ 3–7 days · **L** > 1 week. Status: wa
 
 ## Waves and streams
 
-At most 3 streams run in parallel (D-035). Streams in one wave own disjoint files. Hub files (`apps/app/lib/i18n.ts`, `cloud/app.py`, `cloud/store.py`, `cloud/features.json`, `cloud/bundle.py`, `components/AppShell.tsx`, `app/admin/_layout.tsx`, `apps/desktop/**`) have **one owner per wave**; any other stream that needs a line there writes it in its report and the master adds it at merge (proposed D-058).
+At most 3 streams run in parallel (D-035). Streams in one wave own disjoint files. Hub files (`apps/app/lib/i18n.ts`, `cloud/app.py`, `cloud/store.py`, `cloud/features.json`, `cloud/bundle.py`, `components/AppShell.tsx`, `app/admin/_layout.tsx`, `apps/desktop/**`) have **one owner per wave**; any other stream that needs a line there writes it in its report and the master adds it at merge (D-058).
 
 | Wave | Stream (branch `phase9/<stream>`) | Tracker | Items | Model | Depends on |
 |---|---|---|---|---|---|
@@ -42,12 +42,12 @@ Only `review-copy-brand` is mechanical enough for sonnet. `review-company-coachi
 - `review-home-shell`: `apps/app/lib/i18n.ts` this wave, `apps/app/lib/{locale,role,prefs}.ts*`, `apps/app/features/home/**`, `apps/app/features/crm/{HomeMeetings,UpcomingMeetings}.tsx`, `apps/app/app/{home,index,account,settings,_layout,reset-password}.tsx`, `apps/app/components/**` (except `CallPeek.tsx`), `apps/app/app/admin/{_layout,index,recordings,devices,activity}.tsx` (+ the `code=` line in `keys.tsx`), `apps/app/features/{account,settings}/**`, `scripts/{a11y,screenshots}.mjs`, `__tests__/{home-meetings,admin-desktop-tabs,admin-tools,admin-team,tutorial,screens,plan-paused,persistent-login,i18n,settings-server,settings-web-admin,app-link,feature-gate}.test.*`. Also UX-39r (`/reset-password` page).
 - `packages/ui/**` is read-only in wave 2 (changes go through the master).
 
-**Wave 3**
+**Wave 3** (exact lists, refined 2026-11-14 with the owner's answers, are in `docs/prompts/review-{integrations,owner-platform,company-coaching}.md`; those win)
 - `review-integrations`: `apps/app/app/admin/integrations.tsx`, `apps/app/features/email/SmtpSettings.tsx`, `apps/app/features/whatsapp/GallaboxSettings.tsx`, `apps/app/features/team/**`, `cloud/email/**`, `cloud/gallabox/**`, `cloud/zoho/{routes,lookup}.py`, `adapters/{email,whatsapp}/**`, their tests.
 - `review-owner-platform`: `cloud/owner/**`, `cloud/{app,store,bundle,features}.py`, `cloud/features.json`, `cloud/zoho/oauth.py`, `apps/app/app/admin/{keys,models,prompts}*`, `apps/app/features/{keys,prompts}/**`, `seed/models/**`, their tests.
 - `review-company-coaching`: `apps/app/app/admin/{settings,instructions,index,features}.tsx`, `apps/app/app/{reports,playbook,inbox,settings}.tsx`, `apps/app/features/{learning,reports,playbook,escalations,admin}/**`, `cloud/learning/**`, `seed/prompts/learned_*.md`, `apps/app/lib/i18n.ts` this wave, their tests.
 
-**Wave 4**
+**Wave 4** (exact lists in `docs/prompts/review-{followup-automation,zoho-scopes,ai-autoconfig}.md`; those win)
 - `review-followup-automation`: new `cloud/scheduler/**`, new `cloud/gallabox/webhook.py`, new `cloud/zoho/webhooks.py`, new `apps/app/features/followup/**`, `apps/app/features/call/components/EndedView.tsx`, `cloud/email/attachments*`, hubs `cloud/{app,store}.py` this wave, `apps/desktop/**` (notifications).
 - `review-zoho-scopes`: `cloud/zoho/{oauth,actions,lookup,routes}.py`, `adapters/crm/**`, new `cloud/export/**`, `apps/app/features/crm/**`, `apps/app/features/call/components/CrmRail.tsx`, `apps/app/features/actions/**`.
 - `review-ai-autoconfig`: new `cloud/bootstrap/**`, new `cloud/routing/**`, `seed/models/**`, `scripts/replay*`, owner-console views it adds (after `review-owner-platform` merged).
@@ -152,6 +152,7 @@ Only `review-copy-brand` is mechanical enough for sonnet. `review-company-coachi
 | ZC-07 | ZC B14, DD-7 (WhatsApp) | Gallabox: after a valid key, pull channels and APPROVED templates into pick lists; allow-list defaults to approved; parameter → CRM/brief field mapping guessed, only unmapped shown | M | todo |
 | ZC-13 | – | "Invite everyone with a Zoho CRM user in sales roles" (default role agent) | M | todo |
 | UX-44c | UX-44 (disabled) | Disabled Save/Send buttons on Integrations explain why ("Enter a client ID first") | S | todo |
+| W3-PRACTICE | UX-10 (practice step), ZC-09, T-038 | Practice call in real accounts, labelled "Practice", never saved to History/Reports/learning; first-run step (Q15 → D-073) | M | todo |
 | W3-INT-EVID | – | Integrations screenshots light/dark/RTL/390/1280; axe 0 serious | S | todo |
 
 ### Wave 3 · `review-owner-platform` (T-079)
@@ -206,6 +207,8 @@ Only `review-copy-brand` is mechanical enough for sonnet. `review-company-coachi
 
 ## Needs the owner
 
+**Answered 2026-11-14: "all recommended" (1a … 15a), recorded as D-059 (Q1) … D-073 (Q15) in `docs/DECISIONS.md`.** Open owner inputs: cost-per-minute live replay (D-060), spend cap values (D-061, D-067), sub-processor list and legal text (D-063), Zoho multi-DC switch (D-064), Gallabox webhook plan (D-071).
+
 Only items that spend money, need a new paid account, change production/infra beyond a normal deploy, change R1–R12, delete data, or add a major dependency. Answer like "1a, 2a, …". *(rec)* = what we build if you agree.
 
 1. **Move providers, keys, model routing and the prompt studio from the company admin to the owner console (DD-1, DD-2; amends R6 "Keys & providers panel" and "Prompt studio" audience)?** (a) yes, both; company BYO only when AGN enables it *(rec)* · (b) keys and models only, prompts stay with the company · (c) no, keep today's split (D-038).
@@ -226,9 +229,9 @@ Only items that spend money, need a new paid account, change production/infra be
 
 ---
 
-## Proposed decisions (draft; not in `docs/DECISIONS.md` until the master records them)
+## Technical decisions (recorded in `docs/DECISIONS.md` on 2026-11-14 with these numbers)
 
-The zero-config review's DD-1…DD-8 get D-numbers only when the owner accepts them. Our own technical choices:
+The zero-config review's DD items became owner decisions D-059…D-073 above. Code comments that say "draft D-0NN (backlog)" refer to these numbers. Our own technical choices:
 
 - **D-058 — Review-backlog ownership.** One owner per hub file per wave (i18n.ts, cloud/app.py, store.py, features.json, bundle.py, AppShell, admin/_layout, apps/desktop). New strings go in feature-local `strings.ts` files (pattern of `features/email/strings.ts`). Other streams request hub lines in their report; the master adds them at merge.
 - **D-042 — The live call carries no rating question, no timing line and no CRM form** (UX-02, UX-11, UX-19). R11 is unchanged: only AI advice cards are rateable, now on collapsed cards, after the call and in History. R1 timing is still logged per card.
