@@ -43,13 +43,20 @@ const files = [
 
 // Unpack the container formats so each size shows.
 const set = join(tmp, "icon.iconset");
-execFileSync("iconutil", ["-c", "iconset", join(root, "apps/desktop/build-assets/icon.icns"), "-o", set]);
+execFileSync("iconutil", [
+  "-c",
+  "iconset",
+  join(root, "apps/desktop/build-assets/icon.icns"),
+  "-o",
+  set,
+]);
 for (const n of readdirSync(set).sort()) files.push([`icon.icns › ${n}`, join(set, n)]);
 for (const ico of ["icon.ico", "tray.ico"]) {
   const dir = join(tmp, ico);
   mkdirSync(dir);
   execFileSync("magick", [join(root, "apps/desktop/build-assets", ico), join(dir, "f-%02d.png")]);
-  for (const n of readdirSync(dir).sort()) files.push([`${ico} › frame ${n.slice(2, 4)}`, join(dir, n)]);
+  for (const n of readdirSync(dir).sort())
+    files.push([`${ico} › frame ${n.slice(2, 4)}`, join(dir, n)]);
 }
 
 const uri = (p) =>
