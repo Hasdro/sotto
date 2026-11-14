@@ -66,7 +66,9 @@ def make_routes(
                         raise CloudError("invalid", "pick attachments from your admin's list")
                 return
             # whatsapp and meeting_reminder: only the org's allow-listed templates (D-033)
-            store.require_feature(who, "meeting_reminders" if kind == "meeting_reminder" else "whatsapp")
+            store.require_feature(
+                who, "meeting_reminders" if kind == "meeting_reminder" else "whatsapp"
+            )
             key = (str(p.get("template", "")), str(p.get("language", "")))
             tpl = next(
                 (

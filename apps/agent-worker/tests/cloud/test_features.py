@@ -426,11 +426,13 @@ def test_meeting_reminders_and_whatsapp_status_are_off_until_the_admin_turns_the
             "INSERT INTO company_gallabox(company_id, ciphertext, updated_at) VALUES (?,?,0)",
             (company, b"x"),
         )
-    assert features.DEFAULT_OFF == {"meeting_reminders", "whatsapp_status"}
+    assert {"meeting_reminders", "whatsapp_status"} == features.DEFAULT_OFF
     m = client.get("/api/v1/features", headers=h).json()["features"]
     assert m["meeting_reminders"]["state"] == "off_by_org"
     assert m["whatsapp_status"]["state"] == "off_by_org"
-    rows = {r["id"]: r for r in client.get("/api/v1/company/features", headers=h).json()["features"]}
+    rows = {
+        r["id"]: r for r in client.get("/api/v1/company/features", headers=h).json()["features"]
+    }
     assert rows["meeting_reminders"]["enabled"] is False
     r = client.put("/api/v1/company/features/whatsapp_status", json={"enabled": True}, headers=h)
     assert r.status_code == 200, r.text

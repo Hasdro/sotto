@@ -171,7 +171,8 @@ def test_a_step_is_sent_only_by_the_agents_tap_and_never_twice(
     again = c.post(f"/api/v1/followup/steps/{email_step['id']}/done", headers=ag).json()
     assert again["duplicate"] is True
     gone = c.get(f"/api/v1/followup/steps/{email_step['id']}", headers=ag).json()
-    assert gone["state"] == "done" and "prepared" not in gone  # the draft is not kept
+    assert gone["state"] == "done"
+    assert "prepared" not in gone
 
     wa = c.get(f"/api/v1/followup/steps/{wa_step['id']}", headers=ag).json()
     msg = {**wa["prepared"], "confirm": True, "idempotency_key": wa["idempotency_key"]}
@@ -220,7 +221,8 @@ def test_steps_are_validated(c: TestClient) -> None:
         steps=[{"kind": "whatsapp", "due_at": T0, "prepared": {**WA, "template": "promo_offer"}}]
     )
     r = c.post("/api/v1/followup/plans", json=bad_template, headers=ag)
-    assert r.status_code == 400 and "list" in r.json()["error"]
+    assert r.status_code == 400
+    assert "list" in r.json()["error"]
     far = the_plan(steps=[{"kind": "reminder", "due_at": T0 + 90 * DAY_MS}])
     assert c.post("/api/v1/followup/plans", json=far, headers=ag).status_code == 400
     many = the_plan(steps=[{"kind": "reminder", "due_at": T0}] * 6)
@@ -320,7 +322,8 @@ def test_meeting_reminders_use_utility_templates_before_the_meeting(
         )
         assert r.status_code == 200, r.text
         bad = c.post("/api/v1/followup/plans", json=reminder_plan("promo_offer_en"), headers=ag)
-        assert bad.status_code == 400 and "UTILITY" in bad.json()["error"]
+        assert bad.status_code == 400
+        assert "UTILITY" in bad.json()["error"]
     finally:
         TEMPLATES.pop()
     late = reminder_plan()

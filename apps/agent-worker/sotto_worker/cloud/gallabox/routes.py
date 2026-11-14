@@ -33,7 +33,7 @@ from sotto_worker.adapters.whatsapp.gallabox import (
     Template,
     digits,
 )
-from sotto_worker.cloud.gallabox import data
+from sotto_worker.cloud.gallabox import data, webhook
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
 Wrap = Callable[..., Callable[[Request], Awaitable[Response]]]
@@ -315,6 +315,7 @@ def make_routes(
                 )
                 raise
         data.finish_send(store, who, idem, ok=True, detail=detail, ip=ip_of(r))
+        webhook.remember_message(store, who.company, idem, message_id)  # INT-10: status only
         return JSONResponse(
             {"status": "sent", "duplicate": False, "id": message_id, "window": window},
             headers=NO_STORE,

@@ -15,7 +15,7 @@ import json
 import secrets
 import sqlite3
 import weakref
-from typing import Any
+from typing import Any, cast
 
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
 
@@ -47,7 +47,13 @@ CREATE TABLE IF NOT EXISTS followup_steps (
 CREATE INDEX IF NOT EXISTS followup_steps_due ON followup_steps(state, due_at);
 """
 KINDS = ("email", "whatsapp", "reminder", "meeting_reminder")
-SENDS = {"email": "email_sends", "whatsapp": "whatsapp_sends", "meeting_reminder": "whatsapp_sends"}
+SENT_SQL = {  # the send log a step's own key must be in
+    "email": "SELECT 1 FROM email_sends"
+    " WHERE company_id = ? AND idem = ? AND user_id = ? AND status = 'sent'",
+    "whatsapp": "SELECT 1 FROM whatsapp_sends"
+    " WHERE company_id = ? AND idem = ? AND user_id = ? AND status = 'sent'",
+}
+SENT_SQL["meeting_reminder"] = SENT_SQL["whatsapp"]
 MAX_STEPS = 5
 MAX_AHEAD_MS = 60 * 24 * 3600 * 1000
 MAX_PREPARED = 24_000
@@ -166,7 +172,7 @@ class PlanStore:
         ).fetchone()
         if row is None:
             raise CloudError("not_found", "no such plan")
-        return row
+        return cast(sqlite3.Row, row)
 
     @staticmethod
     def _step_out(r: sqlite3.Row, *, with_draft: bool) -> dict[str, Any]:
@@ -246,7 +252,9 @@ class PlanStore:
         }
 
     # --- the agent's choices -------------------------------------------------------------------
-    def set_status(self, who: Principal, plan_id: str, status: str, *, now: int, ip: str = "") -> None:
+    def set_status(
+        self, who: Principal, plan_id: str, status: str, *, now: int, ip: str = ""
+    ) -> None:
         if status not in ("active", "paused", "cancelled"):
             raise CloudError("invalid", "unknown plan status")
         with self.s._tx() as db:
@@ -266,11 +274,17 @@ class PlanStore:
             elif status == "paused":
                 # A step that was due waits again; it is re-announced after resume.
                 db.execute(
-                    "UPDATE followup_steps SET state = 'pending' WHERE plan_id = ? AND state = 'due'",
+                    "UPDATE followup_steps SET state = 'pending'"
+                    " WHERE plan_id = ? AND state = 'due'",
                     (plan_id,),
                 )
             self.s.audit(
-                db, f"followup.{status}", f"plan {plan_id}", company_id=who.company, actor=who, ip=ip
+                db,
+                f"followup.{status}",
+                f"plan {plan_id}",
+                company_id=who.company,
+                actor=who,
+                ip=ip,
             )
 
     def _finish(
@@ -298,7 +312,7 @@ class PlanStore:
         ).fetchone()
         if row is None:
             raise CloudError("not_found", "no such step")
-        return row
+        return cast(sqlite3.Row, row)
 
     def skip(self, who: Principal, step_id: str, *, now: int, ip: str = "") -> None:
         with self.s._tx() as db:
@@ -319,13 +333,9 @@ class PlanStore:
                 return {"status": "done", "duplicate": True}
             if step["state"] not in ("pending", "due"):
                 raise CloudError("invalid", "this step is finished")
-            table = SENDS.get(str(step["kind"]))
-            if table is not None:
-                sent = db.execute(
-                    f"SELECT 1 FROM {table} WHERE company_id = ? AND idem = ? AND user_id = ?"  # noqa: S608
-                    " AND status = 'sent'",
-                    (who.company, step_idem(step_id), who.user_id),
-                ).fetchone()
+            sql = SENT_SQL.get(str(step["kind"]))
+            if sql is not None:
+                sent = db.execute(sql, (who.company, step_idem(step_id), who.user_id)).fetchone()
                 if sent is None:
                     raise CloudError("not_sent", "send the step first")
             self._finish(db, who, step, "done", now)
@@ -354,6 +364,11 @@ class PlanStore:
                 )
             )
         return [
-            {"id": r["id"], "company_id": r["company_id"], "user_id": r["user_id"], "kind": r["kind"]}
+            {
+                "id": r["id"],
+                "company_id": r["company_id"],
+                "user_id": r["user_id"],
+                "kind": r["kind"],
+            }
             for r in rows
         ]

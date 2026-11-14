@@ -35,6 +35,7 @@ from sotto_worker.cloud.email import data as email_data
 from sotto_worker.cloud.email import routes as email_routes
 from sotto_worker.cloud.features import FeatureUnavailable
 from sotto_worker.cloud.gallabox import routes as gallabox_routes
+from sotto_worker.cloud.gallabox import webhook as gallabox_webhook
 from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
@@ -1299,6 +1300,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             send_invite=send_invite,
             log=config.log,
         ),
+        *gallabox_webhook.make_routes(
+            store=store,
+            app_route=app_route,
+            handle=handle,
+            ip_of=ip_of,
+            origin_of=public_origin_of,
+            bad_secret_limit=lambda key: hook_secret_limit.blocked(key),
+            bad_secret_record=lambda key: hook_secret_limit.record(key),
+            log=config.log,
+        ),
         *followup_routes.make_routes(
             store=store,
             plans=scheduler.plans,
@@ -1312,6 +1323,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route("/owner/{file}", owner_page),
         Route("/{path:path}", static),
     ]
+
     @contextlib.asynccontextmanager
     async def lifespan(_app: Starlette) -> AsyncIterator[None]:
         stop = asyncio.Event()
