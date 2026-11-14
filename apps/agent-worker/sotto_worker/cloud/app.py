@@ -48,6 +48,7 @@ from sotto_worker.cloud.scheduler.runner import DAY_MS, Scheduler
 from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms, plan_state
 from sotto_worker.cloud.zoho import routes as zoho_routes
+from sotto_worker.cloud.zoho import webhooks as zoho_webhooks
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
 
@@ -229,6 +230,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
 
     # T-080's hook: safe to call more often than weekly, so once a day is enough.
     scheduler.register("coaching_weekly_digest", DAY_MS, digest_job)
+    zoho_watch = zoho_webhooks.ZohoWatch(store, transport=config.zoho_transport, log=config.log)
+    notify_url = (
+        f"{(config.public_origin or 'http://localhost:8788').rstrip('/')}/api/hooks/zoho/notify"
+    )
+
+    async def zoho_watch_job(now: int) -> None:
+        # INT-13: channels last at most a week; renew the ones that end within two days.
+        await zoho_watch.renew_all(notify_url, now)
+
+    scheduler.register("zoho_watch_renewal", 6 * 3600 * 1000, zoho_watch_job)
 
     def ip_of(request: Request) -> str:
         return request.client.host if request.client else "?"
@@ -1310,6 +1321,13 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             bad_secret_limit=lambda key: hook_secret_limit.blocked(key),
             bad_secret_record=lambda key: hook_secret_limit.record(key),
             log=config.log,
+        ),
+        *zoho_webhooks.make_routes(
+            watch=zoho_watch,
+            app_route=app_route,
+            handle=handle,
+            origin_of=public_origin_of,
+            clock=config.clock,
         ),
         *followup_routes.make_routes(
             store=store,
