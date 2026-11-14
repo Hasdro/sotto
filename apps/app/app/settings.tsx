@@ -191,7 +191,9 @@ export default function SettingsScreen() {
             ) : (
               <Row
                 label={t("settings.record")}
-                body={t(recordPolicy === "on" ? "settings.record.policyOn" : "settings.record.policyOff")}
+                body={t(
+                  recordPolicy === "on" ? "settings.record.policyOn" : "settings.record.policyOff",
+                )}
               >
                 <Text variant="label" weight="medium" testID="settings-record-policy">
                   {t(recordPolicy === "on" ? "settings.record.on" : "settings.record.off")}

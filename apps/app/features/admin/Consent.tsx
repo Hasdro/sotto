@@ -44,7 +44,8 @@ export function ConsentPanel({
   useEffect(() => {
     if (record?.choice) setChoice(record.choice);
   }, [record?.choice]);
-  const current = record && record.text_version === CONSENT_TEXT_VERSION && record.choice === choice;
+  const current =
+    record && record.text_version === CONSENT_TEXT_VERSION && record.choice === choice;
   const shown = SUBPROCESSORS.filter((v) => choice === "all" || !v.backup);
 
   const save = async () => {

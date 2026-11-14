@@ -895,7 +895,8 @@ const en = {
   "reset.failed": "Could not save the password. Check your connection and try again.",
   "reset.done": "Your password is changed. Sign in with it in the app.",
   // ZC-11c, DD-4, ZC-B10, UX-31, INT-05, INT-15 (T-080)
-  "admin.defaults.subtitle": "What your company decides once. Every change applies from the next call and is kept in the activity log.",
+  "admin.defaults.subtitle":
+    "What your company decides once. Every change applies from the next call and is kept in the activity log.",
   "admin.defaults.calls": "Calls",
   "admin.defaults.tone": "Tone of the suggestions",
   "admin.defaults.toneHint": "For example: friendly and brief, no jargon.",
@@ -906,14 +907,19 @@ const en = {
   "admin.defaults.record.agent_choice": "Each person chooses",
   "admin.defaults.record.on": "Always",
   "admin.defaults.record.off": "Never",
-  "admin.defaults.record.agent_choice.hint": "Each person turns recording on or off in their own Settings.",
-  "admin.defaults.record.on.hint": "Every call is recorded. People see this in their Settings and cannot change it.",
-  "admin.defaults.record.off.hint": "No call is recorded. People see this in their Settings and cannot change it.",
+  "admin.defaults.record.agent_choice.hint":
+    "Each person turns recording on or off in their own Settings.",
+  "admin.defaults.record.on.hint":
+    "Every call is recorded. People see this in their Settings and cannot change it.",
+  "admin.defaults.record.off.hint":
+    "No call is recorded. People see this in their Settings and cannot change it.",
   "admin.defaults.manager": "Unanswered questions",
   "admin.defaults.manager.setting": "They go to {emails}.",
   "admin.defaults.manager.managers": "They go to your sales managers: {emails}.",
-  "admin.defaults.manager.admins": "You have no sales manager yet, so they go to your admins: {emails}.",
-  "admin.defaults.manager.none": "Nobody gets them yet. Invite a sales manager or enter an address.",
+  "admin.defaults.manager.admins":
+    "You have no sales manager yet, so they go to your admins: {emails}.",
+  "admin.defaults.manager.none":
+    "Nobody gets them yet. Invite a sales manager or enter an address.",
   "admin.defaults.vendors": "Who processes your calls",
   "admin.defaults.display": "Display",
   "admin.defaults.error": "Could not save. Check the connection and try again.",
@@ -958,7 +964,8 @@ const en = {
   "coaching.objections": "Objections",
   "coaching.email": "Weekly email",
   "coaching.email.weekly": "Send me this every week",
-  "coaching.email.weeklyBody": "A short summary of the week, only for you. You can turn it off here.",
+  "coaching.email.weeklyBody":
+    "A short summary of the week, only for you. You can turn it off here.",
   "coaching.email.preview": "Send me a preview",
   "coaching.email.sent": "Sent. Check your inbox.",
   "coaching.email.noMail": "Email is not set up on this server yet.",
@@ -1856,7 +1863,8 @@ const ar: Record<StringKey, string> = {
   "reset.failed": "تعذّر حفظ كلمة المرور. تحقق من الاتصال وحاول مرة أخرى.",
   "reset.done": "تم تغيير كلمة المرور. سجّل الدخول بها في التطبيق.",
   // ZC-11c, DD-4, ZC-B10, UX-31, INT-05, INT-15 (T-080)
-  "admin.defaults.subtitle": "ما تقرره شركتك مرة واحدة. يُطبّق كل تغيير من المكالمة التالية ويُحفظ في سجل النشاط.",
+  "admin.defaults.subtitle":
+    "ما تقرره شركتك مرة واحدة. يُطبّق كل تغيير من المكالمة التالية ويُحفظ في سجل النشاط.",
   "admin.defaults.calls": "المكالمات",
   "admin.defaults.tone": "أسلوب الاقتراحات",
   "admin.defaults.toneHint": "مثلًا: ودود ومختصر، بلا مصطلحات.",
@@ -1868,8 +1876,10 @@ const ar: Record<StringKey, string> = {
   "admin.defaults.record.on": "دائمًا",
   "admin.defaults.record.off": "أبدًا",
   "admin.defaults.record.agent_choice.hint": "يشغّل كل شخص التسجيل أو يوقفه من إعداداته.",
-  "admin.defaults.record.on.hint": "تُسجّل كل المكالمات. يرى الجميع ذلك في إعداداتهم ولا يمكنهم تغييره.",
-  "admin.defaults.record.off.hint": "لا تُسجّل أي مكالمة. يرى الجميع ذلك في إعداداتهم ولا يمكنهم تغييره.",
+  "admin.defaults.record.on.hint":
+    "تُسجّل كل المكالمات. يرى الجميع ذلك في إعداداتهم ولا يمكنهم تغييره.",
+  "admin.defaults.record.off.hint":
+    "لا تُسجّل أي مكالمة. يرى الجميع ذلك في إعداداتهم ولا يمكنهم تغييره.",
   "admin.defaults.manager": "الأسئلة غير المجابة",
   "admin.defaults.manager.setting": "تُرسل إلى {emails}.",
   "admin.defaults.manager.managers": "تُرسل إلى مديري المبيعات: {emails}.",

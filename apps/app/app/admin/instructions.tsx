@@ -209,53 +209,53 @@ export function InstructionsScreen() {
           {t("learning.decideFirst")}
         </Text>
       ) : (
-      <Panel testID="instructions-editor">
-        <Stack gap="md">
-          <Text variant="label" tone="muted">
-            {t("learning.limit", { items: limits.items, words: limits.words })}
-          </Text>
-          {data && drafts.length === 0 ? (
-            <Text tone="muted" testID="instructions-empty">
-              {t("learning.empty")}
+        <Panel testID="instructions-editor">
+          <Stack gap="md">
+            <Text variant="label" tone="muted">
+              {t("learning.limit", { items: limits.items, words: limits.words })}
             </Text>
-          ) : null}
-          {drafts.map((d, i) => {
-            const item = data?.items.find((x) => x.id === d.id);
-            const words = wordCount(d.text);
-            return (
-              <Row
-                key={d.id ?? `new-${i}`}
-                index={i}
-                draft={d}
-                words={words}
-                maxWords={limits.words}
-                first={i === 0}
-                last={i === drafts.length - 1}
-                source={item ? sourceLine(item) : null}
-                onText={(text) => edit(i, { text })}
-                onEnabled={(enabled) => edit(i, { enabled })}
-                onMove={(by) => move(i, by)}
-                onDelete={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}
+            {data && drafts.length === 0 ? (
+              <Text tone="muted" testID="instructions-empty">
+                {t("learning.empty")}
+              </Text>
+            ) : null}
+            {drafts.map((d, i) => {
+              const item = data?.items.find((x) => x.id === d.id);
+              const words = wordCount(d.text);
+              return (
+                <Row
+                  key={d.id ?? `new-${i}`}
+                  index={i}
+                  draft={d}
+                  words={words}
+                  maxWords={limits.words}
+                  first={i === 0}
+                  last={i === drafts.length - 1}
+                  source={item ? sourceLine(item) : null}
+                  onText={(text) => edit(i, { text })}
+                  onEnabled={(enabled) => edit(i, { enabled })}
+                  onMove={(by) => move(i, by)}
+                  onDelete={() => setDrafts((ds) => ds.filter((_, j) => j !== i))}
+                />
+              );
+            })}
+            <View style={styles.actions}>
+              <Button
+                testID="instruction-add"
+                label={t("learning.add")}
+                variant="secondary"
+                disabled={drafts.length >= limits.items}
+                onPress={() => setDrafts((ds) => [...ds, { text: "", enabled: true }])}
               />
-            );
-          })}
-          <View style={styles.actions}>
-            <Button
-              testID="instruction-add"
-              label={t("learning.add")}
-              variant="secondary"
-              disabled={drafts.length >= limits.items}
-              onPress={() => setDrafts((ds) => [...ds, { text: "", enabled: true }])}
-            />
-            <Button
-              testID="instructions-save"
-              label={t("learning.save")}
-              disabled={busy || !dirty || !valid}
-              onPress={() => run(learningApi.save(drafts))}
-            />
-          </View>
-        </Stack>
-      </Panel>
+              <Button
+                testID="instructions-save"
+                label={t("learning.save")}
+                disabled={busy || !dirty || !valid}
+                onPress={() => run(learningApi.save(drafts))}
+              />
+            </View>
+          </Stack>
+        </Panel>
       )}
 
       <Ratings summary={summary} />
@@ -405,7 +405,11 @@ function DiffRow({ line, index }: { line: DiffLine; index: number }) {
   const { color } = useTheme();
   const mark = DIFF_MARK[line.kind];
   const tint =
-    line.kind === "added" ? color.signalFill : line.kind === "removed" ? color.surfaceSunken : undefined;
+    line.kind === "added"
+      ? color.signalFill
+      : line.kind === "removed"
+        ? color.surfaceSunken
+        : undefined;
   return (
     <View
       testID={`diff-${line.kind}-${index}`}

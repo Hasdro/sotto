@@ -4,7 +4,11 @@
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { ConsentStep, resetConsentStep } from "../features/admin/ConsentStep";
-import { CONSENT_TEXT_VERSION, PRIMARY_VENDORS, SUBPROCESSORS } from "../features/admin/consentText";
+import {
+  CONSENT_TEXT_VERSION,
+  PRIMARY_VENDORS,
+  SUBPROCESSORS,
+} from "../features/admin/consentText";
 import { LocaleProvider } from "../lib/locale";
 
 const mockApi = jest.fn();
@@ -49,7 +53,12 @@ describe("AI-vendor consent step", () => {
         ? {
             ...NONE,
             vendor_allow_list: (init.body as { vendor_allow_list: string[] }).vendor_allow_list,
-            consent: { choice: "primary_only", accepted_by: "u1", accepted_at: 1, text_version: "draft-1" },
+            consent: {
+              choice: "primary_only",
+              accepted_by: "u1",
+              accepted_at: 1,
+              text_version: "draft-1",
+            },
           }
         : NONE,
     );

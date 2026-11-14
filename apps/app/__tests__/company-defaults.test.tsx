@@ -83,7 +83,9 @@ describe("Company defaults", () => {
 
   it("switches AI answers and shows who gets unanswered questions", async () => {
     await wrap();
-    expect(await screen.findByText("They go to your sales managers: mona@acme.test.")).toBeOnTheScreen();
+    expect(
+      await screen.findByText("They go to your sales managers: mona@acme.test."),
+    ).toBeOnTheScreen();
     await fireEvent(screen.getByTestId("toggle-ai"), "valueChange", false);
     expect(mockChange).toHaveBeenCalledWith({ ai_answers_allowed: false });
     await fireEvent.changeText(screen.getByTestId("manager-email"), "boss@acme.test");

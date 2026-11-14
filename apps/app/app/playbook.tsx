@@ -38,8 +38,8 @@ const PLAYBOOK_GUIDE: readonly Step[] = [
 import { MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
 import { useEscalations } from "../features/escalations/store";
 import { type PlaybookEntry, searchPlaybook } from "../features/playbook/mock";
-import { type EntryInput, parseTags, useServerPlaybook } from "../features/playbook/server";
 import { Suggestions } from "../features/playbook/Suggestions";
+import { type EntryInput, parseTags, useServerPlaybook } from "../features/playbook/server";
 import { cloudActive, sampleDataAllowed } from "../lib/cloud";
 import { formatDate } from "../lib/format";
 import type { StringKey } from "../lib/i18n";

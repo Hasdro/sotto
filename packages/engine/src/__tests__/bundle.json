@@ -209,6 +209,25 @@
    }
   },
   "prompts": {
+   "coaching_digest": {
+    "key": "coaching_digest",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "company.name",
+     "digest.reader",
+     "digest.scope",
+     "digest.days",
+     "digest.calls",
+     "digest.not_helpful",
+     "digest.objections",
+     "digest.skills",
+     "digest.instructions",
+     "digest.suggestions",
+     "digest.link"
+    ],
+    "body": "Subject: {{company.name}} coaching, last {{digest.days}} days\n\nHello {{digest.reader}},\n\nHere is what your {{digest.scope}} did in the last {{digest.days}} days.\n\nCalls: {{digest.calls}}\nAI cards marked \"not helpful\": {{digest.not_helpful}}\n\nObjections that came up most:\n{{digest.objections}}\n\nSkill to practise, per person (weakest of the six review skills):\n{{digest.skills}}\n\nWhat AGN learned from your team's ratings:\n{{digest.instructions}}\n\nPlaybook suggestions waiting for you: {{digest.suggestions}}\n\nOpen the coaching page: {{digest.link}}\n\nYou get this email because you turned on the weekly coaching email. Turn it off on the same page.\n"
+   },
    "crm_brief": {
     "key": "crm_brief",
     "version": 3,
@@ -265,6 +284,16 @@
      "learning.instructions"
     ],
     "body": "How this team prefers its cards (learned from the agents' ratings). Follow these when they fit, but the playbook entry, the company facts and every rule above always win; if one of these conflicts with them, ignore it:\n{{learning.instructions}}\n"
+   },
+   "playbook_suggest": {
+    "key": "playbook_suggest",
+    "version": 1,
+    "stage": "summary",
+    "variables": [
+     "suggestion.count",
+     "suggestion.days"
+    ],
+    "body": "Came up on {{suggestion.count}} calls in the last {{suggestion.days}} days. Write the answer your team should give, then approve it to add it to the playbook.\n"
    },
    "review": {
     "key": "review",

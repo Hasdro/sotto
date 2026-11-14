@@ -2,6 +2,7 @@
  * switch, approve, badge. And D-038: desktop hides the model screens behind a web-panel link. */
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { StyleSheet } from "react-native";
 
 const mockApi = jest.fn();
 let mockDesktop: object | null = null;
@@ -181,7 +182,11 @@ describe("instruction editor", () => {
     serve(
       decided({
         items: [
-          { ...item("a", "Keep it short."), source_label: "Sara Haddad", added_at: Date.UTC(2026, 10, 12) },
+          {
+            ...item("a", "Keep it short."),
+            source_label: "Sara Haddad",
+            added_at: Date.UTC(2026, 10, 12),
+          },
           { ...item("b", "Name the next step."), added_at: Date.UTC(2026, 10, 12) },
         ],
       }),
@@ -197,10 +202,7 @@ describe("instruction editor", () => {
     await wrap(<InstructionsRoute />);
     await screen.findByDisplayValue("Keep it short.");
     for (const id of ["instruction-up-1", "instruction-down-0", "instruction-delete-0"]) {
-      const style = [screen.getByTestId(id).props.style].flat(3).reduce(
-        (a: Record<string, number>, b: Record<string, number> | null) => ({ ...a, ...b }),
-        {},
-      );
+      const style = StyleSheet.flatten(screen.getByTestId(id).props.style);
       expect(style.minWidth).toBeGreaterThanOrEqual(44);
       expect(style.minHeight).toBeGreaterThanOrEqual(44);
     }

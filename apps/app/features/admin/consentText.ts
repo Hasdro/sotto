@@ -54,7 +54,10 @@ export const SUBPROCESSORS: readonly Subprocessor[] = [
       en: "Backup speech-to-text, only when the main one is down",
       ar: "تحويل احتياطي للصوت إلى نص، فقط عند تعطل الخدمة الأساسية",
     },
-    region: { en: "United Kingdom / EU (to confirm)", ar: "المملكة المتحدة / الاتحاد الأوروبي (للتأكيد)" },
+    region: {
+      en: "United Kingdom / EU (to confirm)",
+      ar: "المملكة المتحدة / الاتحاد الأوروبي (للتأكيد)",
+    },
     backup: true,
   },
   {

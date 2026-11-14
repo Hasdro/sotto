@@ -22,8 +22,8 @@ import { StyleSheet, View } from "react-native";
 import { AppLink } from "../components/AppLink";
 import { PageHeader } from "../components/PageHeader";
 import {
-  type CoachPerson,
   type Coaching,
+  type CoachPerson,
   coachingApi,
   type Digest,
   SKILLS,
@@ -82,7 +82,11 @@ export default function CoachingScreen() {
         subtitle={data ? t(SCOPE_KEY[data.scope], { days: data.days }) : t("coaching.subtitle")}
       />
       {!signedIn ? (
-        <EmptyState testID="coaching-none" title={t("coaching.none.title")} body={t("coaching.none.body")} />
+        <EmptyState
+          testID="coaching-none"
+          title={t("coaching.none.title")}
+          body={t("coaching.none.body")}
+        />
       ) : failed ? (
         <Text tone="danger">{t("coaching.error")}</Text>
       ) : !data ? null : (

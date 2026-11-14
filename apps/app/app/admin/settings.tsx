@@ -118,7 +118,12 @@ export default function SettingsScreen() {
         </View>
       </Section>
       {defaults.error ? (
-        <Text variant="label" tone="danger" accessibilityLiveRegion="polite" testID="defaults-error">
+        <Text
+          variant="label"
+          tone="danger"
+          accessibilityLiveRegion="polite"
+          testID="defaults-error"
+        >
           {t("admin.defaults.error")}
         </Text>
       ) : null}

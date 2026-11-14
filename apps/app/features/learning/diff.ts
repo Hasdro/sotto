@@ -6,7 +6,10 @@ export type DiffLine = { kind: "same" | "added" | "removed"; text: string };
 
 const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
 
-export function diffInstructions(active: readonly string[], pending: readonly string[]): DiffLine[] {
+export function diffInstructions(
+  active: readonly string[],
+  pending: readonly string[],
+): DiffLine[] {
   const before = new Set(active.map(norm));
   const after = new Set(pending.map(norm));
   return [
