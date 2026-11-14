@@ -46,6 +46,18 @@ def _never(stage: str, provider_id: str, model: str) -> job.Bench:
     raise AssertionError(f"benchmarked {stage} {provider_id}/{model} while the job is off")
 
 
+def _demo(client: TestClient, sign_up: SignUp) -> dict[str, Any]:
+    """AGN's demo org: its consent record allows all vendors (D-063), so it may run canaries."""
+    demo = sign_up("AGN Demo", "admin@agn-demo.test")
+    r = client.put(
+        "/api/v1/company/defaults",
+        json={"consent": {"choice": "all", "text_version": "draft-1"}},
+        headers=demo["auth"],
+    )
+    assert r.status_code == 200, r.text
+    return demo
+
+
 def _settings(owner: TestClient, **data: Any) -> dict[str, Any]:
     r = owner.put("/api/owner/routing-job", json=data, headers=H)
     assert r.status_code == 200, r.text
@@ -105,11 +117,13 @@ def test_waits_for_golden_calls_once_the_cap_is_set(
 def test_picks_the_faster_model_meeting_r1_and_canaries_on_the_demo_org_only(
     owner: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed, bench: job.Benchmark
 ) -> None:
-    demo = sign_up("AGN Demo", "admin@agn-demo.test")
+    demo = _demo(owner, sign_up)
     other = sign_up("Customer", "admin@customer.test")
     _settings(owner, monthly_cap_usd=25, demo_company_id=demo["company"]["id"])
     t0 = int(time.time() * 1000) - 3 * 86_400_000
-    _calls(owner, demo, 6, 900, "base", t0)  # the demo org's baseline before the canary
+    _calls(
+        owner, demo, job.MIN_CANARY_CALLS, 900, "base", t0
+    )  # the demo org's baseline before the canary
 
     out = job.run(store, seed, bench, source="synthetic", candidates=CANDIDATES)
     assert out["status"] == "ran"
@@ -128,7 +142,7 @@ def test_picks_the_faster_model_meeting_r1_and_canaries_on_the_demo_org_only(
     assert platform.platform_routes(store) == {}
 
     # Next run: the demo org's calls on the canary are as fast → promoted to everyone.
-    _calls(owner, demo, 6, 850, "canary", int(time.time() * 1000))
+    _calls(owner, demo, job.MIN_CANARY_CALLS, 850, "canary", int(time.time() * 1000))
     out = job.run(store, seed, bench, source="synthetic", candidates=CANDIDATES)
     assert {"stage": "suggest", "canary": "promoted", "p95_ms": 850} in out["detail"]
     assert platform.platform_routes(store)["suggest"] == FAST
@@ -142,13 +156,15 @@ def test_picks_the_faster_model_meeting_r1_and_canaries_on_the_demo_org_only(
 def test_rolls_back_on_a_worse_p95(
     owner: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed, bench: job.Benchmark
 ) -> None:
-    demo = sign_up("AGN Demo", "admin@agn-demo.test")
+    demo = _demo(owner, sign_up)
     _settings(owner, monthly_cap_usd=25, demo_company_id=demo["company"]["id"])
-    _calls(owner, demo, 6, 800, "base", int(time.time() * 1000) - 3 * 86_400_000)
+    _calls(owner, demo, job.MIN_CANARY_CALLS, 800, "base", int(time.time() * 1000) - 3 * 86_400_000)
     job.run(store, seed, bench, source="synthetic", candidates=CANDIDATES)
     assert "suggest" in rstore.canaries(store)
 
-    _calls(owner, demo, 6, 1200, "slow", int(time.time() * 1000))  # worse than its 800 ms
+    _calls(
+        owner, demo, job.MIN_CANARY_CALLS, 1200, "slow", int(time.time() * 1000)
+    )  # worse than its 800 ms
     out = job.run(store, seed, bench, source="synthetic", candidates={"suggest": [SLOW]})
     rolled = next(d for d in out["detail"] if d.get("canary"))
     assert rolled["canary"] == "rolled_back"
@@ -156,6 +172,93 @@ def test_rolls_back_on_a_worse_p95(
     assert rstore.canaries(store) == {}
     assert platform.platform_routes(store) == {}
     assert _suggest(store, seed, demo["company"]["id"]) == SEED_SUGGEST
+
+
+def test_a_canary_whose_benchmark_fails_r1_stops_and_is_never_promoted(
+    owner: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed, bench: job.Benchmark
+) -> None:
+    demo = _demo(owner, sign_up)
+    _settings(owner, monthly_cap_usd=25, demo_company_id=demo["company"]["id"])
+    job.run(store, seed, bench, source="synthetic", candidates=CANDIDATES)
+    assert _suggest(store, seed, demo["company"]["id"]) == FAST
+    # A newer benchmark misses R1: the demo org leaves the canary at once (R6) ...
+    platform.record_benchmark(
+        store,
+        provider_id=FAST[0],
+        model=FAST[1],
+        stage="suggest",
+        p50_ms=900,
+        p95_ms=1900,
+        samples=20,
+        source="replay-live",
+    )
+    assert _suggest(store, seed, demo["company"]["id"]) == SEED_SUGGEST
+    # ... and the next run, with good canary calls, still refuses to promote it.
+    _calls(owner, demo, job.MIN_CANARY_CALLS, 700, "good", int(time.time() * 1000))
+    out = job.run(
+        store,
+        seed,
+        lambda *_a: job.Bench(400, 1900, 20, 1.0),
+        source="synthetic",
+        candidates={"suggest": []},
+    )
+    assert any(d.get("canary") == "promote_refused" for d in out["detail"])
+    assert platform.platform_routes(store) == {}
+
+
+def test_candidates_the_app_cannot_run_are_skipped(
+    owner: TestClient, store: CloudStore, seed: Seed, bench: job.Benchmark
+) -> None:
+    _settings(owner, monthly_cap_usd=25)
+    out = job.run(
+        store,
+        seed,
+        bench,
+        source="synthetic",
+        candidates={"suggest": [("deepgram", "nova-3"), ("groq", "bad model id!")]},
+    )
+    assert {"stage": "suggest", "skipped": "deepgram/nova-3"} in out["detail"]
+    assert rstore.canaries(store) == {}
+
+
+def test_the_demo_org_needs_an_all_vendors_consent(
+    owner: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed, bench: job.Benchmark
+) -> None:
+    customer = sign_up("Customer", "admin@customer.test")
+    r = owner.put(
+        "/api/owner/routing-job", json={"demo_company_id": customer["company"]["id"]}, headers=H
+    )
+    assert r.status_code == 400
+    owner.put(
+        "/api/v1/company/defaults",
+        json={"consent": {"choice": "primary_only", "text_version": "draft-1"}},
+        headers=customer["auth"],
+    )
+    r = owner.put(
+        "/api/owner/routing-job", json={"demo_company_id": customer["company"]["id"]}, headers=H
+    )
+    assert r.status_code == 400
+
+
+def test_a_canary_moves_with_the_demo_org(
+    owner: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed, bench: job.Benchmark
+) -> None:
+    _settings(owner, monthly_cap_usd=25)
+    job.run(store, seed, bench, source="synthetic", candidates=CANDIDATES)
+    out = job.run(store, seed, bench, source="synthetic", candidates=CANDIDATES)
+    assert {"stage": "suggest", "canary": "waiting_demo_org"} in out["detail"]
+    demo = _demo(owner, sign_up)
+    _settings(owner, demo_company_id=demo["company"]["id"])
+    assert _suggest(store, seed, demo["company"]["id"]) == FAST
+    other = sign_up("Other", "admin@other.test")
+    owner.put(
+        "/api/v1/company/defaults",
+        json={"consent": {"choice": "all", "text_version": "draft-1"}},
+        headers=other["auth"],
+    )
+    _settings(owner, demo_company_id=other["company"]["id"])
+    assert _suggest(store, seed, demo["company"]["id"]) == SEED_SUGGEST
+    assert _suggest(store, seed, other["company"]["id"]) == FAST
 
 
 def test_keeps_the_route_when_no_candidate_is_faster(

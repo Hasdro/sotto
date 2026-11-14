@@ -112,13 +112,35 @@ def test_cap_alerts_once_at_80_and_caps_at_100(
     assert m.state(cid)["status"] == "cap_not_set"
 
 
-def test_byo_companies_pay_their_own_and_are_not_metered(
+def test_byo_companies_are_metered_only_on_agns_routes(
     client: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed
 ) -> None:
     s = sign_up()
     allow_byo(store, s)
     _report(client, s, "own", 30, 10)
-    assert Metering(store, seed).spend(s["company"]["id"]) == 0
+    m = Metering(store, seed)
+    cid = s["company"]["id"]
+    assert m.spend(cid) == pytest.approx(_per_call(seed, 30, 10))  # BYO on, no own routes yet
+    with store._tx() as db:
+        for stage in ("stt", "suggest", "summary"):
+            route = seed.routing.stages[stage]
+            db.execute(
+                "INSERT INTO company_routes(company_id, stage, provider_id, model, updated_at)"
+                " VALUES (?,?,?,?,1)",
+                (cid, stage, "groq" if stage != "stt" else "assemblyai", route.model),
+            )
+    assert m.spend(cid) == 0  # every metered stage runs on the company's own keys
+
+
+def test_practice_calls_and_other_companies_are_not_counted(
+    client: TestClient, sign_up: SignUp, store: CloudStore, seed: Seed
+) -> None:
+    a = sign_up("Alpha", "admin@alpha.test")
+    b = sign_up("Beta", "admin@beta.test")
+    with store._tx() as db:
+        db.execute("UPDATE usage SET source = 'practice'")  # nothing yet: a no-op guard
+    _report(client, b, "b1", 10, 4)
+    assert Metering(store, seed).spend(a["company"]["id"]) == 0
 
 
 def test_spend_cap_is_owner_only_and_validated(owner: TestClient, sign_up: SignUp) -> None:

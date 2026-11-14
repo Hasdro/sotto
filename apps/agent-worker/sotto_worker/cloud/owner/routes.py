@@ -75,6 +75,7 @@ def make_routes(
                 "key_set": p.key_env in keys,
                 "updated_at": keys.get(p.key_env, {}).get("updated_at"),
                 "test": keys.get(p.key_env, {}).get("test"),
+                "retiring": keys.get(p.key_env, {}).get("retiring"),
             }
             for p in catalog.providers.values()
             if not p.custom

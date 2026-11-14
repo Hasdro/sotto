@@ -92,10 +92,11 @@ class BootstrapStore:
             )
 
     def domains(self, company_id: str) -> list[str]:
-        """The company's own web domains: its admins' and managers' email domains, no free mail."""
+        """The company's own web domains: email domains of admins and managers who accepted their
+        invite (chose their own password), no free mail. Unverified by DNS: public pages only."""
         rows = self.s._q(
             "SELECT email FROM users WHERE company_id = ? AND active = 1"
-            " AND role IN ('admin', 'manager')",
+            " AND role IN ('admin', 'manager') AND must_change_pw = 0",
             (company_id,),
         )
         out = {str(r["email"]).rsplit("@", 1)[-1].lower() for r in rows if "@" in r["email"]}
@@ -185,23 +186,41 @@ class BootstrapStore:
     def approve(
         self, who: Principal, draft_id: str, data: dict[str, Any], *, ip: str = ""
     ) -> dict[str, Any]:
-        """The manager's approval: the (edited) draft becomes one playbook entry."""
+        """The manager's approval: the (edited) draft becomes one playbook entry. The draft is
+        claimed first (guarded update), so two approvals at once make one entry."""
         who.require("admin", "manager")
         row = self._open(who, draft_id)
-        entry = self.s.add_entry(
-            who,
-            {
-                "question": data.get("question") or row["question"],
-                "answer": data.get("answer") or row["answer"],
-                "tags": data.get("tags") if "tags" in data else json.loads(row["tags_json"]),
-            },
-            ip=ip,
-        )
+        t = now_ms()
+        with self.s._tx() as db:
+            claimed = db.execute(
+                "UPDATE bootstrap_drafts SET status = 'approved', decided_at = ?, decided_by = ?"
+                " WHERE id = ? AND company_id = ? AND status = 'needs_review'",
+                (t, who.user_id, draft_id, who.company),
+            ).rowcount
+        if not claimed:
+            raise CloudError("not_found", "no such draft waiting for review")
+        try:
+            entry = self.s.add_entry(
+                who,
+                {
+                    "question": data.get("question") or row["question"],
+                    "answer": data.get("answer") or row["answer"],
+                    "tags": data.get("tags") if "tags" in data else json.loads(row["tags_json"]),
+                },
+                ip=ip,
+            )
+        except BaseException:
+            with self.s._tx() as db:  # an invalid edit: the draft waits again
+                db.execute(
+                    "UPDATE bootstrap_drafts SET status = 'needs_review', decided_at = NULL,"
+                    " decided_by = NULL WHERE id = ? AND company_id = ?",
+                    (draft_id, who.company),
+                )
+            raise
         with self.s._tx() as db:
             db.execute(
-                "UPDATE bootstrap_drafts SET status = 'approved', playbook_id = ?, decided_at = ?,"
-                " decided_by = ? WHERE id = ? AND company_id = ?",
-                (entry, now_ms(), who.user_id, draft_id, who.company),
+                "UPDATE bootstrap_drafts SET playbook_id = ? WHERE id = ? AND company_id = ?",
+                (entry, draft_id, who.company),
             )
             self.s.audit(
                 db,
@@ -219,7 +238,7 @@ class BootstrapStore:
         with self.s._tx() as db:
             db.execute(
                 "UPDATE bootstrap_drafts SET status = 'rejected', decided_at = ?, decided_by = ?"
-                " WHERE id = ? AND company_id = ?",
+                " WHERE id = ? AND company_id = ? AND status = 'needs_review'",
                 (now_ms(), who.user_id, draft_id, who.company),
             )
             self.s.audit(

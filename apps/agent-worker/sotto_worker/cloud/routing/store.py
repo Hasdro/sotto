@@ -83,6 +83,14 @@ def set_settings(store: CloudStore, owner: Principal, data: dict[str, Any], *, i
             if not isinstance(cid, str):
                 raise CloudError("invalid", "send the demo company's id")
             store.company_row(cid)
+            # A canary may use a vendor outside a company's "primary vendors only" choice
+            # (D-063): only an org whose consent record allows all vendors can run canaries.
+            consent = store._defaults_raw(cid).get("consent")
+            if not isinstance(consent, dict) or consent.get("choice") != "all":
+                raise CloudError(
+                    "invalid",
+                    "the demo org must accept all AI vendors (its consent record) to run canaries",
+                )
         writes[DEMO_KEY] = cid
     t = now_ms()
     with store._tx() as db:
@@ -97,6 +105,12 @@ def set_settings(store: CloudStore, owner: Principal, data: dict[str, Any], *, i
                     (key, value, t),
                 )
             store.audit(db, "owner.routing_job.set", f"{key}={value}", actor=owner, ip=ip)
+        if DEMO_KEY in writes:  # canaries move to the new demo org and start over (or wait)
+            db.execute(
+                "UPDATE routing_canaries SET company_id = ?, since = ?, baseline_p95 = NULL,"
+                " baseline_quality = NULL",
+                (writes[DEMO_KEY], t),
+            )
 
 
 def canaries(store: CloudStore) -> dict[str, dict[str, Any]]:
@@ -104,12 +118,18 @@ def canaries(store: CloudStore) -> dict[str, dict[str, Any]]:
 
 
 def canary_routes(store: CloudStore, company_id: str) -> dict[str, tuple[str, str]]:
-    """The staged routes a company runs: only the canary's own org (platform.effective_routes)."""
-    return {
-        stage: (str(c["provider_id"]), str(c["model"]))
-        for stage, c in canaries(store).items()
-        if c["company_id"] == company_id
-    }
+    """The staged routes a company runs: only the canary's own org (platform.effective_routes),
+    and only while the model's last benchmark still meets R1 (R6 holds during a canary too)."""
+    from sotto_worker.cloud.owner import platform
+
+    out: dict[str, tuple[str, str]] = {}
+    for stage, c in canaries(store).items():
+        if c["company_id"] != company_id:
+            continue
+        bench = platform.benchmark(store, str(c["provider_id"]), str(c["model"]), stage)
+        if bench is not None and bench["ok"]:
+            out[stage] = (str(c["provider_id"]), str(c["model"]))
+    return out
 
 
 def month_cost(store: CloudStore, month_start_ms: int) -> float:

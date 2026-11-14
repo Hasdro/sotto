@@ -9,7 +9,10 @@ the console shows "Cap not set". With a cap:
 - at 100 % the owner gets a second alert and `cap_reached` is true: the server then withholds
   AGN's platform keys and short-lived STT tokens for that company until the owner raises the cap
   or the month ends (calls blocked like an exhausted plan; sign-in, history and data stay). BYO
-  keys (D-059) are the company's own spend and are never withheld."""
+  keys (D-059) are the company's own spend and are never withheld.
+
+The withholding and the scheduled `check_all` are wired by the master at merge (cloud/store.py
+`keys_for_call`, cloud/app.py `stt_token` and `usage`, T-081's scheduler; D-058 hub lines)."""
 
 from __future__ import annotations
 
@@ -68,12 +71,16 @@ class Metering:
 
     # --- spend -----------------------------------------------------------------------------------
     def spend(self, company_id: str, t: int | None = None) -> float:
-        """This month's estimated spend on AGN's keys (BYO companies pay their own)."""
+        """This month's estimated spend on AGN's keys: a BYO company's own routes are its own
+        spend; the stages it leaves on AGN's routes still count."""
         from sotto_worker.cloud.owner import platform
 
         t = now_ms() if t is None else t
-        if platform.byo_on(self.s, company_id):
-            return 0.0
+        own = (
+            frozenset(self.s.routes(company_id))
+            if platform.byo_on(self.s, company_id)
+            else frozenset()
+        )
         routing = apply_overrides(
             self.seed.routing, self.seed.catalog, platform.effective_routes(self.s, company_id)
         )
@@ -89,6 +96,7 @@ class Metering:
                 routing,
                 duration_s=int(r["duration_s"]),
                 ai_cards=int(r["ai_cards"]),
+                skip=own,
             )
             for r in rows
         )

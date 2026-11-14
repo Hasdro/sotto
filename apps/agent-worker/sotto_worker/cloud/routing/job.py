@@ -33,7 +33,7 @@ STAGES = ("suggest", "suggest_backup")
 QUALITY_BAR = 0.95  # share of the set's expectations met
 QUALITY_SLACK = 0.02  # a canary may not lose more than this against its baseline
 MIN_GAIN_MS = 50
-MIN_CANARY_CALLS = 5
+MIN_CANARY_CALLS = 20  # a p95 over fewer calls is just the slowest call
 BASELINE_DAYS = 14
 GOLDEN_DIR = REPO_ROOT / "test-calls"
 
@@ -156,9 +156,11 @@ def _stage(
     demo = rstore.demo_company(store)
     baseline_p95, baseline_quality = (None, None)
     if demo:
-        baseline_p95, baseline_quality, _n = live_metrics(
-            store, demo, t - BASELINE_DAYS * 86_400_000, t
-        )
+        # The baseline starts after the stage's last route change, so an earlier canary or
+        # promotion never counts as "before".
+        changed = platform.route_history(store, stage, limit=1)
+        since = max(t - BASELINE_DAYS * 86_400_000, changed[0]["at"] if changed else 0)
+        baseline_p95, baseline_quality, _n = live_metrics(store, demo, since, t)
     with store._tx() as db:
         db.execute(
             "INSERT OR REPLACE INTO routing_canaries(stage, provider_id, model, from_provider,"
@@ -211,7 +213,15 @@ def run(
     for stage, options in (candidates or default_candidates(store, seed)).items():
         current = current_route(store, seed, stage)
         tried: dict[tuple[str, str], Bench] = {}
-        for option in dict.fromkeys(([current] if current else []) + list(options)):
+        runnable = []
+        for option in options:
+            try:  # kind match, model ID shape, the app can run it (as an owner's change)
+                platform.check_route(seed, stage, option[0], option[1])
+            except CloudError:
+                detail.append({"stage": stage, "skipped": "/".join(option)})
+                continue
+            runnable.append(option)
+        for option in dict.fromkeys(([current] if current else []) + runnable):
             result = bench(stage, option[0], option[1])
             cost += result.cost_usd
             platform.record_benchmark(

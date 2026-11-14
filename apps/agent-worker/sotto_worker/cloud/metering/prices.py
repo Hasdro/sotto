@@ -97,22 +97,31 @@ def call_cost(
     duration_s: int,
     ai_cards: int,
     summary: bool = True,
+    skip: frozenset[str] = frozenset(),
 ) -> float:
     """Estimated USD for one reported call on these routes; unknown prices count as 0 (shown as
-    "no price" in the console and the estimate)."""
+    "no price" in the console and the estimate). `skip`: stages on the company's own keys."""
     u = table.usage
-    stt = audio_cost(
-        table.for_route(catalog, routing.stages.get("stt")),
-        duration_s / 3600 * u.get("stt_tracks", 1),
+    stt = (
+        None
+        if "stt" in skip
+        else audio_cost(
+            table.for_route(catalog, routing.stages.get("stt")),
+            duration_s / 3600 * u.get("stt_tracks", 1),
+        )
     )
     route = routing.stages.get("suggest")
-    suggest = token_cost(
-        table.for_route(catalog, route),
-        ai_cards * u.get("suggest_in_tokens", 0),
-        ai_cards * max_tokens(route),
+    suggest = (
+        None
+        if "suggest" in skip
+        else token_cost(
+            table.for_route(catalog, route),
+            ai_cards * u.get("suggest_in_tokens", 0),
+            ai_cards * max_tokens(route),
+        )
     )
     total = (stt or 0.0) + (suggest or 0.0)
-    if summary:
+    if summary and "summary" not in skip:
         route = routing.stages.get("summary")
         total += (
             token_cost(

@@ -38,6 +38,8 @@ def web(monkeypatch: pytest.MonkeyPatch) -> list[httpx.Request]:
         "meta.acme.test": ["169.254.169.254"],
         "mixed.acme.test": ["93.184.215.14", "127.0.0.1"],
         "v6.acme.test": ["::ffff:127.0.0.1"],
+        "nat64.acme.test": ["64:ff9b::a9fe:a9fe"],
+        "sixto4.acme.test": ["2002:a9fe:a9fe::1"],
     }
 
     def resolve(host: str) -> list[str]:
@@ -55,6 +57,10 @@ def web(monkeypatch: pytest.MonkeyPatch) -> list[httpx.Request]:
         if request.url.path == "/big":
             return httpx.Response(
                 200, headers={"content-type": "text/html"}, content=b"x" * (fetch.MAX_BYTES + 1)
+            )
+        if request.url.path == "/gzip":
+            return httpx.Response(
+                200, headers={"content-type": "text/html", "content-encoding": "gzip"}, content=b""
             )
         if request.url.path == "/image":
             return httpx.Response(200, headers={"content-type": "image/png"}, content=b"png")
@@ -216,6 +222,9 @@ def test_reads_one_page_of_the_companys_own_website(
         ("https://meta.acme.test/latest/meta-data", "private_address"),
         ("https://mixed.acme.test/", "private_address"),  # any private answer refuses
         ("https://v6.acme.test/", "private_address"),  # IPv4-mapped loopback
+        ("https://nat64.acme.test/", "private_address"),  # NAT64 to the metadata address
+        ("https://sixto4.acme.test/", "private_address"),  # 6to4 to the metadata address
+        ("https://acme.test/gzip", "invalid"),  # no decompression
         ("https://acme.test/redirect-private", "private_address"),  # re-checked per hop
         ("https://acme.test/redirect-off", "off_domain"),
         ("https://acme.test/big", "too_large"),
@@ -295,3 +304,42 @@ def test_companies_never_see_each_others_drafts(client: TestClient, sign_up: Sig
         assert r.status_code == 404
     assert "installation" not in client.get("/api/v1/playbook", headers=b["auth"]).text
     assert len(client.get(API, headers=a["auth"]).json()["drafts"]) == 2
+
+
+def test_html_text_is_linear_on_unclosed_tags() -> None:
+    """Security review H1: a page of unclosed <script> tags must not stall the server."""
+    import time
+
+    start = time.monotonic()
+    fetch.page_text("<script>" * 120_000)
+    assert time.monotonic() - start < 2
+    assert fetch.page_text("<p>a<script>x</p>b") == "a"
+
+
+def test_approving_twice_makes_one_entry(client: TestClient, sign_up: SignUp) -> None:
+    s = sign_up()
+    _consent(client, s)
+    client.post(f"{API}/drafts", json={"source": "document", "items": DRAFTS}, headers=s["auth"])
+    draft = client.get(API, headers=s["auth"]).json()["drafts"][0]
+    path = f"{API}/drafts/{draft['id']}/approve"
+    assert client.post(path, json={}, headers=s["auth"]).status_code == 200
+    assert client.post(path, json={}, headers=s["auth"]).status_code == 404
+    # An invalid edit leaves the draft waiting.
+    other = client.get(API, headers=s["auth"]).json()["drafts"][0]
+    bad = client.post(
+        f"{API}/drafts/{other['id']}/approve",
+        json={"answer": " ".join(["w"] * 60)},
+        headers=s["auth"],
+    )
+    assert bad.status_code == 400
+    assert [d["id"] for d in client.get(API, headers=s["auth"]).json()["drafts"]] == [other["id"]]
+
+
+def test_unaccepted_invites_do_not_add_a_domain(client: TestClient, sign_up: SignUp) -> None:
+    s = sign_up()
+    client.post(
+        "/api/v1/team",
+        json={"email": "boss@elsewhere.test", "name": "B", "role": "manager"},
+        headers=s["auth"],
+    )
+    assert client.get(API, headers=s["auth"]).json()["domains"] == ["acme.test"]
