@@ -8,7 +8,8 @@ POST /api/v1/playbook/bootstrap/drafts/{id}/approve  {question?, answer?, tags?}
 POST /api/v1/playbook/bootstrap/drafts/{id}/reject
 
 A pasted document never reaches the server: the device runs the prompt on it and sends only the
-drafts. Drafts are never in the call bundle until approved (they live in their own table)."""
+drafts. Drafts are never in the call bundle until approved (they live in their own table).
+Every route needs the `playbook_bootstrap` feature, off until the admin turns it on (D-076)."""
 
 from __future__ import annotations
 
@@ -62,9 +63,13 @@ def make_routes(
     api = "/api/v1/playbook/bootstrap"
     allow = limit or HourLimit().hit
 
+    def gate(who: Principal) -> None:
+        who.require("admin", "manager")  # role first: an agent still gets `forbidden`
+        bootstrap.s.require_feature(who, "playbook_bootstrap")
+
     @app_route
     async def state(_request: Request, who: Principal) -> Response:
-        who.require("admin", "manager")
+        gate(who)
         return JSONResponse(
             {
                 "consent": bootstrap.consent(who.company) is not None,
@@ -79,6 +84,7 @@ def make_routes(
 
     @app_route
     async def material(request: Request, who: Principal) -> Response:
+        gate(who)
         bootstrap.require(who)
         if not allow(who.company):
             raise CloudError("rate_limited", "too many reads; try again in an hour")
@@ -99,12 +105,14 @@ def make_routes(
 
     @app_route
     async def drafts(request: Request, who: Principal) -> Response:
+        gate(who)
         data = await body(request)
         out = bootstrap.add(who, data.get("source"), data.get("items"), ip=ip_of(request))
         return JSONResponse(out)
 
     @app_route
     async def approve(request: Request, who: Principal) -> Response:
+        gate(who)
         return JSONResponse(
             bootstrap.approve(
                 who, request.path_params["id"], await body(request), ip=ip_of(request)
@@ -113,6 +121,7 @@ def make_routes(
 
     @app_route
     async def reject(request: Request, who: Principal) -> Response:
+        gate(who)
         return JSONResponse(bootstrap.reject(who, request.path_params["id"], ip=ip_of(request)))
 
     return [

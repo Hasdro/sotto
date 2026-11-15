@@ -72,6 +72,53 @@ def web(monkeypatch: pytest.MonkeyPatch) -> list[httpx.Request]:
     return seen
 
 
+@pytest.fixture
+def sign_up(client: TestClient, sign_up: SignUp) -> SignUp:
+    """Signs up a company whose admin has turned `playbook_bootstrap` on (D-076);
+    `flag=False` leaves it as a new company starts: off."""
+
+    def go(*args: Any, flag: bool = True, **kw: Any) -> dict[str, Any]:
+        s = sign_up(*args, **kw)
+        if flag:
+            r = client.put(
+                "/api/v1/company/features/playbook_bootstrap",
+                json={"enabled": True},
+                headers=s["auth"],
+            )
+            assert r.status_code == 200, r.text
+        return s
+
+    return go
+
+
+def test_off_by_default_until_the_admin_turns_it_on(client: TestClient, sign_up: SignUp) -> None:
+    s = sign_up(flag=False)
+    _consent(client, s)
+    calls = [
+        ("GET", API, None),
+        ("POST", f"{API}/material", {"source": "website", "url": "https://acme.test/"}),
+        ("POST", f"{API}/drafts", {"source": "document", "items": DRAFTS}),
+        ("POST", f"{API}/drafts/x/approve", {}),
+        ("POST", f"{API}/drafts/x/reject", {}),
+    ]
+    for method, url, body in calls:
+        r = client.request(method, url, json=body, headers=s["auth"])
+        assert r.status_code == 403, (url, r.text)
+        assert r.json()["code"] == "feature_unavailable"
+        assert r.json()["feature"] == "playbook_bootstrap"
+        assert r.json()["state"] == "off_by_org"
+    on = client.put(
+        "/api/v1/company/features/playbook_bootstrap", json={"enabled": True}, headers=s["auth"]
+    )
+    assert on.status_code == 200, on.text
+    assert client.get(API, headers=s["auth"]).status_code == 200
+    r = client.post(
+        f"{API}/drafts", json={"source": "document", "items": DRAFTS}, headers=s["auth"]
+    )
+    assert r.status_code == 200, r.text
+    assert r.json() == {"added": 2}
+
+
 def _consent(client: TestClient, s: dict[str, Any]) -> None:
     r = client.put(
         "/api/v1/company/defaults",

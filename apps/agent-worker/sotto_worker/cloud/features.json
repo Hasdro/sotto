@@ -123,6 +123,14 @@
       "requires": [],
       "depends": ["email_send"],
       "built": true
+    },
+    {
+      "id": "playbook_bootstrap",
+      "roles": ["admin", "manager"],
+      "requires": [],
+      "depends": [],
+      "built": true,
+      "default": "off"
     }
   ]
 }

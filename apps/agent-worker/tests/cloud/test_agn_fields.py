@@ -4,6 +4,7 @@ confirms; written only through the allow-list. Stage and Amount can never be wri
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 
 import httpx
@@ -101,6 +102,21 @@ def test_adapter_refuses_any_deal_field_outside_the_allow_list(record: dict[str,
     assert rec.sent == []  # refused before a request was built
 
 
+def test_deal_write_sends_an_empty_trigger_list() -> None:
+    """D-075: Zoho runs workflow/approval/blueprint automation unless `trigger` is []."""
+    rec = Recorder()
+
+    async def go() -> None:
+        rd, h = reader(rec)
+        async with h:
+            await rd.update_deal_fields(DEAL_ID, {"AGN_Call_Score": 80})
+
+    asyncio.run(go())
+    assert len(rec.sent) == 1
+    body = json.loads(rec.sent[0].content)
+    assert body == {"data": [{"AGN_Call_Score": 80}], "trigger": []}
+
+
 def test_generic_writes_still_cannot_touch_deals_or_blueprint() -> None:
     rec = Recorder()
 
@@ -165,6 +181,7 @@ def test_write_only_the_agn_fields_once_per_call(
     assert len(sent) == 1
     method, _path, body = sent[0]
     assert method == "PUT"
+    assert body["trigger"] == []  # D-075: the customer's workflow rules never fire
     assert body["data"][0] == {
         "AGN_Call_Score": 82,
         "AGN_Chance_Band": "High",

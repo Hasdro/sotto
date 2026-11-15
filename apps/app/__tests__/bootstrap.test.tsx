@@ -8,6 +8,9 @@ import { LocaleProvider } from "../lib/locale";
 
 const mockApi = jest.fn();
 jest.mock("../lib/cloud", () => ({ cloudApi: (...a: unknown[]) => mockApi(...a) }));
+let mockCloud: Record<string, unknown> = { status: "signed_out" };
+jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
+jest.mock("../lib/useCloud", () => ({ useCloud: () => mockCloud }));
 const mockStream = jest.fn();
 jest.mock("@sotto/engine", () => ({
   ...jest.requireActual("@sotto/engine"),
@@ -55,11 +58,41 @@ async function* reply(text: string) {
 }
 
 beforeEach(() => {
+  mockCloud = { status: "signed_out" };
   mockApi.mockReset();
   mockStream.mockReset();
 });
 
 describe("playbook bootstrap", () => {
+  it("is off until the admin turns it on (D-076): says why and calls no route", async () => {
+    mockCloud = {
+      status: "signed_in",
+      me: {
+        user: { id: "u", role: "admin" },
+        features: { playbook_bootstrap: { state: "off_by_org" } },
+      },
+    };
+    mockApi.mockResolvedValue(state());
+    await wrap();
+    expect(screen.getByTestId("feature-off-playbook_bootstrap")).toBeOnTheScreen();
+    expect(screen.getByText("Playbook drafts")).toBeOnTheScreen();
+    expect(screen.queryByTestId("bootstrap-run")).toBeNull();
+    expect(mockApi).not.toHaveBeenCalled();
+  });
+
+  it("is hidden from a role it is not for", async () => {
+    mockCloud = {
+      status: "signed_in",
+      me: {
+        user: { id: "u", role: "agent" },
+        features: { playbook_bootstrap: { state: "no_permission" } },
+      },
+    };
+    await wrap();
+    expect(screen.queryByTestId("feature-off-playbook_bootstrap")).toBeNull();
+    expect(mockApi).not.toHaveBeenCalled();
+  });
+
   it("drafts nothing before the consent record exists", async () => {
     mockApi.mockResolvedValue(state({ consent: false }));
     await wrap();

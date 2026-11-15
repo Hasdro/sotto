@@ -236,7 +236,8 @@ class ZohoCRMReader:
 
     async def update_deal_fields(self, deal_id: str, record: dict[str, Any]) -> dict[str, Any]:
         """INT-06 (D-069): the one Deal write. Every key must be an AGN field; Stage, Amount and
-        any other field are refused before a request is built (R12)."""
+        any other field are refused before a request is built (R12). `trigger: []` keeps the
+        customer's workflow rules, approvals and blueprints from firing on AGN's write (D-075)."""
         if not (deal_id.isascii() and deal_id.isdigit()):
             raise ValueError("deal id")
         if not record:
@@ -244,7 +245,7 @@ class ZohoCRMReader:
         extra = sorted(set(record) - AGN_DEAL_FIELDS)
         if extra:
             raise FieldNotAllowed(extra[0])
-        return await self._request("PUT", f"Deals/{deal_id}", {"data": [record]})
+        return await self._request("PUT", f"Deals/{deal_id}", {"data": [record], "trigger": []})
 
     async def fields(self, module: str) -> list[dict[str, Any]]:
         """Field metadata (`ZohoCRM.settings.fields.READ`): api_name, field_label, data_type."""

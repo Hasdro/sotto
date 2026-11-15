@@ -2,12 +2,14 @@
  * Playbook bootstrap (ZC-04, D-066) on the Playbook page, for managers and admins. Pick a source,
  * the device drafts pairs on the summary model, the server keeps them as "needs review", and each
  * one reaches the playbook (and so a call) only through Approve. Without the consent record (D-063)
- * the panel says what the admin must do and drafts nothing.
+ * the panel says what the admin must do and drafts nothing. The `playbook_bootstrap` flag is off
+ * until the admin turns it on (D-076); while it is off the panel says why and calls no route.
  */
 import { buildRuntime, type CallBundle } from "@sotto/engine";
 import { Badge, Button, Panel, SegmentedControl, Stack, space, Text, TextField } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
+import { FeatureGate } from "../../components/FeatureGate";
 import { MAX_ANSWER_WORDS, wordCount } from "../escalations/flow";
 import { type BootstrapSource, type BootstrapState, bootstrapApi, type Draft } from "./api";
 import { draftPairs } from "./draft";
@@ -42,15 +44,21 @@ export function useBootstrap() {
   return { state, reload };
 }
 
-export function BootstrapPanel({
-  bundle,
-  onApproved,
-  fetchFn,
-}: {
+type PanelProps = {
   bundle: CallBundle | null;
   onApproved: () => void;
   fetchFn?: typeof fetch;
-}) {
+};
+
+export function BootstrapPanel(props: PanelProps) {
+  return (
+    <FeatureGate feature="playbook_bootstrap">
+      <Bootstrap {...props} />
+    </FeatureGate>
+  );
+}
+
+function Bootstrap({ bundle, onApproved, fetchFn }: PanelProps) {
   const bt = useBootText();
   const { state, reload } = useBootstrap();
   const [source, setSource] = useState<BootstrapSource>("website");

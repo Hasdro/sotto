@@ -591,4 +591,13 @@ Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058
 - **Context:** D-069 grants `ZohoCRM.modules.deals.UPDATE`, so the OAuth scope no longer stops a Deal write; only our code does.
 - **Decision:** the adapter's `update_deal_fields` allow-list (the 4 AGN api names) is the only Deal write. A test (`test_only_three_callers_reach_the_raw_write`) pins that `_request` has exactly two callers, `_send` (module allow-list) and `update_deal_fields`. Stage and Amount stay blocked by test. Blueprint is read per record with `deals.READ`; no Blueprint or layout settings scope is requested.
 - **Also:** a Task or AGN-field write names a `call_id` the caller started or reported in their own company; any other id is 404 (wave-4 hardening).
-- **Open (owner):** the AGN Deal PUT sends no `trigger`, so Zoho runs its default workflow/Blueprint rules on the field change.
+- **Open (owner):** the AGN Deal PUT sends no `trigger`, so Zoho runs its default workflow/Blueprint rules on the field change. Closed by D-075.
+
+## D-075 — AGN Deal field writes never fire the customer's Zoho automation (owner, 15 Nov 2026)
+2026-11-15 · owner (closes D-074's open point)
+- **Decision:** `update_deal_fields` (the AGN-field PUT on Deals, D-069) sends `"trigger": []`. Zoho CRM v8 runs the record's workflow, approval and blueprint automation when `trigger` is omitted; `[]` runs none (insert/update records docs). A test pins the body.
+- **Scope:** only the Deal AGN-field write. The Contact update (an agent-approved edit of the customer's own data, the same edit a person makes in Zoho) and the creates (Events, Leads, Tasks, Notes) keep Zoho's default, so the customer's rules run as for a manual entry.
+
+## D-076 — Playbook bootstrap is a feature flag, off by default (owner, 15 Nov 2026)
+2026-11-15 · owner (T-083 hub line 7)
+- **Decision:** `playbook_bootstrap` joins the catalog (roles admin and manager, `default: off`). Every `/api/v1/playbook/bootstrap` route checks it after the role check and returns `feature_unavailable` (`off_by_org`) until a company admin turns it on in Admin › Features. The Playbook page's panel shows the reason (and the Features link for admins) while it is off and calls no route. Consent (D-063) is still required on top.

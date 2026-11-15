@@ -22,6 +22,7 @@ export const FEATURE_IDS = [
   "whatsapp_status",
   "zoho_watch",
   "email_attachments",
+  "playbook_bootstrap",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

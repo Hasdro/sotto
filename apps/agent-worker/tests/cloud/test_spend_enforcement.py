@@ -146,6 +146,10 @@ def test_scheduler_carries_the_wave_4_jobs(store: CloudStore, seed: Seed) -> Non
 
 def test_bootstrap_has_the_zoho_source(client: TestClient, sign_up: SignUp) -> None:
     s = sign_up()
+    on = client.put(  # off by default (D-076)
+        "/api/v1/company/features/playbook_bootstrap", json={"enabled": True}, headers=s["auth"]
+    )
+    assert on.status_code == 200, on.text
     r = client.get("/api/v1/playbook/bootstrap", headers=s["auth"])
     assert r.status_code == 200, r.text
     assert r.json()["zoho"] is False  # wired, but this person has no Zoho connection

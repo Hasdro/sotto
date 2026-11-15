@@ -54,6 +54,7 @@ const en: Text = {
     whatsapp_status: "WhatsApp delivery status",
     zoho_watch: "Zoho change alerts",
     email_attachments: "Email attachments",
+    playbook_bootstrap: "Playbook drafts",
   },
   about: {
     call_review: "Scores and coaching after each call.",
@@ -75,6 +76,8 @@ const en: Text = {
       "Shows sent, delivered, read or failed for each message. Needs Gallabox webhooks.",
     zoho_watch: "Updates the call brief when the deal or meeting changes in Zoho.",
     email_attachments: "Files your admin approved, added to follow-up emails.",
+    playbook_bootstrap:
+      "Drafts playbook answers from your website, Zoho or a document, for review.",
   },
   state: {
     available: "On",
@@ -128,6 +131,7 @@ const ar: Text = {
     whatsapp_status: "حالة تسليم واتساب",
     zoho_watch: "تنبيهات تغييرات Zoho",
     email_attachments: "مرفقات البريد",
+    playbook_bootstrap: "مسودات دليل المبيعات",
   },
   about: {
     call_review: "تقييم وتوجيه بعد كل مكالمة.",
@@ -149,6 +153,7 @@ const ar: Text = {
       "يعرض مُرسلة أو مُسلّمة أو مقروءة أو فاشلة لكل رسالة. يتطلب Webhooks في Gallabox.",
     zoho_watch: "يحدّث ملخص المكالمة عند تغيّر الصفقة أو الاجتماع في Zoho.",
     email_attachments: "ملفات اعتمدها المسؤول تُضاف إلى بريد المتابعة.",
+    playbook_bootstrap: "يصوغ إجابات لدليل المبيعات من موقعك أو Zoho أو مستند، للمراجعة.",
   },
   state: {
     available: "مفعّلة",
