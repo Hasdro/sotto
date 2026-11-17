@@ -43,33 +43,57 @@ export function GlassSurface({
   );
 }
 
-/** The one page title per screen (34 px, w600) with an optional lead line and trailing actions. */
+/**
+ * The one page title per screen (34 px, w600) with an optional lead line and trailing actions.
+ * `icon` is the 44 px round icon from the app's old `components/PageHeader.tsx` (T-092); `subtitle`
+ * is that header's muted second line (new screens use `lead`, the heading-size second line).
+ * Only one of `lead` / `subtitle` should be passed.
+ */
 export function PageHeader({
   title,
   lead,
+  subtitle,
+  icon,
   actions,
   compact = false,
   testID,
 }: {
   title: string;
   lead?: string | undefined;
+  subtitle?: string | undefined;
+  icon?: IconName | undefined;
   /** At most one primary Button here (one primary per view). */
   actions?: ReactNode;
   /** Phone width: the title drops to the 24 px role. */
   compact?: boolean;
   testID?: string | undefined;
 }) {
+  const { color } = useTheme();
   return (
     <View testID={testID} style={styles.header}>
       <View style={styles.headerText}>
-        <Text
-          variant={compact ? "title" : "pageTitle"}
-          weight="semibold"
-          accessibilityRole="header"
-        >
-          {title}
-        </Text>
-        {lead ? <Text variant="heading">{lead}</Text> : null}
+        <View style={styles.titleRow}>
+          {icon ? (
+            <View style={[styles.iconDisc, { backgroundColor: color.surfaceSunken }]}>
+              <Icon name={icon} size={20} color={color.text} />
+            </View>
+          ) : null}
+          <Text
+            variant={compact ? "title" : "pageTitle"}
+            weight="semibold"
+            accessibilityRole="header"
+            style={styles.title}
+          >
+            {title}
+          </Text>
+        </View>
+        {subtitle ? (
+          <Text variant={compact ? "body" : "heading"} tone="muted">
+            {subtitle}
+          </Text>
+        ) : lead ? (
+          <Text variant="heading">{lead}</Text>
+        ) : null}
       </View>
       {actions ? <View style={styles.headerActions}>{actions}</View> : null}
     </View>
@@ -261,6 +285,15 @@ const styles = StyleSheet.create({
     maxWidth: layout.contentMaxWidth,
   },
   headerText: { gap: space.sm, flexShrink: 1, maxWidth: layout.readableMaxWidth },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: space.md },
+  title: { flexShrink: 1 },
+  iconDisc: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerActions: { flexDirection: "row", alignItems: "center", gap: space.sm },
   nav: {
     minHeight: minTouchTarget,

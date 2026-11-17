@@ -5,6 +5,7 @@
  * numbers for Reports.
  */
 import type { IconName } from "@sotto/ui";
+import type { Locale } from "./i18n";
 import { useSyncExternalStore } from "react";
 
 export type CallSource =
@@ -44,6 +45,27 @@ export const SOURCE_META: Record<CallSource, { icon: IconName; name: string }> =
   mic: { icon: "mic", name: "Microphone" },
   practice: { icon: "spark", name: "Practice" },
 };
+
+/**
+ * The source names that are words, not brands, in Arabic. Brand names (Zoom, WhatsApp, …)
+ * stay Latin in both languages, as everywhere else in the app; the four word names use the
+ * same Arabic the app already uses for them ("تدريب" is `call.practice` in
+ * `features/call/strings.ts`; "الميكروفون" / "صوت الكمبيوتر" are `settings.microphone` /
+ * `settings.health.computer` in `lib/i18n.ts`). This is what the call header's SourceChip
+ * showed in English on Arabic calls.
+ */
+const SOURCE_NAME_AR: Partial<Record<CallSource, string>> = {
+  browser: "مكالمة ويب",
+  computer: "صوت الكمبيوتر",
+  mic: "الميكروفون",
+  practice: "تدريب",
+};
+
+/** The name to show for a source in the given locale (brand names unchanged). */
+export function sourceName(source: CallSource, locale: Locale): string {
+  if (locale === "ar") return SOURCE_NAME_AR[source] ?? SOURCE_META[source].name;
+  return SOURCE_META[source].name;
+}
 
 const RULES: [RegExp, CallSource][] = [
   [/zoom/, "zoom"],
