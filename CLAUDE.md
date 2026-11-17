@@ -131,3 +131,10 @@ Real since P1.3/P1.4. Run from the repo root.
 - Small conventional commits, for example `feat(worker): …`, `test(db): …`, `docs(tracker): …`.
 - Push at least at every handoff.
 - The owner merges to `main`. Never force-push `main`.
+
+## Muse (external project manager, from 17 Nov 2026)
+
+Muse (muse.ai) owns planning and development and works from GitHub only; the Mac session pulls, tests, builds, deploys and installs. Read `docs/muse/HANDOFF.md`.
+- After every pull: read `docs/muse/MAC-REQUESTS.md`, do open requests, write the Result lines, push once.
+- The owner's feature requests and bug reports go to `docs/muse/INBOX.md`; when asked, give the owner a short next-round prompt for muse built from that inbox.
+- Deploys and installer publishing still need the owner's go. Keep only the newest app installed on the Mac.
