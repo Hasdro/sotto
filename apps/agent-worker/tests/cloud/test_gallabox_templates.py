@@ -16,13 +16,14 @@ from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
 from tests.cloud.conftest import ORIGIN
-from tests.cloud.test_email import agent, signup
+from tests.cloud.test_email import JSON_ORIGIN, agent, owner_login, signup
 from tests.cloud.test_gallabox import (
     ACCOUNT,
     CHANNEL,
     KEY,
     SECRET,
     TEMPLATES,
+    cid_of,
     no_secret_in,
 )
 
@@ -69,9 +70,10 @@ def c(store: CloudStore, seed: Seed, fake: Fake) -> TestClient:
     return TestClient(create_cloud_app(config, store, seed), base_url=ORIGIN)
 
 
-def keys_saved(c: TestClient) -> dict[str, str]:
+def keys_saved(c: TestClient, store: CloudStore) -> dict[str, str]:
     h = signup(c, "Acme", "admin@acme.test")
-    r = c.put("/api/v1/company/gallabox", json=KEYS_ONLY, headers=h)
+    owner_login(c, store)  # D-078: only the vendor configures Gallabox, in the owner console
+    r = c.put(f"/api/owner/companies/{cid_of(c, h)}/gallabox", json=KEYS_ONLY, headers=JSON_ORIGIN)
     assert r.status_code == 200, r.text  # the channel is picked after the key works
     assert r.json()["channel"] == {"set": False, "label": ""}
     return h
@@ -83,9 +85,9 @@ def test_guesses() -> None:
     assert guess_source("1") == ""
 
 
-def test_discover_fills_pick_lists_with_approved_only(c: TestClient) -> None:
-    h = keys_saved(c)
-    r = c.post("/api/v1/company/gallabox/discover", headers=h)
+def test_discover_fills_pick_lists_with_approved_only(c: TestClient, store: CloudStore) -> None:
+    h = keys_saved(c, store)
+    r = c.post(f"/api/owner/companies/{cid_of(c, h)}/gallabox/discover", headers=JSON_ORIGIN)
     assert r.status_code == 200, r.text
     body = r.json()
     names = [t["name"] for t in body["templates"]]
@@ -105,10 +107,10 @@ def test_discover_fills_pick_lists_with_approved_only(c: TestClient) -> None:
 
 
 def test_allow_list_saves_the_admins_mapping(c: TestClient, store: CloudStore) -> None:
-    h = keys_saved(c)
-    c.post("/api/v1/company/gallabox/discover", headers=h)
+    h = keys_saved(c, store)
+    c.post(f"/api/owner/companies/{cid_of(c, h)}/gallabox/discover", headers=JSON_ORIGIN)
     r = c.put(
-        "/api/v1/company/gallabox/templates",
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/templates",
         json={
             "selected": [
                 {"name": "meeting_followup", "language": "en"},
@@ -119,7 +121,7 @@ def test_allow_list_saves_the_admins_mapping(c: TestClient, store: CloudStore) -
                 },
             ]
         },
-        headers=h,
+        headers=JSON_ORIGIN,
     )
     assert r.status_code == 200, r.text
     saved = {
@@ -137,39 +139,49 @@ def test_allow_list_saves_the_admins_mapping(c: TestClient, store: CloudStore) -
     assert any("price_update/en" in d for d in audit)
 
 
-def test_unknown_source_is_refused(c: TestClient) -> None:
-    h = keys_saved(c)
+def test_unknown_source_is_refused(c: TestClient, store: CloudStore) -> None:
+    h = keys_saved(c, store)
     r = c.put(
-        "/api/v1/company/gallabox/templates",
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/templates",
         json={"selected": [{"name": "price_update", "language": "en", "mapping": {"1": "x.y"}}]},
-        headers=h,
+        headers=JSON_ORIGIN,
     )
     assert r.status_code == 400
 
 
-def test_two_numbers_are_picked_by_ref(c: TestClient, fake: Fake) -> None:
+def test_two_numbers_are_picked_by_ref(c: TestClient, fake: Fake, store: CloudStore) -> None:
     fake.templates.append(
         {**NUMBERED, "name": "other_line", "channel": {"id": CHANNEL_2, "name": "Support"}}
     )
-    h = keys_saved(c)
-    body = c.post("/api/v1/company/gallabox/discover", headers=h).json()
+    h = keys_saved(c, store)
+    body = c.post(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/discover", headers=JSON_ORIGIN
+    ).json()
     assert [ch["selected"] for ch in body["channels"]] == [False, False]
     support = next(ch for ch in body["channels"] if ch["label"] == "Support")
-    r = c.put("/api/v1/company/gallabox/channel", json={"ref": support["ref"]}, headers=h)
+    r = c.put(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/channel",
+        json={"ref": support["ref"]},
+        headers=JSON_ORIGIN,
+    )
     assert r.status_code == 200, r.text
     assert r.json()["channel"] == {"set": True, "label": "Support"}
     assert CHANNEL_2 not in r.text
-    bad = c.put("/api/v1/company/gallabox/channel", json={"ref": CHANNEL_2}, headers=h)
+    bad = c.put(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/channel",
+        json={"ref": CHANNEL_2},
+        headers=JSON_ORIGIN,
+    )
     assert bad.status_code == 400
 
 
-def test_send_waits_for_a_number(c: TestClient, fake: Fake) -> None:
+def test_send_waits_for_a_number(c: TestClient, fake: Fake, store: CloudStore) -> None:
     fake.templates.append({**NUMBERED, "name": "x", "channel": {"id": CHANNEL_2}})
-    h = keys_saved(c)  # two numbers, none chosen
+    h = keys_saved(c, store)  # two numbers, none chosen
     c.put(
-        "/api/v1/company/gallabox/templates",
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/templates",
         json={"selected": [{"name": "meeting_followup", "language": "en"}]},
-        headers=h,
+        headers=JSON_ORIGIN,
     )
     r = c.post(
         "/api/v1/whatsapp/send",
@@ -188,9 +200,12 @@ def test_send_waits_for_a_number(c: TestClient, fake: Fake) -> None:
     assert fake.sends == 0
 
 
-def test_discover_is_admin_only_and_reports_bad_keys(c: TestClient) -> None:
-    h = keys_saved(c)
-    assert c.post("/api/v1/company/gallabox/discover", headers=agent(c, h)).status_code == 403
-    c.put("/api/v1/company/gallabox", json={**KEYS_ONLY, "api_secret": "wrong-secret"}, headers=h)
-    r = c.post("/api/v1/company/gallabox/discover", headers=h)
+def test_discover_reports_bad_keys(c: TestClient, store: CloudStore) -> None:
+    h = keys_saved(c, store)
+    c.put(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox",
+        json={**KEYS_ONLY, "api_secret": "wrong-secret"},
+        headers=JSON_ORIGIN,
+    )
+    r = c.post(f"/api/owner/companies/{cid_of(c, h)}/gallabox/discover", headers=JSON_ORIGIN)
     assert r.json()["code"] == "gallabox_auth"

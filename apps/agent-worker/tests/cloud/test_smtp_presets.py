@@ -8,7 +8,8 @@ import pytest
 from starlette.testclient import TestClient
 
 from sotto_worker.cloud.email import presets
-from tests.cloud.test_email import ORG_PASS, ORG_USER, agent, set_org_smtp, signup
+from sotto_worker.cloud.store import CloudStore
+from tests.cloud.test_email import ORG_PASS, ORG_USER, owner_login, set_org_smtp, signup
 
 MX = {
     "acme-google.test": ["aspmx.l.google.com.", "alt1.aspmx.l.google.com."],
@@ -53,50 +54,13 @@ async def test_known_domain_skips_dns(fake_dns: list[str]) -> None:
     assert fake_dns == []
 
 
-def test_route_uses_the_admins_own_domain(client: TestClient) -> None:
-    h = signup(client, "Acme", "admin@acme-google.test")
-    r = client.get("/api/v1/company/smtp/preset", headers=h)
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["preset"] == {
-        "id": "google",
-        "label": "Google Workspace",
-        "host": "smtp.gmail.com",
-        "port": 465,
-    }
-    # Only the password is left to type: login and sender come from the admin and the company.
-    assert body["username"] == "admin@acme-google.test"
-    assert body["from_address"] == "admin@acme-google.test"
-    assert body["from_name"] == "Acme"
-    assert r.headers["cache-control"] == "no-store"
-
-
-def test_route_unknown_domain_is_other_with_nothing_filled(client: TestClient) -> None:
-    h = signup(client, "Acme", "admin@unknown-mail.test")
-    body = client.get("/api/v1/company/smtp/preset", headers=h).json()
-    assert body["preset"]["id"] == "other"
-    assert body["username"] == ""
-
-
-def test_route_takes_another_address(client: TestClient) -> None:
-    h = signup(client, "Acme", "admin@acme-google.test")
-    body = client.get(
-        "/api/v1/company/smtp/preset", params={"email": "sales@acme-m365.test"}, headers=h
-    ).json()
-    assert body["preset"]["id"] == "microsoft"
-    assert body["username"] == "sales@acme-m365.test"
-    assert body["from_address"] == ""  # not the admin's domain: the admin fills the sender
-
-
-def test_route_is_admin_only(client: TestClient) -> None:
-    h = signup(client, "Acme", "admin@acme.test")
-    assert client.get("/api/v1/company/smtp/preset", headers=agent(client, h)).status_code == 403
-
-
-def test_no_api_returns_the_password(client: TestClient) -> None:
+def test_no_api_returns_the_password(client: TestClient, store: CloudStore) -> None:
+    """D-078 removed the client preset route with the client SMTP form; the preset logic stays
+    (tested above) for the owner console. The remaining read routes never return the secret."""
     h = signup(client, "Acme", "admin@acme-hostinger.test")
+    owner_login(client, store)
     assert set_org_smtp(client, h).status_code == 200
-    for path in ("/api/v1/company/smtp", "/api/v1/company/smtp/preset", "/api/v1/email/senders"):
+    for path in ("/api/v1/company/smtp", "/api/v1/email/senders"):
         text = client.get(path, headers=h).text
         assert ORG_PASS not in text, path
         assert ORG_USER not in text, path

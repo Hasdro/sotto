@@ -9,7 +9,7 @@ from typing import Any
 from starlette.testclient import TestClient
 
 from sotto_worker.cloud.store import CloudStore
-from tests.cloud.byo import allow_byo
+from tests.cloud.byo import own_key
 from tests.cloud.conftest import PASSWORD, SignUp
 
 SCORES = {
@@ -111,8 +111,7 @@ def test_admins_read_their_own_company_activity_only(
     alpha = sign_up("Alpha", "admin@a.test")
     ha = alpha["auth"]
     hb = sign_up("Beta", "admin@b.test")["auth"]
-    allow_byo(store, alpha)  # D-059: key writes need AGN's BYO entitlement
-    client.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": "gsk_" + "a" * 24}, headers=ha)
+    own_key(store, alpha, "GROQ_API_KEY", "gsk_" + "a" * 24)
     items = client.get("/api/v1/audit", headers=ha).json()["items"]
     assert any(i["action"] == "key.set" and i["detail"] == "GROQ_API_KEY" for i in items)
     assert all("gsk_" not in i["detail"] for i in items)  # key values never appear

@@ -18,8 +18,8 @@ from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.scheduler.runner import DAY_MS, HOUR_MS
 from sotto_worker.cloud.store import CloudStore
 from tests.cloud.conftest import ORIGIN
-from tests.cloud.test_email import agent, set_org_smtp, signup
-from tests.cloud.test_gallabox import CREDS, TEMPLATES, FakeGallabox
+from tests.cloud.test_email import JSON_ORIGIN, agent, owner_login, set_org_smtp, signup
+from tests.cloud.test_gallabox import TEMPLATES, FakeGallabox, cid_of, setup_org
 
 T0 = 1_800_000_000_000
 
@@ -74,16 +74,13 @@ def tick(app: Headers, now: int) -> dict[str, Any]:
     return asyncio.run(app.scheduler.tick(now))
 
 
-def setup(c: TestClient, *, utility_only: bool = True) -> tuple[dict[str, str], dict[str, str]]:
+def setup(
+    c: TestClient, store: CloudStore, *, utility_only: bool = True
+) -> tuple[dict[str, str], dict[str, str]]:
     h = signup(c, "Acme", "admin@acme.test")
+    owner_login(c, store)  # D-078: the vendor configures SMTP and Gallabox in the owner console
     assert set_org_smtp(c, h).status_code == 200
-    assert c.put("/api/v1/company/gallabox", json=CREDS, headers=h).status_code == 200
-    r = c.put(
-        "/api/v1/company/gallabox/templates",
-        json={"selected": [{"name": "meeting_followup", "language": "en"}]},
-        headers=h,
-    )
-    assert r.status_code == 200, r.text
+    setup_org(c, h)
     return h, agent(c, h)
 
 
@@ -119,7 +116,7 @@ def the_plan(**over: Any) -> dict[str, Any]:
 def test_the_plan_reminds_the_agent_and_the_scheduler_never_sends(
     c: TestClient, app: Headers, mails: list[Outgoing], gb: FakeGallabox, store: CloudStore
 ) -> None:
-    _h, ag = setup(c)
+    _h, ag = setup(c, store)
     r = c.post("/api/v1/followup/plans", json=the_plan(), headers=ag)
     assert r.status_code == 201, r.text
     plan = r.json()
@@ -144,7 +141,7 @@ def test_the_plan_reminds_the_agent_and_the_scheduler_never_sends(
 def test_a_step_is_sent_only_by_the_agents_tap_and_never_twice(
     c: TestClient, app: Headers, mails: list[Outgoing], gb: FakeGallabox, store: CloudStore
 ) -> None:
-    _h, ag = setup(c)
+    _h, ag = setup(c, store)
     plan = c.post("/api/v1/followup/plans", json=the_plan(), headers=ag).json()
     email_step, wa_step, reminder = plan["steps"]
     tick(app, T0 + 2 * DAY_MS)
@@ -188,9 +185,9 @@ def test_a_step_is_sent_only_by_the_agents_tap_and_never_twice(
 
 
 def test_a_colleague_cannot_use_my_step_key_or_change_my_plan(
-    c: TestClient, app: Headers, mails: list[Outgoing]
+    c: TestClient, app: Headers, mails: list[Outgoing], store: CloudStore
 ) -> None:
-    h, ag = setup(c)
+    h, ag = setup(c, store)
     plan = c.post("/api/v1/followup/plans", json=the_plan(), headers=ag).json()
     step, pid = plan["steps"][0], plan["id"]
     other = agent(c, h, "ag2@acme.test")
@@ -213,7 +210,7 @@ def test_a_colleague_cannot_use_my_step_key_or_change_my_plan(
 
 
 def test_only_what_a_step_needs_is_kept(c: TestClient, store: CloudStore) -> None:
-    _h, ag = setup(c)
+    _h, ag = setup(c, store)
     extra: dict[str, Any] = {
         **WA,
         "free_text": "Hello Jane, any message",
@@ -226,8 +223,10 @@ def test_only_what_a_step_needs_is_kept(c: TestClient, store: CloudStore) -> Non
     assert '"x"' not in kept
 
 
-def test_the_agent_can_pause_resume_and_cancel(c: TestClient, app: Headers) -> None:
-    _h, ag = setup(c)
+def test_the_agent_can_pause_resume_and_cancel(
+    c: TestClient, app: Headers, store: CloudStore
+) -> None:
+    _h, ag = setup(c, store)
     plan = c.post("/api/v1/followup/plans", json=the_plan(), headers=ag).json()
     pid = plan["id"]
     assert c.post(f"/api/v1/followup/plans/{pid}/pause", headers=ag).json()["status"] == "paused"
@@ -242,8 +241,8 @@ def test_the_agent_can_pause_resume_and_cancel(c: TestClient, app: Headers) -> N
     assert c.post(f"/api/v1/followup/plans/{pid}/resume", headers=ag).status_code == 400
 
 
-def test_steps_are_validated(c: TestClient) -> None:
-    _h, ag = setup(c)
+def test_steps_are_validated(c: TestClient, store: CloudStore) -> None:
+    _h, ag = setup(c, store)
     bad_template = the_plan(
         steps=[{"kind": "whatsapp", "due_at": T0, "prepared": {**WA, "template": "promo_offer"}}]
     )
@@ -258,8 +257,10 @@ def test_steps_are_validated(c: TestClient) -> None:
     assert c.post("/api/v1/followup/plans", json=bad_to, headers=ag).status_code == 400
 
 
-def test_plans_are_isolated_between_companies(c: TestClient, app: Headers) -> None:
-    _h, ag = setup(c)
+def test_plans_are_isolated_between_companies(
+    c: TestClient, app: Headers, store: CloudStore
+) -> None:
+    _h, ag = setup(c, store)
     plan = c.post("/api/v1/followup/plans", json=the_plan(), headers=ag).json()
     tick(app, T0 + 30 * DAY_MS)
     beta = signup(c, "Beta", "admin@beta.test")
@@ -292,8 +293,8 @@ def reminder_plan(template: str = "meeting_followup") -> dict[str, Any]:
     )
 
 
-def test_meeting_reminders_are_off_by_default(c: TestClient) -> None:
-    _h, ag = setup(c)
+def test_meeting_reminders_are_off_by_default(c: TestClient, store: CloudStore) -> None:
+    _h, ag = setup(c, store)
     r = c.post("/api/v1/followup/plans", json=reminder_plan(), headers=ag)
     assert r.status_code == 403
     assert r.json()["feature"] == "meeting_reminders"
@@ -301,9 +302,9 @@ def test_meeting_reminders_are_off_by_default(c: TestClient) -> None:
 
 
 def test_meeting_reminders_wait_for_one_tap_each(
-    c: TestClient, app: Headers, gb: FakeGallabox
+    c: TestClient, app: Headers, gb: FakeGallabox, store: CloudStore
 ) -> None:
-    h, ag = setup(c)
+    h, ag = setup(c, store)
     on = c.put("/api/v1/company/features/meeting_reminders", json={"enabled": True}, headers=h)
     assert on.status_code == 200
     plan = c.post("/api/v1/followup/plans", json=reminder_plan(), headers=ag)
@@ -321,9 +322,9 @@ def test_meeting_reminders_wait_for_one_tap_each(
 
 
 def test_meeting_reminders_use_utility_templates_before_the_meeting(
-    c: TestClient, gb: FakeGallabox
+    c: TestClient, gb: FakeGallabox, store: CloudStore
 ) -> None:
-    h, ag = setup(c)
+    h, ag = setup(c, store)
     c.put("/api/v1/company/features/meeting_reminders", json={"enabled": True}, headers=h)
     # Allow-list a MARKETING template too: it still cannot be a reminder.
     TEMPLATES.append(
@@ -338,14 +339,14 @@ def test_meeting_reminders_use_utility_templates_before_the_meeting(
     )
     try:
         r = c.put(
-            "/api/v1/company/gallabox/templates",
+            f"/api/owner/companies/{cid_of(c, h)}/gallabox/templates",
             json={
                 "selected": [
                     {"name": "meeting_followup", "language": "en"},
                     {"name": "promo_offer_en", "language": "en"},
                 ]
             },
-            headers=h,
+            headers=JSON_ORIGIN,
         )
         assert r.status_code == 200, r.text
         bad = c.post("/api/v1/followup/plans", json=reminder_plan("promo_offer_en"), headers=ag)

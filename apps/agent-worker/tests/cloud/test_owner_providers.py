@@ -13,6 +13,7 @@ from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.store import CloudStore
+from tests.cloud.byo import own_key, own_route
 from tests.cloud.conftest import ORIGIN, SignUp, fake_minter
 
 H = {"origin": ORIGIN}
@@ -89,7 +90,7 @@ def test_companies_use_platform_keys_without_seeing_them_in_any_response(
     b = tested.get("/api/v1/bundle", headers=s["auth"]).json()
     # The call itself needs the model key (D-022: the client calls the vendor), and only that.
     assert b["keys"] == {"GROQ_API_KEY": GROQ}
-    assert b["key_source"]["GROQ_API_KEY"] == "platform"
+    assert "key_source" not in b  # D-079: the client never learns whose key it is
     assert "ASSEMBLYAI_API_KEY" in b["key_status"]
     assert tested.post("/api/v1/stt-token/assemblyai", headers=s["auth"]).status_code == 200
     for path in ("/api/v1/me", "/api/v1/features", "/api/v1/company/settings"):
@@ -99,11 +100,6 @@ def test_companies_use_platform_keys_without_seeing_them_in_any_response(
 def test_byo_off_company_writes_get_off_by_platform(client: TestClient, sign_up: SignUp) -> None:
     s = sign_up()
     writes = [
-        ("PUT", "/api/v1/company/keys/GROQ_API_KEY", {"value": GROQ}),
-        ("DELETE", "/api/v1/company/keys/GROQ_API_KEY", None),
-        ("POST", "/api/v1/company/keys/GROQ_API_KEY/test", {}),
-        ("PUT", "/api/v1/company/routes/suggest", {"provider": "gemini", "model": "m"}),
-        ("DELETE", "/api/v1/company/routes/suggest", None),
         ("POST", "/api/v1/company/prompts", {"key": "suggest", "body": "x" * 30}),
         ("GET", "/api/v1/company/prompts", None),
     ]
@@ -113,11 +109,21 @@ def test_byo_off_company_writes_get_off_by_platform(client: TestClient, sign_up:
         assert r.json()["code"] == "feature_unavailable"
         assert r.json()["feature"] == "byo_providers"
         assert r.json()["state"] == "off_by_platform"
+    # D-078: the company key and route write routes are gone altogether (405), BYO or not.
+    for method, path in [
+        ("PUT", "/api/v1/company/keys/GROQ_API_KEY"),
+        ("DELETE", "/api/v1/company/keys/GROQ_API_KEY"),
+        ("POST", "/api/v1/company/keys/GROQ_API_KEY/test"),
+        ("PUT", "/api/v1/company/routes/suggest"),
+        ("DELETE", "/api/v1/company/routes/suggest"),
+    ]:
+        r = client.request(method, path, json={}, headers=s["auth"])
+        assert r.status_code == 405, (path, r.status_code)
     f = client.get("/api/v1/features", headers=s["auth"]).json()["features"]
     assert f["byo_providers"] == {"state": "off_by_platform"}
 
 
-def test_byo_on_company_admin_can_write_and_its_key_wins(
+def test_byo_on_company_key_wins_and_the_vendor_sets_the_route(
     owner: TestClient, store: CloudStore, sign_up: SignUp
 ) -> None:
     s = sign_up()
@@ -127,19 +133,14 @@ def test_byo_on_company_admin_can_write_and_its_key_wins(
         f"/api/owner/companies/{cid}/byo", json={"enabled": True}, headers=H
     ).json() == {"enabled": True}
     own = "gsk_" + "o" * 30
-    r = owner.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": own}, headers=s["auth"])
-    assert r.status_code == 200
+    own_key(store, s, "GROQ_API_KEY", own)
+    r = own_route(owner, s, "suggest", "gemini", "gemini-2.5-flash")
+    assert r.status_code == 200, r.text
     assert GROQ not in r.text
     assert own not in r.text
-    r = owner.put(
-        "/api/v1/company/routes/suggest",
-        json={"provider": "gemini", "model": "gemini-2.5-flash"},
-        headers=s["auth"],
-    )
-    assert r.status_code == 200
     b = owner.get("/api/v1/bundle", headers=s["auth"]).json()
-    assert b["key_source"]["GROQ_API_KEY"] == "company"
-    assert b["overrides"] == ["suggest"]
+    assert "key_source" not in b  # D-079
+    assert b["stages"]["suggest"]["api_key_env"] == "GEMINI_API_KEY"  # the vendor-set route applies
     assert owner.get("/api/v1/features", headers=s["auth"]).json()["features"]["byo_providers"] == {
         "state": "available"
     }

@@ -12,7 +12,7 @@ from starlette.testclient import TestClient
 from sotto_worker.cloud.passwords import hash_password, verify_password
 from sotto_worker.cloud.store import DAY_MS, CloudStore, plan_state
 from sotto_worker.server.vault import Vault
-from tests.cloud.byo import allow_byo
+from tests.cloud.byo import allow_byo, own_key, own_route
 from tests.cloud.conftest import PASSWORD, SECRET, SignUp, minted
 
 JSON = {"content-type": "application/json"}
@@ -107,12 +107,7 @@ def test_bundle_has_routes_prompts_playbook_and_keys_only_while_calls_are_allowe
     s = sign_up()
     allow_byo(store, s)
     fake_key = "gsk_" + "x" * 24
-    assert (
-        client.put(
-            "/api/v1/company/keys/GROQ_API_KEY", json={"value": fake_key}, headers=s["auth"]
-        ).status_code
-        == 200
-    )
+    own_key(store, s, "GROQ_API_KEY", fake_key)
     b = client.get("/api/v1/bundle", headers=s["auth"]).json()
     assert b["v"] == 1
     assert b["stages"]["suggest"]["provider"] == "openai_compatible"
@@ -139,7 +134,7 @@ def test_keys_are_stored_encrypted_and_bound_to_their_company(
     s = sign_up()
     allow_byo(store, s)
     secret = "sk-test-" + "y" * 20
-    client.put("/api/v1/company/keys/OPENAI_API_KEY", json={"value": secret}, headers=s["auth"])
+    own_key(store, s, "OPENAI_API_KEY", secret)
     raw = store._q("SELECT ciphertext FROM company_keys")
     assert secret.encode() not in raw[0]["ciphertext"]
 
@@ -151,7 +146,7 @@ def test_stt_token_is_minted_with_the_company_key(
     allow_byo(store, s)
     assert client.post("/api/v1/stt-token/assemblyai", headers=s["auth"]).status_code == 400
     key = "aai-" + "z" * 20
-    client.put("/api/v1/company/keys/ASSEMBLYAI_API_KEY", json={"value": key}, headers=s["auth"])
+    own_key(store, s, "ASSEMBLYAI_API_KEY", key)
     r = client.post("/api/v1/stt-token/assemblyai", headers=s["auth"])
     assert r.status_code == 200
     assert r.json()["token"] == "tmp-" + "assemblyai"
@@ -233,11 +228,12 @@ def test_invited_members_have_limited_rights(
         "/api/v1/auth/password", json={"current": temp, "new": PASSWORD + role}, headers=auth
     )
     assert changed.status_code == 200
+    # D-078: no company key route exists any more, for any role.
     assert (
         client.put(
             "/api/v1/company/keys/GROQ_API_KEY", json={"value": "k" * 20}, headers=auth
         ).status_code
-        == 403
+        == 405
     )
     assert (
         client.put(
@@ -337,47 +333,29 @@ def test_escalation_answer_added_to_playbook_reaches_the_bundle(
 
 
 def test_routes_are_validated_against_the_catalog(
-    client: TestClient, sign_up: SignUp, store: CloudStore
+    client: TestClient, sign_up: SignUp, owner: TestClient
 ) -> None:
     s = sign_up()
-    allow_byo(store, s)
-    ok = client.put(
-        "/api/v1/company/routes/suggest",
-        json={"provider": "gemini", "model": "gemini-2.5-flash"},
-        headers=s["auth"],
-    )
+    ok = own_route(owner, s, "suggest", "gemini", "gemini-2.5-flash")
     assert ok.status_code == 200
     stage = client.get("/api/v1/bundle", headers=s["auth"]).json()["stages"]["suggest"]
     assert stage["api_key_env"] == "GEMINI_API_KEY"
     assert stage["first_token_ms"] == 1150  # D-025
-    wrong_kind = client.put(
-        "/api/v1/company/routes/suggest",
-        json={"provider": "deepgram", "model": "nova-3"},
-        headers=s["auth"],
-    )
+    wrong_kind = own_route(owner, s, "suggest", "deepgram", "nova-3")
     assert wrong_kind.status_code == 400
 
 
 def test_speech_vendors_the_app_cannot_run_are_refused(
-    client: TestClient, sign_up: SignUp, store: CloudStore
+    client: TestClient, sign_up: SignUp, owner: TestClient
 ) -> None:
     """Picking Deepgram used to pass the key test and then leave calls with no speech-to-text."""
     s = sign_up()
-    allow_byo(store, s)
     for stage in ("stt", "stt_backup"):
         for vendor, model in (("deepgram", "nova-3"), ("elevenlabs", "scribe_v2_realtime")):
-            r = client.put(
-                f"/api/v1/company/routes/{stage}",
-                json={"provider": vendor, "model": model},
-                headers=s["auth"],
-            )
+            r = own_route(owner, s, stage, vendor, model)
             assert r.status_code == 400, (stage, vendor)
             assert "not available in the app" in r.json()["error"]
-    ok = client.put(
-        "/api/v1/company/routes/stt",
-        json={"provider": "speechmatics", "model": "enhanced"},
-        headers=s["auth"],
-    )
+    ok = own_route(owner, s, "stt", "speechmatics", "enhanced")
     assert ok.status_code == 200
     providers = client.get("/api/v1/bundle", headers=s["auth"]).json()["providers"]
     assert providers["deepgram"]["client"] is False

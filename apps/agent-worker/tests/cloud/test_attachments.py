@@ -13,6 +13,7 @@ from tests.cloud.test_email import (  # noqa: F401 (fixtures)
     agent,
     draft,
     mclient,
+    owner_login,
     sent_via,
     set_org_smtp,
     signup,
@@ -48,8 +49,9 @@ def test_only_allow_listed_types_and_sizes(mclient: TestClient) -> None:  # noqa
     assert upload(mclient, h, "Deck.pptx", deck, pptx).status_code == 201
 
 
-def test_agents_cannot_upload_or_delete(mclient: TestClient) -> None:  # noqa: F811 - the email app fixtures
+def test_agents_cannot_upload_or_delete(mclient: TestClient, store: CloudStore) -> None:  # noqa: F811 - the email app fixtures
     h = signup(mclient, "Acme", "admin@acme.test")
+    owner_login(mclient, store)
     set_org_smtp(mclient, h)
     ag = agent(mclient, h)
     assert upload(mclient, ag, "mine.pdf", PDF).status_code == 403
@@ -65,6 +67,7 @@ def test_agents_cannot_upload_or_delete(mclient: TestClient) -> None:  # noqa: F
 def test_company_isolation(mclient: TestClient, store: CloudStore, smtp: FakeSmtp) -> None:  # noqa: F811 - the email app fixtures
     a = signup(mclient, "Acme", "admin@acme.test")
     b = signup(mclient, "Beta", "admin@beta.test")
+    owner_login(mclient, store)
     set_org_smtp(mclient, b)
     fid = upload(mclient, a, "Acme secret.pdf", PDF).json()["attachments"][0]["id"]
     assert mclient.get(URL, headers=b).json()["attachments"] == []
@@ -86,6 +89,7 @@ def test_the_email_carries_the_chosen_attachment(
     store: CloudStore,
 ) -> None:
     h = signup(mclient, "Acme", "admin@acme.test")
+    owner_login(mclient, store)
     set_org_smtp(mclient, h)
     fid = upload(mclient, h, "Proposal.pdf", PDF).json()["attachments"][0]["id"]
     ag = agent(mclient, h)

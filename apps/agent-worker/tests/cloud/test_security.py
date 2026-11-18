@@ -10,8 +10,8 @@ from starlette.testclient import TestClient
 from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
-from tests.cloud.byo import allow_byo
-from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD, PASSWORD, SignUp, fake_minter
+from tests.cloud.byo import own_key
+from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD, PASSWORD, SignUp
 
 
 def _login(client: TestClient, email: str, password: str = PASSWORD, dev: str = "d") -> Any:
@@ -25,13 +25,8 @@ def test_h1_devices_get_only_the_model_keys_their_calls_use(
     client: TestClient, sign_up: SignUp, store: CloudStore
 ) -> None:
     s = sign_up()
-    allow_byo(store, s)
     for env in ("GROQ_API_KEY", "OPENAI_API_KEY", "ASSEMBLYAI_API_KEY"):
-        client.put(
-            f"/api/v1/company/keys/{env}",
-            json={"value": env.lower() + "-" + "v" * 12},
-            headers=s["auth"],
-        )
+        own_key(store, s, env, env.lower() + "-" + "v" * 12)
     keys = client.get("/api/v1/bundle", headers=s["auth"]).json()["keys"]
     assert set(keys) == {"GROQ_API_KEY"}  # routes use Groq (+ Gemini, not set); never STT keys
     status = client.get("/api/v1/bundle", headers=s["auth"]).json()["key_status"]
@@ -39,40 +34,6 @@ def test_h1_devices_get_only_the_model_keys_their_calls_use(
     assert client.post("/api/v1/stt-token/assemblyai", headers=s["auth"]).status_code == 200
     actions = [a["action"] for a in store.owner_audit(s["company"]["id"])]
     assert "keys.delivered" in actions
-
-
-def test_keys_are_tested_on_the_server_by_admins_only(store: CloudStore, seed: Seed) -> None:
-    seen: list[tuple[str, str]] = []
-
-    async def tester(provider: str, url: str, key: str) -> list[str]:
-        seen.append((provider, url))
-        return ["model-a", "model-b"]
-
-    config = CloudConfig(
-        public_origin=ORIGIN, static_dir=None, stt_minter=fake_minter, key_tester=tester
-    )
-    client = TestClient(create_cloud_app(config, store, seed), base_url=ORIGIN)
-    r = client.post(
-        "/api/v1/auth/signup",
-        json={"company": "K", "name": "K", "email": "k@k.test", "password": PASSWORD},
-    )
-    auth = {"authorization": f"Bearer {r.json()['token']}"}
-    allow_byo(store, r.json())
-    client.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": "gsk_" + "t" * 20}, headers=auth)
-    r = client.post("/api/v1/company/keys/GROQ_API_KEY/test", headers=auth)
-    assert r.json() == {
-        "ok": True,
-        "detail": "2 models available",
-        "models": ["model-a", "model-b"],
-    }
-    assert seen == [("groq", "https://api.groq.com/openai/v1/models")]
-    temp = client.post(
-        "/api/v1/team", json={"email": "a@k.test", "name": "A", "role": "agent"}, headers=auth
-    ).json()["temporary_password"]
-    agent_token = _login(client, "a@k.test", temp).json()["token"]
-    agent = {"authorization": f"Bearer {agent_token}"}
-    client.post("/api/v1/auth/password", json={"current": temp, "new": PASSWORD}, headers=agent)
-    assert client.post("/api/v1/company/keys/GROQ_API_KEY/test", headers=agent).status_code == 403
 
 
 def test_m2_re_enabling_a_user_needs_a_free_seat(client: TestClient, sign_up: SignUp) -> None:

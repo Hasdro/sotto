@@ -14,7 +14,7 @@ from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
 from sotto_worker.outbox import EmailMessage
-from tests.cloud.byo import allow_byo
+from tests.cloud.byo import allow_byo, own_key
 from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, SignUp, fake_minter
 
 H = {"origin": ORIGIN}
@@ -79,13 +79,13 @@ def test_byo_keys_keep_working_at_the_cap(
     owner.put("/api/owner/keys/ASSEMBLYAI_API_KEY", json={"value": AAI}, headers=H)
     own_groq = "gsk_" + "c" * 30
     own_aai = "aai-" + "c" * 20
-    owner.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": own_groq}, headers=s["auth"])
+    own_key(store, s, "GROQ_API_KEY", own_groq)
     _report(owner, s, "c1")
     _cap(owner, s, 0.000001)
     assert _keys(owner, s) == {"GROQ_API_KEY": own_groq}
     # No own STT key: the platform one is withheld.
     assert owner.post("/api/v1/stt-token/assemblyai", headers=s["auth"]).status_code == 402
-    owner.put("/api/v1/company/keys/ASSEMBLYAI_API_KEY", json={"value": own_aai}, headers=s["auth"])
+    own_key(store, s, "ASSEMBLYAI_API_KEY", own_aai)
     assert owner.post("/api/v1/stt-token/assemblyai", headers=s["auth"]).status_code == 200
 
 
