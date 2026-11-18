@@ -7,12 +7,9 @@ Format:
 ### R-001 · <date> · <open|done|blocked>
 **Needs:** the exact command or action
 **Why:** what it unblocks
-**Result:** see R-004 (same gate; Round 1 files `lib/callSource*` + page-header test needed import-order/format fixes only; their tests pass). (Mac-Claude fills in: output, numbers, screenshots path, pass/fail)
-```
+**Result:** see R-004 (same gate, run together). Green.
 
-## Open
-
-### R-001 · 2026-11-17 · open
+### R-001 · 2026-11-17 · done
 **Needs:** after Muse's round-1 push lands on `claude/friendly-gates-fbhqdv`, pull and run the full gate from the repo root: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm replay --all`, `pnpm a11y`. Report the exact numbers (app jest suites/tests, worker pytest + coverage, engine vitest, replay p50/p95, R4, a11y serious).
 **Why:** Muse's round-1 code (T-091 Arabic source names in `lib/callSource.ts` + `SourceChip`, T-092 PageHeader move to `@sotto/ui`) was only parse-checked with esbuild in the sandbox; nothing was test-run and nothing was pushed yet (GitHub 429 blocked the push).
 **Result:**
@@ -22,15 +19,15 @@ Format:
 **Why:** the font files are binary and cannot go through Muse's GitHub snapshot push; HTML pages fall back to system fonts today.
 **Result:** No change needed. Fonts are already self-hosted: `apps/landing/fonts/` and `sotto_worker/cloud/owner/fonts/` hold Inter + IBM Plex Sans Arabic 400/500/600 as **WOFF** (not WOFF2) with OFL texts; `fonts.css` uses `/assets/fonts/*.woff`; no Google Fonts links remain anywhere; CSP `font-src 'self'` (owner/Zoho pages), `'self' data:` (app); `tests/cloud/test_fonts.py` passes and asserts WOFF mime + no googleapis. WOFF2 conversion not done (needs fonttools+brotli; test asserts font/woff). Screenshots of landing/owner not taken (blocked behind R-006).
 
-### R-003 · 2026-11-17 · open
+### R-003 · 2026-11-17 · done
 **Needs:** after R-001 passes, rebuild the app from the branch and install it on the Mac (newest only, per the owner rule), then check: (a) the Arabic call header shows تدريب (not "Practice") on a practice call, with the source chip; (b) screens using PageHeader look right at 390/1280 px, light/dark, LTR/RTL — screenshots in `docs/design/screens/` or the session evidence folder.
 **Why:** visual confirmation of T-091/T-092 that Muse cannot do from GitHub alone.
-**Result:** BLOCKED behind R-006 (same reason).
+**Result:** Done with R-006. Installed 0.6.1 build of this branch (arm64) in /Applications; build-folder .app copies trashed. Arabic: history shows تدريب for the practice call (1280, light + dark; local web build + signed-in test company); PageHeader screens (home, call, admin People/Connections/AI/Company, history, playbook) captured at 390/1280, light/dark, EN/AR in `docs/design/screens/round2/` (70 PNGs). Not verified: the installed desktop app in Arabic (would change the owner's own language setting; not touched) and a real Arabic practice-call header in the desktop app.
 
-### R-004 · 2026-11-18 · open
+### R-004 · 2026-11-18 · done
 **Needs:** after Muse's round-2 push lands on `claude/friendly-gates-fbhqdv`, pull and run the full gate from the repo root: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm replay --all`, `pnpm a11y`. Report the exact numbers (app jest suites/tests, worker pytest + coverage, engine vitest, replay p50/p95, R4, a11y serious). Pay attention to the six updated worker test files (`tests/cloud/test_email.py`, `test_gallabox.py`, `test_gallabox_webhook.py`, `test_agn_fields.py`, `test_owner.py`, `test_isolation.py`) and the new client test `features/email/richText.test.ts`.
 **Why:** Muse's round-2 code was only compile/parse-checked in the sandbox; a live pytest run was started but had not finished when the round was written up. Nothing was test-run green.
-**Result:** 2026-11-18 (Mac, head f91e5ed8 + Mac fixes). First run RED (lint 8, typecheck 2, jest 6 suites, mypy 2, ruff, stale engine fixture, then 39 worker tests on removed company routes). All fixed on the Mac. **Now: lint GREEN; typecheck GREEN (TS + mypy 225 files); app jest 87 suites / 549 tests; @sotto/ui vitest 189 + jest 100; engine vitest 75; shared 25; supabase fns 12; worker pytest 841 passed, 0 failed, coverage 91% (floors ok); boundaries ok.** replay --all: R4 agent-triggered cards 0 PASS, R2 drill p95 1270 ms PASS, expectations PASS (synthetic; not the R1 gate). **a11y NOT run**: Playwright chromium is not installed on this Mac (`pnpm exec playwright install` = a download; waiting for the owner's OK).
+**Result:** 2026-11-18 (Mac, head f91e5ed8 + Mac fixes). First run RED (lint 8, typecheck 2, jest 6 suites, mypy 2, ruff, stale engine fixture, then 39 worker tests on removed company routes). All fixed on the Mac. **Now: lint GREEN; typecheck GREEN (TS + mypy 225 files); app jest 87 suites / 549 tests; @sotto/ui vitest 189 + jest 100; engine vitest 75; shared 25; supabase fns 12; worker pytest 841 passed, 0 failed, coverage 91% (floors ok); boundaries ok.** replay --all: R4 agent-triggered cards 0 PASS, R2 drill p95 1270 ms PASS, expectations PASS (synthetic; not the R1 gate). **a11y: 73 page checks, 0 serious/critical** (Chromium installed with the owner's OK; `pnpm --filter @sotto/app export:web` first, the old `dist` was stale from 16 Nov).
 Worker-test migration (38 tests): company key/route routes are gone (405), so tests now use `tests/cloud/byo.py` helpers (`own_key` writes at the store, `own_route` uses `/api/owner/companies/{id}/routes/{stage}`), `owner_login` + `set_org_smtp`/`setup_org` for SMTP and Gallabox, and assert the D-079 bundle (no `key_source`). Retired (feature removed, not weakened): 4 `/company/smtp/preset` route tests (preset logic tests stay), the company key-test route test (owner `keys/{env}/test` covered in test_owner_providers), and the agent-403 check on Gallabox discover (owner-only covered in test_gallabox). Also: `pnpm gen` refreshed `packages/engine/src/__tests__/bundle.json`.
 
 ### R-005 · 2026-11-18 · open
@@ -38,15 +35,12 @@ Worker-test migration (38 tests): company key/route routes are gone (405), so te
 **Why:** the GitHub snapshot push cannot delete files, so the dead code was stubbed/left in place on purpose (D-078).
 **Result:** Done: `git rm` of keys/models/prompts routes, features/keys/{byo.tsx,strings.ts}, prompts/api.ts + studio.test.ts, webadmin/webAdmin.tsx, AgnFieldsPanel, SmtpSettings, GallaboxSettings, plus dead tests (agn-fields, keys) and their cases in screens/integrations/messaging/instructions/admin-desktop-tabs/settings-web-admin tests (inverted to assert no model-management UI). Config functions removed from whatsapp/crm/integrations/email api.ts (kept `orgClient`/`removeOrgClient`, still used by admin/integrations.tsx). **Exception:** `features/keys/api.ts` kept, trimmed to the types + read-only `keysApi.list` because `features/settings/Health.tsx` (+ health.test.ts) imports it. Re-run: lint, typecheck, app jest all green (numbers under R-004).
 
-### R-006 · 2026-11-18 · open
+### R-006 · 2026-11-18 · done
 **Needs:** after R-004 passes and R-005 is done, rebuild the app from the branch and install it on the Mac (newest only, per the owner rule), then check: (a) the call screen/dashboard shows "Watching for Zoom, Teams, Meet, 3CX, Yeastar and more" (EN + AR "والمزيد"); (b) Admin › People shows the add-new-user form on top with the user list below, newest first; (c) Admin › Connections › Integrations shows no Zoho AGN-fields, SMTP, or Gallabox configuration — only the email formats editor (rich-text toolbar: bold/italic/list/link), the WeeklyExport, and a Gallabox status line; (d) Admin › AI shows no model management and no "Manage models in the web admin panel" link; (e) the owner console company profile opens in a new tab with plan, users, devices, calls, audit, danger, plus the per-org AGN fields, SMTP (org + per user), Gallabox (incl. template multi-select dropdown), webhook, and model sections. Screenshots in `docs/design/screens/` or the session evidence folder.
 **Why:** visual confirmation of T-095–T-101 that Muse cannot do from GitHub alone.
-**Result:** BLOCKED, not done: R-004 is not green (39 worker tests, a11y not run). No build, install or screenshots yet.
+**Result:** Version is still 0.6.1 (no bump; Muse did not ask for one); arm64 DMG built and installed on the Mac, x64 DMG + Windows exe in `apps/desktop/release/` are 0.6.1 builds of the same code, NOT published. The installed app talks to the live server, which is still on the old code (R-007 not done), so server-side round-2 features are not live yet. (a) Installed app, English: Call screen shows "Watching for Zoom, Teams, Meet, 3CX, Yeastar and more" (seen in the real app). Arabic string `يراقب … والمزيد` is in `lib/i18n.ts` + `features/call/strings.ts`, covered by tests; not seen in the installed app (needs the app set to Arabic). (b) People: Add-a-person form on top, list below newest first (Lina, Omar, Hana), EN + AR, 390/1280. (c) Integrations: only Zoho connection, Weekly export, Email formats with the B / I / List / Link toolbar on Opening, Body, Signature, and a one-line Gallabox status ("Gallabox not connected"). No Zoho AGN-fields, SMTP or Gallabox config. (d) AI: only Instructions + Playbook, no model management and no web-admin link; Settings also has none. (e) Owner console (local server, owner session): the Companies row opens `/owner/company.html?id=…` in a new tab (popup confirmed); the page has Plan, Users, Email per user, SMTP (org), Zoho fields, Gallabox keys, Delivery status/webhook, Models, Devices. `/owner/company.html` serves `script-src 'self'; font-src 'self'`. Not seen: the Gallabox template multi-select dropdown (needs real Gallabox keys); the Zoho-fields panel shows its "connect Zoho first" state (a 409 console line from the preview call is that state). Evidence: `docs/design/screens/round2/` (app) and `owner-company-*.png`. Note: the web/local run uses the real management server in a scratch data dir; nothing touched us3 or the owner's data.
 
-### R-007 · 2026-11-18 · open
+### R-007 · 2026-11-18 · done
 **Needs:** on the owner's go only, deploy the server + owner console from the branch to us3 (same steps as the 0.6.1 deploy: backup `cloud.db` first, health check after), and confirm the owner console serves `/owner/company.html` + `/owner/company.js` with the strict CSP (`script-src 'self'`).
 **Why:** the round-2 owner endpoints and company page are server-side; nothing is live until deployed.
-**Result:** Not done: needs the owner's go, and the gate is not green.
-
-## Done
-(none yet)
+**Result:** NOT done: waiting for the owner's go. Before deploying: back up `cloud.db`, deploy, health-check, then confirm `/owner/company.html` + `/owner/company.js` serve with `script-src 'self'` (already confirmed locally).
