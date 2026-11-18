@@ -5,7 +5,7 @@
  * so existing screens need no change. New screens import `PageHeader` from `@sotto/ui`
  * directly; deleting this adapter and updating the imports is the T-092 follow-up.
  */
-import { type IconName, PageHeader as UiPageHeader, space } from "@sotto/ui";
+import { type IconName, space, PageHeader as UiPageHeader } from "@sotto/ui";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useIsWide } from "../lib/responsive";

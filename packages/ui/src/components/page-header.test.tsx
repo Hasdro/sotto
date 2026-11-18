@@ -24,9 +24,7 @@ describe("PageHeader", () => {
         <PageHeader title="Team" icon="users" />
       </UIProvider>,
     );
-    expect(
-      screen.queryByTestId("icon-users", { includeHiddenElements: true }),
-    ).toBeOnTheScreen();
+    expect(screen.queryByTestId("icon-users", { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
   it("renders subtitle muted at heading size on wide screens", async () => {

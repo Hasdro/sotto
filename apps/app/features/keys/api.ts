@@ -1,7 +1,4 @@
-/**
- * Keys & providers API client (P6.7, D-020). Keys go up once and never come back: the server
- * answers with status only (set / where / last test), never a key.
- */
+/** Provider state for the Settings health panel (read-only). */
 import { api } from "../../lib/server";
 
 export type ProviderKind = "llm" | "stt";
@@ -54,38 +51,7 @@ export type ProvidersState = {
   playbook_entries?: number;
 };
 
-const enc = encodeURIComponent;
-
+/** Read-only: model and key management live in the owner console (D-078). */
 export const keysApi = {
   list: () => api<ProvidersState>("/api/providers"),
-  saveKey: (id: string, key: string) =>
-    api<ProvidersState>(`/api/providers/${enc(id)}/key`, { method: "PUT", body: { key } }),
-  removeKey: (id: string) =>
-    api<ProvidersState>(`/api/providers/${enc(id)}/key`, { method: "DELETE" }),
-  test: (id: string) =>
-    api<ProvidersState>(`/api/providers/${enc(id)}/test`, { method: "POST", body: {} }),
-  setStage: (stage: string, providerId: string, model: string) =>
-    api<ProvidersState>(`/api/stages/${enc(stage)}`, {
-      method: "PUT",
-      body: { provider_id: providerId, model },
-    }),
-  addEndpoint: (name: string, baseUrl: string, key: string) =>
-    api<ProvidersState>("/api/endpoints", {
-      method: "POST",
-      body: { name, base_url: baseUrl, key },
-    }),
-  removeEndpoint: (id: string) =>
-    api<ProvidersState>(`/api/endpoints/${enc(id)}`, { method: "DELETE" }),
-  measure: (stage: string) =>
-    api<ProvidersState>(`/api/stages/${enc(stage)}/benchmark`, { method: "POST", body: {} }),
-  resetStage: (stage: string) =>
-    api<ProvidersState>(`/api/stages/${enc(stage)}`, { method: "DELETE" }),
 };
-
-/** Status badge for a provider: what the admin should know at a glance. */
-export function keyStatus(p: Provider): "none" | "ok" | "failed" | "panel" | "server" {
-  if (!p.key_set) return "none";
-  if (p.test?.ok === true) return "ok";
-  if (p.test?.ok === false) return "failed";
-  return p.key_source === "server" ? "server" : "panel";
-}

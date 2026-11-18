@@ -303,6 +303,7 @@ def test_agn_fields_on_another_companys_call_are_404(
     assert r.status_code == 404, r.text
     assert len(z4.writes) == before
 
+
 # --- vendor: the same fields from the company profile (round 2, D-078) ---------------------------
 
 
@@ -357,9 +358,7 @@ def test_owner_creates_fields_through_the_connected_admin(
     assert c4.get("/api/v1/zoho/agn-fields", headers=a4).json()["fields"][0]["exists"] is True
 
 
-def test_owner_agn_needs_a_connected_admin(
-    c4: TestClient, store: CloudStore
-) -> None:
+def test_owner_agn_needs_a_connected_admin(c4: TestClient, store: CloudStore) -> None:
     owner_on(c4, store)
     b = signup(c4, "Beta", "admin@beta.test")  # Zoho never connected for this company
     cid = c4.get("/api/v1/me", headers=b).json()["company"]["id"]

@@ -4,10 +4,7 @@
  * markers for the plain-text part, so old formats keep working. */
 import { Button, Stack, TextField } from "@sotto/ui";
 import { useState } from "react";
-import type {
-  NativeSyntheticEvent,
-  TextInputSelectionChangeEventData,
-} from "react-native";
+import type { TextInputSelectionChangeEvent } from "react-native";
 import {
   applyBold,
   applyItalic,
@@ -42,7 +39,7 @@ export function RichTextField({
         label={label}
         value={value}
         onChangeText={onChangeText}
-        onSelectionChange={(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) =>
+        onSelectionChange={(e: TextInputSelectionChangeEvent) =>
           setSelection(e.nativeEvent.selection)
         }
         selection={selection}

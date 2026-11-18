@@ -1,7 +1,6 @@
-/** UX-34: the desktop app's Settings has one row pointing at the web admin for AI models. */
+/** D-078: model management lives in the owner console only; Settings shows none. */
 import { UIProvider } from "@sotto/ui";
-import { fireEvent, render, screen } from "@testing-library/react-native";
-import { Linking } from "react-native";
+import { render, screen } from "@testing-library/react-native";
 import SettingsScreen from "../app/admin/settings";
 import { LocaleProvider } from "../lib/locale";
 
@@ -34,19 +33,11 @@ const wrap = () =>
     </LocaleProvider>,
   );
 
-describe("Settings → AI models", () => {
-  it("desktop shows one row with an Open web admin button", async () => {
-    mockDesktop = { platform: "darwin" };
-    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(undefined);
-    await wrap();
-    expect(screen.getByText("AI models are managed in the web admin")).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId("settings-open-web-admin"));
-    expect(open).toHaveBeenCalledWith("https://sales.example.com/admin/keys");
-  });
-
-  it("the web build does not show it", async () => {
-    mockDesktop = null;
+describe("Settings → AI models (D-078)", () => {
+  it.each([{ platform: "darwin" }, null])("shows no model management (%j)", async (d) => {
+    mockDesktop = d;
     await wrap();
     expect(screen.queryByTestId("settings-open-web-admin")).toBeNull();
+    expect(screen.queryByText("AI models are managed in the web admin")).toBeNull();
   });
 });

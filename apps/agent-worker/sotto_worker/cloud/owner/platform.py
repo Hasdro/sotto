@@ -567,7 +567,9 @@ def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[s
     for slot in seed.catalog.stages.values():
         default = seed.routing.stages.get(slot.id)
         chosen = eff.get(slot.id)
-        provider_id = chosen[0] if chosen else (vendor_of(seed.catalog, default) if default else None)
+        provider_id = (
+            chosen[0] if chosen else (vendor_of(seed.catalog, default) if default else None)
+        )
         model = chosen[1] if chosen else (default.model if default else None)
         stages.append(
             {
@@ -576,7 +578,11 @@ def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[s
                 "kind": slot.kind,
                 "provider_id": provider_id,
                 "model": model,
-                "source": "company" if slot.id in own else "platform" if slot.id in plat else "default",
+                "source": "company"
+                if slot.id in own
+                else "platform"
+                if slot.id in plat
+                else "default",
                 "live": slot.id in LIVE_STAGES,
                 "deadline_ms": default.first_token_ms if default else None,
                 "benchmark": benchmark(store, provider_id, model, slot.id)
@@ -641,9 +647,7 @@ def reset_company_route(
             "DELETE FROM company_routes WHERE company_id = ? AND stage = ?",
             (company_id, stage),
         )
-        store.audit(
-            db, "owner.route.reset", stage, company_id=company_id, actor=owner, ip=ip
-        )
+        store.audit(db, "owner.route.reset", stage, company_id=company_id, actor=owner, ip=ip)
 
 
 def vendor_of(catalog: Catalog, route: StageRoute) -> str | None:

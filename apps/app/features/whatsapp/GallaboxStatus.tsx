@@ -28,9 +28,7 @@ export function GallaboxStatus() {
             testID="gallabox-state"
             dot
             tone={configured ? "answer" : "neutral"}
-            label={t(
-              configured ? "integrations.gallabox.connected" : "integrations.gallabox.none",
-            )}
+            label={t(configured ? "integrations.gallabox.connected" : "integrations.gallabox.none")}
           />
         </Stack>
         {configured && status?.channel?.set && status.channel.label ? (

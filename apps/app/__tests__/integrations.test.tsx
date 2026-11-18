@@ -6,10 +6,8 @@
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import IntegrationsScreen from "../app/admin/integrations";
-import { SmtpSettings } from "../features/email/SmtpSettings";
 import { INTEGRATIONS_TEXT } from "../features/integrations/strings";
 import { ZohoInvite } from "../features/team/ZohoInvite";
-import { GallaboxSettings } from "../features/whatsapp/GallaboxSettings";
 import type { Locale } from "../lib/i18n";
 import { LocaleProvider } from "../lib/locale";
 
@@ -66,7 +64,7 @@ it("strings: English and Arabic in step", () => {
 });
 
 describe("Integrations page (UX-30)", () => {
-  it("shows your Zoho connection, then Email, then WhatsApp, and no client form", async () => {
+  it("shows your Zoho connection, then the Gallabox status line, and no config forms", async () => {
     mockRoutes["GET /api/v1/company/zoho/client"] = () => ({
       platform: NONE,
       org: NONE,
@@ -76,11 +74,8 @@ describe("Integrations page (UX-30)", () => {
     const order = JSON.stringify(screen.toJSON()).match(
       /"testID":"(zoho-connection|smtp-settings|gallabox-settings)"/g,
     );
-    expect(order).toEqual([
-      '"testID":"zoho-connection"',
-      '"testID":"smtp-settings"',
-      '"testID":"gallabox-settings"',
-    ]);
+    expect(order).toEqual(['"testID":"zoho-connection"', '"testID":"gallabox-settings"']);
+    expect(screen.queryByTestId("smtp-settings")).toBeNull(); // SMTP is vendor-only (D-078)
     expect(screen.queryByTestId("zoho-client-id")).toBeNull();
     expect(screen.queryByTestId("zoho-client-secret")).toBeNull();
     expect(screen.queryByTestId("zoho-override")).toBeNull();
@@ -101,142 +96,6 @@ describe("Integrations page (UX-30)", () => {
     await fireEvent.press(screen.getByTestId("zoho-override-yes"));
     await waitFor(() => expect(screen.getByTestId("zoho-override-note")).toBeTruthy());
     expect(calls("DELETE", "/api/v1/company/zoho/client")).toHaveLength(1);
-  });
-});
-
-const PRESET = (id: string, host: string, port: number) => ({
-  domain: "acme.test",
-  found_by: id === "other" ? "none" : "mx",
-  preset: { id, label: id === "google" ? "Google Workspace" : "Other", host, port },
-  username: id === "other" ? "" : "ada@acme.test",
-  from_address: id === "other" ? "" : "ada@acme.test",
-  from_name: "Acme",
-});
-
-describe("SMTP presets (UX-32)", () => {
-  it("a Google domain asks only for the password; save sends the test email inline", async () => {
-    let org: Record<string, unknown> = NONE;
-    mockRoutes = {
-      "GET /api/v1/company/smtp": () => ({
-        platform: NONE,
-        org,
-        active: org === NONE ? null : "org",
-      }),
-      "GET /api/v1/company/smtp/preset": () => PRESET("google", "smtp.gmail.com", 465),
-      "GET /api/v1/email/formats": () => ({ formats: [] }),
-      "PUT /api/v1/company/smtp": () => {
-        org = {
-          configured: true,
-          host: "smtp.gmail.com",
-          port: 465,
-          from_name: "Acme",
-          from_address: "ada@acme.test",
-          updated_at: 1,
-        };
-        return { platform: NONE, org, active: "org" };
-      },
-      "POST /api/v1/company/smtp/test": () => ({ ok: true, to: "ada@acme.test" }),
-    };
-    await wrap(<SmtpSettings />);
-    await waitFor(() =>
-      expect(screen.getByText(/Google Workspace found for acme.test/)).toBeTruthy(),
-    );
-    expect(screen.getByTestId("smtp-password")).toBeTruthy();
-    expect(screen.queryByTestId("smtp-host")).toBeNull(); // under "Server settings"
-    expect(screen.getByText("Enter the mailbox password first")).toBeTruthy(); // UX-44c
-    await fireEvent.changeText(screen.getByTestId("smtp-password"), "pw");
-    await fireEvent.press(screen.getByTestId("smtp-save"));
-    await waitFor(() => expect(screen.getByTestId("smtp-test-result")).toBeTruthy());
-    expect(calls("PUT", "/api/v1/company/smtp")[0]?.body).toEqual({
-      host: "smtp.gmail.com",
-      port: 465,
-      username: "ada@acme.test",
-      password: "pw",
-      from_name: "Acme",
-      from_address: "ada@acme.test",
-    });
-    expect(calls("POST", "/api/v1/company/smtp/test")).toHaveLength(1);
-    expect(screen.getByTestId("smtp-test-result").props.children).toMatch(/ada@acme.test/);
-  });
-
-  it("an unknown domain is 'Other' with every field", async () => {
-    mockRoutes = {
-      "GET /api/v1/company/smtp": () => ({ platform: NONE, org: NONE, active: null }),
-      "GET /api/v1/company/smtp/preset": () => PRESET("other", "", 465),
-      "GET /api/v1/email/formats": () => ({ formats: [] }),
-    };
-    await wrap(<SmtpSettings />);
-    await waitFor(() => expect(screen.getByText(/could not tell who hosts mail/)).toBeTruthy());
-    for (const id of ["host", "username", "password", "from-name", "from-address"])
-      expect(screen.getByTestId(`smtp-${id}`)).toBeTruthy();
-    expect(screen.getByText("Enter the mail server first")).toBeTruthy();
-    expect(screen.getByText("Save a mailbox first")).toBeTruthy(); // the disabled test button
-  });
-});
-
-const NUMBERED = {
-  name: "price_update",
-  language: "en",
-  category: "UTILITY",
-  status: "APPROVED",
-  body: "Hi {{1}}, the price for {{2}} is ready.",
-  params: [
-    { name: "1", component: "body", type: "text", example: "", source: "" },
-    { name: "2", component: "body", type: "text", example: "", source: "" },
-  ],
-};
-const GUESSED = {
-  ...NUMBERED,
-  name: "meeting_followup",
-  body: "Thanks {{name}}",
-  params: [
-    { name: "name", component: "body", type: "text", example: "", source: "customer.first_name" },
-  ],
-};
-
-describe("Gallabox pick lists (ZC-07)", () => {
-  it("shows only unmapped parameters and saves the admin's mapping", async () => {
-    const status = { configured: true, channel: { set: false, label: "" }, templates: [] };
-    mockRoutes = {
-      "GET /api/v1/company/gallabox": () => status,
-      "POST /api/v1/company/gallabox/discover": () => ({
-        channels: [
-          { ref: "r1", label: "Sales", selected: false },
-          { ref: "r2", label: "Support", selected: false },
-        ],
-        templates: [GUESSED, NUMBERED],
-        unmapped: { "meeting_followup/en": [], "price_update/en": ["1", "2"] },
-        hidden: 0,
-        status,
-      }),
-      "PUT /api/v1/company/gallabox/channel": () => ({
-        ...status,
-        channel: { set: true, label: "Support" },
-      }),
-      "PUT /api/v1/company/gallabox/templates": () => status,
-    };
-    await wrap(<GallaboxSettings />);
-    await waitFor(() => expect(screen.getByTestId("gallabox-picker")).toBeTruthy());
-    expect(screen.queryByTestId("gallabox-map-meeting_followup/en-name")).toBeNull(); // guessed
-    expect(screen.getByTestId("gallabox-map-price_update/en-1")).toBeTruthy();
-    await fireEvent.press(screen.getByTestId("gallabox-map-price_update/en-2-deal.name"));
-    await fireEvent(screen.getByTestId("gallabox-channel-pick"), "change", "r2");
-    await fireEvent.press(screen.getByTestId("gallabox-save-list"));
-    await waitFor(() => expect(calls("PUT", "/api/v1/company/gallabox/templates")).toHaveLength(1));
-    expect(calls("PUT", "/api/v1/company/gallabox/templates")[0]?.body).toEqual({
-      selected: [
-        { name: "meeting_followup", language: "en" },
-        { name: "price_update", language: "en", mapping: { "2": "deal.name" } },
-      ],
-    });
-  });
-
-  it("disabled buttons say why (UX-44c)", async () => {
-    mockRoutes = { "GET /api/v1/company/gallabox": () => ({ configured: false, templates: [] }) };
-    await wrap(<GallaboxSettings />);
-    expect(screen.getByText("Enter the API key, secret and account ID first")).toBeTruthy();
-    expect(screen.getByText("Save the keys first")).toBeTruthy();
-    expect(screen.queryByTestId("gallabox-channel_id")).toBeNull(); // picked, not typed
   });
 });
 

@@ -56,7 +56,10 @@ def org(c: TestClient, name: str, store: CloudStore) -> tuple[dict[str, str], di
     ensure_owner(c, store)
     h = signup(c, name, f"admin@{name.lower()}.test")
     cid = cid_of(c, h)
-    assert c.put(f"/api/owner/companies/{cid}/gallabox", json=CREDS, headers=JSON_ORIGIN).status_code == 200
+    assert (
+        c.put(f"/api/owner/companies/{cid}/gallabox", json=CREDS, headers=JSON_ORIGIN).status_code
+        == 200
+    )
     r = c.put(
         f"/api/owner/companies/{cid}/gallabox/templates",
         json={"selected": [{"name": "meeting_followup", "language": "en"}]},
@@ -110,9 +113,12 @@ def test_off_by_default_and_the_hook_is_not_found(c: TestClient, store: CloudSto
     assert got["enabled"] is False
     assert got["url"] is None
     # Rotating needs the feature on for the company.
-    assert c.post(
-        f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
-    ).status_code == 403
+    assert (
+        c.post(
+            f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
+        ).status_code
+        == 403
+    )
     assert c.get("/api/v1/whatsapp/status?keys=a", headers=ag).status_code == 403
     assert c.post("/api/hooks/gallabox/" + "x" * 32, content=b"{}").status_code == 404
 
@@ -123,9 +129,12 @@ def test_bad_signature_is_401_and_valid_status_is_stored(c: TestClient, store: C
     assert hook["url"].startswith(f"{ORIGIN}/api/hooks/gallabox/")
     # An agent cannot rotate the webhook — and the owner cookie must not leak into the check.
     c.cookies.clear()
-    assert c.post(
-        f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
-    ).status_code == 401
+    assert (
+        c.post(
+            f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
+        ).status_code
+        == 401
+    )
     send(c, ag, "wa-step-0001")
     assert (
         c.get("/api/v1/whatsapp/status?keys=wa-step-0001", headers=ag).json()["status"][

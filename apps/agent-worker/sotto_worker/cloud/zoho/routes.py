@@ -886,9 +886,7 @@ def make_routes(
                 actor=who,
                 ip=ip_of(r),
             )
-        return JSONResponse(
-            {"fields": fields, "connected_as": surrogate.email}, headers=NO_STORE
-        )
+        return JSONResponse({"fields": fields, "connected_as": surrogate.email}, headers=NO_STORE)
 
     async def o_agn_create(r: Request, who: Principal) -> Response:
         """Creates only the AGN fields that are missing; an existing field is never changed."""

@@ -109,7 +109,10 @@ def setup_org(c: TestClient, h: dict[str, str]) -> None:
     """Round 2 (D-078): the vendor sets Gallabox from the company profile. The caller must
     have logged the owner in first (owner_login); the admin header only names the company."""
     cid = cid_of(c, h)
-    assert c.put(f"/api/owner/companies/{cid}/gallabox", json=CREDS, headers=JSON_ORIGIN).status_code == 200
+    assert (
+        c.put(f"/api/owner/companies/{cid}/gallabox", json=CREDS, headers=JSON_ORIGIN).status_code
+        == 200
+    )
     r = c.put(
         f"/api/owner/companies/{cid}/gallabox/templates",
         json={"selected": [{"name": "meeting_followup", "language": "en"}]},
@@ -123,7 +126,9 @@ def gb_put(c: TestClient, h: dict[str, str], path: str, **over: Any) -> Any:
 
 
 def gb_post(c: TestClient, h: dict[str, str], path: str, **over: Any) -> Any:
-    return c.post(f"/api/owner/companies/{cid_of(c, h)}/gallabox{path}", headers=JSON_ORIGIN, **over)
+    return c.post(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox{path}", headers=JSON_ORIGIN, **over
+    )
 
 
 def message(**over: Any) -> dict[str, Any]:
@@ -366,7 +371,9 @@ def test_stop_codes_block_and_are_audited(
     assert "131049" in failed[0]["detail"]
 
 
-def test_org_toggle_and_kill_switch_stop_whatsapp(gclient: TestClient, store: CloudStore, gb: FakeGallabox) -> None:
+def test_org_toggle_and_kill_switch_stop_whatsapp(
+    gclient: TestClient, store: CloudStore, gb: FakeGallabox
+) -> None:
     owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     setup_org(gclient, h)

@@ -4,9 +4,6 @@ import * as ReactNative from "react-native";
 import RootLayout from "../app/_layout";
 import AdminLayout from "../app/admin/_layout";
 import TeamScreen from "../app/admin/index";
-import ModelsScreen from "../app/admin/models";
-import PromptsScreen from "../app/admin/prompts";
-import PromptDetailScreen from "../app/admin/prompts/[key]";
 import SettingsScreen from "../app/admin/settings";
 import CallDetailScreen from "../app/history/[id]";
 import HistoryScreen from "../app/history/index";
@@ -21,9 +18,6 @@ const routes = {
   inbox: InboxScreen,
   "admin/_layout": AdminLayout,
   "admin/index": TeamScreen,
-  "admin/prompts/index": PromptsScreen,
-  "admin/prompts/[key]": PromptDetailScreen,
-  "admin/models": ModelsScreen,
   "admin/settings": SettingsScreen,
 };
 
@@ -98,21 +92,6 @@ describe("mock screens", () => {
     await open("/admin");
     expect(screen.getByText("Team needs a Sales Shield account")).toBeOnTheScreen();
     expect(screen.queryByText("Hana Saleh")).toBeNull();
-  });
-
-  it("admin hides the prompt editor until edits are saved and reach calls (T-040)", async () => {
-    await open("/admin/prompts");
-    expect(screen.getByText("Prompt editing comes in a later version")).toBeOnTheScreen();
-    expect(screen.queryByText("Published v4")).toBeNull();
-    expect(screen.queryByRole("link", { name: "Prompts" })).toBeNull();
-  });
-
-  it("admin models points to Keys & providers instead of sample numbers (T-041)", async () => {
-    await open("/admin/models");
-    expect(screen.getByText("Models are chosen in Keys & providers")).toBeOnTheScreen();
-    expect(screen.queryByText(/^520 ms/)).toBeNull();
-    expect(screen.queryByRole("link", { name: "Models" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Keys & providers" })).toBeOnTheScreen();
   });
 
   it("settings switches the app to Arabic", async () => {

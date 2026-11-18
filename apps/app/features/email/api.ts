@@ -68,11 +68,6 @@ export type Preview = {
 };
 export type SendResult = { status: "sent"; duplicate: boolean };
 
-export const smtpStatus = () => cloudApi<SmtpStatus>(`/api/v1/company/smtp?t=${Date.now()}`);
-export const saveSmtp = (body: SmtpInput) =>
-  cloudApi<SmtpStatus>("/api/v1/company/smtp", { method: "PUT", body });
-export const removeSmtp = () => cloudApi<SmtpStatus>("/api/v1/company/smtp", { method: "DELETE" });
-export const testSmtp = () => cloudApi<TestResult>("/api/v1/company/smtp/test", { method: "POST" });
 export const emailFormats = () => cloudApi<{ formats: EmailFormat[] }>("/api/v1/email/formats");
 export const saveFormats = (formats: EmailFormat[]) =>
   cloudApi<{ formats: EmailFormat[] }>("/api/v1/company/email/formats", {

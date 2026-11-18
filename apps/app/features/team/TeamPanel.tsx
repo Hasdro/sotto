@@ -34,11 +34,7 @@ export function useTeam(role: Role | undefined) {
   const reload = useCallback(() => {
     if (role !== "admin" && role !== "manager") return;
     cloudApi<{ users: Member[] }>("/api/v1/team")
-      .then((r) =>
-        setTeam(
-          [...r.users].sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0)),
-        ),
-      )
+      .then((r) => setTeam([...r.users].sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0))))
       .catch(() => {});
   }, [role]);
   useEffect(reload, [reload]);

@@ -5,8 +5,8 @@
  * numbers for Reports.
  */
 import type { IconName } from "@sotto/ui";
-import type { Locale } from "./i18n";
 import { useSyncExternalStore } from "react";
+import type { Locale } from "./i18n";
 
 export type CallSource =
   | "zoom"

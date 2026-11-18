@@ -16,10 +16,6 @@ export type SmtpPreset = {
   from_address: string;
   from_name: string;
 };
-export const smtpPreset = (email?: string) =>
-  cloudApi<SmtpPreset>(
-    `/api/v1/company/smtp/preset${email ? `?email=${encodeURIComponent(email)}` : ""}`,
-  );
 
 export type GallaboxChannel = { ref: string; label: string; selected: boolean };
 export type Discovered = {
@@ -32,17 +28,6 @@ export type Discovered = {
   hidden: number;
   status: GallaboxStatus;
 };
-export const gallaboxDiscover = () =>
-  cloudApi<Discovered>("/api/v1/company/gallabox/discover", { method: "POST" });
-export const gallaboxChannel = (ref: string) =>
-  cloudApi<GallaboxStatus>("/api/v1/company/gallabox/channel", { method: "PUT", body: { ref } });
-export const saveAllowListMapped = (
-  selected: { name: string; language: string; mapping?: Record<string, string> }[],
-) =>
-  cloudApi<GallaboxStatus>("/api/v1/company/gallabox/templates", {
-    method: "PUT",
-    body: { selected },
-  });
 
 /** Where a template parameter's value comes from (server: adapters/whatsapp SOURCES). */
 export const SOURCES = [

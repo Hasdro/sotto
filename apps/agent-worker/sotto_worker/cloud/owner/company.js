@@ -503,8 +503,7 @@ async function renderUserSmtp() {
         method: "POST",
         body: {},
       }),
-    remove: () =>
-      api(`/api/owner/companies/${id}/users/${pick.value}/smtp`, { method: "DELETE" }),
+    remove: () => api(`/api/owner/companies/${id}/users/${pick.value}/smtp`, { method: "DELETE" }),
   });
   const loadOne = async () => {
     try {
@@ -575,7 +574,11 @@ async function renderAgn() {
           },
           `Create ${missing.length} missing field(s) on Deals`,
         )
-      : h("p", { class: "note" }, "All four fields exist on Deals. Stage and amount are never written."),
+      : h(
+          "p",
+          { class: "note" },
+          "All four fields exist on Deals. Stage and amount are never written.",
+        ),
     msg,
   );
 }
@@ -603,7 +606,11 @@ async function renderGallabox() {
     box.replaceChildren(h("p", { class: "note" }, err.message));
     return;
   }
-  const key = h("input", { autocomplete: "off", spellcheck: false, placeholder: "Gallabox API key" });
+  const key = h("input", {
+    autocomplete: "off",
+    spellcheck: false,
+    placeholder: "Gallabox API key",
+  });
   const secret = h("input", {
     type: "password",
     autocomplete: "off",
@@ -677,15 +684,11 @@ async function loadDiscover(pickers, status) {
     method: "POST",
     body: {},
   });
-  const current = new Map(
-    status.templates.map((t) => [`${t.name}/${t.language}`, t]),
-  );
+  const current = new Map(status.templates.map((t) => [`${t.name}/${t.language}`, t]));
   const chan = h(
     "select",
     {},
-    found.channels.map((ch) =>
-      h("option", { value: ch.ref, selected: ch.selected }, ch.label),
-    ),
+    found.channels.map((ch) => h("option", { value: ch.ref, selected: ch.selected }, ch.label)),
   );
   const chanMsg = h("p", { class: "note", role: "status" });
   const saveChannel = h(
@@ -714,20 +717,21 @@ async function loadDiscover(pickers, status) {
     const cb = h("input", { type: "checkbox", checked: !!cur });
     const mapping = {};
     const paramRows = t.params.map((p) => {
-      const sel = h(
-        "select",
-        { "aria-label": `Source for ${p.name} in ${t.name}` },
-        [
-          h("option", { value: "" }, "agent types it"),
-          ...SOURCES.map((s) =>
-            h(
-              "option",
-              { value: s, selected: s === ((cur && cur.params.find((x) => x.name === p.name)?.source) || p.source || "") },
-              s,
-            ),
+      const sel = h("select", { "aria-label": `Source for ${p.name} in ${t.name}` }, [
+        h("option", { value: "" }, "agent types it"),
+        ...SOURCES.map((s) =>
+          h(
+            "option",
+            {
+              value: s,
+              selected:
+                s ===
+                ((cur && cur.params.find((x) => x.name === p.name)?.source) || p.source || ""),
+            },
+            s,
           ),
-        ],
-      );
+        ),
+      ]);
       mapping[p.name] = sel;
       return h("div", {}, h("span", {}, `${p.name} `), sel);
     });
@@ -861,9 +865,7 @@ async function renderModels() {
     const prov = h(
       "select",
       { "aria-label": `Provider for ${stage.label}` },
-      mine.map((p) =>
-        h("option", { value: p.id, selected: p.id === stage.provider_id }, p.name),
-      ),
+      mine.map((p) => h("option", { value: p.id, selected: p.id === stage.provider_id }, p.name)),
     );
     const model = h("select", { "aria-label": `Model for ${stage.label}` });
     const fillModels = () => {
@@ -921,9 +923,7 @@ async function renderModels() {
       h(
         "td",
         {},
-        stage.provider_id && stage.model
-          ? `${stage.provider_id} / ${stage.model}`
-          : "—",
+        stage.provider_id && stage.model ? `${stage.provider_id} / ${stage.model}` : "—",
         h("span", { class: "meta" }, ` ${stage.source}`),
         stage.benchmark
           ? h("span", { class: "meta" }, ` · p95 ${stage.benchmark.p95_ms} ms`)
@@ -950,7 +950,14 @@ async function renderModels() {
         h(
           "thead",
           {},
-          h("tr", {}, h("th", {}, "Stage"), h("th", {}, "Now"), h("th", {}, "Change to"), h("th", {}, "")),
+          h(
+            "tr",
+            {},
+            h("th", {}, "Stage"),
+            h("th", {}, "Now"),
+            h("th", {}, "Change to"),
+            h("th", {}, ""),
+          ),
         ),
         h("tbody", {}, ...rows),
       ),

@@ -16,7 +16,6 @@ jest.mock("../../lib/useCloud", () => ({
 jest.mock("../../lib/desktop", () => ({ desktop: () => mockDesktop }));
 
 import InstructionsRoute from "../../app/admin/instructions";
-import KeysScreen from "../../app/admin/keys";
 import { LocaleProvider } from "../../lib/locale";
 import type { Learning } from "./api";
 import { resetLearningBadge, useLearningBadge } from "./badge";
@@ -256,19 +255,5 @@ describe("badge", () => {
     expect(mockApi).not.toHaveBeenCalled();
     await wrap(<Probe on />);
     await waitFor(() => expect(screen.getByTestId("n")).toHaveTextContent("2"));
-  });
-});
-
-describe("model configuration on desktop (D-038)", () => {
-  it("shows a link to the web admin panel instead of Keys & providers", async () => {
-    mockApi.mockReset();
-    mockDesktop = { callState: jest.fn() };
-    const { Linking } = require("react-native");
-    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
-    await wrap(<KeysScreen />);
-    expect(screen.getByTestId("web-admin-notice")).toBeOnTheScreen();
-    await fireEvent.press(screen.getByTestId("web-admin-link"));
-    expect(open).toHaveBeenCalledWith("https://admin.example.com/admin/keys");
-    expect(mockApi).not.toHaveBeenCalled(); // no provider or key request from the desktop app
   });
 });

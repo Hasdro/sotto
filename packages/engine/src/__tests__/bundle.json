@@ -76,10 +76,6 @@
     "key_page": "https://console.groq.com/keys",
     "free": "Free tier, no card",
     "steps": "Sign up, choose Create API Key, name it, copy it (it is shown once).",
-    "models": [
-     "openai/gpt-oss-20b",
-     "openai/gpt-oss-120b"
-    ],
     "base_url": "https://api.groq.com/openai/v1",
     "client": true
    },
@@ -90,9 +86,6 @@
     "key_page": "https://aistudio.google.com/apikey",
     "free": "Free tier, no card (Google may use free-tier data to improve its models)",
     "steps": "Sign in with a Google account, choose Create API key, copy it.",
-    "models": [
-     "gemini-2.5-flash"
-    ],
     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "client": true
    },
@@ -103,7 +96,6 @@
     "key_page": "https://openrouter.ai/settings/keys",
     "free": "Free models capped at about 50 requests a day",
     "steps": "Sign up, choose Create API Key, set a credit limit, copy it (starts with sk-or-v1-).",
-    "models": [],
     "base_url": "https://openrouter.ai/api/v1",
     "client": true
    },
@@ -114,7 +106,6 @@
     "key_page": "https://platform.openai.com/api-keys",
     "free": "Paid from the first request",
     "steps": "Sign in, choose Create new secret key, copy it.",
-    "models": [],
     "base_url": "https://api.openai.com/v1/models",
     "client": true
    },
@@ -125,7 +116,6 @@
     "key_page": "https://console.anthropic.com/settings/keys",
     "free": "Paid",
     "steps": "Sign in, choose Create Key, copy it.",
-    "models": [],
     "base_url": "https://api.anthropic.com/v1/models",
     "client": true
    },
@@ -136,9 +126,6 @@
     "key_page": "https://console.deepgram.com/",
     "free": "$200 credit, no card",
     "steps": "Sign up. Pick your project, open Settings → API Keys, choose Create a New API Key (Member role), copy it.",
-    "models": [
-     "nova-3"
-    ],
     "base_url": null,
     "client": false
    },
@@ -149,9 +136,6 @@
     "key_page": "https://www.assemblyai.com/dashboard/home",
     "free": "$50 credit, no card",
     "steps": "Sign up. In the sidebar open API Keys, copy the key or create a new one.",
-    "models": [
-     "universal-streaming-english"
-    ],
     "base_url": null,
     "client": true
    },
@@ -162,10 +146,6 @@
     "key_page": "https://portal.speechmatics.com/api-keys",
     "free": "$100 credit, no card (2 calls at once on the free plan)",
     "steps": "Sign up. Open Settings → API Keys, name the key, copy it (shown once).",
-    "models": [
-     "standard",
-     "enhanced"
-    ],
     "base_url": null,
     "client": true
    },
@@ -176,9 +156,6 @@
     "key_page": "https://elevenlabs.io/app/settings/api-keys",
     "free": "Small free plan without a commercial license; Starter ($6/month) adds it",
     "steps": "Sign up, open Settings → API Keys, choose Create API Key, copy it.",
-    "models": [
-     "scribe_v2_realtime"
-    ],
     "base_url": null,
     "client": false
    }

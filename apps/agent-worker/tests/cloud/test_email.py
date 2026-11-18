@@ -327,7 +327,9 @@ def test_preview_merges_static_blocks_verbatim_and_send_matches(
     assert "jane@customer.test" in audit[0]["detail"]
 
 
-def test_a_retried_send_never_duplicates(mclient: TestClient, store: CloudStore, smtp: FakeSmtp) -> None:
+def test_a_retried_send_never_duplicates(
+    mclient: TestClient, store: CloudStore, smtp: FakeSmtp
+) -> None:
     owner_login(mclient, store)
     h = signup(mclient, "Acme", "admin@acme.test")
     set_org_smtp(mclient, h)
@@ -375,7 +377,9 @@ def test_recipients_and_fields_are_validated(mclient: TestClient, store: CloudSt
         assert r.status_code == 400, (over, r.text)
 
 
-def test_formats_are_editable_with_known_placeholders_only(mclient: TestClient, store: CloudStore) -> None:
+def test_formats_are_editable_with_known_placeholders_only(
+    mclient: TestClient, store: CloudStore
+) -> None:
     owner_login(mclient, store)
     h = signup(mclient, "Acme", "admin@acme.test")
     fmts = mclient.get("/api/v1/email/formats", headers=h).json()["formats"]
@@ -447,7 +451,8 @@ def test_org_isolation(mclient: TestClient, store: CloudStore, smtp: FakeSmtp) -
     assert mclient.post("/api/v1/email/send", json=req, headers=b).json()["duplicate"] is False
     assert len(smtp.inbox) == 2
 
-# --- round 2 (D-078/D-080): per-user mailboxes and rich-text formats -------------------------------
+
+# --- round 2 (D-078/D-080): per-user mailboxes and rich-text formats ------------------------
 USER_SMTP = {
     "host": "smtp.user.test",
     "port": 587,
@@ -495,7 +500,9 @@ def test_user_smtp_wins_over_org_and_platform(
     # The admin cannot set a user's mailbox; the vendor can remove it.
     mclient.cookies.clear()
     assert (
-        mclient.put(f"/api/owner/companies/{cid}/users/{uid}/smtp", json=USER_SMTP, headers=h).status_code
+        mclient.put(
+            f"/api/owner/companies/{cid}/users/{uid}/smtp", json=USER_SMTP, headers=h
+        ).status_code
         == 401
     )
     assert mclient.post(
@@ -503,12 +510,12 @@ def test_user_smtp_wins_over_org_and_platform(
         json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD + "-2"},
         headers={"origin": ORIGIN},
     ).is_success
-    assert (
-        mclient.delete(f"/api/owner/companies/{cid}/users/{uid}/smtp", headers=JSON_ORIGIN).is_success
-    )
-    assert [s["id"] for s in mclient.get("/api/v1/email/senders", headers=ag).json()["senders"]] == [
-        "org"
-    ]
+    assert mclient.delete(
+        f"/api/owner/companies/{cid}/users/{uid}/smtp", headers=JSON_ORIGIN
+    ).is_success
+    assert [
+        s["id"] for s in mclient.get("/api/v1/email/senders", headers=ag).json()["senders"]
+    ] == ["org"]
 
 
 def test_rich_format_sends_markdown_as_html(
@@ -519,11 +526,14 @@ def test_rich_format_sends_markdown_as_html(
     set_org_smtp(mclient, h)
     fmts = mclient.get("/api/v1/email/formats", headers=h).json()["formats"]
     fmts[0]["signature"] = "**Best regards,**\n{{agent.name}} · [our site](https://acme.test)"
-    assert mclient.put("/api/v1/company/email/formats", json={"formats": fmts}, headers=h).is_success
+    assert mclient.put(
+        "/api/v1/company/email/formats", json={"formats": fmts}, headers=h
+    ).is_success
     ag = agent(mclient, h)
     preview = mclient.post("/api/v1/email/preview", json=draft(), headers=ag).json()
     assert preview["text"].endswith("Best regards,\nSam Agent · our site")
-    assert "**" not in preview["text"] and "[our site]" not in preview["text"]
+    assert "**" not in preview["text"]
+    assert "[our site]" not in preview["text"]
     assert "<strong>Best regards,</strong>" in preview["html"]
     assert '<a href="https://acme.test">our site</a>' in preview["html"]
     r = mclient.post(
@@ -534,5 +544,8 @@ def test_rich_format_sends_markdown_as_html(
     assert r.status_code == 200, r.text
     got = smtp.inbox[-1].message
     assert got.get_content_type() == "multipart/alternative"
-    assert got.get_body(("plain",)).get_content().replace("\r\n", "\n").strip() == preview["text"]
-    assert "<strong>Best regards,</strong>" in got.get_body(("html",)).get_content()
+    plain, html = got.get_body(("plain",)), got.get_body(("html",))
+    assert plain is not None
+    assert html is not None
+    assert plain.get_content().replace("\r\n", "\n").strip() == preview["text"]
+    assert "<strong>Best regards,</strong>" in html.get_content()

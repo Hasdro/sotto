@@ -48,19 +48,6 @@ export type Preview = {
 
 export const gallaboxStatus = () =>
   cloudApi<GallaboxStatus>(`/api/v1/company/gallabox?t=${Date.now()}`);
-export const saveGallabox = (body: GallaboxInput) =>
-  cloudApi<GallaboxStatus>("/api/v1/company/gallabox", { method: "PUT", body });
-export const removeGallabox = () =>
-  cloudApi<GallaboxStatus>("/api/v1/company/gallabox", { method: "DELETE" });
-export const loadTemplates = () =>
-  cloudApi<{ templates: Template[] }>("/api/v1/company/gallabox/templates/load", {
-    method: "POST",
-  });
-export const saveAllowList = (selected: { name: string; language: string }[]) =>
-  cloudApi<GallaboxStatus>("/api/v1/company/gallabox/templates", {
-    method: "PUT",
-    body: { selected },
-  });
 export const allowedTemplates = () =>
   cloudApi<{ templates: Template[]; freeform: false }>("/api/v1/whatsapp/templates");
 export const previewWhatsApp = (m: Message) =>
@@ -78,12 +65,6 @@ export type WebhookStatus = {
   events: string[];
   state: { state: string; cause?: string };
 };
-export const webhookStatus = () =>
-  cloudApi<WebhookStatus>(`/api/v1/company/gallabox/webhook?t=${Date.now()}`);
-export const createWebhook = () =>
-  cloudApi<{ url: string; secret: string }>("/api/v1/company/gallabox/webhook", {
-    method: "POST",
-  });
 
 /** Distinct parameter names: a header and a body may share one ({{name}}), filled once. */
 export function fieldsOf(t: Template): Param[] {

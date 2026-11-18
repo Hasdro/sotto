@@ -158,6 +158,7 @@ def test_owner_kill_switch_is_a_status_table_with_a_confirmed_destructive_action
     kill = js[js.index("async function setKill") :].split("async function setEntitled")[0]
     assert "await confirmKill(f)" in kill  # turning off waits for the dialog
 
+
 def test_owner_sets_per_company_model_routes(
     owner: TestClient, client: TestClient, sign_up: SignUp
 ) -> None:
@@ -190,9 +191,7 @@ def test_owner_sets_per_company_model_routes(
     assert (mine["provider_id"], mine["model"]) == (stage["provider_id"], stage["model"])
     r = owner.delete(f"/api/owner/companies/{cid}/routes/{stage['id']}", headers=SAME)
     assert r.status_code == 200
-    assert (
-        next(st for st in r.json()["stages"] if st["id"] == stage["id"])["source"] != "company"
-    )
+    assert next(st for st in r.json()["stages"] if st["id"] == stage["id"])["source"] != "company"
     # A company admin cannot touch the owner routes, even its own company's.
     # The `owner` fixture logged in on this same client, so clear its owner cookie first,
     # then put it back — `owner` and `client` are the same TestClient object.

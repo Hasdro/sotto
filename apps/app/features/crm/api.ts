@@ -106,8 +106,6 @@ export const zohoBrief = (c: Pick<Candidate, "module" | "id">) =>
     `/api/v1/zoho/records/${encodeURIComponent(c.module)}/${encodeURIComponent(c.id)}`,
   );
 export const orgClient = () => cloudApi<ClientStatus>("/api/v1/company/zoho/client");
-export const saveOrgClient = (body: { client_id: string; client_secret: string; dc: string }) =>
-  cloudApi<ClientStatus>("/api/v1/company/zoho/client", { method: "PUT", body });
 export const removeOrgClient = () =>
   cloudApi<ClientStatus>("/api/v1/company/zoho/client", { method: "DELETE" });
 /** The connected user's own upcoming meetings, soonest first, 20 a page. */
@@ -169,12 +167,6 @@ export type AgnField = {
   writable: boolean;
 };
 /** INT-06 (D-069): preview of the AGN Deal fields; nothing is created until confirm. */
-export const agnFields = () => cloudApi<{ fields: AgnField[] }>("/api/v1/zoho/agn-fields");
-export const createAgnFields = () =>
-  cloudApi<{ created: string[]; fields: AgnField[] }>("/api/v1/zoho/agn-fields", {
-    method: "POST",
-    body: { confirm: true },
-  });
 
 /** INT-12 (D-072): the weekly CSV path (the caller's company, admins). */
 export const weeklyExportPath = (week?: string) =>

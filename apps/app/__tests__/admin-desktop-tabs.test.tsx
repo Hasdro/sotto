@@ -12,10 +12,6 @@ jest.mock("../components/RoleGate", () => ({
   RoleGate: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock("../features/learning/badge", () => ({ useLearningBadge: () => 0 }));
-jest.mock("../features/webadmin/webAdmin", () => ({
-  ...jest.requireActual("../features/webadmin/webAdmin"),
-  webAdminUrl: () => "https://sales.example.com/admin",
-}));
 jest.mock("expo-router", () => ({
   Slot: () => null,
   usePathname: () => mockPath,
@@ -47,13 +43,13 @@ describe("admin groups", () => {
     expect(screen.getByTestId("admin-group-people")).toBeSelected();
   });
 
-  it("web shows Keys and Integrations under Connections", async () => {
+  it("web shows Integrations under Connections, no Keys & providers (D-078)", async () => {
     mockDesktop = null;
     mockPath = "/admin/integrations";
     await wrap();
     expect(screen.getByTestId("admin-group-connections")).toBeSelected();
     expect(screen.getByText("Integrations")).toBeTruthy();
-    expect(screen.getByText("Keys & providers")).toBeTruthy();
+    expect(screen.queryByText("Keys & providers")).toBeNull();
   });
 
   it("desktop has no Keys & providers entry but keeps Integrations (D-038)", async () => {
@@ -68,11 +64,11 @@ describe("admin groups", () => {
     expect(screen.getByTestId("admin-group-connections")).toBeSelected();
   });
 
-  it("desktop AI group links to the web admin for models", async () => {
+  it("desktop AI group shows no model-management link (D-078)", async () => {
     mockDesktop = { platform: "darwin" };
     mockPath = "/admin/instructions";
     await wrap();
-    expect(screen.getByTestId("admin-web-models")).toBeOnTheScreen();
+    expect(screen.queryByTestId("admin-web-models")).toBeNull();
   });
 
   it.each(["/admin/company", "/admin/recordings", "/admin/devices", "/admin/activity"])(

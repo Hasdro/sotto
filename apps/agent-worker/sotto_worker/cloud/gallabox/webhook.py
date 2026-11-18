@@ -2,7 +2,7 @@
 
 /api/owner/companies/{id}/gallabox/webhook  vendor: create or rotate the org's webhook URL +
                                             secret (shown once, to paste into Gallabox)
-/api/hooks/gallabox/{hook}                  Gallabox → us: HMAC-verified `Message.WA.Status.*` events
+/api/hooks/gallabox/{hook}                 Gallabox → us: HMAC-verified `Message.WA.Status.*` events
 /api/v1/whatsapp/status?keys=…              the agent's own sends: sent | delivered | read | failed
 
 Round 2 (D-078): the client no longer configures the webhook — the vendor does, on the company
@@ -157,9 +157,7 @@ def hook_state(store: CloudStore, company_id: str, origin: str) -> dict[str, Any
     rows = store._q("SELECT hook_id FROM gallabox_hooks WHERE company_id = ?", (company_id,))
     return {
         "configured": bool(rows),
-        "url": (
-            f"{origin.rstrip('/')}/api/hooks/gallabox/{rows[0]['hook_id']}" if rows else None
-        ),
+        "url": (f"{origin.rstrip('/')}/api/hooks/gallabox/{rows[0]['hook_id']}" if rows else None),
         "enabled": store.org_feature_on(company_id, "whatsapp_status"),
     }
 

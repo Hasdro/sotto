@@ -5,13 +5,11 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-
 import { ACTIONS_TEXT } from "../features/actions/strings";
 import { attachBrief, resetCall } from "../features/crm/attached";
 import { EmailAction } from "../features/email";
-import { SmtpSettings } from "../features/email/SmtpSettings";
 import { EMAIL_TEXT } from "../features/email/strings";
 import { followUpWarnings } from "../features/email/warnings";
 import { FollowUp } from "../features/review/FollowUp";
 import { REVIEW_TEXT } from "../features/review/strings";
 import { WhatsAppAction } from "../features/whatsapp";
-import { GallaboxSettings } from "../features/whatsapp/GallaboxSettings";
 import { WHATSAPP_TEXT } from "../features/whatsapp/strings";
 import { deviceCall, saveDeviceCall } from "../lib/deviceHistory";
 import type { Locale } from "../lib/i18n";
@@ -68,7 +66,6 @@ const fail = (message: string) => {
   throw err;
 };
 
-const NONE = { configured: false };
 const TEMPLATE = {
   name: "meeting_followup",
   language: "en",
@@ -93,100 +90,6 @@ describe("strings", () => {
       expect(Object.keys(table.ar).sort()).toEqual(Object.keys(table.en).sort());
       for (const v of Object.values(table.ar)) expect(v.trim()).not.toBe("");
     }
-  });
-});
-
-describe("SmtpSettings", () => {
-  it("saves write-only and shows the mail server's exact error on a failed test", async () => {
-    signedIn("admin");
-    let status: Record<string, unknown> = { platform: NONE, org: NONE, active: null };
-    mockRoutes = {
-      "GET /api/v1/company/smtp": () => status,
-      "GET /api/v1/email/formats": () => ({ formats: [] }),
-      "PUT /api/v1/company/smtp": () => {
-        status = {
-          platform: NONE,
-          org: {
-            configured: true,
-            host: "smtp.hostinger.com",
-            port: 465,
-            from_name: "Acme",
-            from_address: "sales@acme.test",
-            updated_at: 1,
-          },
-          active: "org",
-        };
-        return status;
-      },
-      "POST /api/v1/company/smtp/test": () => ({
-        ok: false,
-        to: "admin@acme.test",
-        error: "535 5.7.8 Error: authentication failed",
-      }),
-    };
-    await wrap(<SmtpSettings />);
-    expect(screen.getByTestId("smtp-password").props.secureTextEntry).toBe(true);
-    await fireEvent.changeText(screen.getByTestId("smtp-host"), "smtp.hostinger.com");
-    await fireEvent.changeText(screen.getByTestId("smtp-username"), "login");
-    await fireEvent.changeText(screen.getByTestId("smtp-password"), "pw");
-    await fireEvent.changeText(screen.getByTestId("smtp-from-name"), "Acme");
-    await fireEvent.changeText(screen.getByTestId("smtp-from-address"), "sales@acme.test");
-    await fireEvent.press(screen.getByTestId("smtp-save"));
-    await waitFor(() => expect(screen.getByText("Saved.")).toBeTruthy());
-    expect(mockCalls.find((c) => c.method === "PUT")?.body).toEqual({
-      host: "smtp.hostinger.com",
-      port: 465,
-      username: "login",
-      password: "pw",
-      from_name: "Acme",
-      from_address: "sales@acme.test",
-    });
-    // The typed login is cleared after saving: it is never shown again.
-    expect(screen.getByTestId("smtp-password").props.value).toBe("");
-    await fireEvent.press(screen.getByTestId("smtp-test"));
-    await waitFor(() =>
-      expect(screen.getByTestId("smtp-test-result").props.children).toBe(
-        "The mail server said: 535 5.7.8 Error: authentication failed",
-      ),
-    );
-  });
-});
-
-describe("GallaboxSettings", () => {
-  it("after the keys, fills the template pick list (approved only) and saves the choice", async () => {
-    signedIn("admin");
-    let status = {
-      configured: true,
-      channel: { set: true, label: "Sales line" },
-      templates: [] as unknown[],
-    };
-    mockRoutes = {
-      "GET /api/v1/company/gallabox": () => status,
-      "POST /api/v1/company/gallabox/discover": () => ({
-        channels: [{ ref: "r1", label: "Sales line", selected: true }],
-        templates: [TEMPLATE],
-        unmapped: { "meeting_followup/en": [] },
-        hidden: 1,
-        status,
-      }),
-      "PUT /api/v1/company/gallabox/templates": () => {
-        status = { ...status, templates: [TEMPLATE] };
-        return status;
-      },
-    };
-    await wrap(<GallaboxSettings />);
-    for (const id of ["api_key", "api_secret"]) {
-      expect(screen.getByTestId(`gallabox-${id}`).props.secureTextEntry).toBe(true);
-    }
-    await waitFor(() => expect(screen.getByTestId("gallabox-picker")).toBeTruthy());
-    expect(screen.getByText(/1 more wait for WhatsApp approval/)).toBeTruthy();
-    // The allow-list starts with every approved template ticked.
-    expect(screen.getByTestId("gallabox-pick-meeting_followup/en").props.value).toBe(true);
-    await fireEvent.press(screen.getByTestId("gallabox-save-list"));
-    await waitFor(() => expect(screen.getByText("Saved 1 templates.")).toBeTruthy());
-    expect(mockCalls.find((c) => c.method === "PUT")?.body).toEqual({
-      selected: [{ name: "meeting_followup", language: "en" }],
-    });
   });
 });
 

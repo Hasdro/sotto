@@ -244,9 +244,7 @@ def save_user_account(
     if not owner.is_owner:
         raise CloudError("forbidden", "only the platform owner can do this")
     store.company_row(company_id)
-    if not store._q(
-        "SELECT 1 FROM users WHERE id = ? AND company_id = ?", (user_id, company_id)
-    ):
+    if not store._q("SELECT 1 FROM users WHERE id = ? AND company_id = ?", (user_id, company_id)):
         raise CloudError("not_found", "no such user in this company")
     host, port, username, password, from_name, from_address = _clean_account(
         data, user_account(store, company_id, user_id)
@@ -285,9 +283,7 @@ def delete_user_account(
             "DELETE FROM smtp_user_accounts WHERE company_id = ? AND user_id = ?",
             (company_id, user_id),
         )
-        store.audit(
-            db, "owner.smtp.user.deleted", "", company_id=company_id, actor=owner, ip=ip
-        )
+        store.audit(db, "owner.smtp.user.deleted", "", company_id=company_id, actor=owner, ip=ip)
 
 
 def user_account(store: CloudStore, company_id: str, user_id: str) -> SmtpAccount | None:
@@ -331,9 +327,7 @@ def _row(store: CloudStore, scope: str) -> sqlite3.Row | None:
     return rows[0] if rows else None
 
 
-def status(
-    store: CloudStore, company_id: str | None, user_id: str | None = None
-) -> dict[str, Any]:
+def status(store: CloudStore, company_id: str | None, user_id: str | None = None) -> dict[str, Any]:
     """What screens may know: host, port and sender of each account; never the login."""
     ensure(store)
     out: dict[str, Any] = {"platform": _public(_row(store, PLATFORM))}
