@@ -4,6 +4,7 @@
 |---|---|---|---|
 | [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) | v0.6.12 @ `1be8e34` (2026-10-10) | MIT (`AGENT-SKILLS-LICENSE.txt`) | 24 skills (all folders except `frontend-design`), `.claude/commands/*` except `next-task`/`handoff`, `.claude/agents/{code-reviewer,security-auditor,test-engineer,web-performance-auditor}.md`, `.claude/references/*` |
 | [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) `frontend-design` | 2026-10 | Apache-2.0 (`frontend-design/LICENSE.txt`) | `frontend-design` skill |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | `fcf0071` (grill-me, 2026-08-15), `7739eae` (grilling, 2026-10-29) | MIT (`MATTPOCOCK-SKILLS-LICENSE.txt`) | `grill-me` skill and its `grilling` dependency |
 
 Sotto's own additions: `.claude/commands/next-task.md` and `handoff.md`, plus
 `.claude/agents/latency-guardian.md` and `tenancy-guardian.md`.
