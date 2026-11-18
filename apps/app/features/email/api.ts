@@ -30,7 +30,11 @@ export type SmtpInput = {
   from_address: string;
 };
 export type TestResult = { ok: true; to: string } | { ok: false; to: string; error: string };
-export type Sender = { id: "org" | "platform"; from_name: string; from_address: string };
+export type Sender = {
+  id: "user" | "org" | "platform";
+  from_name: string;
+  from_address: string;
+};
 export type EmailFormat = {
   id: string;
   name: string;
@@ -58,6 +62,8 @@ export type Preview = {
   cc: string[];
   subject: string;
   text: string;
+  /** The HTML part of the sent email, when the format uses rich text (D-080). */
+  html?: string;
   attachments?: { name: string; size: number }[];
 };
 export type SendResult = { status: "sent"; duplicate: boolean };

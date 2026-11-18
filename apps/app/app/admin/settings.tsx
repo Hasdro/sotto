@@ -26,7 +26,6 @@ import { StyleSheet, View } from "react-native";
 import { ConsentPanel } from "../../features/admin/Consent";
 import { type RecordCalls, useCompanyDefaults } from "../../features/admin/defaults";
 import { type CardLanguage, useCompanySettings } from "../../features/admin/settings";
-import { configInWebOnly, openWebAdmin, webAdminUrl } from "../../features/webadmin/webAdmin";
 import type { Locale, StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
@@ -126,19 +125,6 @@ export default function SettingsScreen() {
         >
           {t("admin.defaults.error")}
         </Text>
-      ) : null}
-      {configInWebOnly() && webAdminUrl() ? (
-        <Section icon="cards" title={t("admin.settings.models")}>
-          <View style={styles.field}>
-            <Button
-              testID="settings-open-web-admin"
-              label={t("admin.settings.models.open")}
-              variant="secondary"
-              accessibilityHint={webAdminUrl() ?? undefined}
-              onPress={openWebAdmin}
-            />
-          </View>
-        </Section>
       ) : null}
       <Section icon="screen" title={t("admin.defaults.display")}>
         <View style={styles.field}>

@@ -204,6 +204,36 @@ def make_routes(
         platform.rollback_route(store, seed, who, r.path_params["stage"], ip=ip_of(r))
         return JSONResponse(providers_out(), headers=NO_STORE)
 
+    # --- per-company model routes (round 2, D-078/D-079) -----------------------------------------
+    async def o_company_routes(r: Request, _who: Principal) -> Response:
+        return JSONResponse(
+            platform.company_routes_out(store, seed, r.path_params["id"]), headers=NO_STORE
+        )
+
+    async def o_company_route_put(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        platform.set_company_route(
+            store,
+            seed,
+            who,
+            r.path_params["id"],
+            r.path_params["stage"],
+            str(data.get("provider", "")),
+            str(data.get("model", "")),
+            ip=ip_of(r),
+        )
+        return JSONResponse(
+            platform.company_routes_out(store, seed, r.path_params["id"]), headers=NO_STORE
+        )
+
+    async def o_company_route_delete(r: Request, who: Principal) -> Response:
+        platform.reset_company_route(
+            store, who, r.path_params["id"], r.path_params["stage"], ip=ip_of(r)
+        )
+        return JSONResponse(
+            platform.company_routes_out(store, seed, r.path_params["id"]), headers=NO_STORE
+        )
+
     # --- health board (ZC-06) --------------------------------------------------------------------
     async def o_health(_r: Request, _who: Principal) -> Response:
         return JSONResponse(platform.health(store, catalog), headers=NO_STORE)
@@ -461,6 +491,9 @@ def make_routes(
         o("routes/{stage}", o_route_put, "PUT"),
         o("routes/{stage}", o_route_delete, "DELETE"),
         o("routes/{stage}/rollback", o_route_rollback, "POST"),
+        o("companies/{id}/routes", o_company_routes),
+        o("companies/{id}/routes/{stage}", o_company_route_put, "PUT"),
+        o("companies/{id}/routes/{stage}", o_company_route_delete, "DELETE"),
         o("health", o_health),
         o("health/{id}/demote", o_demote, "POST"),
         o("health/{id}/demote", o_restore, "DELETE"),

@@ -110,14 +110,15 @@ def build_bundle(
     own_playbook: list[dict[str, Any]],
     keys: dict[str, str] | None,
     samples: bool = False,
-    overrides: list[str] | None = None,
     prompts: dict[str, dict[str, Any]] | None = None,
     demoted: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """`routes` are the effective choices (AGN's platform routes, plus the company's own under
-    BYO); `overrides` the company's own, for its Models page. `prompts`: the effective prompt
-    versions (DD-2); `demoted`: vendors demoted for everyone {vendor: until ms} (ZC-06), which the
-    app's router skips to the backup while they last."""
+    BYO). `prompts`: the effective prompt versions (DD-2); `demoted`: vendors demoted for
+    everyone {vendor: until ms} (ZC-06), which the app's router skips to the backup while they
+    last. Round 2 (D-079): the bundle no longer names the provider catalogue or any model —
+    `overrides` is always empty and `providers` carries no model list, so the client cannot show
+    which models are used. The stages still carry the provider+model the call needs (D-038)."""
     from sotto_worker.cloud.owner.platform import vendor_of
 
     routing = apply_overrides(seed.routing, seed.catalog, routes)
@@ -145,7 +146,6 @@ def build_bundle(
             "key_page": p.key_page,
             "free": p.free,
             "steps": p.steps,
-            "models": list(p.models),
             "base_url": p.route.get("base_url") or p.test_url,
             "client": p.client,
         }
@@ -181,7 +181,8 @@ def build_bundle(
             "context": settings.get("context", ""),
         },
         "stages": stages,
-        "overrides": sorted(routes if overrides is None else overrides),
+        # D-079: always empty — the client no longer shows model configuration.
+        "overrides": [],
         "providers": providers,
         "stage_slots": {
             s.id: {"kind": s.kind, "label": s.label} for s in seed.catalog.stages.values()

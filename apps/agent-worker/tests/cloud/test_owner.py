@@ -157,3 +157,60 @@ def test_owner_kill_switch_is_a_status_table_with_a_confirmed_destructive_action
         assert text in js, text
     kill = js[js.index("async function setKill") :].split("async function setEntitled")[0]
     assert "await confirmKill(f)" in kill  # turning off waits for the dialog
+
+def test_owner_sets_per_company_model_routes(
+    owner: TestClient, client: TestClient, sign_up: SignUp
+) -> None:
+    """Round 2 (D-078/D-079): the vendor sets one company's model route from the company
+    profile. Setting a route turns BYO on for that company, so the route actually applies."""
+    s = sign_up("Gamma", "admin@g.test")
+    cid = s["company"]["id"]
+    routes = owner.get(f"/api/owner/companies/{cid}/routes").json()
+    assert routes["byo"] is False
+    assert all(st["source"] in ("platform", "default") for st in routes["stages"])
+    stage = next(st for st in routes["stages"] if st["provider_id"] and st["model"])
+    assert (
+        owner.put(
+            f"/api/owner/companies/{cid}/routes/no-such-stage",
+            json={"provider": "groq", "model": "x"},
+            headers=SAME,
+        ).status_code
+        == 400
+    )
+    r = owner.put(
+        f"/api/owner/companies/{cid}/routes/{stage['id']}",
+        json={"provider": stage["provider_id"], "model": stage["model"]},
+        headers=SAME,
+    )
+    assert r.status_code == 200, r.text
+    after = owner.get(f"/api/owner/companies/{cid}/routes").json()
+    assert after["byo"] is True
+    mine = next(st for st in after["stages"] if st["id"] == stage["id"])
+    assert mine["source"] == "company"
+    assert (mine["provider_id"], mine["model"]) == (stage["provider_id"], stage["model"])
+    r = owner.delete(f"/api/owner/companies/{cid}/routes/{stage['id']}", headers=SAME)
+    assert r.status_code == 200
+    assert (
+        next(st for st in r.json()["stages"] if st["id"] == stage["id"])["source"] != "company"
+    )
+    # A company admin cannot touch the owner routes, even its own company's.
+    # The `owner` fixture logged in on this same client, so clear its owner cookie first,
+    # then put it back — `owner` and `client` are the same TestClient object.
+    jar = dict(client.cookies)
+    client.cookies.clear()
+    assert client.get(f"/api/owner/companies/{cid}/routes", headers=s["auth"]).status_code == 401
+    for k, v in jar.items():
+        client.cookies.set(k, v)
+    assert owner.get("/api/owner/companies/no-such-id/routes").status_code == 404
+
+
+def test_company_page_is_served_with_a_strict_policy(client: TestClient) -> None:
+    """Round 2 (D-078): the company profile opens in its own tab from Companies."""
+    page = client.get("/owner/company.html")
+    assert page.status_code == 200
+    assert "<title>AGN Sales Shield · Owner</title>" in page.text
+    assert "Sotto" not in page.text
+    js = client.get("/owner/company.js")
+    assert js.status_code == 200
+    assert "Sotto" not in js.text
+    assert "script-src 'self'" in page.headers["content-security-policy"]

@@ -1,9 +1,12 @@
 """Gallabox delivery status (INT-10, D-071): status only, never message text (D-033).
 
-/api/v1/company/gallabox/webhook   admin: create or rotate the org's webhook URL + secret (shown
-                                   once, to paste into Gallabox > Settings > Webhooks)
-/api/hooks/gallabox/{hook}         Gallabox → us: HMAC-verified `Message.WA.Status.*` events
-/api/v1/whatsapp/status?keys=…     the agent's own sends: sent | delivered | read | failed
+/api/owner/companies/{id}/gallabox/webhook  vendor: create or rotate the org's webhook URL +
+                                            secret (shown once, to paste into Gallabox)
+/api/hooks/gallabox/{hook}                  Gallabox → us: HMAC-verified `Message.WA.Status.*` events
+/api/v1/whatsapp/status?keys=…              the agent's own sends: sent | delivered | read | failed
+
+Round 2 (D-078): the client no longer configures the webhook — the vendor does, on the company
+profile, through `rotate_hook`/`hook_state` below. The inbound delivery endpoint is unchanged.
 
 Signature: `x-gallabox-signature` = base64(HMAC-SHA256(secret, raw body)) per Gallabox's docs.
 Their wording ("your secret (base64-encoded)") is ambiguous, so the key is tried as the secret's
@@ -30,6 +33,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
+from sotto_worker.cloud import features
 from sotto_worker.cloud.gallabox import data
 from sotto_worker.cloud.store import CloudStore, Principal, now_ms
 from sotto_worker.server.vault import VaultError
@@ -148,13 +152,56 @@ def parse_status(event: str, payload: Any) -> tuple[str, str, str | None] | None
     return mid, status, error
 
 
+def hook_state(store: CloudStore, company_id: str, origin: str) -> dict[str, Any]:
+    """What the vendor panel shows: whether a webhook exists and where deliveries go."""
+    rows = store._q("SELECT hook_id FROM gallabox_hooks WHERE company_id = ?", (company_id,))
+    return {
+        "configured": bool(rows),
+        "url": (
+            f"{origin.rstrip('/')}/api/hooks/gallabox/{rows[0]['hook_id']}" if rows else None
+        ),
+        "enabled": store.org_feature_on(company_id, "whatsapp_status"),
+    }
+
+
+def rotate_hook(
+    store: CloudStore, *, company_id: str, who: Principal, ip: str, origin: str
+) -> dict[str, Any]:
+    """Creates (or replaces) one company's webhook and returns the URL and the secret, shown
+    once. The old secret stops working at once; the URL changes with it. The vendor sets this
+    from the company profile (D-078); the webhook only delivers while the `whatsapp_status`
+    feature is on for the company."""
+    store.company_row(company_id)
+    state = features.evaluate("whatsapp_status", None, store.feature_layers(company_id))
+    if state.state != "available":
+        raise features.FeatureUnavailable("whatsapp_status", state)
+    hook_id, secret = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
+    blob = store._vault.encrypt(f"gallabox-hook:{company_id}", secret)
+    with store._tx() as db:
+        db.execute(
+            "INSERT INTO gallabox_hooks(company_id, hook_id, ciphertext, created_at)"
+            " VALUES (?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET"
+            " hook_id = excluded.hook_id, ciphertext = excluded.ciphertext,"
+            " created_at = excluded.created_at",
+            (company_id, hook_id, blob, now_ms()),
+        )
+        store.audit(
+            db,
+            "gallabox.webhook",
+            "webhook URL and secret replaced",
+            company_id=company_id,
+            actor=who,
+            ip=ip,
+        )
+    return {"url": f"{origin.rstrip('/')}/api/hooks/gallabox/{hook_id}", "secret": secret}
+
+
 def make_routes(
     *,
     store: CloudStore,
     app_route: Wrap,
     handle: Wrap,
     ip_of: Callable[[Request], str],
-    origin_of: Callable[[Request], str],
     bad_secret_limit: Callable[[str], bool] = lambda _key: False,
     bad_secret_record: Callable[[str], None] = lambda _key: None,
     log: Callable[[str], None] = lambda _l: None,
@@ -170,48 +217,6 @@ def make_routes(
             return cid, store._vault.decrypt(f"gallabox-hook:{cid}", rows[0]["ciphertext"])
         except VaultError:
             return None
-
-    def url_for(r: Request, hook_id: str) -> str:
-        return f"{origin_of(r).rstrip('/')}/api/hooks/gallabox/{hook_id}"
-
-    @app_route
-    async def hook_get(r: Request, who: Principal) -> Response:
-        who.require("admin")
-        rows = store._q("SELECT hook_id FROM gallabox_hooks WHERE company_id = ?", (who.company,))
-        return JSONResponse(
-            {
-                "configured": bool(rows),
-                "url": url_for(r, str(rows[0]["hook_id"])) if rows else None,
-                "events": ["Message.WA.Status.Received", "Message.WA.Status.Failed"],
-                "state": store.feature_state(who, "whatsapp_status").out(),
-            },
-            headers=NO_STORE,
-        )
-
-    @app_route
-    async def hook_rotate(r: Request, who: Principal) -> Response:
-        """A new URL and secret; the secret is shown this once (paste it into Gallabox)."""
-        who.require("admin")
-        store.require_feature(who, "whatsapp_status")
-        hook_id, secret = secrets.token_urlsafe(24), secrets.token_urlsafe(32)
-        blob = store._vault.encrypt(f"gallabox-hook:{who.company}", secret)
-        with store._tx() as db:
-            db.execute(
-                "INSERT INTO gallabox_hooks(company_id, hook_id, ciphertext, created_at)"
-                " VALUES (?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET"
-                " hook_id = excluded.hook_id, ciphertext = excluded.ciphertext,"
-                " created_at = excluded.created_at",
-                (who.company, hook_id, blob, now_ms()),
-            )
-            store.audit(
-                db,
-                "gallabox.webhook",
-                "webhook URL and secret replaced",
-                company_id=who.company,
-                actor=who,
-                ip=ip_of(r),
-            )
-        return JSONResponse({"url": url_for(r, hook_id), "secret": secret}, headers=NO_STORE)
 
     @handle
     async def receive(r: Request) -> Response:
@@ -294,8 +299,6 @@ def make_routes(
         )
 
     return [
-        Route("/api/v1/company/gallabox/webhook", hook_get),
-        Route("/api/v1/company/gallabox/webhook", hook_rotate, methods=["POST"]),
         Route("/api/hooks/gallabox/{hook}", receive, methods=["POST"]),
         Route("/api/v1/whatsapp/status", status),
     ]

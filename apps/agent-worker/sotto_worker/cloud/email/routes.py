@@ -1,10 +1,15 @@
 """HTTP routes for org email (D-032, D-036, D-039). Mounted by cloud/app.py.
 
 /api/owner/smtp, /api/owner/smtp/test          platform mailbox (fallback; owner console)
-/api/v1/company/smtp, /api/v1/company/smtp/test the org's own mailbox (admin; org wins)
-/api/v1/company/smtp/preset                     host/port from the admin's domain (UX-32)
+/api/owner/companies/{id}/smtp                the org's own mailbox (vendor; org wins)
+/api/owner/companies/{id}/users/{uid}/smtp    one user's mailbox (vendor; user wins)
+/api/v1/company/smtp                          the org mailbox, read-only status (admin)
 /api/v1/company/email/formats                   formats with static blocks (admin)
 /api/v1/email/senders|formats|preview|send      the agent's post-call email
+
+Round 2 (D-078): the client no longer configures mail — the vendor sets the org mailbox and
+each user's mailbox from the company profile. A send uses the sender's own mailbox, else the
+org's, else the platform's.
 
 No response carries an SMTP username or password. A send needs `confirm: true` and an
 idempotency key; a retried key never sends twice."""
@@ -21,7 +26,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from sotto_worker.adapters.email.smtp import Outgoing, SmtpAccount, SmtpSendError, send_mail
-from sotto_worker.cloud.email import attachments, data, presets
+from sotto_worker.cloud.email import attachments, data
 from sotto_worker.cloud.email.render import Rendered, render
 from sotto_worker.cloud.scheduler.plans import check_step_key
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal
@@ -79,55 +84,48 @@ def make_routes(
     async def o_test(_r: Request, who: Principal) -> Response:
         return await test_send(data.account(store, data.PLATFORM), who.email)
 
+    # --- owner: the org's mailbox and one mailbox per user (round 2, D-078) ----------------------
+    # The client no longer configures mail: the vendor sets the org mailbox and each user's
+    # mailbox from the company profile. The org mailbox stays the fallback under a user's own.
+    async def o_org_get(r: Request, _who: Principal) -> Response:
+        return JSONResponse(data.status(store, r.path_params["id"]), headers=NO_STORE)
+
+    async def o_org_put(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
+        data.save_account(store, who, await body(r), platform=False, company_id=cid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid), headers=NO_STORE)
+
+    async def o_org_delete(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
+        data.delete_account(store, who, platform=False, company_id=cid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid), headers=NO_STORE)
+
+    async def o_org_test(r: Request, who: Principal) -> Response:
+        return await test_send(data.account(store, r.path_params["id"]), who.email)
+
+    async def o_user_get(r: Request, _who: Principal) -> Response:
+        cid, uid = r.path_params["id"], r.path_params["uid"]
+        return JSONResponse(data.status(store, cid, uid)["user"], headers=NO_STORE)
+
+    async def o_user_put(r: Request, who: Principal) -> Response:
+        cid, uid = r.path_params["id"], r.path_params["uid"]
+        data.save_user_account(store, who, cid, uid, await body(r), ip=ip_of(r))
+        return JSONResponse(data.status(store, cid, uid)["user"], headers=NO_STORE)
+
+    async def o_user_delete(r: Request, who: Principal) -> Response:
+        cid, uid = r.path_params["id"], r.path_params["uid"]
+        data.delete_user_account(store, who, cid, uid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid, uid)["user"], headers=NO_STORE)
+
+    async def o_user_test(r: Request, who: Principal) -> Response:
+        cid, uid = r.path_params["id"], r.path_params["uid"]
+        return await test_send(data.user_account(store, cid, uid), who.email)
+
     # --- admin: the org's mailbox and formats ----------------------------------------------------
     @app_route
     async def org_get(_r: Request, who: Principal) -> Response:
         who.require("admin")
         return JSONResponse(data.status(store, who.company), headers=NO_STORE)
-
-    @app_route
-    async def org_put(r: Request, who: Principal) -> Response:
-        who.require("admin")
-        store.require_feature(who, "integrations")
-        data.save_account(store, who, await body(r), platform=False, ip=ip_of(r))
-        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
-
-    @app_route
-    async def org_delete(r: Request, who: Principal) -> Response:
-        who.require("admin")
-        data.delete_account(store, who, platform=False, ip=ip_of(r))
-        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
-
-    @app_route
-    async def org_test(_r: Request, who: Principal) -> Response:
-        who.require("admin")
-        store.require_feature(who, "integrations")
-        if not send_limit(f"test:{who.company}"):
-            raise CloudError("rate_limited", "too many test emails; wait a minute")
-        scope = data.active_scope(store, who.company)
-        return await test_send(data.account(store, scope) if scope else None, who.email)
-
-    @app_route
-    async def org_preset(r: Request, who: Principal) -> Response:
-        """The mailbox provider behind an email domain (the admin's own by default), so the form
-        shows only the password for Google, Microsoft 365, Hostinger and Zoho Mail (D-052)."""
-        who.require("admin")
-        email = r.query_params.get("email") or who.email
-        preset, found_by, domain = await presets.preset_for(email)
-        return JSONResponse(
-            {
-                "domain": domain,
-                "found_by": found_by,
-                "preset": preset.out(),
-                "username": email.strip().lower() if preset.id != "other" else "",
-                "from_address": who.email if domain_matches(who.email, domain) else "",
-                "from_name": data.company_name(store, who.company),
-            },
-            headers=NO_STORE,
-        )
-
-    def domain_matches(email: str, domain: str) -> bool:
-        return bool(domain) and presets.domain_of(email) == domain
 
     @app_route
     async def formats_put(r: Request, who: Principal) -> Response:
@@ -139,7 +137,9 @@ def make_routes(
     @app_route
     async def senders_get(_r: Request, who: Principal) -> Response:
         store.require_feature(who, "email_send")
-        return JSONResponse({"senders": data.senders(store, who.company)}, headers=NO_STORE)
+        return JSONResponse(
+            {"senders": data.senders(store, who.company, who.user_id)}, headers=NO_STORE
+        )
 
     @app_route
     async def formats_get(_r: Request, who: Principal) -> Response:
@@ -152,7 +152,7 @@ def make_routes(
     ) -> tuple[dict[str, Any], Rendered, Outgoing, list[dict[str, Any]]]:
         """Validates a draft and renders it; shared by preview and send so they cannot differ."""
         store.require_feature(who, "email_send")
-        choices = {s["id"]: s for s in data.senders(store, who.company)}
+        choices = {s["id"]: s for s in data.senders(store, who.company, who.user_id)}
         chosen = choices.get(str(d.get("sender", "")))
         if chosen is None:
             raise CloudError("invalid", "pick one of the approved senders")
@@ -195,6 +195,7 @@ def make_routes(
             cc=cc,
             subject=out.subject,
             text=out.text,
+            html=out.html,
             message_id_seed="",
         )
         # Names and sizes only here (preview); the bytes are read at send (security review).
@@ -210,6 +211,7 @@ def make_routes(
             "cc": list(mail.cc),
             "subject": out.subject,
             "text": out.text,
+            "html": out.html,
             "attachments": [{"name": a["name"], "size": a["size"]} for a in listed],
         }
 
@@ -236,7 +238,7 @@ def make_routes(
         if not send_limit(f"send:{who.company}:{who.user_id}"):
             data.finish_send(store, who, idem, ok=False, detail="rate limited", ip=ip_of(r))
             raise CloudError("rate_limited", "too many emails; wait a minute")
-        scope = data.active_scope(store, who.company)
+        scope = data.active_scope(store, who.company, who.user_id)
         account = data.account(store, scope) if scope else None
         if account is None:
             data.finish_send(store, who, idem, ok=False, detail="no mailbox", ip=ip_of(r))
@@ -275,11 +277,39 @@ def make_routes(
         Route("/api/owner/smtp", owner_route(o_put, mutating=True), methods=["PUT"]),
         Route("/api/owner/smtp", owner_route(o_delete, mutating=True), methods=["DELETE"]),
         Route("/api/owner/smtp/test", owner_route(o_test, mutating=True), methods=["POST"]),
+        Route("/api/owner/companies/{id}/smtp", owner_route(o_org_get)),
+        Route(
+            "/api/owner/companies/{id}/smtp",
+            owner_route(o_org_put, mutating=True),
+            methods=["PUT"],
+        ),
+        Route(
+            "/api/owner/companies/{id}/smtp",
+            owner_route(o_org_delete, mutating=True),
+            methods=["DELETE"],
+        ),
+        Route(
+            "/api/owner/companies/{id}/smtp/test",
+            owner_route(o_org_test, mutating=True),
+            methods=["POST"],
+        ),
+        Route("/api/owner/companies/{id}/users/{uid}/smtp", owner_route(o_user_get)),
+        Route(
+            "/api/owner/companies/{id}/users/{uid}/smtp",
+            owner_route(o_user_put, mutating=True),
+            methods=["PUT"],
+        ),
+        Route(
+            "/api/owner/companies/{id}/users/{uid}/smtp",
+            owner_route(o_user_delete, mutating=True),
+            methods=["DELETE"],
+        ),
+        Route(
+            "/api/owner/companies/{id}/users/{uid}/smtp/test",
+            owner_route(o_user_test, mutating=True),
+            methods=["POST"],
+        ),
         Route(f"{api}/company/smtp", org_get),
-        Route(f"{api}/company/smtp", org_put, methods=["PUT"]),
-        Route(f"{api}/company/smtp", org_delete, methods=["DELETE"]),
-        Route(f"{api}/company/smtp/test", org_test, methods=["POST"]),
-        Route(f"{api}/company/smtp/preset", org_preset),
         Route(f"{api}/company/email/formats", formats_put, methods=["PUT"]),
         Route(f"{api}/email/senders", senders_get),
         Route(f"{api}/email/formats", formats_get),

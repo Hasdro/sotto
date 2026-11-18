@@ -1,15 +1,18 @@
 """HTTP routes for WhatsApp through Gallabox (D-033, D-036, D-039). Mounted by cloud/app.py.
 
-/api/v1/company/gallabox                     credentials (admin; write-only) + allow-list
-/api/v1/company/gallabox/templates/load      every template Gallabox has, for the dropdown
-/api/v1/company/gallabox/discover            channels + APPROVED templates with guessed mappings
-/api/v1/company/gallabox/channel             pick the WhatsApp number (by an opaque ref)
-/api/v1/company/gallabox/templates           save the allow-list (parameters cached)
+/api/owner/companies/{id}/gallabox           credentials (vendor; write-only) + allow-list
+/api/owner/companies/{id}/gallabox/templates/load  every template Gallabox has
+/api/owner/companies/{id}/gallabox/discover  channels + APPROVED templates with guessed mappings
+/api/owner/companies/{id}/gallabox/channel   pick the WhatsApp number (by an opaque ref)
+/api/owner/companies/{id}/gallabox/templates save the allow-list (parameters cached)
+/api/owner/companies/{id}/gallabox/webhook   delivery-status webhook URL + secret (shown once)
+/api/v1/company/gallabox                     status only (admin)
 /api/v1/whatsapp/templates|preview|send      the agent's approved template send
 
-Template-only (D-033): Gallabox documents no window signal, so `window_status()` is "unknown"
-and free-form text is refused. No response carries a key, secret, account or channel id, or
-anything from Gallabox's embedded `channel` object."""
+Round 2 (D-078): the client no longer configures Gallabox — the vendor does, per organisation,
+from the company profile. Template-only (D-033): Gallabox documents no window signal, so
+`window_status()` is "unknown" and free-form text is refused. No response carries a key, secret,
+account or channel id, or anything from Gallabox's embedded `channel` object."""
 
 from __future__ import annotations
 
@@ -90,6 +93,8 @@ def make_routes(
     transport: httpx.AsyncBaseTransport | None = None,
     send_limit: Callable[[str], bool] = lambda _key: True,
     log: Callable[[str], None] = lambda _l: None,
+    owner_route: Wrap | None = None,
+    origin_of: Callable[[Request], str] | None = None,
 ) -> list[Route]:
     data.ensure(store)
 
@@ -121,84 +126,74 @@ def make_routes(
             except GallaboxError as e:
                 raise failed(e) from None
 
-    # --- admin ---------------------------------------------------------------------------------
-    @app_route
-    async def discover(r: Request, who: Principal) -> Response:
+    # --- owner: Gallabox is configured per organisation from the company profile --------
+    # Round 2 (D-078). The client keeps only a status view. `owner_route` enforces the platform
+    # owner, so these handlers take the company id from the path and never trust the caller.
+    async def o_get(r: Request, _who: Principal) -> Response:
+        return JSONResponse(data.status(store, r.path_params["id"]), headers=NO_STORE)
+
+    async def o_put(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
+        data.save(store, who, await body(r), company_id=cid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid), headers=NO_STORE)
+
+    async def o_delete(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
+        data.delete(store, who, company_id=cid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid), headers=NO_STORE)
+
+    async def o_load(r: Request, _who: Principal) -> Response:
+        found = await live_templates(r.path_params["id"])
+        return JSONResponse({"templates": [x.out() for x in found]}, headers=NO_STORE)
+
+    async def o_discover(r: Request, who: Principal) -> Response:
         """ZC-07: after a valid key, the pick lists. Only APPROVED templates are offered; each
-        parameter carries a guessed source, and `unmapped` names the ones the admin must pick.
+        parameter carries a guessed source, and `unmapped` names the ones the vendor must pick.
         With one WhatsApp number on the account and none chosen yet, it is chosen here."""
-        who.require("admin")
-        store.require_feature(who, "integrations")
-        found, channels = await live_discover(who.company)
-        creds = data.credentials(store, who.company) or {}
+        cid = r.path_params["id"]
+        found, channels = await live_discover(cid)
+        creds = data.credentials(store, cid) or {}
         if len(channels) == 1 and not creds.get("channel_id"):
-            data.save_channel(store, who, channels[0].id, channels[0].label, ip=ip_of(r))
-            creds = data.credentials(store, who.company) or {}
-        approved = [t for t in found if t.status == "APPROVED"]
+            data.save_channel(
+                store, who, channels[0].id, channels[0].label, company_id=cid, ip=ip_of(r)
+            )
+            creds = data.credentials(store, cid) or {}
+        approved = [x for x in found if x.status == "APPROVED"]
         return JSONResponse(
             {
                 "channels": [
                     {
-                        "ref": channel_ref(who.company, c.id),
+                        "ref": channel_ref(cid, c.id),
                         "label": c.label or f"WhatsApp {i + 1}",
                         "selected": c.id == creds.get("channel_id"),
                     }
                     for i, c in enumerate(channels)
                 ],
-                "templates": [t.out() for t in approved],
+                "templates": [x.out() for x in approved],
                 "unmapped": {
-                    f"{t.name}/{t.language}": [p.name for p in t.params if not p.source]
-                    for t in approved
+                    f"{x.name}/{x.language}": [p.name for p in x.params if not p.source]
+                    for x in approved
                 },
                 "hidden": len(found) - len(approved),
-                "status": data.status(store, who.company),
+                "status": data.status(store, cid),
             },
             headers=NO_STORE,
         )
 
-    @app_route
-    async def channel(r: Request, who: Principal) -> Response:
-        who.require("admin")
-        store.require_feature(who, "integrations")
+    async def o_channel(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
         ref = str((await body(r)).get("ref", ""))
-        _found, channels = await live_discover(who.company)
-        picked = next((c for c in channels if channel_ref(who.company, c.id) == ref), None)
+        _found, channels = await live_discover(cid)
+        picked = next((c for c in channels if channel_ref(cid, c.id) == ref), None)
         if picked is None:
             raise CloudError("invalid", "that WhatsApp number is not on the Gallabox account")
-        data.save_channel(store, who, picked.id, picked.label, ip=ip_of(r))
-        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
+        data.save_channel(store, who, picked.id, picked.label, company_id=cid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid), headers=NO_STORE)
 
-    @app_route
-    async def org_get(_r: Request, who: Principal) -> Response:
-        who.require("admin")
-        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
-
-    @app_route
-    async def org_put(r: Request, who: Principal) -> Response:
-        who.require("admin")
-        store.require_feature(who, "integrations")
-        data.save(store, who, await body(r), ip=ip_of(r))
-        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
-
-    @app_route
-    async def org_delete(r: Request, who: Principal) -> Response:
-        who.require("admin")
-        data.delete(store, who, ip=ip_of(r))
-        return JSONResponse(data.status(store, who.company), headers=NO_STORE)
-
-    @app_route
-    async def load(_r: Request, who: Principal) -> Response:
-        who.require("admin")
-        store.require_feature(who, "integrations")
-        found = await live_templates(who.company)
-        return JSONResponse({"templates": [t.out() for t in found]}, headers=NO_STORE)
-
-    @app_route
-    async def allow(r: Request, who: Principal) -> Response:
+    async def o_allow(r: Request, who: Principal) -> Response:
         """The server re-reads the templates from Gallabox: the parameters it caches come from
         Gallabox, never from what the browser sent."""
-        who.require("admin")
-        store.require_feature(who, "integrations")
+        cid = r.path_params["id"]
         picked = (await body(r)).get("selected")
         if not isinstance(picked, list) or len(picked) > MAX_TEMPLATES:
             raise CloudError("invalid", f"select up to {MAX_TEMPLATES} templates")
@@ -212,19 +207,42 @@ def make_routes(
             for p in picked
             if isinstance(p, dict)
         }
-        live = (
-            {(t.name, t.language): t for t in await live_templates(who.company)} if wanted else {}
-        )
+        live = {(x.name, x.language): x for x in await live_templates(cid)} if wanted else {}
         missing = wanted - set(live)
         if missing:
             raise CloudError(
                 "invalid", f"not in Gallabox: {', '.join(n for n, _ in sorted(missing))}"
             )
         chosen = [with_mapping(live[k], mappings.get(k)) for k in sorted(wanted)]
-        unapproved = [t.name for t in chosen if t.status and t.status != "APPROVED"]
+        unapproved = [x.name for x in chosen if x.status and x.status != "APPROVED"]
         if unapproved:
             raise CloudError("invalid", f"not approved by WhatsApp yet: {', '.join(unapproved)}")
-        data.save_allowed(store, who, chosen, ip=ip_of(r))
+        data.save_allowed(store, who, chosen, company_id=cid, ip=ip_of(r))
+        return JSONResponse(data.status(store, cid), headers=NO_STORE)
+
+    async def o_hook_get(r: Request, _who: Principal) -> Response:
+        assert origin_of is not None  # noqa: S101 — app.py always passes it with owner_route
+        return JSONResponse(
+            webhook.hook_state(store, r.path_params["id"], origin_of(r)), headers=NO_STORE
+        )
+
+    async def o_hook_rotate(r: Request, who: Principal) -> Response:
+        assert origin_of is not None  # noqa: S101 — app.py always passes it with owner_route
+        return JSONResponse(
+            webhook.rotate_hook(
+                store,
+                company_id=r.path_params["id"],
+                who=who,
+                ip=ip_of(r),
+                origin=origin_of(r),
+            ),
+            headers=NO_STORE,
+        )
+
+    # --- client: status only ------------------------------------------------------------------
+    @app_route
+    async def org_get(_r: Request, who: Principal) -> Response:
+        who.require("admin")
         return JSONResponse(data.status(store, who.company), headers=NO_STORE)
 
     # --- agent ---------------------------------------------------------------------------------
@@ -324,15 +342,53 @@ def make_routes(
         )
 
     api = "/api/v1"
-    return [
+    routes: list[Route] = [
         Route(f"{api}/company/gallabox", org_get),
-        Route(f"{api}/company/gallabox", org_put, methods=["PUT"]),
-        Route(f"{api}/company/gallabox", org_delete, methods=["DELETE"]),
-        Route(f"{api}/company/gallabox/templates/load", load, methods=["POST"]),
-        Route(f"{api}/company/gallabox/templates", allow, methods=["PUT"]),
-        Route(f"{api}/company/gallabox/discover", discover, methods=["POST"]),
-        Route(f"{api}/company/gallabox/channel", channel, methods=["PUT"]),
         Route(f"{api}/whatsapp/templates", templates),
         Route(f"{api}/whatsapp/preview", preview, methods=["POST"]),
         Route(f"{api}/whatsapp/send", send, methods=["POST"]),
     ]
+    if owner_route is not None:
+        routes += [
+            Route("/api/owner/companies/{id}/gallabox", owner_route(o_get)),
+            Route(
+                "/api/owner/companies/{id}/gallabox",
+                owner_route(o_put, mutating=True),
+                methods=["PUT"],
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox",
+                owner_route(o_delete, mutating=True),
+                methods=["DELETE"],
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox/templates/load",
+                owner_route(o_load, mutating=True),
+                methods=["POST"],
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox/discover",
+                owner_route(o_discover, mutating=True),
+                methods=["POST"],
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox/channel",
+                owner_route(o_channel, mutating=True),
+                methods=["PUT"],
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox/templates",
+                owner_route(o_allow, mutating=True),
+                methods=["PUT"],
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox/webhook",
+                owner_route(o_hook_get),
+            ),
+            Route(
+                "/api/owner/companies/{id}/gallabox/webhook",
+                owner_route(o_hook_rotate, mutating=True),
+                methods=["POST"],
+            ),
+        ]
+    return routes

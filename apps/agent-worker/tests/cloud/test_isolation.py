@@ -7,14 +7,25 @@ from typing import Any
 
 from starlette.testclient import TestClient
 
-from sotto_worker.cloud.store import CloudStore
+from sotto_worker.cloud.store import CloudStore, Principal
 from tests.cloud.byo import allow_byo
 from tests.cloud.conftest import SignUp
 
 
-def _seed_company_a(client: TestClient, a: dict[str, Any]) -> dict[str, str]:
+def _seed_company_a(client: TestClient, a: dict[str, Any], store: CloudStore) -> dict[str, str]:
     h = a["auth"]
-    client.put("/api/v1/company/keys/GROQ_API_KEY", json={"value": "gsk_" + "a" * 24}, headers=h)
+    # Round 2 (D-078): the client can no longer set keys — the key is seeded directly, the way
+    # the vendor's company profile would.
+    me = client.get("/api/v1/me", headers=h).json()["user"]
+    admin = Principal(
+        user_id=me["id"],
+        company_id=a["company"]["id"],
+        role="admin",
+        device_id=None,
+        email=me["email"],
+        name=me["name"],
+    )
+    store.set_key(admin, "GROQ_API_KEY", "gsk_" + "a" * 24)
     client.put("/api/v1/company/settings", json={"ai_answers_allowed": False}, headers=h)
     entry = client.post(
         "/api/v1/playbook", json={"question": "A secret?", "answer": "A only."}, headers=h
@@ -49,11 +60,15 @@ def test_company_b_cannot_read_or_change_company_a(
     a = sign_up("Alpha", "admin@a.test")
     allow_byo(store, a)  # A brings its own key (D-059 BYO): it must still never reach B
     b = sign_up("Beta", "admin@b.test")
-    ids = _seed_company_a(client, a)
+    ids = _seed_company_a(client, a, store)
     hb = b["auth"]
 
     bundle = client.get("/api/v1/bundle", headers=hb).json()
     assert bundle["keys"] in ({}, None)
+    # Round 2 (D-079): the bundle never names models or key sources.
+    assert bundle["overrides"] == []
+    assert "key_source" not in bundle
+    assert all("models" not in p for p in bundle["providers"].values())
     own = [e["question"] for e in bundle["playbook"] if not e["sample"]]
     assert "A secret?" not in own  # B sees only its own entries: the two examples it started with
     assert len(own) == 2

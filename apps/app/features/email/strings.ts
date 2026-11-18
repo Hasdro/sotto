@@ -32,7 +32,7 @@ const en = {
   "integrations.smtp.testFailed": "The mail server said: {error}",
   "integrations.smtp.formats.title": "Email formats",
   "integrations.smtp.formats.body":
-    "The opening and signature are sent exactly as written. Placeholders: {{customer.name}}, {{agent.name}}, {{agent.email}}, {{company.name}}.",
+    "The opening and signature are sent exactly as written. Use the toolbar for bold, italic, lists and links — the email is sent with the formatting applied. Placeholders: {{customer.name}}, {{agent.name}}, {{agent.email}}, {{company.name}}.",
   "integrations.smtp.formats.name": "Name",
   "integrations.smtp.formats.subject": "Subject",
   "integrations.smtp.formats.opening": "Opening (fixed)",
@@ -106,7 +106,7 @@ const ar: Record<EmailKey, string> = {
   "integrations.smtp.testFailed": "رد خادم البريد: {error}",
   "integrations.smtp.formats.title": "قوالب البريد",
   "integrations.smtp.formats.body":
-    "تُرسل التحية والتوقيع كما كُتبا تمامًا. العناصر النائبة: {{customer.name}}، {{agent.name}}، {{agent.email}}، {{company.name}}.",
+    "تُرسل التحية والتوقيع كما كُتبا تمامًا. استخدم شريط الأدوات للخط العريض والمائل والقوائم والروابط — يُرسل البريد مع تطبيق التنسيق. العناصر النائبة: {{customer.name}}، {{agent.name}}، {{agent.email}}، {{company.name}}.",
   "integrations.smtp.formats.name": "الاسم",
   "integrations.smtp.formats.subject": "الموضوع",
   "integrations.smtp.formats.opening": "التحية (ثابتة)",

@@ -601,3 +601,18 @@ Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058
 ## D-076 — Playbook bootstrap is a feature flag, off by default (owner, 15 Nov 2026)
 2026-11-15 · owner (T-083 hub line 7)
 - **Decision:** `playbook_bootstrap` joins the catalog (roles admin and manager, `default: off`). Every `/api/v1/playbook/bootstrap` route checks it after the role check and returns `feature_unavailable` (`off_by_org`) until a company admin turns it on in Admin › Features. The Playbook page's panel shows the reason (and the Features link for admins) while it is off and calls no route. Consent (D-063) is still required on top.
+
+## D-078 — Vendor-only configuration (owner, 18 Nov 2026)
+2026-11-18 · owner (M-002, T-097)
+- **Decision:** Zoho AGN fields, SMTP, Gallabox + delivery webhook, and model configuration are configured only in the owner console, per organisation, by the vendor/owner. The client app no longer carries any of that configuration UI and no longer exposes client write endpoints for it.
+- **What stays in the client:** the Zoho connection itself (the user's own Zoho login); Gallabox status only ("Gallabox Connected" / "Gallabox not connected" + channel label); email formats (now rich text, D-080).
+- **Why:** a user — even an admin — must not be able to change what the vendor sells or what the organisation is charged for; the vendor sets it once and it applies to every user in the organisation.
+
+## D-079 — Model visibility boundary (owner, 18 Nov 2026)
+2026-11-18 · owner (M-002, T-100)
+- **Decision:** the client shows no model UI anywhere and the bundle no longer carries `providers[].models`, `overrides`, or `key_source`. Model configuration is per organisation in the owner console.
+- **Boundary (stated plainly):** the effective provider+model per stage still reaches the device, because calls go direct to vendors (D-038 architecture). Full invisibility would need server-side proxying, which is NOT in this round.
+
+## D-080 — Email formats are rich text (owner, 18 Nov 2026)
+2026-11-18 · owner (M-002, T-098)
+- **Decision:** email formats store Markdown. The editor has a bold/italic/list/link toolbar. The server renders `multipart/alternative` (plain-text part = markers stripped; HTML part = a sanitised Markdown subset) only when the filled text contains Markdown — plain formats send exactly as before (single text part). Subject stays plain text.

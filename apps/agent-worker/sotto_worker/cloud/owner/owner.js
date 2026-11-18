@@ -3,7 +3,6 @@
 const $ = (s, el = document) => el.querySelector(s);
 const DAY = 86400000;
 let companies = [];
-let current = null;
 
 function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -56,7 +55,6 @@ async function api(path, { method = "GET", body } = {}) {
 
 function showLogin() {
   $("#app").hidden = true;
-  $("#drawer").hidden = true;
   $("#login").hidden = false;
   $("#email").focus();
 }
@@ -339,248 +337,12 @@ function renderCompanies() {
   );
 }
 
-async function openCompany(id) {
-  current = await api(`/api/owner/companies/${id}`);
-  renderDrawer();
-  $("#drawer").hidden = false;
-  $("#dClose").focus();
+// Round 2 (D-078): a company opens as its own page, in a new tab, where the vendor does
+// Gallabox, email per user and the other per-company work. Same origin, same sign-in.
+function openCompany(id) {
+  window.open(`/owner/company.html?id=${encodeURIComponent(id)}`, "_blank", "noopener");
 }
-$("#dClose").addEventListener("click", () => ($("#drawer").hidden = true));
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") $("#drawer").hidden = true;
-});
 
-function renderDrawer() {
-  const c = current;
-  $("#dName").textContent = c.name;
-  const plan = h(
-    "select",
-    { id: "fPlan" },
-    ["trial", "starter", "team", "custom"].map((p) =>
-      h("option", { value: p, selected: p === c.plan }, p),
-    ),
-  );
-  const seats = h("input", { id: "fSeats", type: "number", min: 1, value: c.seats });
-  const mins = h("input", { id: "fMins", type: "number", min: 1, value: c.minutes_month });
-  const extend = h("input", { id: "fExtend", type: "number", min: 0, max: 366, value: 0 });
-  const notes = h("textarea", { id: "fNotes", rows: 2 }, c.notes || "");
-  const save = async () => {
-    const body = {};
-    if (plan.value !== c.plan) body.plan = plan.value;
-    if (Number(seats.value) !== c.seats) body.seats = Number(seats.value);
-    if (Number(mins.value) !== c.minutes_month) body.minutes_month = Number(mins.value);
-    if (Number(extend.value) > 0) body.extend_days = Number(extend.value);
-    if (notes.value !== (c.notes || "")) body.notes = notes.value;
-    if (!Object.keys(body).length) return toast("Nothing changed");
-    try {
-      current = await api(`/api/owner/companies/${c.id}`, { method: "PATCH", body });
-      renderDrawer();
-      loadCompanies();
-      toast("Saved");
-    } catch (err) {
-      toast(err.message);
-    }
-  };
-  const suspend = async () => {
-    current = await api(`/api/owner/companies/${c.id}`, {
-      method: "PATCH",
-      body: { suspended: !c.suspended },
-    });
-    renderDrawer();
-    loadCompanies();
-    toast(current.suspended ? "Suspended: calls blocked, sign-in still works" : "Re-activated");
-  };
-  const del = async () => {
-    const typed = window.prompt
-      ? window.prompt(`Type "${c.name}" to delete this company and all its data.`)
-      : null;
-    if (typed !== c.name) return toast("Not deleted");
-    await api(`/api/owner/companies/${c.id}?confirm=${encodeURIComponent(typed)}`, {
-      method: "DELETE",
-    });
-    $("#drawer").hidden = true;
-    loadCompanies();
-    toast("Company deleted");
-  };
-  $("#dBody").replaceChildren(
-    h(
-      "div",
-      { class: "stat3" },
-      h(
-        "div",
-        {},
-        h("b", {}, h("span", { class: `pill ${c.status}` }, c.status)),
-        h(
-          "span",
-          {},
-          c.days_left !== null ? `${c.days_left} days left (${fmtDate(c.ends_at)})` : c.plan,
-        ),
-      ),
-      h(
-        "div",
-        {},
-        h("b", {}, `${fmtNum(c.minutes_used)} / ${fmtNum(c.minutes_month)}`),
-        h("span", {}, "minutes this month"),
-      ),
-      h("div", {}, h("b", {}, `${c.seats_used} / ${c.seats}`), h("span", {}, "seats used")),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, "Plan"),
-      h(
-        "div",
-        { class: "formgrid" },
-        h("div", {}, h("label", { for: "fPlan" }, "Plan"), plan),
-        h(
-          "div",
-          {},
-          h(
-            "label",
-            { for: "fExtend" },
-            c.plan === "trial" ? "Extend trial by (days)" : "Mark paid for (days)",
-          ),
-          extend,
-        ),
-        h("div", {}, h("label", { for: "fSeats" }, "Seats"), seats),
-        h("div", {}, h("label", { for: "fMins" }, "Minutes per month"), mins),
-        h("div", { class: "full" }, h("label", { for: "fNotes" }, "Private notes"), notes),
-      ),
-      h(
-        "div",
-        { class: "row" },
-        h(
-          "button",
-          { type: "button", class: c.suspended ? "" : "danger", onclick: suspend },
-          c.suspended ? "Re-activate" : "Suspend",
-        ),
-        h("button", { type: "button", class: "primary", onclick: save }, "Save plan"),
-      ),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, `Users (${c.users.length})`),
-      table(
-        ["Name", "Role", "Last seen", ""],
-        c.users.map((u) => [
-          [u.name, h("span", { class: "meta" }, u.email)],
-          u.active ? u.role : `${u.role} (disabled)`,
-          fmtWhen(u.last_seen_at),
-          [
-            h(
-              "button",
-              { type: "button", class: "ghost", onclick: () => resetPw(u) },
-              "Reset password",
-            ),
-            h(
-              "button",
-              { type: "button", class: "ghost", onclick: () => setActive(u, !u.active) },
-              u.active ? "Disable" : "Enable",
-            ),
-          ],
-        ]),
-      ),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, `Devices (${c.devices.length})`),
-      table(
-        ["Device", "User", "Version", "Last seen", ""],
-        c.devices.map((d) => [
-          [d.label, h("span", { class: "meta" }, d.platform)],
-          d.user.email,
-          d.app_version,
-          fmtWhen(d.last_seen),
-          d.revoked
-            ? "signed out"
-            : h("button", { type: "button", class: "ghost", onclick: () => revoke(d) }, "Sign out"),
-        ]),
-      ),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, "Recent calls"),
-      table(
-        ["When", "Agent", "Length", "Cards", "Holding", "p95"],
-        c.calls.map((k) => [
-          fmtWhen(k.started_at),
-          k.email,
-          `${Math.round(k.duration_s / 60)} min`,
-          k.cards,
-          k.holding_lines,
-          k.p95_ms === null ? "—" : `${k.p95_ms} ms`,
-        ]),
-      ),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, "Audit"),
-      table(
-        ["When", "Who", "Action", "Detail"],
-        c.audit.map((a) => [fmtWhen(a.at), a.actor || "—", a.action, a.detail]),
-      ),
-    ),
-    h(
-      "section",
-      {},
-      h("h3", {}, "Danger zone"),
-      h(
-        "button",
-        { type: "button", class: "danger", onclick: del },
-        "Delete company and all its data",
-      ),
-    ),
-  );
-}
-function table(head, rows) {
-  if (!rows.length) return h("p", { class: "empty" }, "None yet.");
-  return h(
-    "div",
-    { class: "table-wrap" },
-    h(
-      "table",
-      {},
-      h(
-        "thead",
-        {},
-        h(
-          "tr",
-          {},
-          head.map((t) => h("th", {}, t)),
-        ),
-      ),
-      h(
-        "tbody",
-        {},
-        rows.map((r) =>
-          h(
-            "tr",
-            {},
-            r.map((cell) => h("td", {}, cell)),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-async function resetPw(u) {
-  const r = await api(`/api/owner/users/${u.id}/reset`, { method: "POST", body: {} });
-  showSecret(`New password for ${u.email}`, r.temporary_password);
-}
-async function setActive(u, active) {
-  await api(`/api/owner/users/${u.id}/active`, { method: "POST", body: { active } });
-  openCompany(current.id);
-  toast(active ? "User enabled" : "User disabled and signed out");
-}
-async function revoke(d) {
-  await api(`/api/owner/devices/${d.id}`, { method: "DELETE" });
-  openCompany(current.id);
-  toast("Device signed out");
-}
 function showSecret(title, value) {
   $("#sTitle").textContent = title;
   $("#sValue").textContent = value;

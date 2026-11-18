@@ -840,6 +840,100 @@ def make_routes(
             headers=NO_STORE,
         )
 
+    # --- INT-06 (D-069) on the vendor side -------------------------------------------------------
+    # Round 2 (D-078): the client panel is gone; the vendor creates the same four fields from the
+    # company profile. Zoho's connection belongs to one person, so the vendor acts through a
+    # Zoho-connected admin of the company (the "surrogate"). The audit log shows both the vendor
+    # and the admin it acted through.
+    def _zoho_admin(store: CloudStore, company_id: str) -> Principal | None:
+        store.company_row(company_id)
+        rows = store._q(
+            "SELECT u.id, u.email, u.name, u.role FROM users u"
+            " JOIN zoho_connections z ON z.user_id = u.id AND z.company_id = u.company_id"
+            " WHERE u.company_id = ? AND u.active = 1 AND u.role = 'admin'"
+            " ORDER BY u.created_at ASC LIMIT 1",
+            (company_id,),
+        )
+        if not rows:
+            return None
+        r = rows[0]
+        return Principal(
+            user_id=str(r["id"]),
+            company_id=company_id,
+            role=str(r["role"]),
+            device_id=None,
+            email=str(r["email"]),
+            name=str(r["name"]),
+        )
+
+    async def o_agn_preview(r: Request, who: Principal) -> Response:
+        cid = r.path_params["id"]
+        surrogate = _zoho_admin(store, cid)
+        if surrogate is None:
+            raise CloudError(
+                "zoho_not_connected",
+                "no Zoho-connected admin in this company yet; ask one to connect Zoho first",
+            )
+        limited(surrogate)
+        fields = await agn_state(surrogate)
+        store.zoho_audit(surrogate, "zoho.fields.read", "AGN fields on Deals", ip=ip_of(r))
+        with store._tx() as db:
+            store.audit(
+                db,
+                "owner.zoho.fields.read",
+                f"checked through {surrogate.email}",
+                company_id=cid,
+                actor=who,
+                ip=ip_of(r),
+            )
+        return JSONResponse(
+            {"fields": fields, "connected_as": surrogate.email}, headers=NO_STORE
+        )
+
+    async def o_agn_create(r: Request, who: Principal) -> Response:
+        """Creates only the AGN fields that are missing; an existing field is never changed."""
+        cid = r.path_params["id"]
+        surrogate = _zoho_admin(store, cid)
+        if surrogate is None:
+            raise CloudError(
+                "zoho_not_connected",
+                "no Zoho-connected admin in this company yet; ask one to connect Zoho first",
+            )
+        limited(surrogate)
+        d = await body(r)
+        if d.get("confirm") is not True:
+            raise CloudError("confirm", "confirm the list before creating fields")
+        fields = await agn_state(surrogate)
+        missing = [f["api_name"] for f in fields if not f["exists"]]
+        defs = [x for x in AGN_FIELD_DEFS if x["api_name"] in missing]
+        created: list[str] = []
+        if defs:
+            created = await zoho_call(surrogate, lambda rd: rd.create_agn_fields(defs))
+        store.zoho_audit(
+            surrogate,
+            "zoho.fields.created",
+            f"AGN fields on Deals: {len(defs)} created ({', '.join(missing) or 'none'})",
+            ip=ip_of(r),
+        )
+        with store._tx() as db:
+            store.audit(
+                db,
+                "owner.zoho.fields.created",
+                f"{len(defs)} created through {surrogate.email}",
+                company_id=cid,
+                actor=who,
+                ip=ip_of(r),
+            )
+        return JSONResponse(
+            {
+                "created": missing,
+                "ids": created,
+                "fields": await agn_state(surrogate),
+                "connected_as": surrogate.email,
+            },
+            headers=NO_STORE,
+        )
+
     @app_route
     async def modules(_r: Request, who: Principal) -> Response:
         who.require("admin")
@@ -870,6 +964,12 @@ def make_routes(
         Route(f"{api}/zoho/owners", task_owners),
         Route(f"{api}/zoho/agn-fields", agn_preview),
         Route(f"{api}/zoho/agn-fields", agn_create, methods=["POST"]),
+        Route("/api/owner/companies/{id}/zoho/agn-fields", owner_route(o_agn_preview)),
+        Route(
+            "/api/owner/companies/{id}/zoho/agn-fields",
+            owner_route(o_agn_create, mutating=True),
+            methods=["POST"],
+        ),
         # INT-12 (D-072): mounted here so no hub file changes (D-058).
         *export_routes.make_routes(store=store, app_route=app_route, ip_of=ip_of),
         Route("/auth/zoho/start", handle(start)),

@@ -9,8 +9,8 @@ const en = {
   "integrations.gallabox.title": "WhatsApp (Gallabox)",
   "integrations.gallabox.body":
     "From Gallabox › Settings › Developer › API Keys. All four values are encrypted on the server and never shown again; leave a field empty to keep it.",
-  "integrations.gallabox.connected": "Keys saved",
-  "integrations.gallabox.none": "No keys yet",
+  "integrations.gallabox.connected": "Gallabox Connected",
+  "integrations.gallabox.none": "Gallabox not connected",
   "integrations.gallabox.apiKey": "API key",
   "integrations.gallabox.apiSecret": "API secret",
   "integrations.gallabox.accountId": "Account ID",
@@ -70,8 +70,8 @@ const ar: Record<WhatsAppKey, string> = {
   "integrations.gallabox.title": "واتساب (Gallabox)",
   "integrations.gallabox.body":
     "من Gallabox › الإعدادات › المطوّر › مفاتيح API. تُشفَّر القيم الأربع على الخادم ولا تُعرض مرة أخرى؛ اترك الحقل فارغًا للإبقاء عليه.",
-  "integrations.gallabox.connected": "المفاتيح محفوظة",
-  "integrations.gallabox.none": "لا توجد مفاتيح بعد",
+  "integrations.gallabox.connected": "Gallabox متصل",
+  "integrations.gallabox.none": "Gallabox غير متصل",
   "integrations.gallabox.apiKey": "مفتاح API",
   "integrations.gallabox.apiSecret": "سر API",
   "integrations.gallabox.accountId": "معرّف الحساب",

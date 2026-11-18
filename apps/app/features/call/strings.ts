@@ -50,7 +50,7 @@ const en = {
   "start.listen": "Start listening",
   "start.useMic": "Start listening with the microphone instead",
   "start.useComputer": "Start listening to this computer's sound",
-  "start.watching": "Watching for Zoom, Teams, Meet, 3CX and Yeastar",
+  "start.watching": "Watching for Zoom, Teams, Meet, 3CX, Yeastar and more",
   /** UX-21: desktop permission copy and the button to the exact OS pane. */
   "perm.systemAudioMac":
     "Allow Sales Shield to record system audio: System Settings › Privacy & Security › Screen & System Audio Recording. Then press Resume.",
@@ -147,7 +147,7 @@ const ar: Record<CallTextKey, string> = {
   "start.listen": "ابدأ الاستماع",
   "start.useMic": "ابدأ الاستماع عبر الميكروفون بدلاً من ذلك",
   "start.useComputer": "ابدأ الاستماع إلى صوت هذا الكمبيوتر",
-  "start.watching": "نراقب Zoom وTeams وMeet و3CX وYeastar",
+  "start.watching": "نراقب Zoom وTeams وMeet و3CX وYeastar والمزيد",
   "perm.systemAudioMac":
     "اسمح لـ Sales Shield بتسجيل صوت النظام: إعدادات النظام › الخصوصية والأمن › تسجيل الشاشة وصوت النظام. ثم اضغط «استئناف».",
   "perm.micMac":

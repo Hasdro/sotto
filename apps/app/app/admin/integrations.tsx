@@ -1,20 +1,22 @@
 /**
  * Admin → Integrations (R10, UX-30): the admin's own Zoho connection first, then inviting the
- * team from Zoho (ZC-13), Email (SMTP presets, UX-32) and WhatsApp (Gallabox pick lists, ZC-07).
+ * team from Zoho (ZC-13), the email formats, and the WhatsApp (Gallabox) status only.
  * The per-org Zoho OAuth client is an owner-console override now (D-064): when AGN set one,
  * this page only says so ("Client ID ends …") and lets the admin go back to AGN's client.
+ * Round 2 (D-078): the AGN-field setup, the SMTP mailbox, the Gallabox keys/templates and the
+ * delivery webhook moved to the vendor panel (per organisation); this page no longer configures
+ * any of them. The email formats stay here, as rich text (D-080).
  */
 import { Button, EmptyState, Panel, Stack, Text } from "@sotto/ui";
 import { useEffect, useState } from "react";
-import { AgnFieldsPanel } from "../../features/crm/AgnFieldsPanel";
 import { type ClientStatus, orgClient, removeOrgClient } from "../../features/crm/api";
 import { useZoho } from "../../features/crm/useZoho";
 import { WeeklyExport } from "../../features/crm/WeeklyExport";
 import { ZohoConnect } from "../../features/crm/ZohoConnect";
-import { SmtpSettings } from "../../features/email/SmtpSettings";
+import { FormatsEditor } from "../../features/email/FormatsEditor";
 import { useIntegrationsText } from "../../features/integrations/strings";
 import { ZohoInvite } from "../../features/team/ZohoInvite";
-import { GallaboxSettings } from "../../features/whatsapp/GallaboxSettings";
+import { GallaboxStatus } from "../../features/whatsapp/GallaboxStatus";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 
@@ -27,17 +29,11 @@ export default function IntegrationsScreen() {
   return (
     <Stack gap="xl" testID="admin-integrations">
       <ConnectionPanel />
-      <AgnPart />
       <WeeklyExport />
-      <SmtpSettings />
-      <GallaboxSettings />
+      <FormatsEditor />
+      <GallaboxStatus />
     </Stack>
   );
-}
-
-function AgnPart() {
-  const zoho = useZoho();
-  return <AgnFieldsPanel zoho={zoho} />;
 }
 
 type OrgClient = ClientStatus["org"] & { client_id_tail?: string };

@@ -28,6 +28,19 @@ CREATE TABLE IF NOT EXISTS smtp_accounts (
   from_address TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+-- Round 2 (D-078): one mailbox per user, set by the vendor on the owner console. A user's own
+-- mailbox wins over the org's; the org's wins over the platform fallback.
+CREATE TABLE IF NOT EXISTS smtp_user_accounts (
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ciphertext BLOB NOT NULL,          -- {username, password}
+  host TEXT NOT NULL,
+  port INTEGER NOT NULL,
+  from_name TEXT NOT NULL,
+  from_address TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (company_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS email_formats (
   company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
   formats TEXT NOT NULL,
@@ -87,15 +100,10 @@ def _scope(who: Principal | None) -> str:
     return PLATFORM if who is None else who.company
 
 
-def save_account(
-    store: CloudStore, who: Principal, data: dict[str, Any], *, platform: bool, ip: str = ""
-) -> None:
-    ensure(store)
-    if platform and not who.is_owner:
-        raise CloudError("forbidden", "only the platform owner can do this")
-    if not platform:
-        who.require("admin")
-    scope = PLATFORM if platform else who.company
+def _clean_account(
+    data: dict[str, Any], old: SmtpAccount | None
+) -> tuple[str, int, str, str, str, str]:
+    """Validates a mailbox form. A blank login keeps the saved one (it is never shown)."""
     host = _one_line(data.get("host"), "host", 253).lower()
     if not HOST.match(host):
         raise CloudError("invalid", "that does not look like a mail server name")
@@ -111,12 +119,40 @@ def save_account(
     from_address = clean_address(data.get("from_address"), "from address")
     if not password or not username:
         # Editing the other fields keeps the saved login: it is never shown, so never retyped.
-        old = account(store, scope)
         if old is None:
             raise CloudError("invalid", "username and password are required")
         username, password = username or old.username, password or old.password
     if len(password) > 500 or "\n" in password:
         raise CloudError("invalid", "that does not look like a password")
+    return host, port, username, password, from_name, from_address
+
+
+def save_account(
+    store: CloudStore,
+    who: Principal,
+    data: dict[str, Any],
+    *,
+    platform: bool,
+    company_id: str | None = None,
+    ip: str = "",
+) -> None:
+    ensure(store)
+    if platform and not who.is_owner:
+        raise CloudError("forbidden", "only the platform owner can do this")
+    if platform:
+        scope = PLATFORM
+    elif company_id is not None:
+        # Round 2 (D-078): the vendor sets an org's mailbox from the company profile.
+        if not who.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        store.company_row(company_id)
+        scope = company_id
+    else:
+        who.require("admin")
+        scope = who.company
+    host, port, username, password, from_name, from_address = _clean_account(
+        data, account(store, scope)
+    )
     blob = store._vault.encrypt(
         f"smtp:{scope}", json.dumps({"username": username, "password": password})
     )
@@ -148,13 +184,27 @@ def save_account(
         )
 
 
-def delete_account(store: CloudStore, who: Principal, *, platform: bool, ip: str = "") -> None:
+def delete_account(
+    store: CloudStore,
+    who: Principal,
+    *,
+    platform: bool,
+    company_id: str | None = None,
+    ip: str = "",
+) -> None:
     ensure(store)
     if platform and not who.is_owner:
         raise CloudError("forbidden", "only the platform owner can do this")
-    if not platform:
+    if platform:
+        scope = PLATFORM
+    elif company_id is not None:
+        if not who.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        store.company_row(company_id)
+        scope = company_id
+    else:
         who.require("admin")
-    scope = PLATFORM if platform else who.company
+        scope = who.company
     with store._tx() as db:
         db.execute("DELETE FROM smtp_accounts WHERE scope = ?", (scope,))
         store.audit(
@@ -165,6 +215,102 @@ def delete_account(store: CloudStore, who: Principal, *, platform: bool, ip: str
             actor=who,
             ip=ip,
         )
+
+
+# --- one mailbox per user (vendor only) ---------------------------------------------------------
+def _user_row(store: CloudStore, company_id: str, user_id: str) -> sqlite3.Row | None:
+    rows = store._q(
+        "SELECT * FROM smtp_user_accounts WHERE company_id = ? AND user_id = ?",
+        (company_id, user_id),
+    )
+    return rows[0] if rows else None
+
+
+def _user_vault(company_id: str, user_id: str) -> str:
+    return f"smtp:user:{company_id}:{user_id}"
+
+
+def save_user_account(
+    store: CloudStore,
+    owner: Principal,
+    company_id: str,
+    user_id: str,
+    data: dict[str, Any],
+    *,
+    ip: str = "",
+) -> None:
+    """The vendor sets one user's mailbox from the company profile (D-078)."""
+    ensure(store)
+    if not owner.is_owner:
+        raise CloudError("forbidden", "only the platform owner can do this")
+    store.company_row(company_id)
+    if not store._q(
+        "SELECT 1 FROM users WHERE id = ? AND company_id = ?", (user_id, company_id)
+    ):
+        raise CloudError("not_found", "no such user in this company")
+    host, port, username, password, from_name, from_address = _clean_account(
+        data, user_account(store, company_id, user_id)
+    )
+    blob = store._vault.encrypt(
+        _user_vault(company_id, user_id), json.dumps({"username": username, "password": password})
+    )
+    with store._tx() as db:
+        db.execute(
+            "INSERT INTO smtp_user_accounts(company_id, user_id, ciphertext, host, port,"
+            " from_name, from_address, updated_at) VALUES (?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(company_id, user_id) DO UPDATE SET ciphertext = excluded.ciphertext,"
+            " host = excluded.host, port = excluded.port, from_name = excluded.from_name,"
+            " from_address = excluded.from_address, updated_at = excluded.updated_at",
+            (company_id, user_id, blob, host, port, from_name, from_address, now_ms()),
+        )
+        store.audit(
+            db,
+            "owner.smtp.user.set",
+            f"{host}:{port} from {from_address}",
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+
+
+def delete_user_account(
+    store: CloudStore, owner: Principal, company_id: str, user_id: str, *, ip: str = ""
+) -> None:
+    ensure(store)
+    if not owner.is_owner:
+        raise CloudError("forbidden", "only the platform owner can do this")
+    store.company_row(company_id)
+    with store._tx() as db:
+        db.execute(
+            "DELETE FROM smtp_user_accounts WHERE company_id = ? AND user_id = ?",
+            (company_id, user_id),
+        )
+        store.audit(
+            db, "owner.smtp.user.deleted", "", company_id=company_id, actor=owner, ip=ip
+        )
+
+
+def user_account(store: CloudStore, company_id: str, user_id: str) -> SmtpAccount | None:
+    """Server-side only: the decrypted mailbox for one user."""
+    ensure(store)
+    row = _user_row(store, company_id, user_id)
+    if row is None:
+        return None
+    try:
+        login = json.loads(
+            store._vault.decrypt(_user_vault(company_id, user_id), row["ciphertext"])
+        )
+    except VaultError:
+        return None
+    return SmtpAccount(
+        host=str(row["host"]),
+        port=int(row["port"]),
+        username=str(login["username"]),
+        password=str(login["password"]),
+        from_name=str(row["from_name"]),
+        from_address=str(row["from_address"]),
+        security=PORTS.get(int(row["port"]), "ssl"),
+    )
 
 
 def _public(row: sqlite3.Row | None) -> dict[str, Any]:
@@ -185,14 +331,20 @@ def _row(store: CloudStore, scope: str) -> sqlite3.Row | None:
     return rows[0] if rows else None
 
 
-def status(store: CloudStore, company_id: str | None) -> dict[str, Any]:
+def status(
+    store: CloudStore, company_id: str | None, user_id: str | None = None
+) -> dict[str, Any]:
     """What screens may know: host, port and sender of each account; never the login."""
     ensure(store)
     out: dict[str, Any] = {"platform": _public(_row(store, PLATFORM))}
     if company_id is not None:
         out["org"] = _public(_row(store, company_id))
+        if user_id is not None:
+            out["user"] = _public(_user_row(store, company_id, user_id))
         out["active"] = (
-            "org"
+            "user"
+            if user_id is not None and out["user"]["configured"]
+            else "org"
             if out["org"]["configured"]
             else "platform"
             if out["platform"]["configured"]
@@ -202,8 +354,12 @@ def status(store: CloudStore, company_id: str | None) -> dict[str, Any]:
 
 
 def account(store: CloudStore, scope: str) -> SmtpAccount | None:
-    """Server-side only: the decrypted account for one scope."""
+    """Server-side only: the decrypted account for one scope. A user scope is
+    "user:<company_id>:<user_id>"."""
     ensure(store)
+    if scope.startswith("user:"):
+        _tag, company_id, user_id = scope.split(":", 2)
+        return user_account(store, company_id, user_id)
     row = _row(store, scope)
     if row is None:
         return None
@@ -222,8 +378,11 @@ def account(store: CloudStore, scope: str) -> SmtpAccount | None:
     )
 
 
-def active_scope(store: CloudStore, company_id: str) -> str | None:
+def active_scope(store: CloudStore, company_id: str, user_id: str | None = None) -> str | None:
+    """The mailbox a send uses: the sender's own, then the org's, then the platform's."""
     ensure(store)
+    if user_id is not None and _user_row(store, company_id, user_id) is not None:
+        return f"user:{company_id}:{user_id}"
     for scope in (company_id, PLATFORM):
         if _row(store, scope) is not None:
             return scope
@@ -234,16 +393,23 @@ def has_sender(store: CloudStore, company_id: str) -> bool:
     return active_scope(store, company_id) is not None
 
 
-def senders(store: CloudStore, company_id: str) -> list[dict[str, Any]]:
-    """Approved senders the agent can pick from: the org's mailbox, else the platform's."""
-    scope = active_scope(store, company_id)
+def senders(store: CloudStore, company_id: str, user_id: str | None = None) -> list[dict[str, Any]]:
+    """The approved sender the agent can pick from: their own mailbox, else the org's, else the
+    platform's. One entry, the active one — the choice is the vendor's, not the agent's."""
+    scope = active_scope(store, company_id, user_id)
     if scope is None:
         return []
-    row = _row(store, scope)
-    assert row is not None  # noqa: S101 — active_scope just found it
+    if scope.startswith("user:"):
+        row = _user_row(store, company_id, user_id or "")
+        assert row is not None  # noqa: S101 — active_scope just found it
+        sender_id = "user"
+    else:
+        row = _row(store, scope)
+        assert row is not None  # noqa: S101 — active_scope just found it
+        sender_id = "org" if scope != PLATFORM else "platform"
     return [
         {
-            "id": "org" if scope != PLATFORM else "platform",
+            "id": sender_id,
             "from_name": row["from_name"],
             "from_address": row["from_address"],
         }

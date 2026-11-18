@@ -19,7 +19,14 @@ import { cloudApi } from "../../lib/cloud";
 import { useI18n } from "../../lib/locale";
 
 export type Role = "admin" | "manager" | "agent";
-export type Member = { id: string; email: string; name: string; role: Role; active: boolean };
+export type Member = {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  active: boolean;
+  created_at?: number;
+};
 
 /** The team list for admins and managers (agents get none). */
 export function useTeam(role: Role | undefined) {
@@ -27,7 +34,11 @@ export function useTeam(role: Role | undefined) {
   const reload = useCallback(() => {
     if (role !== "admin" && role !== "manager") return;
     cloudApi<{ users: Member[] }>("/api/v1/team")
-      .then((r) => setTeam(r.users))
+      .then((r) =>
+        setTeam(
+          [...r.users].sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0)),
+        ),
+      )
       .catch(() => {});
   }, [role]);
   useEffect(reload, [reload]);
@@ -69,25 +80,8 @@ export function TeamPanel({
       </Text>
       <Panel>
         <Stack gap="sm">
-          {team.map((m, i) => (
-            <View key={m.id}>
-              {i > 0 ? <Divider /> : null}
-              <View style={styles.row}>
-                <Stack gap="xs" style={styles.grow}>
-                  <Text variant="body" weight="medium">
-                    {m.name}
-                  </Text>
-                  <Text variant="label" tone="muted">
-                    {m.email}
-                  </Text>
-                </Stack>
-                <Badge label={t(`account.role.${m.role}`)} tone={m.active ? "neutral" : "notice"} />
-              </View>
-            </View>
-          ))}
           {canInvite ? (
             <>
-              <Divider />
               <Text variant="body" weight="medium">
                 {t("account.invite")}
               </Text>
@@ -121,6 +115,23 @@ export function TeamPanel({
               ) : null}
             </>
           ) : null}
+          {canInvite && team.length > 0 ? <Divider /> : null}
+          {team.map((m, i) => (
+            <View key={m.id}>
+              {i > 0 ? <Divider /> : null}
+              <View style={styles.row}>
+                <Stack gap="xs" style={styles.grow}>
+                  <Text variant="body" weight="medium">
+                    {m.name}
+                  </Text>
+                  <Text variant="label" tone="muted">
+                    {m.email}
+                  </Text>
+                </Stack>
+                <Badge label={t(`account.role.${m.role}`)} tone={m.active ? "neutral" : "notice"} />
+              </View>
+            </View>
+          ))}
         </Stack>
       </Panel>
     </Stack>

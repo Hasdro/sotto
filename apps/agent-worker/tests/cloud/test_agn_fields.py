@@ -21,6 +21,7 @@ from sotto_worker.adapters.crm.zoho import (
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudError, CloudStore
 from sotto_worker.cloud.zoho import actions
+from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD
 from tests.cloud.test_coaching import member
 from tests.cloud.test_zoho import signup
 from tests.cloud.test_zoho_actions import DEAL_ID
@@ -301,3 +302,68 @@ def test_agn_fields_on_another_companys_call_are_404(
     )
     assert r.status_code == 404, r.text
     assert len(z4.writes) == before
+
+# --- vendor: the same fields from the company profile (round 2, D-078) ---------------------------
+
+
+def owner_on(c4: TestClient, store: CloudStore) -> None:
+    """The conftest `owner` fixture is bound to the default client, not c4: log in inline."""
+    store.create_owner(OWNER_EMAIL, "Owner", OWNER_PASSWORD)
+    assert c4.post(
+        "/api/owner/login",
+        json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD},
+        headers={"origin": ORIGIN},
+    ).is_success
+    assert c4.post(
+        "/api/owner/password",
+        json={"current": OWNER_PASSWORD, "new": OWNER_PASSWORD + "-2"},
+        headers={"origin": ORIGIN},
+    ).is_success
+
+
+def test_owner_creates_fields_through_the_connected_admin(
+    c4: TestClient, a4: dict[str, str], z4: FakeZohoW4, store: CloudStore
+) -> None:
+    owner_on(c4, store)
+    cid = c4.get("/api/v1/me", headers=a4).json()["company"]["id"]
+    r = c4.get(f"/api/owner/companies/{cid}/zoho/agn-fields", headers={"origin": ORIGIN})
+    assert r.status_code == 200, r.text
+    assert r.json()["connected_as"] == "admin@acme.test"
+    assert [f["exists"] for f in r.json()["fields"]] == [False, False, False, False]
+    r = c4.post(
+        f"/api/owner/companies/{cid}/zoho/agn-fields",
+        json={},
+        headers={"origin": ORIGIN, "content-type": "application/json"},
+    )
+    assert r.status_code == 400
+    assert r.json()["code"] == "confirm"
+    r = c4.post(
+        f"/api/owner/companies/{cid}/zoho/agn-fields",
+        json={"confirm": True},
+        headers={"origin": ORIGIN, "content-type": "application/json"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["created"] == [
+        "AGN_Call_Score",
+        "AGN_Chance_Band",
+        "AGN_Top_Objection",
+        "AGN_Last_Call_Date",
+    ]
+    assert len(z4.created_fields) == 1
+    assert any(
+        x["action"] == "owner.zoho.fields.created" for x in store._q("SELECT action FROM audit")
+    )
+    # The client endpoints still work for the admin (the panel moved; the API stayed).
+    assert c4.get("/api/v1/zoho/agn-fields", headers=a4).json()["fields"][0]["exists"] is True
+
+
+def test_owner_agn_needs_a_connected_admin(
+    c4: TestClient, store: CloudStore
+) -> None:
+    owner_on(c4, store)
+    b = signup(c4, "Beta", "admin@beta.test")  # Zoho never connected for this company
+    cid = c4.get("/api/v1/me", headers=b).json()["company"]["id"]
+    r = c4.get(f"/api/owner/companies/{cid}/zoho/agn-fields", headers={"origin": ORIGIN})
+    assert r.status_code == 409
+    assert r.json()["code"] == "zoho_not_connected"
+    assert c4.get("/api/owner/companies/no-such-id/zoho/agn-fields").status_code == 404

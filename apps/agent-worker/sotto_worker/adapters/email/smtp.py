@@ -79,6 +79,8 @@ class Outgoing:
     subject: str
     text: str
     message_id_seed: str  # the idempotency key: a retry carries the same Message-ID
+    # D-080: the HTML part, when the format uses rich text; empty sends one plain-text part.
+    html: str = ""
     # INT-14b: admin-curated files only (name, MIME type, bytes); never an agent upload.
     attachments: tuple[tuple[str, str, bytes], ...] = ()
 
@@ -104,6 +106,8 @@ def build_mime(account: SmtpAccount, mail: Outgoing) -> MimeMessage:
     domain = account.from_address.rpartition("@")[2] or "localhost"
     mime["Message-ID"] = make_msgid(idstring=mail.message_id_seed[:60], domain=domain)
     mime.set_content(mail.text)
+    if mail.html:
+        mime.add_alternative(mail.html, subtype="html")
     for name, kind, blob in mail.attachments:
         main, _, sub = kind.partition("/")
         mime.add_attachment(blob, maintype=main, subtype=sub, filename=name)

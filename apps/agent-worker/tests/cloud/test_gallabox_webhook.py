@@ -18,9 +18,9 @@ from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.gallabox.webhook import SCHEMA, parse_status
 from sotto_worker.cloud.store import CloudStore
-from tests.cloud.conftest import ORIGIN
-from tests.cloud.test_email import agent, signup
-from tests.cloud.test_gallabox import CREDS, FakeGallabox, message
+from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD
+from tests.cloud.test_email import agent, owner_login, signup
+from tests.cloud.test_gallabox import CREDS, JSON_ORIGIN, FakeGallabox, cid_of, message
 
 TEXT = "Thanks for the call, Jane. Our next meeting is on 12 Dec."
 
@@ -38,13 +38,29 @@ def c(store: CloudStore, seed: Seed, gb: FakeGallabox) -> TestClient:
     return TestClient(create_cloud_app(config, store, seed), base_url=ORIGIN)
 
 
-def org(c: TestClient, name: str) -> tuple[dict[str, str], dict[str, str]]:
+def ensure_owner(c: TestClient, store: CloudStore) -> None:
+    """The owner signs in; created once per store, then the changed password signs back in."""
+    if store.owner_exists():
+        assert c.post(
+            "/api/owner/login",
+            json={"email": OWNER_EMAIL, "password": OWNER_PASSWORD + "-2"},
+            headers={"origin": ORIGIN},
+        ).is_success
+    else:
+        owner_login(c, store)
+
+
+def org(c: TestClient, name: str, store: CloudStore) -> tuple[dict[str, str], dict[str, str]]:
+    """Round 2 (D-078): Gallabox and its webhook are configured by the vendor on the company
+    profile. The owner is signed in once per test client (ensure_owner)."""
+    ensure_owner(c, store)
     h = signup(c, name, f"admin@{name.lower()}.test")
-    assert c.put("/api/v1/company/gallabox", json=CREDS, headers=h).status_code == 200
+    cid = cid_of(c, h)
+    assert c.put(f"/api/owner/companies/{cid}/gallabox", json=CREDS, headers=JSON_ORIGIN).status_code == 200
     r = c.put(
-        "/api/v1/company/gallabox/templates",
+        f"/api/owner/companies/{cid}/gallabox/templates",
         json={"selected": [{"name": "meeting_followup", "language": "en"}]},
-        headers=h,
+        headers=JSON_ORIGIN,
     )
     assert r.status_code == 200, r.text
     return h, agent(c, h, f"ag@{name.lower()}.test")
@@ -53,9 +69,14 @@ def org(c: TestClient, name: str) -> tuple[dict[str, str], dict[str, str]]:
 def turn_on(c: TestClient, h: dict[str, str]) -> dict[str, str]:
     r = c.put("/api/v1/company/features/whatsapp_status", json={"enabled": True}, headers=h)
     assert r.status_code == 200
-    r = c.post("/api/v1/company/gallabox/webhook", headers=h)
+    cid = cid_of(c, h)
+    r = c.post(f"/api/owner/companies/{cid}/gallabox/webhook", json={}, headers=JSON_ORIGIN)
     assert r.status_code == 200, r.text
     return dict(r.json())
+
+
+def hook_state(c: TestClient, h: dict[str, str]) -> Any:
+    return c.get(f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", headers=JSON_ORIGIN)
 
 
 def send(c: TestClient, ag: dict[str, str], key: str) -> None:
@@ -82,21 +103,29 @@ def status_payload(status: str, mid: str = "msg-123") -> dict[str, Any]:
     return {"whatsapp": {"id": mid, "status": status, "text": {"body": TEXT}}, "contact": {}}
 
 
-def test_off_by_default_and_the_hook_is_not_found(c: TestClient) -> None:
-    h, ag = org(c, "Acme")
-    got = c.get("/api/v1/company/gallabox/webhook", headers=h).json()
+def test_off_by_default_and_the_hook_is_not_found(c: TestClient, store: CloudStore) -> None:
+    h, ag = org(c, "Acme", store)
+    got = hook_state(c, h).json()
     assert got["configured"] is False
-    assert got["state"]["state"] == "off_by_org"
-    assert c.post("/api/v1/company/gallabox/webhook", headers=h).status_code == 403
+    assert got["enabled"] is False
+    assert got["url"] is None
+    # Rotating needs the feature on for the company.
+    assert c.post(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
+    ).status_code == 403
     assert c.get("/api/v1/whatsapp/status?keys=a", headers=ag).status_code == 403
     assert c.post("/api/hooks/gallabox/" + "x" * 32, content=b"{}").status_code == 404
 
 
 def test_bad_signature_is_401_and_valid_status_is_stored(c: TestClient, store: CloudStore) -> None:
-    h, ag = org(c, "Acme")
+    h, ag = org(c, "Acme", store)
     hook = turn_on(c, h)
     assert hook["url"].startswith(f"{ORIGIN}/api/hooks/gallabox/")
-    assert c.post("/api/v1/company/gallabox/webhook", headers=ag).status_code == 403
+    # An agent cannot rotate the webhook — and the owner cookie must not leak into the check.
+    c.cookies.clear()
+    assert c.post(
+        f"/api/owner/companies/{cid_of(c, h)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
+    ).status_code == 401
     send(c, ag, "wa-step-0001")
     assert (
         c.get("/api/v1/whatsapp/status?keys=wa-step-0001", headers=ag).json()["status"][
@@ -141,14 +170,16 @@ def test_no_text_column_or_field_anywhere() -> None:
     assert parsed == ("msg-123", "read", None)  # only id, status and an error code leave the body
 
 
-def test_company_a_cannot_read_company_b_statuses(c: TestClient) -> None:
-    ha, aga = org(c, "Acme")
-    hb, agb = org(c, "Beta")
+def test_company_a_cannot_read_company_b_statuses(c: TestClient, store: CloudStore) -> None:
+    ha, aga = org(c, "Acme", store)
+    hb, agb = org(c, "Beta", store)
     hook_a, hook_b = turn_on(c, ha), turn_on(c, hb)
     turn_on(c, hb)  # rotating replaces the old URL and secret
     send(c, aga, "wa-shared-key")
     # B's hook cannot write A's message (it is not a message B sent).
-    hook_b = c.post("/api/v1/company/gallabox/webhook", headers=hb).json()
+    hook_b = c.post(
+        f"/api/owner/companies/{cid_of(c, hb)}/gallabox/webhook", json={}, headers=JSON_ORIGIN
+    ).json()
     assert (
         post(c, hook_b, status_payload("read"), "Message.WA.Status.Received").json()["stored"]
         is False

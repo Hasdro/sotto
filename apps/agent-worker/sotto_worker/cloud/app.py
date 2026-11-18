@@ -329,6 +329,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         "plan_blocked": HTTPStatus.PAYMENT_REQUIRED,
         "storage_full": HTTPStatus.INSUFFICIENT_STORAGE,
         "zoho_no_client": HTTPStatus.CONFLICT,
+        "zoho_not_connected": HTTPStatus.CONFLICT,
         "zoho_reconnect": HTTPStatus.CONFLICT,
         "zoho_unavailable": HTTPStatus.BAD_GATEWAY,
         "in_flight": HTTPStatus.CONFLICT,
@@ -653,10 +654,6 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             company_name=str(company["name"]),
             settings=settings,
             routes=platform.effective_routes(store, who.company),
-            # Only the company's own choices are "overrides" on its Models page (BYO, D-059).
-            overrides=list(store.routes(who.company))
-            if platform.byo_on(store, who.company)
-            else [],
             prompts=platform.effective_prompts(store, seed, who.company),
             demoted=platform.demotions(store),
             own_playbook=store.playbook(who.company),
@@ -673,7 +670,6 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         )
         out["plan"] = state
         out["key_status"] = store.key_status(who)
-        out["key_source"] = {env: src for env, (_at, src) in store.key_sources(who).items()}
         out["features"] = store.features_for(who)
         out["learned"] = learning.active_for_call(who)  # R11: applies from the next call
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
@@ -789,80 +785,6 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             store.require_feature(who, "ai_knowledge")
         store.set_settings(who, data, ip=ip_of(request))
         return JSONResponse({"settings": store.settings(who.company)})
-
-    def byo_admin(who: Principal) -> None:
-        """D-059: a company changes keys, models and prompts only when AGN allows BYO."""
-        who.require("admin")
-        platform.require_byo(store, who)
-
-    @app_route
-    async def key_put(request: Request, who: Principal) -> Response:
-        byo_admin(who)
-        data = await body(request)
-        store.set_key(
-            who, request.path_params["env"], str(data.get("value", "")), ip=ip_of(request)
-        )
-        return JSONResponse({"ok": True, "key_status": store.own_key_status(who)})
-
-    @app_route
-    async def key_test(request: Request, who: Principal) -> Response:
-        byo_admin(who)
-        env = request.path_params["env"]
-        provider = next((p for p in seed.catalog.providers.values() if p.key_env == env), None)
-        if provider is None:
-            raise CloudError("not_found", "unknown key")
-        key = store.stored_key(who, env)
-        if not key:
-            raise CloudError("no_key", "save the key first")
-        try:
-            if provider.kind == "stt":
-                if provider.id not in stt_key_env:
-                    return JSONResponse({"ok": True, "detail": "saved (tested on the Mac demo)"})
-                await minter(provider.id, key)
-                return JSONResponse({"ok": True, "detail": "the vendor issued a streaming token"})
-            url = provider.models_url()
-            if not url:
-                raise CloudError("invalid", "this vendor has no test address")
-            models = await tester(provider.id, url, key)
-        except httpx.HTTPStatusError as e:
-            return JSONResponse(
-                {"ok": False, "detail": f"{provider.name} answered {e.response.status_code}"}
-            )
-        except httpx.HTTPError as e:
-            return JSONResponse(
-                {"ok": False, "detail": f"{provider.name} unreachable ({type(e).__name__})"}
-            )
-        return JSONResponse(
-            {"ok": True, "detail": f"{len(models)} models available", "models": models}
-        )
-
-    @app_route
-    async def key_delete(request: Request, who: Principal) -> Response:
-        byo_admin(who)
-        store.delete_key(who, request.path_params["env"], ip=ip_of(request))
-        return JSONResponse({"ok": True, "key_status": store.own_key_status(who)})
-
-    @app_route
-    async def route_put(request: Request, who: Principal) -> Response:
-        byo_admin(who)
-        data = await body(request)
-        stage = request.path_params["stage"]
-        provider, model = str(data.get("provider", "")), str(data.get("model", ""))
-        try:  # same validation as the worker's panel (kind match, model ID shape)
-            seed.catalog.route_for(stage, provider, model, seed.routing.stages.get(stage))
-        except ValueError as e:
-            raise CloudError("invalid", str(e)) from None
-        chosen = seed.catalog.providers.get(provider)
-        if chosen is not None and not chosen.client:
-            raise CloudError("invalid", f"{chosen.name} is not available in the app yet")
-        store.set_route(who, stage, provider, model.strip(), ip=ip_of(request))
-        return JSONResponse({"ok": True})
-
-    @app_route
-    async def route_delete(request: Request, who: Principal) -> Response:
-        byo_admin(who)
-        store.reset_route(who, request.path_params["stage"], ip=ip_of(request))
-        return JSONResponse({"ok": True})
 
     @app_route
     async def playbook_get(_request: Request, who: Principal) -> Response:
@@ -1185,6 +1107,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         name = request.path_params.get("file") or "index.html"
         if name not in {
             "index.html",
+            "company.html",
+            "company.js",
             "owner.js",
             "platform.js",
             "owner.css",
@@ -1256,11 +1180,6 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route(f"{api}/recordings/{{call_id}}", recording_get),
         Route(f"{api}/company/settings", settings_get),
         Route(f"{api}/company/settings", settings_put, methods=["PUT"]),
-        Route(f"{api}/company/keys/{{env}}", key_put, methods=["PUT"]),
-        Route(f"{api}/company/keys/{{env}}", key_delete, methods=["DELETE"]),
-        Route(f"{api}/company/keys/{{env}}/test", key_test, methods=["POST"]),
-        Route(f"{api}/company/routes/{{stage}}", route_put, methods=["PUT"]),
-        Route(f"{api}/company/routes/{{stage}}", route_delete, methods=["DELETE"]),
         Route(f"{api}/playbook", playbook_get),
         Route(f"{api}/playbook", playbook_post, methods=["POST"]),
         Route(f"{api}/playbook/{{id}}", playbook_put, methods=["PUT"]),
@@ -1362,6 +1281,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             transport=config.gallabox_transport,
             send_limit=lambda key: send_limit.hit(key),
             log=config.log,
+            owner_route=owner_route,
+            origin_of=hook_origin,
         ),
         *owner_routes.make_routes(
             store=store,
@@ -1387,7 +1308,6 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             app_route=app_route,
             handle=handle,
             ip_of=ip_of,
-            origin_of=hook_origin,
             bad_secret_limit=lambda key: hook_secret_limit.blocked(key),
             bad_secret_record=lambda key: hook_secret_limit.record(key),
             log=config.log,

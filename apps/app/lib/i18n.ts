@@ -201,6 +201,9 @@ const en = {
   "admin.later.models.title": "Models are chosen in Keys & providers",
   "admin.later.models.body":
     "Pick each job's vendor and model, and measure its speed, in Admin → Keys & providers.",
+  "admin.modelsMoved.title": "Model configuration moved",
+  "admin.modelsMoved.body":
+    "Keys, providers, models and prompts are now configured per organisation on the vendor panel.",
   "admin.settings": "Company defaults",
   "admin.features": "Features",
   "admin.team.subtitle": "People in your company and their roles. Admins invite people here.",
@@ -639,7 +642,7 @@ const en = {
   "call.wait.title": "Waiting for your call",
   "call.wait.body":
     "Start your call as usual. Sales Shield starts listening by itself and suggests what to say.",
-  "call.wait.apps": "Watching for Zoom, Teams, Meet, 3CX and Yeastar",
+  "call.wait.apps": "Watching for Zoom, Teams, Meet, 3CX, Yeastar and more",
   "call.wait.start": "Start now",
   "call.wait.mic": "In person or on speakerphone? Use the microphone",
   "profile.email": "Email",
@@ -1179,6 +1182,9 @@ const ar: Record<StringKey, string> = {
   "admin.later.models.title": "تُختار النماذج من المفاتيح والمزوّدين",
   "admin.later.models.body":
     "اختر مزوّد كل مهمة ونموذجها، وقِس سرعته، من الإدارة ← المفاتيح والمزوّدون.",
+  "admin.modelsMoved.title": "نُقل إعداد النماذج",
+  "admin.modelsMoved.body":
+    "تُضبط المفاتيح والمزوّدون والنماذج والموجّهات الآن لكل منظمة من لوحة البائع.",
   "admin.settings": "إعدادات الشركة",
   "admin.features": "الميزات",
   "admin.team.subtitle": "الأشخاص في شركتك وأدوارهم. يدعو المسؤولون الأشخاص من هنا.",
@@ -1609,7 +1615,7 @@ const ar: Record<StringKey, string> = {
   "call.activity.writing": "جارٍ كتابة اقتراح…",
   "call.wait.title": "بانتظار مكالمتك",
   "call.wait.body": "ابدأ مكالمتك كالمعتاد. سيبدأ Sales Shield بالاستماع تلقائيًا ويقترح ما تقوله.",
-  "call.wait.apps": "يراقب Zoom وTeams وMeet و3CX وYeastar",
+  "call.wait.apps": "يراقب Zoom وTeams وMeet و3CX وYeastar والمزيد",
   "call.wait.start": "ابدأ الآن",
   "call.wait.mic": "حضوريًا أو على مكبر الصوت؟ استخدم الميكروفون",
   "profile.email": "البريد",

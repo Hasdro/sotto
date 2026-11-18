@@ -16,7 +16,7 @@ from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
 from sotto_worker.cloud.store import CloudStore
 from tests.cloud.conftest import ORIGIN
-from tests.cloud.test_email import agent, signup
+from tests.cloud.test_email import agent, owner_login, signup
 
 KEY, SECRET = "gbx-api-key-0001", "gbx-api-secret-very-private"
 ACCOUNT, CHANNEL = "acct-5f1e9a", "chan-77aa01"
@@ -98,14 +98,32 @@ def no_secret_in(text: str) -> None:
         assert s not in text
 
 
+JSON_ORIGIN = {"origin": ORIGIN, "content-type": "application/json"}
+
+
+def cid_of(c: TestClient, h: dict[str, str]) -> str:
+    return str(c.get("/api/v1/me", headers=h).json()["company"]["id"])
+
+
 def setup_org(c: TestClient, h: dict[str, str]) -> None:
-    assert c.put("/api/v1/company/gallabox", json=CREDS, headers=h).status_code == 200
+    """Round 2 (D-078): the vendor sets Gallabox from the company profile. The caller must
+    have logged the owner in first (owner_login); the admin header only names the company."""
+    cid = cid_of(c, h)
+    assert c.put(f"/api/owner/companies/{cid}/gallabox", json=CREDS, headers=JSON_ORIGIN).status_code == 200
     r = c.put(
-        "/api/v1/company/gallabox/templates",
+        f"/api/owner/companies/{cid}/gallabox/templates",
         json={"selected": [{"name": "meeting_followup", "language": "en"}]},
-        headers=h,
+        headers=JSON_ORIGIN,
     )
     assert r.status_code == 200, r.text
+
+
+def gb_put(c: TestClient, h: dict[str, str], path: str, **over: Any) -> Any:
+    return c.put(f"/api/owner/companies/{cid_of(c, h)}/gallabox{path}", headers=JSON_ORIGIN, **over)
+
+
+def gb_post(c: TestClient, h: dict[str, str], path: str, **over: Any) -> Any:
+    return c.post(f"/api/owner/companies/{cid_of(c, h)}/gallabox{path}", headers=JSON_ORIGIN, **over)
 
 
 def message(**over: Any) -> dict[str, Any]:
@@ -119,9 +137,10 @@ def message(**over: Any) -> dict[str, Any]:
 
 
 def test_credentials_are_write_only_and_encrypted(gclient: TestClient, store: CloudStore) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     assert gclient.get("/api/v1/company/gallabox", headers=h).json()["configured"] is False
-    r = gclient.put("/api/v1/company/gallabox", json=CREDS, headers=h)
+    r = gb_put(gclient, h, "", json=CREDS)
     assert r.status_code == 200
     assert r.json()["configured"] is True
     no_secret_in(r.text)
@@ -130,28 +149,35 @@ def test_credentials_are_write_only_and_encrypted(gclient: TestClient, store: Cl
     for s in SECRETS:
         assert s.encode() not in blob
     # A blank field keeps the saved value.
-    r = gclient.put("/api/v1/company/gallabox", json={**CREDS, "api_secret": ""}, headers=h)
+    r = gb_put(gclient, h, "", json={**CREDS, "api_secret": ""})
     assert r.status_code == 200
-    assert gclient.post("/api/v1/company/gallabox/templates/load", headers=h).status_code == 200
+    assert gb_post(gclient, h, "/templates/load").status_code == 200
     audit = [r["detail"] for r in store._q("SELECT detail FROM audit WHERE action='gallabox.set'")]
     assert audit[-1] == "changed nothing"
     no_secret_in(" ".join(audit))
 
 
-def test_only_admins_configure_gallabox(gclient: TestClient) -> None:
+def test_only_the_owner_configures_gallabox(gclient: TestClient, store: CloudStore) -> None:
+    """Round 2 (D-078): Gallabox is configured per organisation on the vendor panel, never in
+    the client — not even by an admin. The client keeps a status view only."""
     h = signup(gclient, "Acme", "admin@acme.test")
     ag = agent(gclient, h)
-    assert gclient.put("/api/v1/company/gallabox", json=CREDS, headers=ag).status_code == 403
-    assert gclient.post("/api/v1/company/gallabox/templates/load", headers=ag).status_code == 403
-    bad = gclient.put("/api/v1/company/gallabox", json={**CREDS, "api_key": "has space"}, headers=h)
+    assert gb_put(gclient, ag, "", json=CREDS).status_code == 401
+    assert gb_post(gclient, ag, "/templates/load").status_code == 401
+    # The client routes are gone; PUT/DELETE on the status path answer 405 (GET status stays).
+    assert gclient.put("/api/v1/company/gallabox", json=CREDS, headers=h).status_code == 405
+    assert gclient.delete("/api/v1/company/gallabox", headers=h).status_code == 405
+    owner_login(gclient, store)
+    bad = gb_put(gclient, h, "", json={**CREDS, "api_key": "has space"})
     assert bad.status_code == 400
 
 
-def test_template_dropdown_is_redacted_and_parsed(gclient: TestClient) -> None:
+def test_template_dropdown_is_redacted_and_parsed(gclient: TestClient, store: CloudStore) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
-    assert gclient.post("/api/v1/company/gallabox/templates/load", headers=h).status_code == 409
-    gclient.put("/api/v1/company/gallabox", json=CREDS, headers=h)
-    r = gclient.post("/api/v1/company/gallabox/templates/load", headers=h)
+    assert gb_post(gclient, h, "/templates/load").status_code == 409
+    gb_put(gclient, h, "", json=CREDS)
+    r = gb_post(gclient, h, "/templates/load")
     assert r.status_code == 200, r.text
     no_secret_in(r.text)
     assert "channel" not in r.text
@@ -192,10 +218,11 @@ def test_template_dropdown_is_redacted_and_parsed(gclient: TestClient) -> None:
     ]
 
 
-def test_wrong_keys_say_so(gclient: TestClient) -> None:
+def test_wrong_keys_say_so(gclient: TestClient, store: CloudStore) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
-    gclient.put("/api/v1/company/gallabox", json={**CREDS, "api_key": "wrong-key-0000"}, headers=h)
-    r = gclient.post("/api/v1/company/gallabox/templates/load", headers=h)
+    gb_put(gclient, h, "", json={**CREDS, "api_key": "wrong-key-0000"})
+    r = gb_post(gclient, h, "/templates/load")
     assert r.status_code == 502
     assert r.json()["code"] == "gallabox_auth"
 
@@ -203,12 +230,14 @@ def test_wrong_keys_say_so(gclient: TestClient) -> None:
 def test_allow_list_caches_parameters_from_gallabox_not_the_browser(
     gclient: TestClient, store: CloudStore
 ) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
-    gclient.put("/api/v1/company/gallabox", json=CREDS, headers=h)
-    r = gclient.put(
-        "/api/v1/company/gallabox/templates",
+    gb_put(gclient, h, "", json=CREDS)
+    r = gb_put(
+        gclient,
+        h,
+        "/templates",
         json={"selected": [{"name": "meeting_followup", "language": "en", "params": ["evil"]}]},
-        headers=h,
     )
     assert r.status_code == 200, r.text
     saved = r.json()["templates"]
@@ -219,14 +248,15 @@ def test_allow_list_caches_parameters_from_gallabox_not_the_browser(
         no_secret_in(text)
     # Unknown or not-yet-approved templates cannot be allowed.
     for pick in ({"name": "ghost", "language": "en"}, {"name": "promo_offer", "language": "ar"}):
-        r = gclient.put("/api/v1/company/gallabox/templates", json={"selected": [pick]}, headers=h)
+        r = gb_put(gclient, h, "/templates", json={"selected": [pick]})
         assert r.status_code == 400, pick
     assert any(
         a["action"] == "gallabox.templates.set" for a in store._q("SELECT action FROM audit")
     )
 
 
-def test_agent_needs_gallabox_before_whatsapp(gclient: TestClient) -> None:
+def test_agent_needs_gallabox_before_whatsapp(gclient: TestClient, store: CloudStore) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     ag = agent(gclient, h)
     r = gclient.get("/api/v1/whatsapp/templates", headers=ag)
@@ -243,6 +273,7 @@ def test_agent_needs_gallabox_before_whatsapp(gclient: TestClient) -> None:
 def test_preview_confirm_send_audit_and_no_history(
     gclient: TestClient, gb: FakeGallabox, store: CloudStore
 ) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     setup_org(gclient, h)
     ag = agent(gclient, h)
@@ -291,8 +322,9 @@ def test_preview_confirm_send_audit_and_no_history(
 
 
 def test_free_form_and_unlisted_templates_are_refused(
-    gclient: TestClient, gb: FakeGallabox
+    gclient: TestClient, store: CloudStore, gb: FakeGallabox
 ) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     setup_org(gclient, h)
     free = {
@@ -322,6 +354,7 @@ def test_free_form_and_unlisted_templates_are_refused(
 def test_stop_codes_block_and_are_audited(
     gclient: TestClient, gb: FakeGallabox, store: CloudStore
 ) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     setup_org(gclient, h)
     gb.send_error = (400, {"error": {"code": "131049", "message": "ecosystem engagement"}})
@@ -333,7 +366,8 @@ def test_stop_codes_block_and_are_audited(
     assert "131049" in failed[0]["detail"]
 
 
-def test_org_toggle_and_kill_switch_stop_whatsapp(gclient: TestClient, gb: FakeGallabox) -> None:
+def test_org_toggle_and_kill_switch_stop_whatsapp(gclient: TestClient, store: CloudStore, gb: FakeGallabox) -> None:
+    owner_login(gclient, store)
     h = signup(gclient, "Acme", "admin@acme.test")
     setup_org(gclient, h)
     gclient.put("/api/v1/company/features/whatsapp", json={"enabled": False}, headers=h)
@@ -344,7 +378,8 @@ def test_org_toggle_and_kill_switch_stop_whatsapp(gclient: TestClient, gb: FakeG
     assert gb.sends() == []
 
 
-def test_org_isolation(gclient: TestClient, gb: FakeGallabox) -> None:
+def test_org_isolation(gclient: TestClient, gb: FakeGallabox, store: CloudStore) -> None:
+    owner_login(gclient, store)
     a = signup(gclient, "Alpha", "admin@a.test")
     b = signup(gclient, "Beta", "admin@b.test")
     setup_org(gclient, a)
@@ -355,8 +390,11 @@ def test_org_isolation(gclient: TestClient, gb: FakeGallabox) -> None:
         "templates": [],
     }
     assert gclient.get("/api/v1/whatsapp/templates", headers=b).status_code == 403
-    assert gclient.post("/api/v1/company/gallabox/templates/load", headers=b).status_code == 409
-    gclient.delete("/api/v1/company/gallabox", headers=b)
+    # B cannot configure through the owner endpoints either (it is not the owner).
+    gclient.cookies.clear()
+    assert gb_post(gclient, b, "/templates/load").status_code == 401
+    assert gb_put(gclient, b, "", json=CREDS).status_code == 401
+    assert gclient.delete("/api/v1/company/gallabox", headers=b).status_code == 405
     assert gclient.get("/api/v1/company/gallabox", headers=a).json()["configured"] is True
     req = {**message(), "confirm": True, "idempotency_key": "k-00000003"}
     assert gclient.post("/api/v1/whatsapp/send", json=req, headers=b).status_code == 403

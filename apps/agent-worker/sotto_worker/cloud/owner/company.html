@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGN Sales Shield · Owner</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/owner/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/owner/tokens.css">
+<link rel="stylesheet" href="/owner/fonts.css">
+<link rel="stylesheet" href="/owner/components.css">
+<link rel="stylesheet" href="/owner/owner.css">
+<script src="/owner/company.js" defer></script>
+</head>
+<body>
+<div class="shell ss-shell">
+  <main class="ss-main"><div class="ss-page ss-page--wide">
+    <p><a href="/owner">← Owner console</a></p>
+    <div id="signedOut" class="panel" hidden>
+      <h2>Signed out</h2>
+      <p>Sign in again on the <a href="/owner">owner console</a>, then come back to this tab.</p>
+    </div>
+    <div id="page" hidden>
+      <header class="page-head"><h1 class="ss-page-title" id="cName">Company</h1><p class="ss-lead ss-muted" id="cMeta"></p></header>
+      <div id="stats"></div>
+      <section class="panel"><h2>Plan</h2><div id="planForm"></div></section>
+      <section class="panel"><h2 id="usersTitle">Users</h2><div id="users"></div></section>
+      <section class="panel"><h2>Email per user <small>one mailbox per user, set here; a user's own mailbox wins over the company's</small></h2><div id="userSmtp"></div></section>
+      <section class="panel"><h2>Zoho fields <small>the four AGN fields on Deals: call score, chance band, top objection, last call date</small></h2><div id="agn"></div></section>
+      <section class="panel"><h2>WhatsApp (Gallabox) <small>keys, number and templates for this company only</small></h2><div id="gallabox"></div></section>
+      <section class="panel"><h2>Delivery status <small>where Gallabox reports sent, delivered, read and failed</small></h2><div id="webhook"></div></section>
+      <section class="panel"><h2>Email (SMTP) <small>the company's mailbox; a user's own mailbox wins over this one</small></h2><div id="orgSmtp"></div></section>
+      <section class="panel"><h2>Models <small>which vendor and model each stage uses for this company; the app never shows this</small></h2><div id="models"></div></section>
+      <section class="panel"><h2>Devices</h2><div id="devices"></div></section>
+      <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
+      <section class="panel"><h2>Audit</h2><div id="audit"></div></section>
+      <section class="panel"><h2>Danger zone</h2><div id="danger"></div></section>
+    </div>
+  </div></main>
+</div>
+
+<dialog id="secretDialog" class="ss-sheet ss-glass" aria-labelledby="sTitle">
+  <h2 id="sTitle">One-time secret</h2>
+  <p>Copy it now. It is not shown again.</p>
+  <code id="sValue" class="secret"></code>
+  <div class="row"><button type="button" id="sCopy" class="ghost">Copy</button><button type="button" id="sDone" class="primary">Done</button></div>
+</dialog>
+<div id="toast" class="toast ss-toast ss-glass" role="status" hidden></div>
+</body>
+</html>

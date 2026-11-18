@@ -555,6 +555,97 @@ def effective_routes(store: CloudStore, company_id: str) -> dict[str, tuple[str,
     return routes
 
 
+# --- per-company routes (round 2, D-078/D-079) ---------------------------------------------------
+def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[str, Any]:
+    """What the company profile shows per stage: the route that actually runs, and whether the
+    company overrides the platform's. The client never sees this; the vendor sets it."""
+    store.company_row(company_id)
+    eff = effective_routes(store, company_id)
+    own = store.routes(company_id)
+    plat = platform_routes(store)
+    stages = []
+    for slot in seed.catalog.stages.values():
+        default = seed.routing.stages.get(slot.id)
+        chosen = eff.get(slot.id)
+        provider_id = chosen[0] if chosen else (vendor_of(seed.catalog, default) if default else None)
+        model = chosen[1] if chosen else (default.model if default else None)
+        stages.append(
+            {
+                "id": slot.id,
+                "label": slot.label,
+                "kind": slot.kind,
+                "provider_id": provider_id,
+                "model": model,
+                "source": "company" if slot.id in own else "platform" if slot.id in plat else "default",
+                "live": slot.id in LIVE_STAGES,
+                "deadline_ms": default.first_token_ms if default else None,
+                "benchmark": benchmark(store, provider_id, model, slot.id)
+                if provider_id and model
+                else None,
+            }
+        )
+    return {"stages": stages, "byo": byo_on(store, company_id)}
+
+
+def set_company_route(
+    store: CloudStore,
+    seed: Seed,
+    owner: Principal,
+    company_id: str,
+    stage: str,
+    provider_id: str,
+    model: str,
+    *,
+    ip: str,
+) -> None:
+    """The vendor sets one company's route from the company profile. Setting a route also turns
+    BYO on for the company, so `effective_routes` applies it — the company's own keys pay for
+    its own model choice (D-079)."""
+    _owner(owner)
+    store.company_row(company_id)
+    check_route(seed, stage, provider_id, model)
+    bench = benchmark(store, provider_id, model, stage)
+    if stage in LIVE_STAGES and bench is not None and not bench["ok"]:
+        raise CloudError(
+            "benchmark_failed",
+            f"its last benchmark missed R1 (p95 {bench['p95_ms']} ms); benchmark it again first",
+        )
+    with store._tx() as db:
+        db.execute(
+            "INSERT INTO company_routes(company_id, stage, provider_id, model, updated_at)"
+            " VALUES (?,?,?,?,?) ON CONFLICT(company_id, stage) DO UPDATE SET"
+            " provider_id = excluded.provider_id, model = excluded.model,"
+            " updated_at = excluded.updated_at",
+            (company_id, stage, provider_id, model, now_ms()),
+        )
+        store.audit(
+            db,
+            "owner.route.set",
+            f"{stage}={provider_id}/{model}",
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+    if not byo_on(store, company_id):
+        set_byo(store, owner, company_id, True, ip=ip)
+
+
+def reset_company_route(
+    store: CloudStore, owner: Principal, company_id: str, stage: str, *, ip: str
+) -> None:
+    """Back to the platform's route for this stage (the company's override is deleted)."""
+    _owner(owner)
+    store.company_row(company_id)
+    with store._tx() as db:
+        db.execute(
+            "DELETE FROM company_routes WHERE company_id = ? AND stage = ?",
+            (company_id, stage),
+        )
+        store.audit(
+            db, "owner.route.reset", stage, company_id=company_id, actor=owner, ip=ip
+        )
+
+
 def vendor_of(catalog: Catalog, route: StageRoute) -> str | None:
     """The catalog vendor of a stage route: openai_compatible routes are told apart by key."""
     if route.provider == "openai_compatible":

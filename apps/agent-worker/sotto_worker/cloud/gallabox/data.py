@@ -67,11 +67,25 @@ def credentials(store: CloudStore, company_id: str) -> dict[str, str] | None:
         return None
 
 
-def save(store: CloudStore, who: Principal, raw: dict[str, Any], *, ip: str = "") -> None:
-    """Blank fields keep the saved value, so the admin can replace one without retyping all."""
+def save(
+    store: CloudStore,
+    who: Principal,
+    raw: dict[str, Any],
+    *,
+    company_id: str | None = None,
+    ip: str = "",
+) -> None:
+    """Blank fields keep the saved value, so the admin can replace one without retyping all.
+    Round 2 (D-078): with `company_id` the platform owner sets another company's keys."""
     ensure(store)
-    who.require("admin")
-    old = credentials(store, who.company) or {}
+    if company_id is not None:
+        if not who.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        store.company_row(company_id)
+    else:
+        who.require("admin")
+        company_id = who.company
+    old = credentials(store, company_id) or {}
     creds: dict[str, str] = {}
     for f in FIELDS:
         value = str(raw.get(f) or "").strip() or old.get(f, "")
@@ -85,50 +99,83 @@ def save(store: CloudStore, who: Principal, raw: dict[str, Any], *, ip: str = ""
         creds[f] = value
     if creds["channel_id"] and creds["channel_id"] == old.get("channel_id"):
         creds["channel_label"] = old.get("channel_label", "")
-    _write(store, who, creds, old, ip=ip)
+    _write(store, who, creds, old, company_id=company_id, ip=ip)
 
 
 def save_channel(
-    store: CloudStore, who: Principal, channel_id: str, label: str, *, ip: str = ""
+    store: CloudStore,
+    who: Principal,
+    channel_id: str,
+    label: str,
+    *,
+    company_id: str | None = None,
+    ip: str = "",
 ) -> None:
     """The WhatsApp number picked from the discovered list (the id never left the server)."""
     ensure(store)
-    who.require("admin")
-    old = credentials(store, who.company)
+    if company_id is not None:
+        if not who.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        store.company_row(company_id)
+    else:
+        who.require("admin")
+        company_id = who.company
+    old = credentials(store, company_id)
     if old is None:
         raise CloudError("gallabox_no_credentials", "add the Gallabox keys first")
-    _write(store, who, {**old, "channel_id": channel_id, "channel_label": label}, old, ip=ip)
+    _write(
+        store,
+        who,
+        {**old, "channel_id": channel_id, "channel_label": label},
+        old,
+        company_id=company_id,
+        ip=ip,
+    )
 
 
 def _write(
-    store: CloudStore, who: Principal, creds: dict[str, str], old: dict[str, str], *, ip: str
+    store: CloudStore,
+    who: Principal,
+    creds: dict[str, str],
+    old: dict[str, str],
+    *,
+    company_id: str,
+    ip: str,
 ) -> None:
-    blob = store._vault.encrypt(f"gallabox:{who.company}", json.dumps(creds))
+    blob = store._vault.encrypt(f"gallabox:{company_id}", json.dumps(creds))
     with store._tx() as db:
         db.execute(
             "INSERT INTO company_gallabox(company_id, ciphertext, updated_at) VALUES (?,?,?)"
             " ON CONFLICT(company_id) DO UPDATE SET ciphertext = excluded.ciphertext,"
             " updated_at = excluded.updated_at",
-            (who.company, blob, now_ms()),
+            (company_id, blob, now_ms()),
         )
         changed = [f for f in FIELDS if creds[f] != old.get(f)]
         store.audit(
             db,
             "gallabox.set",
             "changed " + ", ".join(changed or ["nothing"]),
-            company_id=who.company,
+            company_id=company_id,
             actor=who,
             ip=ip,
         )
 
 
-def delete(store: CloudStore, who: Principal, *, ip: str = "") -> None:
+def delete(
+    store: CloudStore, who: Principal, *, company_id: str | None = None, ip: str = ""
+) -> None:
     ensure(store)
-    who.require("admin")
+    if company_id is not None:
+        if not who.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        store.company_row(company_id)
+    else:
+        who.require("admin")
+        company_id = who.company
     with store._tx() as db:
-        db.execute("DELETE FROM company_gallabox WHERE company_id = ?", (who.company,))
-        db.execute("DELETE FROM gallabox_templates WHERE company_id = ?", (who.company,))
-        store.audit(db, "gallabox.deleted", "", company_id=who.company, actor=who, ip=ip)
+        db.execute("DELETE FROM company_gallabox WHERE company_id = ?", (company_id,))
+        db.execute("DELETE FROM gallabox_templates WHERE company_id = ?", (company_id,))
+        store.audit(db, "gallabox.deleted", "", company_id=company_id, actor=who, ip=ip)
 
 
 def configured(store: CloudStore, company_id: str) -> bool:
@@ -172,19 +219,30 @@ def allowed(store: CloudStore, company_id: str) -> list[Template]:
 
 
 def save_allowed(
-    store: CloudStore, who: Principal, chosen: list[Template], *, ip: str = ""
+    store: CloudStore,
+    who: Principal,
+    chosen: list[Template],
+    *,
+    company_id: str | None = None,
+    ip: str = "",
 ) -> None:
     ensure(store)
-    who.require("admin")
+    if company_id is not None:
+        if not who.is_owner:
+            raise CloudError("forbidden", "only the platform owner can do this")
+        store.company_row(company_id)
+    else:
+        who.require("admin")
+        company_id = who.company
     t = now_ms()
     with store._tx() as db:
-        db.execute("DELETE FROM gallabox_templates WHERE company_id = ?", (who.company,))
+        db.execute("DELETE FROM gallabox_templates WHERE company_id = ?", (company_id,))
         for tpl in chosen:
             db.execute(
                 "INSERT INTO gallabox_templates(company_id, name, language, category, body,"
                 " params, updated_at) VALUES (?,?,?,?,?,?,?)",
                 (
-                    who.company,
+                    company_id,
                     tpl.name,
                     tpl.language,
                     tpl.category,
@@ -197,7 +255,7 @@ def save_allowed(
             db,
             "gallabox.templates.set",
             ", ".join(f"{x.name}/{x.language}" for x in chosen) or "none",
-            company_id=who.company,
+            company_id=company_id,
             actor=who,
             ip=ip,
         )

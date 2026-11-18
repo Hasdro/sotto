@@ -30,9 +30,7 @@ const PAGES = [
   "/playbook",
   "/inbox",
   "/admin",
-  "/admin/prompts",
-  "/admin/models",
-  "/admin/keys",
+  // Round 2 (D-078): /admin/keys, /admin/models and /admin/prompts left the client.
   "/admin/settings",
   "/admin/features",
   "/admin/instructions",

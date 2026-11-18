@@ -1,6 +1,7 @@
-/** Admin area (R3, R6), in four groups (UX-29, draft D-051 (backlog)): People, Connections, AI, Company. On the
- * desktop app keys, models and prompts live in the web admin panel only (D-038): Keys & providers
- * is not listed there and the AI group links to the web admin instead.
+/** Admin area (R3, R6), in four groups (UX-29, draft D-051 (backlog)): People, Connections, AI, Company.
+ * Round 2 (D-078): model configuration left the client entirely — no Keys & providers page, no
+ * Models or Prompt studio routes, no link to a web admin panel. Models are configured per
+ * organisation on the vendor panel.
  * Quiet Paper Glass (D-041, DESIGN-SYSTEM.md §5.4): the 34 px page title, the groups as neutral
  * pill tabs (current = gray fill + w500, never a colour), the group's pages as smaller pills. */
 
@@ -14,16 +15,14 @@ import {
   radius,
   space,
   Text,
-  useFocusRing,
   useTheme,
 } from "@sotto/ui";
 import { Slot, usePathname } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { useFeature } from "../../components/FeatureGate";
 import { RoleGate } from "../../components/RoleGate";
 import { useLearningBadge } from "../../features/learning/badge";
-import { configInWebOnly, openWebAdmin, webAdminUrl } from "../../features/webadmin/webAdmin";
 import type { Locale, StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
@@ -33,8 +32,6 @@ type Page = {
   href: string;
   label: StringKey | OwnLabel;
   icon: IconName;
-  /** Web only: on the desktop app it is configured in the web admin panel (D-038). */
-  webOnly?: boolean;
   /** Older routes that belong to this page (deep links keep working, UX-29). */
   also?: readonly string[];
 };
@@ -58,13 +55,6 @@ export const ADMIN_GROUPS: readonly Group[] = [
       { href: "/admin/integrations", label: "admin.integrations", icon: "globe" },
       // INT-14b: the files agents may attach to follow-up emails.
       { href: "/admin/attachments", label: ATTACHMENTS_LABEL, icon: "mail" },
-      {
-        href: "/admin/keys",
-        label: "admin.keys",
-        icon: "key",
-        webOnly: true,
-        also: ["/admin/models", "/admin/prompts"],
-      },
     ],
   },
   {
@@ -113,24 +103,11 @@ function AdminLayout() {
   const { color } = useTheme();
   const pathname = usePathname();
   const { width } = useWindowDimensions();
-  const webFocus = useFocusRing();
-  const webOnly = configInWebOnly();
   const learning = useFeature("learned_instructions");
   const fresh = useLearningBadge(learning.state === "available");
-  // A page hidden on the desktop hands its older routes to the group's first page.
-  const groups = ADMIN_GROUPS.map((g) => {
-    const gone = g.pages.filter((p) => webOnly && p.webOnly).flatMap((p) => p.also ?? []);
-    const pages = g.pages.filter((p) => !(webOnly && p.webOnly));
-    return {
-      ...g,
-      pages: pages.map((p, i) =>
-        i === 0 && gone.length ? { ...p, also: [...(p.also ?? []), ...gone] } : p,
-      ),
-    };
-  });
+  const groups = ADMIN_GROUPS;
   const current = groups.find((g) => g.pages.some((p) => pageActive(pathname, p))) ?? groups[0];
   const subpages = current?.pages ?? [];
-  const webLink = webOnly && webAdminUrl() && current?.id === "ai";
   return (
     <ScrollView style={{ backgroundColor: color.background }} contentContainerStyle={styles.page}>
       <View style={styles.column}>
@@ -170,7 +147,7 @@ function AdminLayout() {
             );
           })}
         </View>
-        {subpages.length > 1 || webLink ? (
+        {subpages.length > 1 ? (
           <View
             role="navigation"
             accessibilityLabel={t("admin.pages")}
@@ -200,21 +177,6 @@ function AdminLayout() {
                 </AppLink>
               );
             })}
-            {webLink ? (
-              <Pressable
-                testID="admin-web-models"
-                accessibilityRole="link"
-                accessibilityLabel={t("admin.webPanel.link")}
-                onPress={openWebAdmin}
-                onFocus={webFocus.onFocus}
-                onBlur={webFocus.onBlur}
-                style={[styles.subTab, webFocus.ring]}
-              >
-                <Text variant="label" tone="muted">
-                  {t("admin.webPanel.link")}
-                </Text>
-              </Pressable>
-            ) : null}
           </View>
         ) : null}
         <Slot />
