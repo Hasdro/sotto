@@ -43,6 +43,11 @@ def test_new_question_emails_the_companys_managers_once(store: CloudStore, seed:
     with TestClient(create_cloud_app(config, store, seed), base_url=ORIGIN) as c:
         ha = signup(c, "Alpha", "admin@a.test")
         hb = signup(c, "Beta", "admin@b.test")
+        # Round 3 (D-087): signup sends a welcome email to each admin in the
+        # background; wait for both to land and drain them, so the assertions
+        # below count escalation mail only.
+        wait_for(lambda: len(mail.sent) >= 2)
+        mail.sent.clear()
         body = {"question": "Can I pay in bitcoin?", "transcript_excerpt": "Customer: hi"}
         assert c.post("/api/v1/escalations", json=body, headers=ha).status_code == 201
         assert c.post("/api/v1/escalations", json=body, headers=ha).status_code == 201  # same

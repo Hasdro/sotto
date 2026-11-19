@@ -89,6 +89,16 @@
     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "client": true
    },
+   "deepseek": {
+    "name": "DeepSeek",
+    "kind": "llm",
+    "key_env": "DEEPSEEK_API_KEY",
+    "key_page": "https://platform.deepseek.com/api_keys",
+    "free": "Paid from the first request",
+    "steps": "Sign in, choose Create API Key, copy it (it is shown once).",
+    "base_url": "https://api.deepseek.com/v1",
+    "client": true
+   },
    "openrouter": {
     "name": "OpenRouter",
     "kind": "llm",
