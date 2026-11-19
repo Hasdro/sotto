@@ -588,15 +588,9 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         )
 
     def welcome_subject(language: str) -> str:
-        return (
-            "مرحباً بك في AGN Sales Shield"
-            if language == "ar"
-            else "Welcome to AGN Sales Shield"
-        )
+        return "مرحباً بك في AGN Sales Shield" if language == "ar" else "Welcome to AGN Sales Shield"
 
-    def welcome_text(
-        name: str, company: str, *, otp_code: str | None, language: str
-    ) -> str:
+    def welcome_text(name: str, company: str, *, otp_code: str | None, language: str) -> str:
         """The welcome email (D-087): what the product is, how to sign in the first time, where
         the apps are. The support contact is the sender address itself — reply to the email —
         so no address is hardcoded here. The AR version is used when the CRM says the
@@ -636,7 +630,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             "— AGN Sales Shield"
         )
 
-    pending_welcome: set[asyncio.Task[None]] = set()
+    pending_welcome: set[asyncio.Task[Any]] = set()
 
     async def send_welcome_in_background(
         email: str, name: str, company: str, *, otp_code: str | None, language: str
@@ -763,8 +757,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         company_id, _admin_id = created
         code = store.request_otp(email, "signup", ip=ip_of(request))
         sender_ready = (
-            email_data.account(store, email_data.PLATFORM) is not None
-            or config.mailer is not None
+            email_data.account(store, email_data.PLATFORM) is not None or config.mailer is not None
         )
         if code is not None and sender_ready:
             welcome_later(
@@ -1631,9 +1624,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route("/api/owner/password", owner_route(o_password, mutating=True), methods=["POST"]),
         Route("/api/owner/github", owner_route(o_github_get)),
         Route("/api/owner/github", owner_route(o_github_put, mutating=True), methods=["PUT"]),
-        Route(
-            "/api/owner/github", owner_route(o_github_delete, mutating=True), methods=["DELETE"]
-        ),
+        Route("/api/owner/github", owner_route(o_github_delete, mutating=True), methods=["DELETE"]),
         Route(
             "/api/owner/github/test",
             owner_route(o_github_test, mutating=True),

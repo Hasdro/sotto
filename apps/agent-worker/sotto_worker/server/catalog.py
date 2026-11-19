@@ -176,7 +176,7 @@ class Catalog:
             extra[pid] = Provider(
                 id=pid,
                 name=str(row.get("name") or pid),
-                kind=kind,  # type: ignore[arg-type]
+                kind=cast(Kind, kind),  # the guard above narrowed it to llm|stt
                 key_env=key_env,
                 key_page="",
                 free="",
@@ -190,9 +190,7 @@ class Catalog:
                 models_detailed=detailed,
                 format=str(row.get("format") or "chat-completions"),
                 auth_mode=str(row.get("auth_mode") or "bearer"),
-                auth_header=str(row["auth_header"])
-                if row.get("auth_header")
-                else None,
+                auth_header=str(row["auth_header"]) if row.get("auth_header") else None,
                 custom=True,
             )
         if not extra:
@@ -270,9 +268,7 @@ class Catalog:
             # A listed model must be enabled (seed override or custom list); an
             # unlisted model is free-form on a built-in but unknown on a custom.
             known = {m.id: m.enabled for m in provider.models_detailed}
-            if (model in known and not known[model]) or (
-                provider.custom and model not in known
-            ):
+            if (model in known and not known[model]) or (provider.custom and model not in known):
                 raise ValueError(f"{model!r} is not an enabled model of {provider.name}")
         template = provider.route
         stage_settings = {

@@ -5,11 +5,11 @@
  * appears once the real hosted page URL is pasted in; until then the screen says online
  * upgrade is being set up, so nobody follows a dead link.
  */
-import { Badge, Button, layout, Panel, Screen, space, Stack, StatTile, Text } from "@sotto/ui";
+import { Badge, Button, layout, Panel, Screen, Stack, StatTile, space, Text } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { PageHeader } from "../../components/PageHeader";
-import { billingInfo, type BillingInfo } from "../../features/support/api";
+import { type BillingInfo, billingInfo } from "../../features/support/api";
 import { formatNumber } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
@@ -22,7 +22,7 @@ function formatDate(ms: number, locale: "en" | "ar"): string {
 }
 
 export default function BillingScreen() {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [info, setInfo] = useState<BillingInfo | null>(null);
   const [failed, setFailed] = useState(false);
   const load = useCallback(() => {
@@ -71,8 +71,7 @@ function BillingPanel({ info }: { info: BillingInfo }) {
       : info.status === "trial"
         ? ("notice" as const)
         : ("warning" as const);
-  const upgradeReady =
-    info.upgrade_url !== null && !info.upgrade_url.startsWith("TODO-");
+  const upgradeReady = info.upgrade_url !== null && !info.upgrade_url.startsWith("TODO-");
   const nextCharge =
     info.ends_at === null
       ? null

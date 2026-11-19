@@ -53,9 +53,7 @@ def make_routes(
     data.ensure(store)
     attachments.ensure(store)
 
-    async def test_send(
-        account: SmtpAccount | None, to: str
-    ) -> tuple[bool, Response]:
+    async def test_send(account: SmtpAccount | None, to: str) -> tuple[bool, Response]:
         """Sends the test email; returns (worked, response). The caller records the result."""
         if account is None:
             raise CloudError("invalid", "save the mailbox first")
@@ -69,9 +67,7 @@ def make_routes(
         try:
             await sender(account, mail)
         except SmtpSendError as e:
-            return False, JSONResponse(
-                {"ok": False, "to": to, "error": str(e)}, headers=NO_STORE
-            )
+            return False, JSONResponse({"ok": False, "to": to, "error": str(e)}, headers=NO_STORE)
         return True, JSONResponse({"ok": True, "to": to}, headers=NO_STORE)
 
     # --- owner: platform mailbox -----------------------------------------------------------------

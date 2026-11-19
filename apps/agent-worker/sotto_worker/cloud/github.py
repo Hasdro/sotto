@@ -70,7 +70,7 @@ async def create_issue(
 
 
 async def test_repo(
-    store: CloudStore, *, transport: httpx.AsyncBaseTransport | None = None
+    store: CloudStore, *, transport: httpx.AsyncBaseTransport | None
 ) -> dict[str, Any]:
     """Validates the saved repo + token without creating anything."""
     saved = store.github_token()

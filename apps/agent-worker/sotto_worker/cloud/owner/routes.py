@@ -333,13 +333,16 @@ def make_routes(
         immediate, no Save. Returns the full providers list with the updated flag.
         A model id may contain a slash (e.g. openai/gpt-oss-20b), hence {mid:path}."""
         data = await body(r)
+        enabled = data.get("enabled")
+        if not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be true or false")
         platform.set_model_override(
             store,
             seed,
             who,
             r.path_params["pid"],
             r.path_params["mid"],
-            data.get("enabled"),
+            enabled,
             ip=ip_of(r),
         )
         return JSONResponse(providers_out(), headers=NO_STORE)

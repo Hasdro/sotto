@@ -261,13 +261,13 @@ def _custom(c: TestClient, cid: str, **kw: Any) -> dict[str, Any]:
     body.update(kw)
     r = c.post(f"/api/owner/companies/{cid}/providers", json=body, headers=H)
     assert r.status_code == 201, r.text
-    return r.json()
+    return dict(r.json())
 
 
 def _company_routes(c: TestClient, cid: str) -> list[dict[str, Any]]:
     r = c.get(f"/api/owner/companies/{cid}/routes", headers=H)
     assert r.status_code == 200, r.text
-    return r.json()["stages"]
+    return list(r.json()["stages"])
 
 
 def test_deepseek_selectable_with_host_bound_key(
@@ -296,7 +296,7 @@ def test_deepseek_selectable_with_host_bound_key(
     from sotto_worker.adapters.factory import check_key_host
 
     check_key_host("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"may only be sent to api\.deepseek\.com"):
         check_key_host("DEEPSEEK_API_KEY", "https://api.evil.test/v1")
 
 
@@ -309,9 +309,7 @@ def test_custom_provider_crud_starts_with_zero_models(owner: TestClient, sign_up
     assert p["key_set"] is True  # same field name as a built-in provider
     assert p["key_env"] == "ENDPOINT_CUSTOMACMELLM_KEY"
     assert p["custom"] is True
-    assert CUSTOM_KEY not in owner.get(
-        f"/api/owner/companies/{cid}/providers", headers=H
-    ).text
+    assert CUSTOM_KEY not in owner.get(f"/api/owner/companies/{cid}/providers", headers=H).text
     # The company page list merges it in alongside the built-ins.
     merged = owner.get(f"/api/owner/providers?company={cid}", headers=H).json()["providers"]
     assert next(x for x in merged if x["id"] == "custom-acme-llm")["custom"] is True
@@ -424,9 +422,7 @@ def test_custom_provider_test_records_discovered_models(
     s = sign_up()
     cid = s["company"]["id"]
     p = _custom(o, cid)
-    r = o.post(
-        f"/api/owner/companies/{cid}/providers/{p['id']}/test", json={}, headers=H
-    )
+    r = o.post(f"/api/owner/companies/{cid}/providers/{p['id']}/test", json={}, headers=H)
     assert r.status_code == 200, r.text
     assert r.json()["result"] == {
         "ok": True,
@@ -437,9 +433,7 @@ def test_custom_provider_test_records_discovered_models(
     assert all(m["enabled"] for m in r.json()["models"])
     # A rejected key fails the test and records nothing.
     bad = _custom(o, cid, name="Bad Key", credential=CUSTOM_BAD_KEY)
-    r = o.post(
-        f"/api/owner/companies/{cid}/providers/{bad['id']}/test", json={}, headers=H
-    )
+    r = o.post(f"/api/owner/companies/{cid}/providers/{bad['id']}/test", json={}, headers=H)
     assert r.json()["result"]["ok"] is False
     assert r.json()["models"] == []
     assert r.json()["test"]["ok"] is False
@@ -483,9 +477,7 @@ def test_custom_route_reaches_the_bundle_from_the_db(
     assert stage["api_key_env"] == "ENDPOINT_CUSTOMACMELLM_KEY"
     assert stage["vendor"] == pid
     # The key itself travels only through the keys allow-list, while BYO is on.
-    row = store._q(
-        "SELECT id, email, name FROM users WHERE company_id = ?", (cid,)
-    )[0]
+    row = store._q("SELECT id, email, name FROM users WHERE company_id = ?", (cid,))[0]
     who = Principal(
         user_id=str(row["id"]),
         company_id=cid,
@@ -539,9 +531,7 @@ def test_providers_list_honours_company_id_param(owner: TestClient, sign_up: Sig
     assert owner.get("/api/owner/providers?company_id=nope", headers=H).status_code == 404
 
 
-def test_seed_model_toggle_disables_it_everywhere(
-    owner: TestClient, sign_up: SignUp
-) -> None:
+def test_seed_model_toggle_disables_it_everywhere(owner: TestClient, sign_up: SignUp) -> None:
     """Follow-up 2 (D-081): a per-model Enabled toggle for a seed provider, immediate,
     no Save. A disabled model leaves providers_out, cannot be set on a stage, and a
     stored route using it is flagged unavailable (never silently swapped). Re-enabling
@@ -562,34 +552,34 @@ def test_seed_model_toggle_disables_it_everywhere(
     groq = next(p for p in r.json()["providers"] if p["id"] == pid)
     assert next(m for m in groq["models"] if m["id"] == model)["enabled"] is False
     assert next(m for m in groq["models"] if m["id"] == other)["enabled"] is True
-    r = owner.put(
-        "/api/owner/routes/suggest", json={"provider": pid, "model": model}, headers=H
-    )
-    assert r.status_code == 400 and r.json()["code"] == "model_unavailable"
+    r = owner.put("/api/owner/routes/suggest", json={"provider": pid, "model": model}, headers=H)
+    assert r.status_code == 400
+    assert r.json()["code"] == "model_unavailable"
     stage = next(x for x in _company_routes(owner, cid) if x["id"] == "suggest")
     assert stage["model_available"] is False
     assert stage["model"] == model  # the stored pair is untouched
-    r = owner.patch(
-        f"/api/owner/providers/{pid}/models/{model}", json={"enabled": True}, headers=H
-    )
+    r = owner.patch(f"/api/owner/providers/{pid}/models/{model}", json={"enabled": True}, headers=H)
     assert r.status_code == 200, r.text
     groq = next(p for p in r.json()["providers"] if p["id"] == pid)
     assert next(m for m in groq["models"] if m["id"] == model)["enabled"] is True
     stage = next(x for x in _company_routes(owner, cid) if x["id"] == "suggest")
     assert stage["model_available"] is True
     assert (
-        owner.patch("/api/owner/providers/nope/models/x", json={"enabled": False}, headers=H)
-        .status_code
+        owner.patch(
+            "/api/owner/providers/nope/models/x", json={"enabled": False}, headers=H
+        ).status_code
         == 404
     )
     assert (
-        owner.patch(f"/api/owner/providers/{pid}/models/nope", json={"enabled": False}, headers=H)
-        .status_code
+        owner.patch(
+            f"/api/owner/providers/{pid}/models/nope", json={"enabled": False}, headers=H
+        ).status_code
         == 400
     )
     assert (
-        owner.patch(f"/api/owner/providers/{pid}/models/{model}", json={"enabled": "yes"}, headers=H)
-        .status_code
+        owner.patch(
+            f"/api/owner/providers/{pid}/models/{model}", json={"enabled": "yes"}, headers=H
+        ).status_code
         == 400
     )
     # A custom provider id is not a seed provider: the override table never touches it.

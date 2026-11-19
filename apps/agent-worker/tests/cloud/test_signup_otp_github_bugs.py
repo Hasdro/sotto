@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import httpx
+import httpx2
 import pytest
 from starlette.testclient import TestClient
 
@@ -27,7 +28,7 @@ from sotto_worker.cloud.store import (
 from tests.cloud.conftest import ORIGIN, OWNER_EMAIL, OWNER_PASSWORD, PASSWORD
 
 JSON_ORIGIN = {"origin": ORIGIN, "content-type": "application/json"}
-CRM_SECRET_HEADER = "x-agn-signup-secret"
+CRM_SECRET_HEADER = "x-agn-signup-secret"  # noqa: S105  # a header name, not a secret
 CODE_RE = re.compile(r"\b(\d{6})\b")
 PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
@@ -64,10 +65,19 @@ def sent() -> list[tuple[SmtpAccount, Outgoing]]:
     return []
 
 
+class MailClient(TestClient):
+    """A TestClient that records sent mail on .sent (attached by mclient)."""
+
+    sent: list[tuple[SmtpAccount, Outgoing]]
+
+
 @pytest.fixture
 def mclient(
-    store: CloudStore, seed: Seed, sent: list[tuple[SmtpAccount, Outgoing]], gh_transport: httpx.MockTransport
-) -> TestClient:
+    store: CloudStore,
+    seed: Seed,
+    sent: list[tuple[SmtpAccount, Outgoing]],
+    gh_transport: httpx.MockTransport,
+) -> MailClient:
     async def to_fake(account: SmtpAccount, mail: Outgoing) -> None:
         sent.append((account, mail))
 
@@ -77,8 +87,8 @@ def mclient(
         smtp_sender=to_fake,
         github_transport=gh_transport,
     )
-    client = TestClient(create_cloud_app(config, store, seed), base_url=ORIGIN)
-    client.sent = sent  # type: ignore[attr-defined]
+    client = MailClient(create_cloud_app(config, store, seed), base_url=ORIGIN)
+    client.sent = sent
     return client
 
 
@@ -124,14 +134,16 @@ def save_platform_mailbox(owner: TestClient) -> None:
     assert r.status_code == 200, r.text
 
 
-def wait_for_mail(sent: list, count: int, timeout_s: float = 5.0) -> None:
+def wait_for_mail(
+    sent: list[tuple[SmtpAccount, Outgoing]], count: int, timeout_s: float = 5.0
+) -> None:
     deadline = time.monotonic() + timeout_s
     while len(sent) < count and time.monotonic() < deadline:
         time.sleep(0.05)
     assert len(sent) >= count, f"only {len(sent)} mails arrived, wanted {count}"
 
 
-def drain_mail(sent: list, quiet_s: float = 0.4) -> None:
+def drain_mail(sent: list[tuple[SmtpAccount, Outgoing]], quiet_s: float = 0.4) -> None:
     """Waits until no new mail arrives for `quiet_s`: background sends from earlier steps
     (welcome, OTP) have landed, so the next mail counted is the one this step sends."""
     last_len = len(sent)
@@ -155,9 +167,7 @@ def crm_body(**over: Any) -> dict[str, Any]:
     return body
 
 
-def crm_create(
-    c: TestClient, secret: str, **over: Any
-) -> httpx.Response:
+def crm_create(c: TestClient, secret: str, **over: Any) -> httpx2.Response:
     return c.post(
         "/api/v1/companies",
         json=crm_body(**over),
@@ -179,17 +189,15 @@ def test_plans_match_the_zoho_ladder() -> None:
 
 def test_crm_requires_its_secret(mclient: TestClient, crm_secret: str) -> None:
     assert mclient.post("/api/v1/companies", json=crm_body()).status_code == 401
-    r = mclient.post(
-        "/api/v1/companies", json=crm_body(), headers={CRM_SECRET_HEADER: "wrong"}
-    )
+    r = mclient.post("/api/v1/companies", json=crm_body(), headers={CRM_SECRET_HEADER: "wrong"})
     assert r.status_code == 401
 
 
 def test_crm_creates_company_admin_and_mails(
-    mclient: TestClient, store: CloudStore, crm_secret: str, owner_client: TestClient
+    mclient: MailClient, store: CloudStore, crm_secret: str, owner_client: TestClient
 ) -> None:
     save_platform_mailbox(owner_client)
-    sent: list = mclient.sent  # type: ignore[attr-defined]
+    sent = mclient.sent
     r = crm_create(mclient, crm_secret)
     assert r.status_code == 201, r.text
     assert r.json()["company_id"]
@@ -197,11 +205,14 @@ def test_crm_creates_company_admin_and_mails(
     assert r.json()["otp_sent"] is True
     company = store.company_row(r.json()["company_id"])
     assert company["plan"] == "growth"  # SHIELD-GROWTH
-    assert company["seats"] == 10 and company["minutes_month"] == 5_000
+    assert company["seats"] == 10
+    assert company["minutes_month"] == 5_000
     assert company["billing_plan_code"] == "SHIELD-GROWTH"
-    assert company["paid_until"] and company["paid_until"] > now_ms()
+    assert company["paid_until"]
+    assert company["paid_until"] > now_ms()
     user = store._q("SELECT * FROM users WHERE email = ?", ("admin@acme.test",))[0]
-    assert user["role"] == "admin" and user["must_change_pw"] == 1
+    assert user["role"] == "admin"
+    assert user["must_change_pw"] == 1
     wait_for_mail(sent, 2)
     subjects = [m.subject for _a, m in sent]
     assert "Welcome to AGN Sales Shield" in subjects
@@ -211,14 +222,13 @@ def test_crm_creates_company_admin_and_mails(
     assert all(a.from_address == "sales-shield@agncompu.com" for a, _m in sent)
 
 
-def test_crm_trial_stays_a_trial(
-    mclient: TestClient, store: CloudStore, crm_secret: str
-) -> None:
+def test_crm_trial_stays_a_trial(mclient: TestClient, store: CloudStore, crm_secret: str) -> None:
     r = crm_create(mclient, crm_secret, trial=True, zoho_plan_code="SHIELD-STARTER")
     assert r.status_code == 201, r.text
     company = store.company_row(r.json()["company_id"])
     assert company["plan"] == "trial"
-    assert company["trial_ends_at"] and company["paid_until"] is None
+    assert company["trial_ends_at"]
+    assert company["paid_until"] is None
     assert company["billing_plan_code"] == "SHIELD-STARTER"
 
 
@@ -229,11 +239,12 @@ def test_crm_duplicate_email_is_a_noop(
     before = len(store._q("SELECT id FROM companies"))
     r = crm_create(mclient, crm_secret)
     assert r.status_code == 200, r.text
-    assert r.json()["duplicate"] is True and r.json()["otp_sent"] is False
+    assert r.json()["duplicate"] is True
+    assert r.json()["otp_sent"] is False
     assert len(store._q("SELECT id FROM companies")) == before
 
 
-def test_crm_rejects_unknown_plan_code(mclient: TestClient, crm_secret: str) -> None:
+def test_crm_rejects_unknown_plan_code(mclient: MailClient, crm_secret: str) -> None:
     r = crm_create(mclient, crm_secret, zoho_plan_code="SHIELD-NOPE")
     assert r.status_code == 400, r.text
 
@@ -256,8 +267,8 @@ def signup_user(mclient: TestClient, email: str = "admin@acme.test") -> dict[str
     return {"authorization": f"Bearer {r.json()['token']}"}
 
 
-def request_code(mclient: TestClient, email: str, purpose: str = "login") -> str:
-    sent: list = mclient.sent  # type: ignore[attr-defined]
+def request_code(mclient: MailClient, email: str, purpose: str = "login") -> str:
+    sent = mclient.sent
     drain_mail(sent)
     before = len(sent)
     r = mclient.post("/api/v1/auth/otp/request", json={"email": email, "purpose": purpose})
@@ -271,20 +282,21 @@ def request_code(mclient: TestClient, email: str, purpose: str = "login") -> str
 
 
 def test_otp_request_answers_the_same_for_unknown_addresses(
-    mclient: TestClient, owner_client: TestClient
+    mclient: MailClient, owner_client: TestClient
 ) -> None:
     save_platform_mailbox(owner_client)
-    sent: list = mclient.sent  # type: ignore[attr-defined]
+    sent = mclient.sent
     r = mclient.post(
         "/api/v1/auth/otp/request", json={"email": "nobody@example.test", "purpose": "login"}
     )
-    assert r.status_code == 200 and r.json()["ok"] is True
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
     time.sleep(0.3)
     assert sent == []
 
 
 def test_otp_verify_signs_in_and_forces_a_password_change(
-    mclient: TestClient, store: CloudStore, crm_secret: str, owner_client: TestClient
+    mclient: MailClient, store: CloudStore, crm_secret: str, owner_client: TestClient
 ) -> None:
     save_platform_mailbox(owner_client)
     assert crm_create(mclient, crm_secret).status_code == 201
@@ -294,17 +306,19 @@ def test_otp_verify_signs_in_and_forces_a_password_change(
         json={"email": "admin@acme.test", "code": code, "purpose": "signup"},
     )
     assert r.status_code == 200, r.text
-    assert r.json()["token"] and r.json()["must_change"] is True
+    assert r.json()["token"]
+    assert r.json()["must_change"] is True
     # Single use: the same code is dead now.
     r = mclient.post(
         "/api/v1/auth/otp/verify",
         json={"email": "admin@acme.test", "code": code, "purpose": "signup"},
     )
-    assert r.status_code == 400 and r.json()["code"] == "otp_invalid"
+    assert r.status_code == 400
+    assert r.json()["code"] == "otp_invalid"
 
 
 def test_otp_wrong_code_and_expired_code(
-    mclient: TestClient, store: CloudStore, owner_client: TestClient
+    mclient: MailClient, store: CloudStore, owner_client: TestClient
 ) -> None:
     save_platform_mailbox(owner_client)
     signup_user(mclient)
@@ -313,7 +327,8 @@ def test_otp_wrong_code_and_expired_code(
         "/api/v1/auth/otp/verify",
         json={"email": "admin@acme.test", "code": "000000", "purpose": "login"},
     )
-    assert r.status_code == 400 and r.json()["code"] == "otp_invalid"
+    assert r.status_code == 400
+    assert r.json()["code"] == "otp_invalid"
     store._db.execute(
         "UPDATE otp_codes SET expires_at = ? WHERE email = ?",
         (now_ms() - 1000, "admin@acme.test"),
@@ -322,11 +337,12 @@ def test_otp_wrong_code_and_expired_code(
         "/api/v1/auth/otp/verify",
         json={"email": "admin@acme.test", "code": code, "purpose": "login"},
     )
-    assert r.status_code == 400 and r.json()["code"] == "otp_expired"
+    assert r.status_code == 400
+    assert r.json()["code"] == "otp_expired"
 
 
 def test_otp_attempt_limit_is_enforced_by_the_store(
-    mclient: TestClient, store: CloudStore, owner_client: TestClient
+    mclient: MailClient, store: CloudStore, owner_client: TestClient
 ) -> None:
     save_platform_mailbox(owner_client)
     signup_user(mclient)
@@ -353,7 +369,7 @@ def test_github_settings_round_trip(owner_client: TestClient) -> None:
         "/api/owner/github", json={"repo": "agn-it/test-reports"}, headers=JSON_ORIGIN
     )
     assert r.status_code == 400  # a token is required
-    token = "ghp_test-token-value"
+    token = "ghp_test-token-value"  # noqa: S105  # test fixture: a fake token, never a real credential
     r = owner_client.put(
         "/api/owner/github",
         json={"repo": "agn-it/test-reports", "token": token},
@@ -372,7 +388,8 @@ def test_github_settings_round_trip(owner_client: TestClient) -> None:
     )
     assert r.status_code == 200, r.text
     r = owner_client.post("/api/owner/github/test", json={}, headers=JSON_ORIGIN)
-    assert r.status_code == 200 and r.json()["ok"] is True
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
     r = owner_client.delete("/api/owner/github", headers=JSON_ORIGIN)
     assert r.status_code == 200
     assert owner_client.get("/api/owner/github").json()["configured"] is False
@@ -380,7 +397,8 @@ def test_github_settings_round_trip(owner_client: TestClient) -> None:
 
 def test_github_test_without_config(owner_client: TestClient) -> None:
     r = owner_client.post("/api/owner/github/test", json={}, headers=JSON_ORIGIN)
-    assert r.status_code == 200 and r.json() == {
+    assert r.status_code == 200
+    assert r.json() == {
         "ok": False,
         "detail": "no GitHub repo is connected yet",
     }
@@ -392,7 +410,8 @@ def test_github_issue_needs_config(owner_client: TestClient) -> None:
         json={"title": "x", "body": "y", "page_url": "/owner"},
         headers=JSON_ORIGIN,
     )
-    assert r.status_code == 409 and r.json()["code"] == "github_not_configured"
+    assert r.status_code == 409
+    assert r.json()["code"] == "github_not_configured"
 
 
 def test_github_issue_is_created_server_side(
@@ -438,7 +457,7 @@ def test_github_issue_rejected_without_owner_sign_in(mclient: TestClient) -> Non
     assert r.status_code == 401
 
 
-# --- screenshot attachments (D-085) ----------------------------------------------------------------
+# --- screenshot attachments (D-085) ---
 
 
 def test_attachment_upload_and_public_get(mclient: TestClient) -> None:
@@ -460,9 +479,12 @@ def test_attachment_upload_and_public_get(mclient: TestClient) -> None:
 
 
 def test_attachment_rejects_anonymous_wrong_type_and_oversize(mclient: TestClient) -> None:
-    assert mclient.post(
-        "/api/v1/issue-attachments", content=PNG_1PX, headers={"content-type": "image/png"}
-    ).status_code == 401
+    assert (
+        mclient.post(
+            "/api/v1/issue-attachments", content=PNG_1PX, headers={"content-type": "image/png"}
+        ).status_code
+        == 401
+    )
     auth = signup_user(mclient)
     r = mclient.post(
         "/api/v1/issue-attachments",
@@ -483,7 +505,7 @@ def test_attachment_rejects_anonymous_wrong_type_and_oversize(mclient: TestClien
 # --- bug reports (D-086) --------------------------------------------------------------------------
 
 
-def report_bug(mclient: TestClient, auth: dict[str, str], **over: Any) -> httpx.Response:
+def report_bug(mclient: TestClient, auth: dict[str, str], **over: Any) -> httpx2.Response:
     body: dict[str, Any] = {
         "title": "The model picker is empty",
         "description": "No models show for OpenAI on the company page.",
@@ -497,7 +519,10 @@ def test_bug_report_lifecycle(
     mclient: TestClient, owner_client: TestClient, gh_calls: list[httpx.Request]
 ) -> None:
     auth = signup_user(mclient)
-    assert mclient.post("/api/v1/bug-reports", json={"title": "x", "description": "y"}).status_code == 401
+    assert (
+        mclient.post("/api/v1/bug-reports", json={"title": "x", "description": "y"}).status_code
+        == 401
+    )
     r = report_bug(mclient, auth)
     assert r.status_code == 201, r.text
     report_id = r.json()["id"]
@@ -506,14 +531,16 @@ def test_bug_report_lifecycle(
     mine = [x for x in r.json()["reports"] if x["id"] == report_id]
     assert len(mine) == 1
     assert mine[0]["status"] == "new"
-    assert mine[0]["company_name"] == "Acme" and mine[0]["user_email"] == "admin@acme.test"
+    assert mine[0]["company_name"] == "Acme"
+    assert mine[0]["user_email"] == "admin@acme.test"
     # Review: edit + mark reviewed.
     r = owner_client.patch(
         f"/api/owner/bug-reports/{report_id}",
         json={"title": "The model picker is empty (OpenAI)", "status": "reviewed"},
         headers=JSON_ORIGIN,
     )
-    assert r.status_code == 200 and r.json()["status"] == "reviewed"
+    assert r.status_code == 200
+    assert r.json()["status"] == "reviewed"
     assert r.json()["title"] == "The model picker is empty (OpenAI)"
     r = owner_client.patch(
         f"/api/owner/bug-reports/{report_id}",
@@ -525,7 +552,8 @@ def test_bug_report_lifecycle(
     r = owner_client.post(
         f"/api/owner/bug-reports/{report_id}/submit", json={}, headers=JSON_ORIGIN
     )
-    assert r.status_code == 409 and r.json()["code"] == "github_not_configured"
+    assert r.status_code == 409
+    assert r.json()["code"] == "github_not_configured"
     owner_client.put(
         "/api/owner/github",
         json={"repo": "agn-it/test-reports", "token": "ghp_test-token-value"},
@@ -543,7 +571,8 @@ def test_bug_report_lifecycle(
     assert "Reported by admin@acme.test (Acme)" in payload
     r = owner_client.get("/api/owner/bug-reports?status=submitted")
     mine = [x for x in r.json()["reports"] if x["id"] == report_id]
-    assert len(mine) == 1 and mine[0]["github_issue_url"].endswith("/issues/7")
+    assert len(mine) == 1
+    assert mine[0]["github_issue_url"].endswith("/issues/7")
 
 
 def test_bug_report_validation(mclient: TestClient) -> None:
@@ -592,15 +621,17 @@ def test_bug_report_with_uploaded_screenshot(
 
 
 def test_billing_trial_and_growth(
-    mclient: TestClient, crm_secret: str, owner_client: TestClient
+    mclient: MailClient, crm_secret: str, owner_client: TestClient
 ) -> None:
     save_platform_mailbox(owner_client)
     auth = signup_user(mclient, email="trial@acme.test")
     r = mclient.get("/api/v1/billing", headers=auth)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["plan"] == "trial" and body["plan_name"] == "Trial"
-    assert body["price_aed"] == 0 and body["currency"] == "AED"
+    assert body["plan"] == "trial"
+    assert body["plan_name"] == "Trial"
+    assert body["price_aed"] == 0
+    assert body["currency"] == "AED"
     assert body["billing_period"] == "monthly"
     assert body["upgrade_url"] == "TODO-ZOHO-HOSTED-URL-STARTER"
     assert mclient.get("/api/v1/billing").status_code == 401
@@ -624,10 +655,13 @@ def test_billing_trial_and_growth(
     r = mclient.get("/api/v1/billing", headers=auth2)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["plan"] == "growth" and body["plan_name"] == "Growth"
-    assert body["price_aed"] == 2490 and body["seats"] == 10
+    assert body["plan"] == "growth"
+    assert body["plan_name"] == "Growth"
+    assert body["price_aed"] == 2490
+    assert body["seats"] == 10
     assert body["zoho_plan_code"] == "SHIELD-GROWTH"
-    assert body["paid_until"] and body["paid_until"] > now_ms()
+    assert body["paid_until"]
+    assert body["paid_until"] > now_ms()
     assert body["upgrade_url"] == "TODO-ZOHO-HOSTED-URL-SCALE"
 
 
@@ -643,9 +677,11 @@ def test_sender_read_model_and_test_tracking(owner_client: TestClient) -> None:
     assert r.json()["configured"] is True
     assert r.json()["from_address"] == "sales-shield@agncompu.com"
     assert r.json()["host"] == "smtp.example.test"
-    assert r.json()["tested_at"] is None and r.json()["test_ok"] is None
+    assert r.json()["tested_at"] is None
+    assert r.json()["test_ok"] is None
     r = owner_client.post("/api/owner/smtp/test", json={}, headers=JSON_ORIGIN)
-    assert r.status_code == 200 and r.json()["ok"] is True
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
     r = owner_client.get("/api/owner/sender")
     assert r.json()["test_ok"] is True
     assert r.json()["tested_at"] is not None

@@ -33,6 +33,7 @@ export type BillingInfo = {
   /** ms since epoch; trial end for trials, paid_until otherwise. */
   ends_at: number | null;
   seats: number;
+  seats_used: number;
   minutes_month: number;
   minutes_used: number;
   can_call: boolean;
@@ -84,10 +85,7 @@ export class OwnerApiError extends Error {
 /** An owner-console endpoint from the app. A 401 here is expected in production (the
  * owner console is a separate origin with its own cookie); it must never sign the user
  * out, so this is a plain fetch, not cloudApi. */
-async function ownerFetch<T>(
-  path: string,
-  init?: { method?: string; body?: unknown },
-): Promise<T> {
+async function ownerFetch<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const response = await fetch(`${apiOrigin()}${path}`, {
     method: init?.method ?? "GET",
     credentials: "include",
@@ -106,9 +104,7 @@ async function ownerFetch<T>(
 }
 
 /** The review queue, newest first. Throws OwnerApiError(401) outside the owner console. */
-export async function listBugReports(
-  status?: BugReportStatus,
-): Promise<{ reports: BugReport[] }> {
+export async function listBugReports(status?: BugReportStatus): Promise<{ reports: BugReport[] }> {
   const q = status ? `?status=${encodeURIComponent(status)}` : "";
   return ownerFetch<{ reports: BugReport[] }>(`/api/owner/bug-reports${q}`);
 }

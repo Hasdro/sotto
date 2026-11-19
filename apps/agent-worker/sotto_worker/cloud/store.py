@@ -3260,9 +3260,7 @@ class CloudStore:
             )
 
     def issue_attachment(self, token: str) -> tuple[str, bytes] | None:
-        rows = self._q(
-            "SELECT content_type, data FROM issue_attachments WHERE token = ?", (token,)
-        )
+        rows = self._q("SELECT content_type, data FROM issue_attachments WHERE token = ?", (token,))
         if not rows:
             return None
         return str(rows[0]["content_type"]), bytes(rows[0]["data"])
@@ -3289,7 +3287,8 @@ class CloudStore:
         with self._tx() as db:
             db.execute(
                 "INSERT INTO bug_reports(id, company_id, user_id, title, description, page_url,"
-                " screenshot_url, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?, 'new',?,?)",
+                " screenshot_url, status, created_at, updated_at)"
+                " VALUES (?,?,?,?,?,?,?, 'new',?,?)",
                 (
                     report_id,
                     who.company,
@@ -3375,8 +3374,13 @@ class CloudStore:
         if info["upgrade_to"] is not None:
             code = BILLING_PLANS[info["upgrade_to"]]["zoho_code"]
             upgrade_url = ZOHO_HOSTED_URLS.get(code) if code else None
+        seats_used = self._q(
+            "SELECT COUNT(*) AS n FROM users WHERE company_id = ? AND active = 1",
+            (who.company,),
+        )[0]["n"]
         return {
             **state,
+            "seats_used": seats_used,
             "plan_name": info["name"],
             "price_aed": info["price_aed"],
             "currency": "AED",

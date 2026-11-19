@@ -634,11 +634,8 @@ def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[s
         model = chosen[1] if chosen else (default.model if default else None)
         provider = catalog.providers.get(provider_id) if provider_id else None
         model_available = True
-        if provider_id and model:
-            if provider is None:
-                model_available = False
-            elif not provider.model_available(model):
-                model_available = False
+        if provider_id and model and (provider is None or not provider.model_available(model)):
+            model_available = False
         stages.append(
             {
                 "id": slot.id,
@@ -1024,7 +1021,8 @@ def create_custom_provider(
     if str(kind or "llm") not in CUSTOM_KINDS:
         raise CloudError("invalid", "kind is llm or stt")
     fmt, mode, header = _custom_check_format_auth(
-        str(format or "chat-completions"), str(auth_mode or "bearer"),
+        str(format or "chat-completions"),
+        str(auth_mode or "bearer"),
         None if auth_header is None else str(auth_header),
     )
     credential = None if credential is None else str(credential)
