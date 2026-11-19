@@ -23,27 +23,58 @@
     <div id="page" hidden>
       <header class="page-head"><h1 class="ss-page-title" id="cName">Company</h1><p class="ss-lead ss-muted" id="cMeta"></p></header>
       <div id="stats"></div>
-      <section class="panel"><h2>Plan</h2><div id="planForm"></div></section>
-      <section class="panel"><h2 id="usersTitle">Users</h2><div id="users"></div></section>
-      <section class="panel"><h2>Email per user <small>one mailbox per user, set here; a user's own mailbox wins over the company's</small></h2><div id="userSmtp"></div></section>
-      <section class="panel"><h2>Zoho fields <small>the four AGN fields on Deals: call score, chance band, top objection, last call date</small></h2><div id="agn"></div></section>
-      <section class="panel"><h2>WhatsApp (Gallabox) <small>keys, number and templates for this company only</small></h2><div id="gallabox"></div></section>
-      <section class="panel"><h2>Delivery status <small>where Gallabox reports sent, delivered, read and failed</small></h2><div id="webhook"></div></section>
-      <section class="panel"><h2>Email (SMTP) <small>the company's mailbox; a user's own mailbox wins over this one</small></h2><div id="orgSmtp"></div></section>
-      <section class="panel"><h2>Models <small>which vendor and model each stage uses for this company; the app never shows this</small></h2><div id="models"></div></section>
-      <section class="panel"><h2>Devices</h2><div id="devices"></div></section>
-      <section class="panel"><h2>Recent calls</h2><div id="calls"></div></section>
-      <section class="panel"><h2>Audit</h2><div id="audit"></div></section>
-      <section class="panel"><h2>Danger zone</h2><div id="danger"></div></section>
+      <p id="intRollup" class="note" role="status"></p>
+      <div id="tiles" class="tiles" role="list"></div>
+      <!-- Round 3 (D-092): the sections live here, hidden, and open in the tile dialog.
+           Each section keeps its own heading; the tile shows its status + headline number. -->
+      <div id="sectionHome" hidden>
+        <section class="panel" id="sec-plan"><h2>Plan</h2><div id="planForm"></div></section>
+        <section class="panel" id="sec-users"><h2 id="usersTitle">Users</h2><div id="users"></div></section>
+        <section class="panel" id="sec-integrations"><h2>Integrations</h2><div id="integrations">
+          <h3>WhatsApp (Gallabox) <small>keys, number and templates for this company only</small></h3><div id="gallabox"></div>
+          <h3>Delivery status <small>where Gallabox reports sent, delivered, read and failed</small></h3><div id="webhook"></div>
+          <h3>Email (SMTP) <small>the company's mailbox; a user's own mailbox wins over this one</small></h3><div id="orgSmtp"></div>
+          <h3>Email per user <small>one mailbox per user, set here; a user's own mailbox wins over the company's</small></h3><div id="userSmtp"></div>
+          <h3>Zoho fields <small>the four AGN fields on Deals: call score, chance band, top objection, last call date</small></h3><div id="agn"></div>
+          <h3>Platform sender <small>the mailbox the platform sends from when the company has none</small></h3><div id="sender"></div>
+        </div></section>
+        <section class="panel" id="sec-models"><h2 id="modelsTitle">Models</h2><div id="models"></div></section>
+        <section class="panel" id="sec-devices"><h2 id="devicesTitle">Devices</h2><div id="devices"></div></section>
+        <section class="panel" id="sec-calls"><h2 id="callsTitle">Recent calls</h2><div id="calls"></div></section>
+        <section class="panel" id="sec-audit"><h2 id="auditTitle">Audit</h2><div id="audit"></div></section>
+        <section class="panel" id="sec-danger"><h2>Danger zone</h2><div id="danger"></div></section>
+      </div>
     </div>
   </div></main>
 </div>
+
+<dialog id="tileDialog" class="ss-sheet ss-glass" aria-labelledby="tileTitle">
+  <h2 id="tileTitle"></h2>
+  <div id="tileBody"></div>
+  <div class="row"><button type="button" id="tileClose" class="primary">Done</button></div>
+</dialog>
 
 <dialog id="secretDialog" class="ss-sheet ss-glass" aria-labelledby="sTitle">
   <h2 id="sTitle">One-time secret</h2>
   <p>Copy it now. It is not shown again.</p>
   <code id="sValue" class="secret"></code>
   <div class="row"><button type="button" id="sCopy" class="ghost">Copy</button><button type="button" id="sDone" class="primary">Done</button></div>
+</dialog>
+
+<dialog id="issueDialog" class="ss-sheet ss-glass" aria-labelledby="issueTitle">
+  <h2 id="issueTitle">Report an issue</h2>
+  <p class="note">The report lands as an issue in the GitHub repo set in Account › GitHub issues.</p>
+  <label for="issueAddr">Page</label>
+  <input id="issueAddr" readonly spellcheck="false">
+  <label for="issueTitleInput">Summary</label>
+  <input id="issueTitleInput" maxlength="140" placeholder="One line: what is wrong">
+  <label for="issueDesc">What happened</label>
+  <textarea id="issueDesc" rows="4" placeholder="What you saw, and what you expected"></textarea>
+  <label for="issueShot">Screenshot (optional)</label>
+  <input id="issueShot" type="file" accept="image/*">
+  <p id="issueShotState" class="note" role="status"></p>
+  <div class="row"><button type="button" id="issueCancel" class="ghost">Cancel</button><button type="button" id="issueSubmit" class="primary">Send to GitHub</button></div>
+  <p id="issueMsg" class="note" role="status"></p>
 </dialog>
 <div id="toast" class="toast ss-toast ss-glass" role="status" hidden></div>
 </body>

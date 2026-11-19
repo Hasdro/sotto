@@ -20,6 +20,7 @@ COMPATIBLE_KEY_HOSTS = {
     "GROQ_API_KEY": "api.groq.com",
     "GEMINI_API_KEY": "generativelanguage.googleapis.com",
     "OPENROUTER_API_KEY": "openrouter.ai",
+    "DEEPSEEK_API_KEY": "api.deepseek.com",
 }
 
 

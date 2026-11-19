@@ -72,7 +72,16 @@ export function CommandPalette({
         icon: "playbook",
         label: t("palette.tutorial"),
         href: "/home",
-        run: () => setPrefs({ tutorialDone: false }),
+        // D-091: the old code only cleared tutorialDone, so it navigated and showed
+        // nothing. An explicit request must set tutorialRequested.
+        run: () => setPrefs({ tutorialDone: false, tutorialRequested: true }),
+      },
+      {
+        id: "act-bug-report",
+        icon: "message",
+        label: t("palette.bug"),
+        href: "/settings",
+        run: () => setPrefs({ bugReportRequested: true }),
       },
       ...deviceCalls()
         .slice(0, 8)

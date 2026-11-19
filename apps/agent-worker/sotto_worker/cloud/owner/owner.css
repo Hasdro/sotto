@@ -819,14 +819,16 @@ dialog p {
 #routing,
 #promptVersions,
 #health,
-#signups {
+#signups,
+#bugs {
   min-inline-size: 720px;
 }
 #providers .act,
 #routing .act,
 #promptVersions .act,
 #health .act,
-#signups .act {
+#signups .act,
+#bugs .act {
   text-align: end;
   white-space: nowrap;
 }
@@ -834,7 +836,8 @@ dialog p {
 #routing .act button,
 #promptVersions .act button,
 #health .act button,
-#signups .act button {
+#signups .act button,
+#bugs .act button {
   margin-inline-start: var(--ss-space-xs);
 }
 #routing td select,
@@ -878,4 +881,246 @@ ul.plain li label {
    scroll box of a wide table, so it cannot widen the page at 390 px. */
 .table-wrap {
   position: relative;
+}
+
+/* ---------- Round 3: status warn, page-head icon button, tiles, dialogs ---------------------- */
+.status.warn {
+  color: var(--ss-notice-border);
+}
+.ss-icon-btn {
+  /* owner.css's bare-button padding would squeeze the 18 px icon inside the 44 px button. */
+  padding: 0;
+  min-block-size: 0;
+}
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ss-space-md);
+}
+.page-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.page-head .issue-btn {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Company tiles (D-092): one tile per section; a tile opens its section in #tileDialog. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--ss-space-md);
+  margin-block-end: var(--ss-space-lg);
+}
+/* The listitem wrapper keeps the list semantics; display:contents keeps the tile the grid item. */
+.tiles > [role="listitem"] {
+  display: contents;
+}
+.tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--ss-space-sm);
+  align-items: center;
+  text-align: start;
+  white-space: normal;
+  padding: var(--ss-space-lg);
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius-xl);
+  background: var(--ss-surface);
+  min-block-size: 0;
+  block-size: 100%;
+}
+.tile:hover {
+  background: var(--ss-surface-sunken);
+}
+.tile-dot {
+  grid-row: 1;
+  grid-column: 1;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--ss-radius-pill);
+  background: var(--ss-text-muted);
+}
+.tile-dot.ok {
+  background: var(--ss-positive);
+}
+.tile-dot.warn {
+  background: var(--ss-notice-border);
+}
+.tile-dot.bad {
+  background: var(--ss-danger);
+}
+.tile-title {
+  grid-row: 1;
+  grid-column: 2;
+  font-weight: var(--ss-weight-semibold);
+}
+.tile-head {
+  grid-row: 2;
+  grid-column: 2;
+  font-size: var(--ss-text-title);
+  line-height: var(--ss-leading-title);
+  font-weight: var(--ss-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.tile-sub {
+  grid-row: 3;
+  grid-column: 2;
+  color: var(--ss-text-muted);
+  font-size: var(--ss-text-label);
+  line-height: var(--ss-leading-label);
+}
+
+/* Tile dialog: wide, scrollable; the section's own panel chrome is dropped inside it. */
+#tileDialog[open] {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(920px, calc(100vw - 32px));
+  max-block-size: calc(100dvh - 48px);
+}
+#tileBody {
+  overflow-y: auto;
+  min-block-size: 0;
+}
+#tileBody > .panel {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+#tileBody h3 {
+  margin: var(--ss-space-lg) 0 var(--ss-space-sm);
+  font-size: var(--ss-text-body);
+  line-height: var(--ss-leading-body);
+  font-weight: var(--ss-weight-semibold);
+}
+#tileBody h3:first-child {
+  margin-top: 0;
+}
+#tileBody h3 small {
+  display: block;
+  color: var(--ss-text-muted);
+  font-size: var(--ss-text-secondary);
+  line-height: var(--ss-leading-secondary);
+  font-weight: var(--ss-weight-regular);
+}
+
+/* Templates picker (D-093): contained, searchable list. */
+.tpl-list {
+  max-block-size: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius-lg);
+  padding: var(--ss-space-sm) var(--ss-space-md);
+  display: grid;
+  gap: var(--ss-space-sm);
+  margin-block-start: var(--ss-space-sm);
+}
+.tpl-item {
+  display: grid;
+  gap: var(--ss-space-xs);
+  padding-block: var(--ss-space-sm);
+  border-block-end: 1px solid var(--ss-border);
+}
+.tpl-item:last-child {
+  border-block-end: 0;
+}
+.tpl-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ss-space-sm);
+  margin: 0;
+  color: var(--ss-text);
+  font-size: var(--ss-text-body);
+  font-weight: var(--ss-weight-medium);
+}
+.tpl-param {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: var(--ss-space-sm);
+  align-items: center;
+}
+.tpl-param label {
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .tpl-param {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Provider/model pickers inside the Models table (D-093): a small label over each control. */
+.pick {
+  margin-block-end: var(--ss-space-sm);
+}
+.pick label {
+  margin: 0 0 2px;
+}
+
+/* Custom providers (D-084). */
+.custom-provider {
+  border: 1px solid var(--ss-border);
+  border-radius: var(--ss-radius-lg);
+  padding: var(--ss-space-md) var(--ss-space-lg);
+  margin-block-end: var(--ss-space-md);
+}
+.custom-provider h4 {
+  margin: 0 0 var(--ss-space-xs);
+  font-size: var(--ss-text-body);
+  line-height: var(--ss-leading-body);
+  font-weight: var(--ss-weight-semibold);
+}
+.custom-provider ul.plain li label {
+  margin: 0;
+}
+
+/* Issue-report dialog (D-085). */
+#issueDialog {
+  inline-size: min(560px, calc(100vw - 32px));
+}
+#issueAddr {
+  font-family: var(--ss-font-mono, ui-monospace, monospace);
+  font-size: var(--ss-text-label);
+}
+
+/* Admin tour dialog (D-091): docked at the bottom so the view behind it stays visible. */
+#tourDialog {
+  inline-size: min(560px, calc(100vw - 32px));
+}
+#tourDialog[open] {
+  margin-top: auto;
+  margin-bottom: 24px;
+}
+.tour-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.tour-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--ss-radius-pill);
+  background: var(--ss-text-muted);
+}
+.tour-dot.on {
+  background: var(--ss-primary);
+}
+.tour-never {
+  display: flex;
+  align-items: center;
+  gap: var(--ss-space-sm);
+  margin: var(--ss-space-md) 0 0;
+  color: var(--ss-text-muted);
+  font-size: var(--ss-text-label);
+}
+.tour-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ss-space-md);
+  margin-top: var(--ss-space-lg);
+  flex-wrap: wrap;
+}
+.tour-foot .row {
+  margin-top: 0;
 }

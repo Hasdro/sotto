@@ -43,6 +43,24 @@ prices:
     source: https://ai.google.dev/gemini-api/docs/pricing
     confidence: aggregator
     checked: 2026-11-14
+  # DeepSeek peak rates (off-peak is half; cache-hit input is $0.006 flash / $0.044 pro).
+  # deepseek-chat / deepseek-reasoner were retired 2026-07-24 and are NOT listed.
+  - vendor: deepseek
+    model: deepseek-flash
+    unit: per_mtok
+    in_usd: 0.30
+    out_usd: 1.20
+    source: https://api-docs.deepseek.com/quick_start/pricing
+    confidence: vendor
+    checked: 2026-11-19
+  - vendor: deepseek
+    model: deepseek-v4-pro
+    unit: per_mtok
+    in_usd: 1.32
+    out_usd: 3.96
+    source: https://api-docs.deepseek.com/quick_start/pricing
+    confidence: vendor
+    checked: 2026-11-19
 
 # What one call minute uses, for metering client-reported calls (the apps report minutes and
 # card counts, not tokens). Set from `pnpm cost:estimate` (synthetic replay, 2026-11-14); output

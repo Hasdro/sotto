@@ -70,7 +70,12 @@ async function start() {
     if (me.must_change) {
       show("account");
       $("#pwMsg").textContent = "First sign-in: choose your own password to open the console.";
-    } else show("overview");
+    } else {
+      show("overview");
+      // Round 3 (D-091): the admin tour plays once, unless dismissed.
+      if (localStorage.getItem("sotto.adminTourDone") !== "1")
+        setTimeout(openTour, 600);
+    }
   } catch {
     /* showLogin already ran */
   }
@@ -108,6 +113,7 @@ function show(view) {
     companies: loadCompanies,
     features: loadFeatures,
     audit: loadAudit,
+    bugs: loadBugReports,
     // T-079 views live in platform.js (loaded after this file).
     providers: () => window.platformViews.providers(),
     routing: () => window.platformViews.routing(),
@@ -120,6 +126,7 @@ function show(view) {
     account: () => {
       loadZoho();
       loadSmtp();
+      loadGithub();
     },
   })[view]();
 }
@@ -660,6 +667,359 @@ $("#smtpRemove").addEventListener("click", async () => {
   } catch (err) {
     $("#smtpMsg").textContent = err.message;
   }
+});
+
+// --- GitHub issues (D-085): write-only token; the server never sends it back ----------------
+let githubReady = null; // {configured, repo} from GET /api/owner/github, or null while unknown
+function githubState(c) {
+  githubReady = c;
+  $("#githubState").textContent = c.configured
+    ? `Saved · repo ${c.repo} · on ${new Date(c.updated_at).toLocaleString()}. Paste a new token to replace it.`
+    : "No GitHub repo set yet.";
+  if (c.configured && c.repo) $("#githubRepo").value = c.repo;
+  $("#githubRemove").hidden = !c.configured;
+  $("#githubTest").hidden = !c.configured;
+}
+async function loadGithub() {
+  try {
+    githubState(await api("/api/owner/github"));
+  } catch (err) {
+    $("#githubState").textContent = err.message;
+  }
+}
+$("#githubForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    githubState(
+      await api("/api/owner/github", {
+        method: "PUT",
+        body: { repo: $("#githubRepo").value.trim(), token: $("#githubToken").value },
+      }),
+    );
+    $("#githubToken").value = "";
+    $("#githubMsg").textContent = "Saved.";
+  } catch (err) {
+    $("#githubMsg").textContent = err.message;
+  }
+});
+$("#githubTest").addEventListener("click", async () => {
+  $("#githubMsg").textContent = "Testing…";
+  try {
+    const r = await api("/api/owner/github/test", { method: "POST", body: {} });
+    $("#githubMsg").textContent = r.ok ? `Works: ${r.detail}` : `Failed: ${r.detail}`;
+  } catch (err) {
+    $("#githubMsg").textContent = err.message;
+  }
+});
+$("#githubRemove").addEventListener("click", async () => {
+  if (!confirm("Remove the GitHub repo and token? Issue reporting stops working.")) return;
+  try {
+    githubState(await api("/api/owner/github", { method: "DELETE" }));
+    $("#githubMsg").textContent = "Removed.";
+  } catch (err) {
+    $("#githubMsg").textContent = err.message;
+  }
+});
+
+// --- GitHub issue reporting (D-085): one icon button in every page head ----------------------
+let issueShotUrl = null;
+function pageAddress() {
+  const base = location.href.split("#")[0];
+  const current = document.querySelector(".tabs button[aria-current='page']");
+  const view = current ? current.dataset.view : null;
+  return view ? `${base}#v-${view}` : base;
+}
+function bugIcon() {
+  // Stroke bug icon, same style as the sidebar icons (fill none, stroke currentColor).
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", "ico");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.innerHTML =
+    '<ellipse cx="12" cy="14" rx="5" ry="6"/><path d="M12 8V5M9 5.5 7 3.5M15 5.5 17 3.5M7 12H3.5M7 16H3.5M17 12h3.5M17 16h3.5M10 14h4"/>';
+  return svg;
+}
+function addIssueButtons() {
+  for (const head of document.querySelectorAll(".page-head")) {
+    if (head.querySelector(".issue-btn")) continue;
+    const wrap = h("div", { class: "page-head-text" });
+    while (head.firstChild) wrap.append(head.firstChild);
+    const btn = h(
+      "button",
+      {
+        type: "button",
+        class: "ss-icon-btn issue-btn",
+        "aria-label": "Report an issue on GitHub",
+        title: "Report an issue on GitHub",
+        onclick: openIssueDialog,
+      },
+      bugIcon(),
+    );
+    head.append(wrap, btn);
+  }
+}
+async function openIssueDialog() {
+  $("#issueAddr").value = pageAddress();
+  $("#issueTitleInput").value = "";
+  $("#issueDesc").value = "";
+  $("#issueShot").value = "";
+  $("#issueShotState").textContent = "";
+  $("#issueMsg").textContent = "";
+  issueShotUrl = null;
+  if (githubReady === null) {
+    try {
+      githubReady = await api("/api/owner/github");
+    } catch {
+      githubReady = { configured: false };
+    }
+  }
+  $("#issueSubmit").disabled = !githubReady.configured;
+  $("#issueMsg").textContent = githubReady.configured
+    ? ""
+    : "GitHub is not set up yet — add the repo and token in Account › GitHub issues.";
+  $("#issueDialog").showModal();
+}
+$("#issueCancel").addEventListener("click", () => $("#issueDialog").close());
+$("#issueShot").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  $("#issueShotState").textContent = "Uploading…";
+  try {
+    const res = await fetch("/api/v1/issue-attachments", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": file.type },
+      body: file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `upload failed (${res.status})`);
+    issueShotUrl = data.url;
+    $("#issueShotState").textContent = "Screenshot attached.";
+  } catch (err) {
+    issueShotUrl = null;
+    $("#issueShotState").textContent = err.message;
+  }
+});
+$("#issueSubmit").addEventListener("click", async () => {
+  const title = $("#issueTitleInput").value.trim();
+  const body = $("#issueDesc").value.trim();
+  if (!title) {
+    $("#issueMsg").textContent = "Add a one-line summary first.";
+    return;
+  }
+  $("#issueMsg").textContent = "Sending…";
+  try {
+    const r = await api("/api/owner/github/issues", {
+      method: "POST",
+      body: {
+        title,
+        body,
+        page_url: $("#issueAddr").value,
+        ...(issueShotUrl ? { screenshot_url: issueShotUrl } : {}),
+      },
+    });
+    $("#issueMsg").textContent = `Created: ${r.issue_url}`;
+    toast("Issue created on GitHub");
+    setTimeout(() => $("#issueDialog").close(), 1200);
+  } catch (err) {
+    $("#issueMsg").textContent = err.message;
+  }
+});
+addIssueButtons();
+
+// --- bug reports (D-086): review queue -------------------------------------------------------
+let bugReports = [];
+async function loadBugReports() {
+  const q = $("#bugFilter").value;
+  const data = await api(`/api/owner/bug-reports${q ? `?status=${encodeURIComponent(q)}` : ""}`);
+  bugReports = data.reports;
+  renderBugs();
+}
+$("#bugFilter").addEventListener("change", loadBugReports);
+function bugStatusPill(s) {
+  return h(
+    "span",
+    {
+      class: `pill ${s === "submitted" ? "active" : s === "closed" ? "expired" : s === "reviewed" ? "trial" : ""}`,
+    },
+    s,
+  );
+}
+function renderBugs() {
+  $("#bugCount").textContent = `${bugReports.length} report${bugReports.length === 1 ? "" : "s"}`;
+  $("#bugs tbody").replaceChildren(
+    ...(bugReports.length
+      ? bugReports.map((r) => bugRow(r))
+      : [h("tr", {}, h("td", { colspan: 6, class: "empty" }, "No bug reports yet."))]),
+  );
+}
+function bugRow(r) {
+  const titleCell = h(
+    "td",
+    {},
+    h("b", {}, r.title),
+    r.description ? h("span", { class: "meta" }, r.description) : null,
+    r.page_url
+      ? h(
+          "span",
+          { class: "meta" },
+          h("a", { href: r.page_url, target: "_blank", rel: "noopener noreferrer" }, "page"),
+        )
+      : null,
+    r.screenshot_url
+      ? h(
+          "span",
+          { class: "meta" },
+          h("a", { href: r.screenshot_url, target: "_blank", rel: "noopener noreferrer" }, "screenshot"),
+        )
+      : null,
+  );
+  const statusCell = h("td", {}, bugStatusPill(r.status));
+  const issueCell = h(
+    "td",
+    {},
+    r.github_issue_url
+      ? h(
+          "a",
+          { href: r.github_issue_url, target: "_blank", rel: "noopener noreferrer" },
+          `#${r.github_issue_url.split("/").pop()}`,
+        )
+      : "—",
+  );
+  const actions = h("td", { class: "act" });
+  const editBtn = h("button", { type: "button", class: "ghost" }, "Edit");
+  editBtn.onclick = () => editBugRow(r, titleCell, statusCell, actions);
+  const submitBtn = h(
+    "button",
+    { type: "button", class: "primary", disabled: r.status === "submitted" },
+    "Submit to GitHub",
+  );
+  submitBtn.onclick = async () => {
+    try {
+      const out = await api(`/api/owner/bug-reports/${r.id}/submit`, { method: "POST", body: {} });
+      toast(`Issue created: ${out.issue_url}`);
+      loadBugReports();
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+  actions.append(editBtn, " ", submitBtn);
+  return h(
+    "tr",
+    {},
+    h("td", {}, fmtWhen(r.created_at)),
+    h("td", {}, r.company_name || r.company_id || "—"),
+    titleCell,
+    statusCell,
+    issueCell,
+    actions,
+  );
+}
+function editBugRow(r, titleCell, statusCell, actions) {
+  const titleInput = h("input", { value: r.title, "aria-label": "Report title" });
+  const descInput = h("textarea", { rows: 3, "aria-label": "Report description" }, r.description || "");
+  const statusSel = h(
+    "select",
+    { "aria-label": "Report status" },
+    ["new", "reviewed", "closed"].map((s) =>
+      h("option", { value: s, selected: s === r.status }, s),
+    ),
+  );
+  titleCell.replaceChildren(titleInput, descInput);
+  statusCell.replaceChildren(statusSel);
+  actions.replaceChildren();
+  const saveBtn = h("button", { type: "button", class: "primary" }, "Save");
+  saveBtn.onclick = async () => {
+    try {
+      await api(`/api/owner/bug-reports/${r.id}`, {
+        method: "PATCH",
+        body: {
+          title: titleInput.value.trim(),
+          description: descInput.value.trim(),
+          status: statusSel.value,
+        },
+      });
+      loadBugReports();
+      toast("Report updated");
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+  const cancelBtn = h("button", { type: "button", class: "ghost" }, "Cancel");
+  cancelBtn.onclick = () => renderBugs();
+  actions.append(saveBtn, " ", cancelBtn);
+}
+
+// --- admin tour (D-091) ----------------------------------------------------------------------
+// A 5-step overlay. Each step switches to the view it describes, so the tour shows the real
+// page behind the dialog (the dialog is docked at the bottom, see owner.css).
+const TOUR_STEPS = [
+  {
+    view: "companies",
+    title: "Companies",
+    body: "Every company, its plan, seats and minutes. Click a row to open its page as tiles.",
+  },
+  {
+    view: "providers",
+    title: "Providers and keys",
+    body: "AGN's own model keys. Write-only: after saving, only the date and the last test are shown.",
+  },
+  {
+    view: "routing",
+    title: "Model routing",
+    body: "Which vendor and model each stage uses for every company. The next call uses a change; no release needed.",
+  },
+  {
+    view: "signups",
+    title: "Sign-up queue",
+    body: "Trials from the Zoho Forms sign-up. Approve a company before its calls use AGN's providers.",
+  },
+  {
+    view: "account",
+    title: "Account",
+    body: "Your password, the Zoho client, the platform mailbox — and the GitHub repo where issue reports land.",
+  },
+];
+let tourStep = 0;
+function renderTourStep() {
+  const step = TOUR_STEPS[tourStep];
+  show(step.view);
+  $("#tourTitle").textContent = `Take the tour · ${step.title}`;
+  $("#tourBody").textContent = step.body;
+  $("#tourDots").replaceChildren(
+    ...TOUR_STEPS.map((_, i) => h("span", { class: `tour-dot${i === tourStep ? " on" : ""}` })),
+  );
+  $("#tourBack").disabled = tourStep === 0;
+  $("#tourNext").textContent = tourStep === TOUR_STEPS.length - 1 ? "Done" : "Next";
+}
+function openTour() {
+  tourStep = 0;
+  $("#tourNever").checked = false;
+  renderTourStep();
+  $("#tourDialog").showModal();
+}
+function closeTour() {
+  if ($("#tourNever").checked) localStorage.setItem("sotto.adminTourDone", "1");
+  $("#tourDialog").close();
+}
+$("#tourBtn").addEventListener("click", openTour);
+$("#tourSkip").addEventListener("click", closeTour);
+$("#tourBack").addEventListener("click", () => {
+  if (tourStep > 0) {
+    tourStep -= 1;
+    renderTourStep();
+  }
+});
+$("#tourNext").addEventListener("click", () => {
+  if (tourStep === TOUR_STEPS.length - 1) closeTour();
+  else {
+    tourStep += 1;
+    renderTourStep();
+  }
+});
+$("#tourDialog").addEventListener("close", () => {
+  if ($("#tourNever").checked) localStorage.setItem("sotto.adminTourDone", "1");
 });
 
 start();

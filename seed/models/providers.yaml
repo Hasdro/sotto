@@ -32,6 +32,18 @@ providers:
       settings:
         reasoning_effort: none
     models: [gemini-2.5-flash]
+  deepseek:
+    name: DeepSeek
+    kind: llm
+    key_env: DEEPSEEK_API_KEY
+    key_page: https://platform.deepseek.com/api_keys
+    free: Paid from the first request
+    steps: Sign in, choose Create API Key, copy it (it is shown once).
+    route:
+      provider: openai_compatible
+      base_url: https://api.deepseek.com/v1
+      api_key_env: DEEPSEEK_API_KEY
+    models: [deepseek-flash, deepseek-v4-pro]
   openrouter:
     name: OpenRouter
     kind: llm

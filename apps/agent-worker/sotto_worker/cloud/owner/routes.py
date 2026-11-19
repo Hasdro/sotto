@@ -59,9 +59,15 @@ def make_routes(
     vendor_ids = tuple(p.id for p in catalog.providers.values() if p.kind == "llm")
 
     # --- providers and keys ----------------------------------------------------------------------
-    def providers_out() -> dict[str, Any]:
+    def providers_out(company_id: str | None = None) -> dict[str, Any]:
+        """Built-ins from the seed catalogue (with the owner's per-model overrides
+        applied), plus one company's custom providers when the company is named
+        (D-084) — the company page passes ?company_id=<id> (?company= also works).
+        Models carry their enablement state (OpenCode §2/§7):
+        {id, display_name, enabled}."""
         keys = platform.platform_key_status(store)
         routes = platform.platform_routes(store)
+        pcat = platform.platform_catalog(store, seed)
         providers = [
             {
                 "id": p.id,
@@ -71,16 +77,22 @@ def make_routes(
                 "key_page": p.key_page,
                 "steps": p.steps,
                 "free": p.free,
-                "models": list(p.models),
+                "models": [
+                    {"id": m.id, "display_name": m.display_name, "enabled": m.enabled}
+                    for m in p.models_detailed
+                ],
                 "client": p.client,
                 "key_set": p.key_env in keys,
                 "updated_at": keys.get(p.key_env, {}).get("updated_at"),
                 "test": keys.get(p.key_env, {}).get("test"),
                 "retiring": keys.get(p.key_env, {}).get("retiring"),
+                "custom": False,
             }
-            for p in catalog.providers.values()
+            for p in pcat.providers.values()
             if not p.custom
         ]
+        if company_id:
+            providers += platform.custom_providers_out(store, company_id)["providers"]
         stages = []
         for slot in catalog.stages.values():
             default = seed.routing.stages.get(slot.id)
@@ -113,8 +125,9 @@ def make_routes(
             raise CloudError("not_found", "unknown key")
         return found
 
-    async def o_providers(_r: Request, _who: Principal) -> Response:
-        return JSONResponse(providers_out(), headers=NO_STORE)
+    async def o_providers(r: Request, _who: Principal) -> Response:
+        company = r.query_params.get("company_id") or r.query_params.get("company") or None
+        return JSONResponse(providers_out(company), headers=NO_STORE)
 
     async def o_key_put(r: Request, who: Principal) -> Response:
         env = r.path_params["env"]
@@ -232,6 +245,135 @@ def make_routes(
         )
         return JSONResponse(
             platform.company_routes_out(store, seed, r.path_params["id"]), headers=NO_STORE
+        )
+
+    # --- per-company custom providers (round 3, D-081/D-084, OpenCode §4/§5) --------------------
+    async def o_company_providers(r: Request, _who: Principal) -> Response:
+        return JSONResponse(
+            platform.custom_providers_out(store, r.path_params["id"]), headers=NO_STORE
+        )
+
+    async def o_company_provider_post(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        out = platform.create_custom_provider(
+            store,
+            who,
+            r.path_params["id"],
+            name=data.get("name"),
+            kind=data.get("kind", "llm"),
+            base_url=data.get("base_url"),
+            format=data.get("format", "chat-completions"),
+            auth_mode=data.get("auth_mode", "bearer"),
+            auth_header=data.get("auth_header"),
+            credential=data.get("credential"),
+            ip=ip_of(r),
+        )
+        return JSONResponse(out, status_code=HTTPStatus.CREATED, headers=NO_STORE)
+
+    async def o_company_provider_patch(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        out = platform.update_custom_provider(
+            store,
+            who,
+            r.path_params["id"],
+            r.path_params["pid"],
+            name=data.get("name"),
+            base_url=data.get("base_url"),
+            format=data.get("format"),
+            auth_mode=data.get("auth_mode"),
+            auth_header=data.get("auth_header"),
+            credential=data.get("credential"),
+            ip=ip_of(r),
+        )
+        return JSONResponse(out, headers=NO_STORE)
+
+    async def o_company_provider_delete(r: Request, who: Principal) -> Response:
+        platform.delete_custom_provider(
+            store, who, r.path_params["id"], r.path_params["pid"], ip=ip_of(r)
+        )
+        return JSONResponse(
+            platform.custom_providers_out(store, r.path_params["id"]), headers=NO_STORE
+        )
+
+    async def o_company_provider_model_post(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        out = platform.add_custom_model(
+            store,
+            who,
+            r.path_params["id"],
+            r.path_params["pid"],
+            model_id=data.get("id"),
+            display_name=data.get("display_name"),
+            ip=ip_of(r),
+        )
+        return JSONResponse(out, status_code=HTTPStatus.CREATED, headers=NO_STORE)
+
+    async def o_company_provider_model_patch(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        out = platform.update_custom_model(
+            store,
+            who,
+            r.path_params["id"],
+            r.path_params["pid"],
+            r.path_params["mid"],
+            enabled=data.get("enabled"),
+            display_name=data.get("display_name"),
+            ip=ip_of(r),
+        )
+        return JSONResponse(out, headers=NO_STORE)
+
+    async def o_company_provider_model_delete(r: Request, who: Principal) -> Response:
+        out = platform.delete_custom_model(
+            store, who, r.path_params["id"], r.path_params["pid"], r.path_params["mid"], ip=ip_of(r)
+        )
+        return JSONResponse(out, headers=NO_STORE)
+
+    async def o_provider_model_patch(r: Request, who: Principal) -> Response:
+        """A per-model Enabled toggle for a seed provider (OpenCode §5, D-081):
+        immediate, no Save. Returns the full providers list with the updated flag.
+        A model id may contain a slash (e.g. openai/gpt-oss-20b), hence {mid:path}."""
+        data = await body(r)
+        platform.set_model_override(
+            store,
+            seed,
+            who,
+            r.path_params["pid"],
+            r.path_params["mid"],
+            data.get("enabled"),
+            ip=ip_of(r),
+        )
+        return JSONResponse(providers_out(), headers=NO_STORE)
+
+    async def o_company_provider_test(r: Request, _who: Principal) -> Response:
+        """A real connection test (OpenCode §8: it must run against the entered key/URL and
+        report success/failure — never pretend). The key only goes to the endpoint's own
+        host; discovered models join the provider's list as enabled models."""
+        from urllib.parse import urlsplit
+
+        cid, pid = r.path_params["id"], r.path_params["pid"]
+        row = platform.custom_provider(store, cid, pid)
+        key = platform.custom_provider_key(store, cid, pid)
+        if not key:
+            raise CloudError("no_key", "save a key first")
+        base = urlsplit(row["base_url"])
+        models_url = f"{row['base_url'].rstrip('/')}/models"
+        if urlsplit(models_url).hostname != base.hostname or base.scheme != "https":
+            raise CloudError("invalid", "the test address does not match the endpoint")
+        ok, detail, discovered = True, "", []
+        try:
+            discovered = await tester(pid, models_url, key)
+            detail = f"key works; {len(discovered)} models available"
+        except httpx.HTTPStatusError as e:
+            ok, detail = False, f"{row['name']} answered {e.response.status_code}"
+        except httpx.HTTPError as e:
+            ok, detail = False, f"{row['name']} unreachable ({type(e).__name__})"
+        platform.record_custom_test(store, cid, pid, ok, detail)
+        out = platform.custom_provider(store, cid, pid)
+        if ok and discovered:
+            out = platform.record_custom_models(store, cid, pid, discovered)
+        return JSONResponse(
+            {**out, "result": {"ok": ok, "detail": detail, "discovered_models": discovered}},
+            headers=NO_STORE,
         )
 
     # --- health board (ZC-06) --------------------------------------------------------------------
@@ -480,6 +622,7 @@ def make_routes(
     api = "/api/v1"
     return [
         o("providers", o_providers),
+        o("providers/{pid}/models/{mid:path}", o_provider_model_patch, "PATCH"),
         o("keys/{env}", o_key_put, "PUT"),
         o("keys/{env}", o_key_delete, "DELETE"),
         o("keys/{env}/test", o_key_test, "POST"),
@@ -494,6 +637,22 @@ def make_routes(
         o("companies/{id}/routes", o_company_routes),
         o("companies/{id}/routes/{stage}", o_company_route_put, "PUT"),
         o("companies/{id}/routes/{stage}", o_company_route_delete, "DELETE"),
+        o("companies/{id}/providers", o_company_providers),
+        o("companies/{id}/providers", o_company_provider_post, "POST"),
+        o("companies/{id}/providers/{pid}", o_company_provider_patch, "PATCH"),
+        o("companies/{id}/providers/{pid}", o_company_provider_delete, "DELETE"),
+        o("companies/{id}/providers/{pid}/models", o_company_provider_model_post, "POST"),
+        o(
+            "companies/{id}/providers/{pid}/models/{mid:path}",
+            o_company_provider_model_patch,
+            "PATCH",
+        ),
+        o(
+            "companies/{id}/providers/{pid}/models/{mid:path}",
+            o_company_provider_model_delete,
+            "DELETE",
+        ),
+        o("companies/{id}/providers/{pid}/test", o_company_provider_test, "POST"),
         o("health", o_health),
         o("health/{id}/demote", o_demote, "POST"),
         o("health/{id}/demote", o_restore, "DELETE"),

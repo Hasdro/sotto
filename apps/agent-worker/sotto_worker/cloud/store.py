@@ -10,6 +10,7 @@ from __future__ import annotations
 import calendar
 import dataclasses
 import hashlib
+import hmac
 import json
 import re
 import secrets
@@ -43,9 +44,45 @@ KEY_ENV = re.compile(r"^[A-Z][A-Z0-9_]{2,63}$")
 # Plan presets: seats and monthly call minutes. The owner can override both per company.
 PLANS: dict[str, dict[str, int]] = {
     "trial": {"seats": 3, "minutes": 300, "days": 14},
-    "starter": {"seats": 5, "minutes": 2_000},
+    # Round 3 (D-088): starter is 3 seats, to match the Zoho Billing Starter product (3 agents).
+    "starter": {"seats": 3, "minutes": 2_000},
+    "growth": {"seats": 10, "minutes": 5_000},
+    "scale": {"seats": 100, "minutes": 20_000},
     "team": {"seats": 20, "minutes": 10_000},
     "custom": {"seats": 50, "minutes": 50_000},
+}
+# Round 3 (D-087/D-090): the Zoho Billing plan codes the CRM sends, and what the client billing
+# section shows. Prices are the Zoho Billing prices (AED/month); the hosted payment page URLs
+# are TODO placeholders until the owner copies them from Zoho Billing — never guess them.
+ZOHO_PLAN_MAP = {
+    "SHIELD-STARTER": "starter",
+    "SHIELD-GROWTH": "growth",
+    "SHIELD-SCALE": "scale",
+}
+# internal plan -> (display name, monthly price in AED, Zoho code, next plan up). `team`/`custom`
+# predate the Zoho ladder and have no Zoho price or upgrade page.
+BILLING_PLANS: dict[str, dict[str, Any]] = {
+    "trial": {"name": "Trial", "price_aed": 0, "zoho_code": None, "upgrade_to": "starter"},
+    "starter": {
+        "name": "Starter",
+        "price_aed": 990,
+        "zoho_code": "SHIELD-STARTER",
+        "upgrade_to": "growth",
+    },
+    "growth": {
+        "name": "Growth",
+        "price_aed": 2490,
+        "zoho_code": "SHIELD-GROWTH",
+        "upgrade_to": "scale",
+    },
+    "scale": {"name": "Scale", "price_aed": 4990, "zoho_code": "SHIELD-SCALE", "upgrade_to": None},
+    "team": {"name": "Team", "price_aed": None, "zoho_code": None, "upgrade_to": None},
+    "custom": {"name": "Custom", "price_aed": None, "zoho_code": None, "upgrade_to": None},
+}
+ZOHO_HOSTED_URLS = {
+    "SHIELD-STARTER": "TODO-ZOHO-HOSTED-URL-STARTER",
+    "SHIELD-GROWTH": "TODO-ZOHO-HOSTED-URL-GROWTH",
+    "SHIELD-SCALE": "TODO-ZOHO-HOSTED-URL-SCALE",
 }
 SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "ai_answers_allowed": (bool, ()),
@@ -320,6 +357,49 @@ CREATE TABLE IF NOT EXISTS zoho_org_dc (
   dc TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );
+-- Round 3 (D-087): emailed sign-in codes. Hash only, one live code per address+purpose,
+-- 10 minutes, at most 5 guesses, single use — the password-reset shape, with digits.
+CREATE TABLE IF NOT EXISTS otp_codes (
+  email TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  used_at INTEGER,
+  PRIMARY KEY (email, purpose)
+);
+-- Round 3 (D-085): the vendor's GitHub repo + token for issue reporting. One platform-wide row;
+-- the token is an AES-GCM blob (vault name "platform:github"), the repo name is plain text.
+CREATE TABLE IF NOT EXISTS platform_github (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  ciphertext BLOB NOT NULL,
+  repo TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+-- Round 3 (D-086): in-app bug reports, reviewed by the vendor before they become GitHub issues.
+CREATE TABLE IF NOT EXISTS bug_reports (
+  id TEXT PRIMARY KEY,
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  page_url TEXT NOT NULL DEFAULT '',
+  screenshot_url TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new',
+  github_issue_url TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS bug_reports_created ON bug_reports(created_at);
+-- Round 3 (D-085): screenshot attachments for issue reports. The bytes live beside the DB
+-- (no filesystem path to configure); the public URL is an unguessable token, image only.
+CREATE TABLE IF NOT EXISTS issue_attachments (
+  token TEXT PRIMARY KEY,
+  content_type TEXT NOT NULL,
+  data BLOB NOT NULL,
+  created_at INTEGER NOT NULL
+);
 """
 
 
@@ -445,7 +525,14 @@ ADDED_COLUMNS = (
     ("zoho_states", "dc", "TEXT"),  # ZC-02: the DC the person chose with "Change" (else NULL)
     ("zoho_connections", "dc", "TEXT"),  # ZC-02: the person's detected (or chosen) DC
     ("zoho_connections", "failed_at", "INTEGER"),  # ZC-14: last refresh Zoho refused
+    ("companies", "billing_plan_code", "TEXT"),  # Round 3 (D-087): the Zoho Billing plan code
 )
+OTP_TTL_MS = 10 * 60_000  # a sign-in code works for 10 minutes
+OTP_MAX_ATTEMPTS = 5  # then the code is spent; ask for a new one
+OTP_PURPOSES = ("signup", "login")
+BUG_STATUSES = ("new", "reviewed", "submitted", "closed")
+GITHUB_VAULT = "platform:github"  # the vault name binds the token to this one slot
+GITHUB_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")  # owner/repo, nothing else
 EXCERPT_MAX_CHARS = 2000
 REVIEW_DIMENSIONS = ("opening", "discovery", "listening", "objections", "clarity", "next_step")
 # Where a call came from (owner, 22 Oct 2026); anything else is stored as "computer".
@@ -672,7 +759,13 @@ class CloudStore:
 
     def change_password(self, who: Principal, current: str, new: str) -> None:
         row = self._q("SELECT pw_hash FROM users WHERE id = ?", (who.user_id,))
-        if not row or not verify_password(current, str(row[0]["pw_hash"])):
+        if not row:
+            raise CloudError("wrong_password", "current password is wrong")
+        if not who.must_change and not verify_password(current, str(row[0]["pw_hash"])):
+            # First password: the OTP sign-in is the proof, and the admin created by the
+            # CRM has a random password nobody knows (D-087) — so no current password
+            # is asked for while must_change is set. Rotating a known password still
+            # needs the current one.
             raise CloudError("wrong_password", "current password is wrong")
         problem = password_problem(new)
         if problem:
@@ -2061,6 +2154,69 @@ class CloudStore:
             )
         return company_id, password
 
+    def create_company_from_crm(
+        self,
+        *,
+        company: str,
+        admin_name: str,
+        admin_email: str,
+        zoho_plan_code: str,
+        trial: bool,
+        ip: str = "",
+    ) -> tuple[str, str] | None:
+        """Round 3 (D-087): a company created by the CRM after a Zoho Billing signup. The first
+        admin gets a random password nobody knows (they sign in with the emailed OTP and then
+        choose their own). Returns (company_id, admin_id), or None when this address already
+        has an account — the CRM answers 200 either way, like the Forms path."""
+        email = _clean(admin_email, "admin email", 254).lower()
+        if not EMAIL.match(email):
+            raise CloudError("invalid", "enter a valid email address")
+        code = _clean(zoho_plan_code, "Zoho plan code", 40)
+        if code not in ZOHO_PLAN_MAP:
+            raise CloudError("invalid", "unknown Zoho plan code")
+        plan = "trial" if trial else ZOHO_PLAN_MAP[code]
+        preset = PLANS[plan]
+        if self._q("SELECT 1 FROM users WHERE email = ?", (email,)):
+            return None
+        password = new_temporary_password()
+        t = now_ms()
+        company_id = str(uuid.uuid4())
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO companies(id, name, plan, trial_ends_at, paid_until, seats,"
+                " minutes_month, billing_plan_code, created_at, updated_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    company_id,
+                    _clean(company, "company name", 120),
+                    plan,
+                    t + PLANS["trial"]["days"] * DAY_MS if plan == "trial" else None,
+                    None if plan == "trial" else t + 30 * DAY_MS,
+                    preset["seats"],
+                    preset["minutes"],
+                    code,
+                    t,
+                    t,
+                ),
+            )
+            user_id = self._new_user(
+                db,
+                company_id=company_id,
+                email=email,
+                name=admin_name,
+                password=password,
+                role="admin",
+                must_change=True,
+            )
+            self.audit(
+                db,
+                "company.crm.created",
+                f"{company} ({plan}, {code})",
+                company_id=company_id,
+                ip=ip,
+            )
+        return company_id, user_id
+
     def owner_update_company(
         self, owner: Principal, company_id: str, data: dict[str, Any], *, ip: str = ""
     ) -> None:
@@ -2922,3 +3078,312 @@ class CloudStore:
                 " VALUES (?,?,?,?,?,?)",
                 (t, row["company_id"], row["user_id"], "user.reset.done", str(row["email"]), ip),
             )
+
+    # --- Round 3: one-time sign-in codes (D-087) -------------------------------------------------
+    def request_otp(self, email: str, purpose: str, *, ip: str = "") -> str | None:
+        """Mints a 6-digit code for an active app user, or None (unknown, owner, inactive).
+        The code itself is returned so the caller can email it; only its hash is stored.
+        An earlier unused code for the same address and purpose stops working."""
+        if purpose not in OTP_PURPOSES:
+            raise CloudError("invalid", "unknown OTP purpose")
+        rows = self._q(
+            "SELECT * FROM users WHERE email = ? AND active = 1 AND role != 'owner'",
+            (email.strip().lower(),),
+        )
+        if not rows:
+            return None
+        user = rows[0]
+        code = f"{secrets.randbelow(900_000) + 100_000:06d}"
+        t = now_ms()
+        with self._tx() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO otp_codes(email, purpose, code_hash, created_at,"
+                " expires_at, attempts, used_at) VALUES (?,?,?,?,?,0,NULL)",
+                (email.strip().lower(), purpose, _token_hash(code), t, t + OTP_TTL_MS),
+            )
+            db.execute(
+                "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
+                " VALUES (?,?,?,?,?,?)",
+                (t, user["company_id"], user["id"], f"user.otp.{purpose}.requested", "", ip),
+            )
+        return code
+
+    def verify_otp(self, email: str, code: str, purpose: str, *, ip: str = "") -> sqlite3.Row:
+        """Spends a code and returns the user, or raises otp_invalid / otp_expired. Guessing
+        costs: after OTP_MAX_ATTEMPTS wrong tries the code is spent."""
+        if purpose not in OTP_PURPOSES:
+            raise CloudError("invalid", "unknown OTP purpose")
+        email = email.strip().lower()
+        if not code or len(code) > 10:
+            raise CloudError("otp_invalid", "that code is not valid; ask for a new one")
+        t = now_ms()
+        # The bookkeeping UPDATEs (spend the code, count the guess) must COMMIT even
+        # when the call fails: _tx rolls back on any exception, so a raise inside the
+        # block would undo the UPDATE that just ran. Capture the outcome and raise
+        # after the block, once the transaction has committed.
+        error: CloudError | None = None
+        user_id = ""
+        with self._tx() as db:
+            row = db.execute(
+                "SELECT o.*, u.* FROM otp_codes o JOIN users u ON u.email = o.email"
+                " WHERE o.email = ? AND o.purpose = ? AND o.used_at IS NULL",
+                (email, purpose),
+            ).fetchone()
+            if row is None:
+                error = CloudError("otp_invalid", "that code is not valid; ask for a new one")
+            elif int(row["expires_at"]) < t:
+                db.execute(
+                    "UPDATE otp_codes SET used_at = ? WHERE email = ? AND purpose = ?",
+                    (t, email, purpose),
+                )
+                error = CloudError("otp_expired", "that code expired; ask for a new one")
+            elif int(row["attempts"]) >= OTP_MAX_ATTEMPTS:
+                db.execute(
+                    "UPDATE otp_codes SET used_at = ? WHERE email = ? AND purpose = ?",
+                    (t, email, purpose),
+                )
+                error = CloudError("otp_invalid", "too many tries; ask for a new one")
+            elif not hmac.compare_digest(_token_hash(code), str(row["code_hash"])):
+                db.execute(
+                    "UPDATE otp_codes SET attempts = attempts + 1 WHERE email = ? AND purpose = ?",
+                    (email, purpose),
+                )
+                error = CloudError("otp_invalid", "that code is not valid; ask for a new one")
+            else:
+                db.execute(
+                    "UPDATE otp_codes SET used_at = ? WHERE email = ? AND purpose = ?",
+                    (t, email, purpose),
+                )
+                db.execute(
+                    "INSERT INTO audit(at, company_id, actor_id, action, detail, ip)"
+                    " VALUES (?,?,?,?,?,?)",
+                    (t, row["company_id"], row["id"], f"user.otp.{purpose}.verified", "", ip),
+                )
+                user_id = str(row["id"])
+        if error is not None:
+            raise error
+        # Read after the commit: _q takes the store lock, which _tx already holds inside.
+        user = self._q("SELECT * FROM users WHERE id = ?", (user_id,))[0]
+        if not user["active"]:
+            raise CloudError("otp_invalid", "that code is not valid; ask for a new one")
+        return user
+
+    # --- Round 3: the CRM's shared secret (D-087) ------------------------------------------------
+    # The Forms webhook's secret lives in owner/platform.py; the CRM gets its own second secret
+    # in the same table, checked with the same HMAC pattern. The owner rotates it from the
+    # console; only the hash is kept.
+    CRM_SECRET_KEY = "crm_signup_secret_sha256"  # noqa: S105 - a settings key name, not a secret
+
+    def rotate_crm_secret(self, owner: Principal, *, ip: str = "") -> str:
+        """A new CRM secret, shown once; only its hash is kept."""
+        owner.require("owner")
+        secret = secrets.token_urlsafe(32)
+        with self._tx() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO platform_settings(key, value, updated_at) VALUES (?,?,?)",
+                (self.CRM_SECRET_KEY, hashlib.sha256(secret.encode()).hexdigest(), now_ms()),
+            )
+            self.audit(db, "owner.crm_secret.rotated", "", actor=owner, ip=ip)
+        return secret
+
+    def crm_secret_ok(self, given: str | None) -> bool:
+        rows = self._q("SELECT value FROM platform_settings WHERE key = ?", (self.CRM_SECRET_KEY,))
+        if not rows or not given or len(given) > 200:
+            return False
+        return hmac.compare_digest(
+            hashlib.sha256(given.encode()).hexdigest(), str(rows[0]["value"])
+        )
+
+    # --- Round 3: GitHub issue reporting (D-085) -------------------------------------------------
+    def github_status(self) -> dict[str, Any]:
+        """What the console may know: the repo and when the token was saved. Never the token."""
+        rows = self._q("SELECT repo, updated_at FROM platform_github WHERE id = 1")
+        if not rows:
+            return {"configured": False, "repo": None, "updated_at": None}
+        return {
+            "configured": True,
+            "repo": str(rows[0]["repo"]),
+            "updated_at": int(rows[0]["updated_at"]),
+        }
+
+    def github_save(
+        self, owner: Principal, *, repo: str, token: str, ip: str = ""
+    ) -> dict[str, Any]:
+        """Saves the vendor's repo + token. An empty token keeps the saved one (it is never
+        shown, so never retyped) — the repo alone may change."""
+        owner.require("owner")
+        repo = _clean(repo, "repo", 200)
+        if not GITHUB_REPO.match(repo):
+            raise CloudError("invalid", "repo must look like owner/repo")
+        old = self._q("SELECT ciphertext FROM platform_github WHERE id = 1")
+        if token:
+            if len(token) > 500 or "\n" in token:
+                raise CloudError("invalid", "that does not look like a token")
+            blob = self._vault.encrypt(GITHUB_VAULT, token)
+        elif old:
+            blob = bytes(old[0]["ciphertext"])
+        else:
+            raise CloudError("invalid", "a token is required")
+        with self._tx() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO platform_github(id, ciphertext, repo, updated_at)"
+                " VALUES (1,?,?,?)",
+                (blob, repo, now_ms()),
+            )
+            self.audit(db, "owner.github.saved", repo, actor=owner, ip=ip)
+        return self.github_status()
+
+    def github_delete(self, owner: Principal, *, ip: str = "") -> None:
+        owner.require("owner")
+        with self._tx() as db:
+            db.execute("DELETE FROM platform_github WHERE id = 1")
+            self.audit(db, "owner.github.removed", "", actor=owner, ip=ip)
+
+    def github_token(self) -> tuple[str, str] | None:
+        """Server-side only: (repo, token), or None when nothing is saved or the vault refuses."""
+        rows = self._q("SELECT ciphertext, repo FROM platform_github WHERE id = 1")
+        if not rows:
+            return None
+        try:
+            token = self._vault.decrypt(GITHUB_VAULT, bytes(rows[0]["ciphertext"]))
+        except VaultError:
+            return None
+        return str(rows[0]["repo"]), token
+
+    # --- Round 3: screenshot attachments (D-085) -------------------------------------------------
+    def save_issue_attachment(self, token: str, content_type: str, data: bytes) -> None:
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO issue_attachments(token, content_type, data, created_at)"
+                " VALUES (?,?,?,?)",
+                (token, content_type, data, now_ms()),
+            )
+
+    def issue_attachment(self, token: str) -> tuple[str, bytes] | None:
+        rows = self._q(
+            "SELECT content_type, data FROM issue_attachments WHERE token = ?", (token,)
+        )
+        if not rows:
+            return None
+        return str(rows[0]["content_type"]), bytes(rows[0]["data"])
+
+    # --- Round 3: bug reports (D-086) ------------------------------------------------------------
+    def create_bug_report(
+        self,
+        who: Principal,
+        *,
+        title: str,
+        description: str,
+        page_url: str = "",
+        screenshot_url: str = "",
+        ip: str = "",
+    ) -> str:
+        title = _clean(title, "title", 200)
+        description = _clean(description, "description", 4000)
+        page_url = _clean(page_url, "page address", 1000, required=False)
+        screenshot_url = _clean(screenshot_url, "screenshot", 1000, required=False)
+        if screenshot_url and not screenshot_url.startswith("/api/v1/issue-attachments/"):
+            raise CloudError("invalid", "screenshot must be an uploaded attachment link")
+        report_id = str(uuid.uuid4())
+        t = now_ms()
+        with self._tx() as db:
+            db.execute(
+                "INSERT INTO bug_reports(id, company_id, user_id, title, description, page_url,"
+                " screenshot_url, status, created_at, updated_at) VALUES (?,?,?,?,?,?,?, 'new',?,?)",
+                (
+                    report_id,
+                    who.company,
+                    who.user_id,
+                    title,
+                    description,
+                    page_url,
+                    screenshot_url,
+                    t,
+                    t,
+                ),
+            )
+            self.audit(db, "bug.reported", title, company_id=who.company, actor=who, ip=ip)
+        return report_id
+
+    def bug_reports(self, status: str | None = None) -> list[dict[str, Any]]:
+        """Every company's reports, newest first, with who reported them. Owner only."""
+        sql = (
+            "SELECT b.*, c.name AS company_name, u.email AS user_email FROM bug_reports b"
+            " JOIN companies c ON c.id = b.company_id JOIN users u ON u.id = b.user_id"
+        )
+        args: tuple[Any, ...] = ()
+        if status is not None:
+            if status not in BUG_STATUSES:
+                raise CloudError("invalid", "unknown bug status")
+            sql += " WHERE b.status = ?"
+            args = (status,)
+        sql += " ORDER BY b.created_at DESC"
+        return [dict(r) for r in self._q(sql, args)]
+
+    def bug_report(self, report_id: str) -> dict[str, Any]:
+        rows = self._q(
+            "SELECT b.*, c.name AS company_name, u.email AS user_email FROM bug_reports b"
+            " JOIN companies c ON c.id = b.company_id JOIN users u ON u.id = b.user_id"
+            " WHERE b.id = ?",
+            (report_id,),
+        )
+        if not rows:
+            raise CloudError("not_found", "bug report not found")
+        return dict(rows[0])
+
+    def update_bug_report(
+        self, owner: Principal, report_id: str, data: dict[str, Any], *, ip: str = ""
+    ) -> dict[str, Any]:
+        owner.require("owner")
+        self.bug_report(report_id)  # 404 when missing
+        fields: dict[str, Any] = {}
+        if "title" in data:
+            fields["title"] = _clean(data["title"], "title", 200)
+        if "description" in data:
+            fields["description"] = _clean(data["description"], "description", 4000)
+        if "status" in data:
+            if data["status"] not in BUG_STATUSES:
+                raise CloudError("invalid", "unknown bug status")
+            fields["status"] = data["status"]
+        if not fields:
+            raise CloudError("invalid", "nothing to change")
+        fields["updated_at"] = now_ms()
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        with self._tx() as db:
+            db.execute(f"UPDATE bug_reports SET {sets} WHERE id = ?", (*fields.values(), report_id))  # noqa: S608 — keys are from the fixed list above
+            self.audit(db, "bug.reviewed", report_id, actor=owner, ip=ip)
+        return self.bug_report(report_id)
+
+    def mark_bug_report_submitted(self, report_id: str, issue_url: str) -> None:
+        with self._tx() as db:
+            db.execute(
+                "UPDATE bug_reports SET status = 'submitted', github_issue_url = ?,"
+                " updated_at = ? WHERE id = ?",
+                (issue_url, now_ms(), report_id),
+            )
+
+    # --- Round 3: client billing (D-090) ---------------------------------------------------------
+    def billing_info(self, who: Principal) -> dict[str, Any]:
+        """What the client billing section shows: the plan, its monthly price, and the upgrade
+        page. There is no payment history in the repo (the Zoho Billing payment side is the
+        owner's); 'what they paid' is the current plan's monthly price plus paid_until."""
+        company = self.company_row(who.company)
+        state = plan_state(company, self.minutes_used(who.company), now_ms())
+        plan = state["plan"]
+        info = BILLING_PLANS.get(plan, BILLING_PLANS["custom"])
+        upgrade_url = None
+        if info["upgrade_to"] is not None:
+            code = BILLING_PLANS[info["upgrade_to"]]["zoho_code"]
+            upgrade_url = ZOHO_HOSTED_URLS.get(code) if code else None
+        return {
+            **state,
+            "plan_name": info["name"],
+            "price_aed": info["price_aed"],
+            "currency": "AED",
+            "billing_period": "monthly",
+            "zoho_plan_code": info["zoho_code"],
+            # plan_state exposes this as ends_at (trial_ends_at for trials); the billing
+            # section wants the paid-through date under its own name (D-090).
+            "paid_until": company["paid_until"],
+            "upgrade_url": upgrade_url,
+        }

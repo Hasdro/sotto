@@ -13,6 +13,7 @@ import hashlib
 import json
 import mimetypes
 import re
+import secrets
 import time
 from collections import OrderedDict, deque
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -29,6 +30,8 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.adapters.email.smtp import Outgoing, send_mail
+from sotto_worker.cloud import bugreports
+from sotto_worker.cloud import github as github_mod
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.coaching import routes as coaching_routes
 from sotto_worker.cloud.coaching.store import CoachingStore
@@ -148,6 +151,7 @@ class CloudConfig:
     zoho_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Zoho
     smtp_sender: email_routes.Sender | None = None  # tests: a local fake SMTP server
     gallabox_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Gallabox
+    github_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked GitHub API
     run_scheduler: bool = False  # T-081: `serve` starts the in-process runner; tests tick by hand
     clock: Callable[[], int] = field(default=now_ms)  # ms; tests inject a fake clock
 
@@ -215,6 +219,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     hook_limit = RateLimit(per_key=10, total=200, window_s=3600)
     hook_secret_limit = RateLimit(per_key=10, total=1_000_000, window_s=3600)  # failures only
     zoho_notify_limit = RateLimit(per_key=60, total=100_000, window_s=60)  # per Zoho channel
+    # Round 3 (D-087): OTP requests and guesses, per address and per client (counted on every
+    # request, like the reset flow); the CRM's new-company calls, per client address.
+    otp_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # per address
+    otp_client_limit = RateLimit(per_key=20, total=1_000_000, window_s=3600)  # per client
+    otp_guess_limit = RateLimit(per_key=5, total=1_000_000, window_s=3600)  # failed verifies
+    crm_limit = RateLimit(per_key=10, total=200, window_s=3600)
     minter = config.stt_minter or mint_stt_token
     learning = LearningStore(store)
     tester = config.key_tester or list_models
@@ -348,6 +358,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         "benchmark_failed": HTTPStatus.CONFLICT,
         "untested": HTTPStatus.CONFLICT,
         "not_sent": HTTPStatus.CONFLICT,
+        "otp_invalid": HTTPStatus.BAD_REQUEST,
+        "otp_expired": HTTPStatus.BAD_REQUEST,
+        "github_not_configured": HTTPStatus.CONFLICT,
+        "github_auth": HTTPStatus.BAD_GATEWAY,
+        "github_not_found": HTTPStatus.NOT_FOUND,
+        "github_unavailable": HTTPStatus.BAD_GATEWAY,
         # ZC-04 bootstrap (T-083 hub line 6)
         "consent_required": HTTPStatus.CONFLICT,
         "off_domain": HTTPStatus.UNPROCESSABLE_ENTITY,
@@ -525,6 +541,123 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             # The link uses the configured public origin, never the request's Host header.
             await send_reset(found[1], found[0], config.public_origin or "http://localhost:8788")
 
+    # --- Round 3: platform mail (D-087/D-089) ----------------------------------------------------
+    async def send_platform_mail(
+        to_email: str, subject: str, text: str, *, idempotency_key: str
+    ) -> bool:
+        """Sends from the platform mailbox: the DB platform SMTP scope first (the canonical
+        sender, D-089), else the legacy file-based mailer. Returns False when no mailbox is
+        set up; never raises — a missing mailbox must not break a signup."""
+        try:
+            account = email_data.account(store, email_data.PLATFORM)
+            if account is not None:
+                await (config.smtp_sender or send_mail)(
+                    account,
+                    Outgoing(
+                        to=(to_email,),
+                        cc=(),
+                        subject=subject,
+                        text=text,
+                        message_id_seed=idempotency_key[:60],
+                    ),
+                )
+                return True
+            if config.mailer is not None:
+                await config.mailer.send(
+                    EmailMessage(to=to_email, subject=subject, text=text),
+                    idempotency_key=idempotency_key[:60],
+                )
+                return True
+            config.log(f"platform mail (no mailbox): {subject} -> {to_email}")
+            return False
+        except Exception as err:  # the person can ask again; never leak why
+            config.log(f"platform mail failed: {type(err).__name__}")
+            return False
+
+    async def send_otp_email(email: str, code: str) -> bool:
+        """The 6-digit sign-in code, from the platform sender. The idempotency key is random:
+        the code itself must never appear in a Message-ID or a mail log."""
+        return await send_platform_mail(
+            email,
+            "Your AGN Sales Shield sign-in code",
+            "Your AGN Sales Shield sign-in code is:\n\n"
+            f"{code}\n\n"
+            "It works once, for 10 minutes. Enter it in the app to sign in.\n\n"
+            "If it was not you, ignore this email.",
+            idempotency_key=f"otp-{secrets.token_hex(8)}",
+        )
+
+    def welcome_subject(language: str) -> str:
+        return (
+            "مرحباً بك في AGN Sales Shield"
+            if language == "ar"
+            else "Welcome to AGN Sales Shield"
+        )
+
+    def welcome_text(
+        name: str, company: str, *, otp_code: str | None, language: str
+    ) -> str:
+        """The welcome email (D-087): what the product is, how to sign in the first time, where
+        the apps are. The support contact is the sender address itself — reply to the email —
+        so no address is hardcoded here. The AR version is used when the CRM says the
+        customer reads Arabic."""
+        origin = (config.public_origin or "http://localhost:8788").rstrip("/")
+        if language == "ar":
+            sign_in = (
+                f"رمز تسجيل الدخول الأول الخاص بك هو {otp_code}. يعمل مرة واحدة ولمدة 10 دقائق. "
+                "أدخله في التطبيق ثم اختر كلمة المرور الخاصة بك."
+                if otp_code
+                else "سجّل الدخول باستخدام البريد الإلكتروني وكلمة المرور اللذين اخترتهما."
+            )
+            return (
+                f"مرحباً {name or 'بك'}،\n\n"
+                f"مرحباً بك في AGN Sales Shield — مساعدك الذكي لمكالمات المبيعات جاهز الآن "
+                f"لشركة {company}.\n\n"
+                f"{sign_in}\n\n"
+                f"لتنزيل التطبيقات: {origin}/downloads/\n\n"
+                "إذا لم تكن أنت من سجّل، تجاهل هذه الرسالة.\n\n"
+                "للأسئلة، ما عليك سوى الرد على هذه الرسالة.\n\n"
+                "— فريق AGN Sales Shield"
+            )
+        sign_in = (
+            f"Your first sign-in code is {otp_code}. It works once, for 10 minutes. "
+            "Enter it in the app, then choose your own password."
+            if otp_code
+            else "Sign in with the email address and password you chose."
+        )
+        return (
+            f"Hello {name or 'there'},\n\n"
+            f"Welcome to AGN Sales Shield — your AI copilot for sales calls is ready "
+            f"for {company}.\n\n"
+            f"{sign_in}\n\n"
+            f"Get the apps: {origin}/downloads/\n\n"
+            "If you did not sign up, ignore this email.\n\n"
+            "Questions? Just reply to this email.\n\n"
+            "— AGN Sales Shield"
+        )
+
+    pending_welcome: set[asyncio.Task[None]] = set()
+
+    async def send_welcome_in_background(
+        email: str, name: str, company: str, *, otp_code: str | None, language: str
+    ) -> None:
+        await send_platform_mail(
+            email,
+            welcome_subject(language),
+            welcome_text(name, company, otp_code=otp_code, language=language),
+            idempotency_key=f"welcome-{email}",
+        )
+
+    def welcome_later(
+        email: str, name: str, company: str, *, otp_code: str | None, language: str
+    ) -> None:
+        """Sends the welcome email in the background; a missing mailbox never blocks signup."""
+        task = asyncio.create_task(
+            send_welcome_in_background(email, name, company, otp_code=otp_code, language=language)
+        )
+        pending_welcome.add(task)
+        task.add_done_callback(pending_welcome.discard)
+
     @handle
     async def reset_request(request: Request) -> Response:
         data = await body(request)
@@ -586,7 +719,125 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         user = store.check_login(str(data.get("email", "")), str(data.get("password", "")))
         if user is None:
             raise CloudError("bad_login", "account created; sign in")
+        # Round 3 (D-087): the welcome email, in the background; a missing mailbox never
+        # blocks the signup. Self-signup already has a password, so no OTP is mentioned.
+        welcome_later(
+            str(data.get("email", "")),
+            str(data.get("name", "")),
+            str(data.get("company", "")),
+            otp_code=None,
+            language="ar" if str(data.get("language", "")) == "ar" else "en",
+        )
         return JSONResponse(open_app_session(user, data), status_code=HTTPStatus.CREATED)
+
+    # --- Round 3: the CRM's new-company API + OTP (D-087) ---------------------------------------
+    @handle
+    async def crm_create_company(request: Request) -> Response:
+        """The CRM calls this after a Zoho Billing signup: one shared secret, then the company
+        + first admin are created and the welcome email + OTP go out in the background."""
+        if not crm_limit.hit(ip_key(request)):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        if not store.crm_secret_ok(request.headers.get("x-agn-signup-secret")):
+            return fail(HTTPStatus.UNAUTHORIZED, "bad_secret", "unknown caller")
+        data = await body(request)
+        email = str(data.get("admin_email", "")).strip().lower()
+        language = "ar" if str(data.get("language", "")) == "ar" else "en"
+        created = store.create_company_from_crm(
+            company=str(data.get("company_name", "")),
+            admin_name=str(data.get("admin_name", "")),
+            admin_email=email,
+            zoho_plan_code=str(data.get("zoho_plan_code", "")),
+            trial=bool(data.get("trial", True)),
+            ip=ip_of(request),
+        )
+        if created is None:
+            # Duplicate address: no-op, like the Forms path (200, nothing new created).
+            return JSONResponse(
+                {
+                    "company_id": None,
+                    "admin_email": email,
+                    "otp_sent": False,
+                    "duplicate": True,
+                }
+            )
+        company_id, _admin_id = created
+        code = store.request_otp(email, "signup", ip=ip_of(request))
+        sender_ready = (
+            email_data.account(store, email_data.PLATFORM) is not None
+            or config.mailer is not None
+        )
+        if code is not None and sender_ready:
+            welcome_later(
+                email,
+                str(data.get("admin_name", "")),
+                str(data.get("company_name", "")),
+                otp_code=code,
+                language=language,
+            )
+            task = asyncio.create_task(send_otp_email(email, code))
+            pending_welcome.add(task)
+            task.add_done_callback(pending_welcome.discard)
+        return JSONResponse(
+            {
+                "company_id": company_id,
+                "admin_email": email,
+                "otp_sent": bool(code) and sender_ready,
+            },
+            status_code=HTTPStatus.CREATED,
+        )
+
+    async def otp_in_background(email: str, code: str) -> None:
+        await send_otp_email(email, code)
+
+    @handle
+    async def otp_request(request: Request) -> Response:
+        data = await body(request)
+        email = str(data.get("email", "")).strip().lower()[:254]
+        purpose = str(data.get("purpose", "login"))
+        if purpose not in ("signup", "login"):
+            purpose = "login"
+        by_client = otp_client_limit.hit(ip_key(request))
+        if not (otp_limit.hit("email:" + email) and by_client):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        if EMAIL_SHAPE.match(email):
+            # The code is minted here, synchronously — like the CRM handler mints its
+            # signup code — and only the mail goes to the background. Minting through
+            # asyncio.to_thread loses a race in the test harness: the per-request
+            # portal closes once the response body is read, and a task still waiting
+            # on its worker thread never resumes, so the mail is never sent. (In
+            # production the loop lives forever and either form works; the sync mint
+            # is the shape that works in both.)
+            code = store.request_otp(email, purpose, ip=ip_of(request))
+            if code is not None:
+                task = asyncio.create_task(otp_in_background(email, code))
+                pending_resets.add(task)
+                task.add_done_callback(pending_resets.discard)
+        return JSONResponse(
+            {"ok": True, "message": "If that address has an account, we sent a code."},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @handle
+    async def otp_verify(request: Request) -> Response:
+        data = await body(request)
+        email = str(data.get("email", "")).strip().lower()
+        key = ip_key(request) + "|" + email
+        if otp_guess_limit.blocked(key):
+            return fail(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited", "too many tries; wait")
+        try:
+            user = store.verify_otp(
+                email,
+                str(data.get("code", "")),
+                str(data.get("purpose", "login")),
+                ip=ip_of(request),
+            )
+        except CloudError as e:
+            if e.code == "otp_invalid":
+                otp_guess_limit.record(key)  # guessing codes costs the client
+            raise
+        out = open_app_session(user, data)
+        out["must_change"] = bool(user["must_change_pw"])
+        return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
     @handle
     async def login(request: Request) -> Response:
@@ -620,12 +871,88 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         store.change_password(who, str(data.get("current", "")), str(data.get("new", "")))
         return JSONResponse({"ok": True})
 
+    # --- Round 3: client billing + bug reports (D-086/D-090) -------------------------------------
+    @app_route
+    async def billing_get(_request: Request, who: Principal) -> Response:
+        return JSONResponse(store.billing_info(who), headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def bug_report_post(request: Request, who: Principal) -> Response:
+        data = await body(request)
+        # The upload answers with an absolute URL; the store keeps the relative
+        # path only (external hosts are rejected there), so strip our own origin.
+        shot = str(data.get("screenshot_url", ""))
+        origin = (config.public_origin or "http://localhost:8788").rstrip("/")
+        if shot.startswith(origin + "/api/v1/issue-attachments/"):
+            shot = shot[len(origin) :]
+        report_id = store.create_bug_report(
+            who,
+            title=str(data.get("title", "")),
+            description=str(data.get("description", "")),
+            page_url=str(data.get("page_url", "")),
+            screenshot_url=shot,
+            ip=ip_of(request),
+        )
+        return JSONResponse({"id": report_id}, status_code=HTTPStatus.CREATED)
+
+    # Screenshot uploads take a raw image body (not multipart: python-multipart is not a
+    # dependency of this server, and the recordings upload already streams raw bytes the
+    # same way). The client sends the Blob with Content-Type image/png (or jpeg/webp/gif).
+    ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
+    ATTACHMENT_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+
+    @handle
+    async def attachment_upload(request: Request) -> Response:
+        """A screenshot for an issue/bug report, from a signed-in app user or the owner. The
+        answer is a public, unguessable URL — that is what goes into the GitHub issue."""
+        who = bearer(request)
+        if who is None:
+            cookie = request.cookies.get(OWNER_COOKIE)
+            owner = store.principal(cookie, kind="owner") if cookie else None
+            if owner is None or not owner.is_owner:
+                return fail(HTTPStatus.UNAUTHORIZED, "signed_out", "sign in again")
+        content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+        if content_type not in ATTACHMENT_TYPES:
+            raise CloudError("invalid", "send a PNG, JPEG, WebP or GIF image")
+        data = b""
+        async for chunk in request.stream():
+            data += chunk
+            if len(data) > ATTACHMENT_MAX_BYTES:
+                raise CloudError("too_large", "screenshot is too large (max 5 MB)")
+        if not data:
+            raise CloudError("invalid", "send an image")
+        token = secrets.token_hex(16)
+        store.save_issue_attachment(token, content_type, data)
+        origin = (config.public_origin or "http://localhost:8788").rstrip("/")
+        return JSONResponse(
+            {"url": f"{origin}/api/v1/issue-attachments/{token}"},
+            status_code=HTTPStatus.CREATED,
+        )
+
+    @handle
+    async def attachment_get(request: Request) -> Response:
+        """Serves one attachment, no sign-in: the 32-hex token is the whole secret, and there
+        is no listing. Image bytes only, immutable."""
+        token = request.path_params["token"]
+        if not re.fullmatch(r"[a-f0-9]{32}", token):
+            return PlainTextResponse("not found\n", status_code=404)
+        found = store.issue_attachment(token)
+        if found is None:
+            return PlainTextResponse("not found\n", status_code=404)
+        content_type, blob = found
+        return Response(
+            content=blob,
+            media_type=content_type,
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
+
     def needed_keys(who: Principal) -> set[str]:
         """The model keys the company's current routes use. Speech keys never leave the server:
         devices get short-lived tokens for them instead (security review H1). The after-call
         model's key goes only to people who may review or draft follow-ups (D-036)."""
+        cseed = platform.company_seed(store, seed, who.company)
         routing = apply_overrides(
-            seed.routing, seed.catalog, platform.effective_routes(store, who.company)
+            cseed.routing, cseed.catalog, platform.effective_routes(store, who.company)
         )
         stages = ["suggest", "suggest_backup"]
         if any(store.feature_state(who, f).state == "available" for f in AFTER_CALL):
@@ -650,7 +977,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             settings.pop("context", None)  # D-036: the knowledge is withheld, not just hidden
         settings.update(store.text_defaults(who.company))  # ZC-11c tone and call goal
         out = build_bundle(
-            seed,
+            platform.company_seed(store, seed, who.company),
             company_name=str(company["name"]),
             settings=settings,
             routes=platform.effective_routes(store, who.company),
@@ -1084,6 +1411,91 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             idempotency_key=f"invite-{token[:12]}",
         )
 
+    # --- Round 3 (owner): GitHub issues, CRM secret, sender, bug-report review ------------------
+    async def o_github_get(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(store.github_status(), headers={"Cache-Control": "no-store"})
+
+    async def o_github_put(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        return JSONResponse(
+            store.github_save(
+                who,
+                repo=str(data.get("repo", "")),
+                token=str(data.get("token", "")),
+                ip=ip_of(r),
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_github_delete(r: Request, who: Principal) -> Response:
+        store.github_delete(who, ip=ip_of(r))
+        return JSONResponse({"ok": True})
+
+    async def o_github_test(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(
+            await github_mod.test_repo(store, transport=config.github_transport),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_github_issue(r: Request, _who: Principal) -> Response:
+        data = await body(r)
+        return JSONResponse(
+            await github_mod.create_issue(
+                store,
+                title=str(data.get("title", "")),
+                body=str(data.get("body", "")),
+                page_url=str(data.get("page_url", "")),
+                screenshot_url=str(data.get("screenshot_url") or "") or None,
+                transport=config.github_transport,
+            ),
+            status_code=HTTPStatus.CREATED,
+        )
+
+    async def o_crm_secret(r: Request, who: Principal) -> Response:
+        """Rotates the CRM's shared secret; the secret is shown once, only its hash is kept."""
+        return JSONResponse(
+            {"secret": store.rotate_crm_secret(who, ip=ip_of(r))},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_sender(_r: Request, _who: Principal) -> Response:
+        """The platform sender integration (D-089): the DB platform SMTP scope, with its last
+        test result. The legacy file-based mailbox is the fallback for sends, not the sender
+        the console shows."""
+        return JSONResponse(
+            email_data.status(store, None)["platform"], headers={"Cache-Control": "no-store"}
+        )
+
+    async def o_bug_reports(r: Request, _who: Principal) -> Response:
+        return JSONResponse(
+            {"reports": store.bug_reports(r.query_params.get("status"))},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_bug_report_patch(r: Request, who: Principal) -> Response:
+        return JSONResponse(
+            store.update_bug_report(who, r.path_params["id"], await body(r), ip=ip_of(r)),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_bug_report_submit(r: Request, _who: Principal) -> Response:
+        report = store.bug_report(r.path_params["id"])
+        # The store keeps the relative attachment path; GitHub needs the full URL.
+        shot = str(report.get("screenshot_url") or "")
+        if shot.startswith("/api/v1/issue-attachments/"):
+            origin = (config.public_origin or "http://localhost:8788").rstrip("/")
+            shot = origin + shot
+        created = await github_mod.create_issue(
+            store,
+            title=bugreports.issue_title(report),
+            body=bugreports.issue_body(report),
+            page_url=str(report.get("page_url") or ""),
+            screenshot_url=shot or None,
+            transport=config.github_transport,
+        )
+        store.mark_bug_report_submitted(report["id"], str(created["issue_url"]))
+        return JSONResponse(created, headers={"Cache-Control": "no-store"})
+
     # --- pages -----------------------------------------------------------------------------------
     async def healthz(_r: Request) -> Response:
         return JSONResponse({"ok": True, "service": "sotto-cloud"})
@@ -1155,12 +1567,19 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     routes = [
         Route("/healthz", healthz),
         Route(f"{api}/auth/signup", signup, methods=["POST"]),
+        Route(f"{api}/companies", crm_create_company, methods=["POST"]),
+        Route(f"{api}/auth/otp/request", otp_request, methods=["POST"]),
+        Route(f"{api}/auth/otp/verify", otp_verify, methods=["POST"]),
         Route(f"{api}/auth/login", login, methods=["POST"]),
         Route(f"{api}/auth/logout", logout, methods=["POST"]),
         Route(f"{api}/auth/refresh", refresh, methods=["POST"]),
         Route(f"{api}/auth/migrate", migrate, methods=["POST"]),
         Route(f"{api}/auth/reset/request", reset_request, methods=["POST"]),
         Route(f"{api}/auth/reset/confirm", reset_confirm, methods=["POST"]),
+        Route(f"{api}/billing", billing_get),
+        Route(f"{api}/bug-reports", bug_report_post, methods=["POST"]),
+        Route(f"{api}/issue-attachments", attachment_upload, methods=["POST"]),
+        Route(f"{api}/issue-attachments/{{token}}", attachment_get),
         Route(f"{api}/company/defaults", company_defaults_get),
         Route(f"{api}/company/defaults", company_defaults_put, methods=["PUT"]),
         Route(f"{api}/features", features_get),
@@ -1210,6 +1629,38 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             methods=["PATCH"],
         ),
         Route("/api/owner/password", owner_route(o_password, mutating=True), methods=["POST"]),
+        Route("/api/owner/github", owner_route(o_github_get)),
+        Route("/api/owner/github", owner_route(o_github_put, mutating=True), methods=["PUT"]),
+        Route(
+            "/api/owner/github", owner_route(o_github_delete, mutating=True), methods=["DELETE"]
+        ),
+        Route(
+            "/api/owner/github/test",
+            owner_route(o_github_test, mutating=True),
+            methods=["POST"],
+        ),
+        Route(
+            "/api/owner/github/issues",
+            owner_route(o_github_issue, mutating=True),
+            methods=["POST"],
+        ),
+        Route(
+            "/api/owner/crm-secret",
+            owner_route(o_crm_secret, mutating=True),
+            methods=["POST"],
+        ),
+        Route("/api/owner/sender", owner_route(o_sender)),
+        Route("/api/owner/bug-reports", owner_route(o_bug_reports)),
+        Route(
+            "/api/owner/bug-reports/{id}",
+            owner_route(o_bug_report_patch, mutating=True),
+            methods=["PATCH"],
+        ),
+        Route(
+            "/api/owner/bug-reports/{id}/submit",
+            owner_route(o_bug_report_submit, mutating=True),
+            methods=["POST"],
+        ),
         Route("/api/owner/companies", owner_route(o_companies)),
         Route(
             "/api/owner/companies", owner_route(o_company_create, mutating=True), methods=["POST"]

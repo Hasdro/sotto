@@ -75,7 +75,7 @@ def test_owner_sees_stats_and_manages_a_company(
     assert (body["plan"], body["status"], body["seats"], body["minutes_month"]) == (
         "starter",
         "active",
-        5,
+        3,  # D-088: the Starter product sells 3 agents, not 5
         2000,
     )
     assert body["days_left"] == 30

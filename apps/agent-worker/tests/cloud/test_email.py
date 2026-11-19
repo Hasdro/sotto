@@ -154,6 +154,9 @@ def test_org_smtp_is_write_only_and_encrypted(mclient: TestClient, store: CloudS
         "from_name": "Acme Sales",
         "from_address": "sales@acme.test",
         "updated_at": body["org"]["updated_at"],
+        # D-089: the sender read model also reports the last test outcome.
+        "tested_at": None,
+        "test_ok": None,
     }
     assert body["active"] == "org"
     for text in (r.text, mclient.get("/api/v1/company/smtp", headers=h).text):

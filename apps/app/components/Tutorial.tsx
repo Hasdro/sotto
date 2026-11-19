@@ -2,6 +2,9 @@
  * The practice tutorial (owner decision T-038, 21 Oct): a short walkthrough shown after sign-in,
  * with a practice card that writes itself, a "Don't show this again" box, and a replay button in
  * Settings. Nothing here touches the server or the call history.
+ * Round 3 (D-091): it auto-plays on first sign-in until the person ticks "Don't show this
+ * again" (`tutorialDone` is now read as the gate, not just written). Closing without the box
+ * hides it for this sign-in only; it plays again next time.
  */
 import {
   Button,
@@ -38,17 +41,26 @@ const STEPS: readonly Step[] = [
   { mascot: "reviewing", title: "tutorial.5.title", body: "tutorial.5.body" },
 ];
 
-/** ZC A15 (UX-10): the first-run checklist on Home guides a new person; the tutorial opens only
- * when asked for (Settings › Advanced › Play the tutorial). */
+/** D-091: auto-play on first sign-in while the tour was never dismissed for good; an
+ * explicit request (Settings, ⌘K) always opens it. `dismissed` keeps a close from
+ * reopening the dialog in the same sign-in; signing out clears it, so the next sign-in
+ * plays the tour again unless "Don't show this again" was ticked. */
 export function Tutorial() {
   const cloud = useCloud();
-  const { tutorialRequested } = usePrefs();
-  if (cloud.status !== "signed_in" || !tutorialRequested) return null;
+  const { tutorialRequested, tutorialDone } = usePrefs();
+  const [dismissed, setDismissed] = useState(false);
+  const signedIn = cloud.status === "signed_in";
+  useEffect(() => {
+    if (!signedIn) setDismissed(false);
+  }, [signedIn]);
+  const show = signedIn && !dismissed && (tutorialRequested || !tutorialDone);
+  if (!show) return null;
   return (
     <TutorialDialog
-      onClose={(never) =>
-        setPrefs({ tutorialRequested: false, ...(never ? { tutorialDone: true } : {}) })
-      }
+      onClose={(never) => {
+        setDismissed(true);
+        setPrefs({ tutorialRequested: false, ...(never ? { tutorialDone: true } : {}) });
+      }}
     />
   );
 }

@@ -5,16 +5,19 @@
  * (bold, italic, lists, links as Markdown), rendered into the HTML part of the sent email.
  * The plain-text part keeps the same words, so formats saved before this change still work.
  */
-import { Button, Panel, SegmentedControl, Stack, Text, TextField } from "@sotto/ui";
+import { Button, Dropdown, Panel, Stack, Text, TextField } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { type EmailFormat, emailFormats, saveFormats } from "./api";
 import { RichTextField } from "./RichTextField";
 import { useEmailText } from "./strings";
+import { useI18n } from "../../lib/locale";
 
 const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function FormatsEditor() {
   const t = useEmailText();
+  // The Dropdown's own chrome strings live in the shared table, not this feature's.
+  const { t: gt } = useI18n();
   const [formats, setFormats] = useState<EmailFormat[]>([]);
   const [open, setOpen] = useState(0);
   const [note, setNote] = useState<string | null>(null);
@@ -37,11 +40,15 @@ export function FormatsEditor() {
         <Text variant="label" tone="muted">
           {t("integrations.smtp.formats.body")}
         </Text>
-        <SegmentedControl
+        {/* D-093: the format list grows with the formats; a SegmentedControl (2–4 options)
+            overflows, so this is a searchable Dropdown now. */}
+        <Dropdown
           options={formats.map((x, i) => ({ value: String(i), label: x.name }))}
           value={String(open)}
           onChange={(v) => setOpen(Number(v))}
           accessibilityLabel={t("integrations.smtp.formats.title")}
+          searchPlaceholder={gt("dropdown.search")}
+          emptyLabel={gt("dropdown.none")}
           testID="email-format-pick"
         />
         <TextField

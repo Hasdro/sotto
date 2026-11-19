@@ -15,8 +15,12 @@ export const KEY_HOSTS: Record<string, string> = {
   OPENROUTER_API_KEY: "openrouter.ai",
   OPENAI_API_KEY: "api.openai.com",
   ANTHROPIC_API_KEY: "api.anthropic.com",
+  DEEPSEEK_API_KEY: "api.deepseek.com",
   CEREBRAS_API_KEY: "api.cerebras.ai",
 };
+/** A custom provider's key (D-084): ENDPOINT_<SLUG>_KEY, bound to the endpoint the server
+ * registered it with — the route's own base_url host is the allowed host. */
+const ENDPOINT_KEY = /^ENDPOINT_[A-Z0-9]+_KEY$/;
 const OPENAI_BASE = "https://api.openai.com/v1";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -26,12 +30,18 @@ export type Fetch = typeof fetch;
 export class MissingKey extends Error {}
 
 export function checkKeyHost(keyEnv: string, url: string): void {
-  const host = KEY_HOSTS[keyEnv];
-  if (!host) throw new Error(`${keyEnv} is not a known provider key`);
   const u = new URL(url);
   if (u.username || u.password) throw new Error(`${keyEnv}: the address must not carry user info`);
-  if (u.hostname !== host) throw new Error(`${keyEnv} may only be sent to ${host}`);
   if (u.protocol !== "https:") throw new Error(`${keyEnv} may only be sent over https`);
+  if (ENDPOINT_KEY.test(keyEnv)) {
+    // A custom provider's key only goes to the endpoint the server registered it with,
+    // which is the route's own base_url — the server is the authority for that address.
+    if (!u.hostname) throw new Error(`${keyEnv}: the address has no host`);
+    return;
+  }
+  const host = KEY_HOSTS[keyEnv];
+  if (!host) throw new Error(`${keyEnv} is not a known provider key`);
+  if (u.hostname !== host) throw new Error(`${keyEnv} may only be sent to ${host}`);
 }
 
 /** The env name a route needs, or null when it needs no secret (local endpoint, fake). */

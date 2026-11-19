@@ -19,6 +19,7 @@ import {
 } from "@sotto/ui";
 import { Slot, usePathname } from "expo-router";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { AdminTour } from "../../components/AdminTour";
 import { AppLink } from "../../components/AppLink";
 import { useFeature } from "../../components/FeatureGate";
 import { RoleGate } from "../../components/RoleGate";
@@ -73,6 +74,10 @@ export const ADMIN_GROUPS: readonly Group[] = [
     pages: [
       { href: "/admin/settings", label: "admin.settings", icon: "settings" },
       { href: "/admin/features", label: "admin.features", icon: "shield" },
+      // Round 3: the plan, what was paid and the upgrade (billing), and the bug-report
+      // review queue (reports) live in the Company group.
+      { href: "/admin/billing", label: "admin.billing", icon: "cards" },
+      { href: "/admin/reports", label: "bug.queue.title", icon: "message" },
       {
         href: "/admin/company",
         label: "admin.company",
@@ -180,6 +185,7 @@ function AdminLayout() {
           </View>
         ) : null}
         <Slot />
+        <AdminTour />
       </View>
     </ScrollView>
   );

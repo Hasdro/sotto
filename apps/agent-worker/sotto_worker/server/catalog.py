@@ -17,6 +17,17 @@ Kind = Literal["llm", "stt"]
 
 
 @dataclass(frozen=True)
+class ModelInfo:
+    """One model in a provider's catalogue (OpenCode §2): the ID is immutable, the display
+    name is editable, and `enabled` is the selection mechanism — only enabled models are
+    offered by any picker. Built-ins list bare IDs, which become enabled ModelInfos."""
+
+    id: str
+    display_name: str
+    enabled: bool = True
+
+
+@dataclass(frozen=True)
 class Provider:
     id: str
     name: str
@@ -30,6 +41,34 @@ class Provider:
     test_url: str | None = None  # LLM vendors without an OpenAI-compatible base_url
     custom: bool = False  # an endpoint the owner added in the panel (Ollama, vLLM, …)
     client: bool = True  # the apps' own engine can run it (D-022 calls run on the device)
+    # OpenCode §2 (D-081): how a custom provider is called. Built-ins keep the defaults
+    # (chat-completions over Bearer); only chat-completions/Bearer is wired to an adapter
+    # this round — other formats/auth modes are stored, not wired.
+    format: str = "chat-completions"
+    auth_mode: str = "bearer"
+    auth_header: str | None = None
+    models_detailed: tuple[ModelInfo, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.models_detailed and self.models:
+            object.__setattr__(
+                self,
+                "models_detailed",
+                tuple(ModelInfo(id=m, display_name=m) for m in self.models),
+            )
+
+    def enabled_models(self) -> tuple[str, ...]:
+        """The model IDs a picker may offer (OpenCode §7: enabled only)."""
+        return tuple(m.id for m in self.models_detailed if m.enabled)
+
+    def model_available(self, model: str) -> bool:
+        """True when `model` may run on this provider (D-081): a listed model must be
+        enabled (seed override or custom list); an unlisted model is free-form on a
+        built-in (the vendor is the authority) but unknown on a custom provider."""
+        known = {m.id: m.enabled for m in self.models_detailed}
+        if model in known:
+            return known[model]
+        return not self.custom
 
     def models_url(self) -> str | None:
         """Where "Test" lists models: the vendor's own models endpoint (LLM vendors only)."""
@@ -108,6 +147,86 @@ class Catalog:
             key_envs=self.key_envs | {p.key_env for p in extra.values()},
         )
 
+    def with_custom_providers(self, rows: list[dict[str, Any]]) -> Catalog:
+        """This catalogue plus one company's DB custom providers (D-084, OpenCode §2/§5):
+        each row is a `custom_providers` record as returned by
+        `cloud.owner.platform.custom_providers` — id, name, kind, base_url, format,
+        auth_mode, auth_header, models (a list of {id, display_name, enabled} dicts),
+        has_key. The endpoint is resolved from the stored record (D-082): the client
+        never supplies a base_url. A row whose id collides with a built-in is skipped
+        (built-ins win); a row with an unknown kind is skipped."""
+        extra: dict[str, Provider] = {}
+        for row in rows:
+            pid = str(row["id"])
+            if pid in self.providers or pid in extra:
+                continue
+            kind = str(row.get("kind") or "llm")
+            if kind not in ("llm", "stt"):
+                continue
+            detailed = tuple(
+                ModelInfo(
+                    id=str(m.get("id", "")),
+                    display_name=str(m.get("display_name") or m.get("id", "")),
+                    enabled=bool(m.get("enabled", True)),
+                )
+                for m in (row.get("models") or [])
+                if isinstance(m, dict) and str(m.get("id", "")).strip()
+            )
+            key_env = endpoint_key_env(pid)
+            extra[pid] = Provider(
+                id=pid,
+                name=str(row.get("name") or pid),
+                kind=kind,  # type: ignore[arg-type]
+                key_env=key_env,
+                key_page="",
+                free="",
+                steps="",
+                route={
+                    "provider": "openai_compatible",
+                    "base_url": str(row["base_url"]),
+                    **({"api_key_env": key_env} if row.get("has_key") else {}),
+                },
+                models=tuple(m.id for m in detailed),
+                models_detailed=detailed,
+                format=str(row.get("format") or "chat-completions"),
+                auth_mode=str(row.get("auth_mode") or "bearer"),
+                auth_header=str(row["auth_header"])
+                if row.get("auth_header")
+                else None,
+                custom=True,
+            )
+        if not extra:
+            return self
+        return dataclasses.replace(
+            self,
+            providers={**self.providers, **extra},
+            key_envs=self.key_envs | {p.key_env for p in extra.values()},
+        )
+
+    def with_model_overrides(self, overrides: dict[tuple[str, str], bool]) -> Catalog:
+        """This catalogue with platform-level per-model enablement applied (D-081): a
+        seed model the owner disabled shows disabled in every picker and cannot be set
+        on a stage. An override naming a model the provider does not list is ignored
+        (nothing to toggle). Custom providers are untouched — they carry their own
+        per-model flags in models_json."""
+        if not overrides:
+            return self
+        providers: dict[str, Provider] = {}
+        changed = False
+        for pid, p in self.providers.items():
+            detailed = tuple(
+                dataclasses.replace(m, enabled=overrides.get((pid, m.id), m.enabled))
+                for m in p.models_detailed
+            )
+            if detailed != p.models_detailed:
+                changed = True
+                providers[pid] = dataclasses.replace(p, models_detailed=detailed)
+            else:
+                providers[pid] = p
+        if not changed:
+            return self
+        return dataclasses.replace(self, providers=providers)
+
     def provider_for_route(self, route: StageRoute) -> str | None:
         """Which catalogue vendor a route uses (None: fake, local or custom endpoint)."""
         for p in self.providers.values():
@@ -121,10 +240,21 @@ class Catalog:
         return None
 
     def route_for(
-        self, stage: str, provider_id: str, model: str, base: StageRoute | None
+        self,
+        stage: str,
+        provider_id: str,
+        model: str,
+        base: StageRoute | None,
+        *,
+        require_enabled: bool = False,
     ) -> StageRoute:
         """The route a stage gets when the owner picks `provider_id` + `model` in the panel.
-        Stage limits (first-token deadline, max_tokens, temperature) stay from the seed route."""
+        Stage limits (first-token deadline, max_tokens, temperature) stay from the seed route.
+        Built-in models are free-form strings (the vendor is the authority — OpenRouter /
+        OpenAI / Anthropic list none). For a custom provider, `require_enabled` (the panel
+        set path) insists the model is in that provider's ENABLED list; the bundle path
+        leaves it off, so disabling a model never breaks a live call — the console flags
+        the stage unavailable and the owner re-picks (D-081)."""
         slot = self.stages.get(stage)
         provider = self.providers.get(provider_id)
         if slot is None:
@@ -136,6 +266,14 @@ class Catalog:
         model = model.strip()
         if not model or len(model) > 200 or any(c.isspace() for c in model):
             raise ValueError("model must be a non-empty ID without spaces")
+        if require_enabled:
+            # A listed model must be enabled (seed override or custom list); an
+            # unlisted model is free-form on a built-in but unknown on a custom.
+            known = {m.id: m.enabled for m in provider.models_detailed}
+            if (model in known and not known[model]) or (
+                provider.custom and model not in known
+            ):
+                raise ValueError(f"{model!r} is not an enabled model of {provider.name}")
         template = provider.route
         stage_settings = {
             k: v

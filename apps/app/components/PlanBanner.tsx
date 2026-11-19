@@ -5,9 +5,9 @@
  * since that is where a block bites (T-026).
  */
 import { radius, space, Text, useTheme } from "@sotto/ui";
-import { usePathname } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { type ReactNode, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { bannerFor, type Plan, samplePlan } from "../features/admin/plan";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -25,6 +25,7 @@ export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | 
   const { color } = useTheme();
   const { role } = useRole();
   const pathname = usePathname();
+  const router = useRouter();
   const cloud = useCloud();
   const company = cloud.status === "signed_in" ? cloud.me.company : null;
   const plan = useMemo<Plan>(() => {
@@ -77,21 +78,28 @@ export function usePlanBanner(): { kind: "paused" | "plan"; node: ReactNode } | 
   return {
     kind: "plan",
     node: (
-      <View
+      // Round 3: the trial line is the upsell surface — tapping it opens Billing.
+      <Pressable
+        onPress={() => router.push("/admin/billing")}
+        accessibilityRole="link"
+        accessibilityHint={t("billing.title")}
         testID="plan-banner"
-        accessibilityRole="summary"
-        style={[
-          styles.bar,
-          {
-            backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
-            borderColor: notice ? color.noticeBorder : color.surfaceSunken,
-          },
-        ]}
       >
-        <Text variant="label" weight="medium" color={notice ? color.noticeText : undefined}>
-          {text}
-        </Text>
-      </View>
+        <View
+          accessibilityRole="summary"
+          style={[
+            styles.bar,
+            {
+              backgroundColor: notice ? color.noticeFill : color.surfaceSunken,
+              borderColor: notice ? color.noticeBorder : color.surfaceSunken,
+            },
+          ]}
+        >
+          <Text variant="label" weight="medium" color={notice ? color.noticeText : undefined}>
+            {text}
+          </Text>
+        </View>
+      </Pressable>
     ),
   };
 }

@@ -16,6 +16,7 @@ company and filter on it (tests/cloud/test_owner_prompts.py checks isolation).""
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import hmac
 import json
@@ -143,6 +144,39 @@ CREATE TABLE IF NOT EXISTS platform_keys_retiring (
   ciphertext BLOB NOT NULL,
   rotated_at INTEGER NOT NULL,
   retire_at INTEGER NOT NULL
+);
+-- Round 3 (D-081/D-084): per-company custom providers (OpenCode model). The endpoint and the
+-- model list live here; the key lives in company_keys under ENDPOINT_<SLUG>_KEY (the same
+-- name the local server uses), so keys_for_call can deliver it to devices through the
+-- existing allow-list. Never a secret in this table.
+CREATE TABLE IF NOT EXISTS custom_providers (
+  id TEXT PRIMARY KEY,               -- custom-<slug>, immutable
+  company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,                -- llm | stt (tts is not a stage yet, D-081)
+  base_url TEXT NOT NULL,
+  format TEXT NOT NULL DEFAULT 'chat-completions',
+  auth_mode TEXT NOT NULL DEFAULT 'bearer',
+  auth_header TEXT,
+  models_json TEXT NOT NULL DEFAULT '[]',
+  tested_at INTEGER,
+  test_ok INTEGER,
+  test_detail TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS custom_providers_company ON custom_providers(company_id);
+-- Round 3 (D-081): platform-level per-model enablement for seed providers. A disabled
+-- model is excluded from every picker and cannot be set on a stage; a stored route
+-- using it is flagged unavailable (never silently swapped). A missing row means
+-- enabled; custom providers are NOT toggled here — they carry their own per-model
+-- flags in models_json.
+CREATE TABLE IF NOT EXISTS platform_model_overrides (
+  provider_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (provider_id, model)
 );
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
@@ -434,15 +468,39 @@ def record_benchmark(
     }
 
 
-def check_route(seed: Seed, stage: str, provider_id: str, model: str) -> None:
-    """The same validation as the company route (kind match, model ID shape, app can run it)."""
+def check_route(
+    seed: Seed, stage: str, provider_id: str, model: str, *, catalog: Catalog | None = None
+) -> None:
+    """The same validation as the company route (kind match, model ID shape, app can run it).
+    `catalog` is the seed catalogue, or the company's merged catalogue for a company route —
+    a custom provider only exists in the latter. A custom provider must offer the model
+    (enabled) and must be runnable: only chat-completions over Bearer is wired to an
+    adapter this round (D-081), and there is no custom STT adapter at all."""
+    catalog = catalog or seed.catalog
     try:
-        seed.catalog.route_for(stage, provider_id, model, seed.routing.stages.get(stage))
+        catalog.route_for(
+            stage, provider_id, model, seed.routing.stages.get(stage), require_enabled=True
+        )
     except ValueError as e:
+        # A stored model that was disabled or removed since (D-081) gets its own code so
+        # the console can tell it apart from a malformed choice; both are a 400.
+        if "is not an enabled model of" in str(e):
+            raise CloudError("model_unavailable", str(e)) from None
         raise CloudError("invalid", str(e)) from None
-    chosen = seed.catalog.providers.get(provider_id)
+    chosen = catalog.providers.get(provider_id)
     if chosen is not None and not chosen.client:
         raise CloudError("invalid", f"{chosen.name} is not available in the app yet")
+    if chosen is not None and chosen.custom:
+        if chosen.kind != "llm":
+            raise CloudError(
+                "invalid", "a custom speech provider cannot run a stage yet (no STT adapter)"
+            )
+        if chosen.format != "chat-completions" or chosen.auth_mode != "bearer":
+            raise CloudError(
+                "invalid",
+                "this provider's format is stored but not runnable yet;"
+                " only chat-completions over Bearer is wired",
+            )
 
 
 def set_route(
@@ -473,7 +531,7 @@ def write_route(
     """A platform route change with history (for rollback), behind R6's benchmark guard. The
     owner (set_route) and the routing job (actor None, ZC-05) both come through here."""
     model = model.strip()
-    check_route(seed, stage, provider_id, model)
+    check_route(seed, stage, provider_id, model, catalog=platform_catalog(store, seed))
     bench = benchmark(store, provider_id, model, stage)
     if stage in LIVE_STAGES and bench is not None and not bench["ok"]:
         raise CloudError(
@@ -558,8 +616,11 @@ def effective_routes(store: CloudStore, company_id: str) -> dict[str, tuple[str,
 # --- per-company routes (round 2, D-078/D-079) ---------------------------------------------------
 def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[str, Any]:
     """What the company profile shows per stage: the route that actually runs, and whether the
-    company overrides the platform's. The client never sees this; the vendor sets it."""
+    company overrides the platform's. The client never sees this; the vendor sets it.
+    `model_available` is False when the stored route names a provider or model that is gone
+    or disabled since — the picker must force a re-pick, never silently fall back (D-081)."""
     store.company_row(company_id)
+    catalog = company_catalog(store, seed, company_id)
     eff = effective_routes(store, company_id)
     own = store.routes(company_id)
     plat = platform_routes(store)
@@ -571,6 +632,13 @@ def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[s
             chosen[0] if chosen else (vendor_of(seed.catalog, default) if default else None)
         )
         model = chosen[1] if chosen else (default.model if default else None)
+        provider = catalog.providers.get(provider_id) if provider_id else None
+        model_available = True
+        if provider_id and model:
+            if provider is None:
+                model_available = False
+            elif not provider.model_available(model):
+                model_available = False
         stages.append(
             {
                 "id": slot.id,
@@ -578,6 +646,7 @@ def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[s
                 "kind": slot.kind,
                 "provider_id": provider_id,
                 "model": model,
+                "model_available": model_available,
                 "source": "company"
                 if slot.id in own
                 else "platform"
@@ -609,7 +678,8 @@ def set_company_route(
     its own model choice (D-079)."""
     _owner(owner)
     store.company_row(company_id)
-    check_route(seed, stage, provider_id, model)
+    catalog = company_catalog(store, seed, company_id)
+    check_route(seed, stage, provider_id, model, catalog=catalog)
     bench = benchmark(store, provider_id, model, stage)
     if stage in LIVE_STAGES and bench is not None and not bench["ok"]:
         raise CloudError(
@@ -657,6 +727,601 @@ def vendor_of(catalog: Catalog, route: StageRoute) -> str | None:
             (p.id for p in catalog.providers.values() if p.key_env == route.api_key_env), None
         )
     return route.provider if route.provider in catalog.providers else None
+
+
+# --- custom providers (round 3, D-081/D-084, OpenCode §2/§5) --------------------------------------
+# One provider entity for chat (LLM) and speech-to-text, with per-model Enabled toggles and a
+# per-stage picker over enabled models only. The key is stored in company_keys under the
+# local-server key name (ENDPOINT_<SLUG>_KEY) so keys_for_call delivers it to devices through
+# the existing allow-list; the owner principal cannot use CloudStore.set_key (it needs a
+# company principal), so the write below mirrors its SQL. Formats/auth modes beyond
+# chat-completions/Bearer are stored but not wired to any adapter (D-081).
+CUSTOM_FORMATS = (
+    "chat-completions",
+    "anthropic-compatible",
+    "responses-api",
+    "google-generative-ai",
+)
+CUSTOM_AUTH_MODES = ("bearer", "api-key-header", "custom-header")
+CUSTOM_KINDS = ("llm", "stt")
+HEADER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,63}$")
+
+
+def _custom_slug(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")[:40].strip("-")
+    if len(slug) < 2:
+        raise CloudError("invalid", "give the provider a name of at least 2 letters")
+    return f"custom-{slug}"
+
+
+def _custom_key_env(provider_id: str) -> str:
+    from sotto_worker.server.catalog import endpoint_key_env
+
+    return endpoint_key_env(provider_id)
+
+
+def _custom_models(models_json: str) -> list[dict[str, Any]]:
+    try:
+        raw = json.loads(models_json or "[]")
+    except json.JSONDecodeError:
+        return []
+    out: list[dict[str, Any]] = []
+    for m in raw if isinstance(raw, list) else []:
+        if not isinstance(m, dict):
+            continue
+        mid = str(m.get("id", "")).strip()
+        if not mid:
+            continue
+        out.append(
+            {
+                "id": mid,
+                "display_name": str(m.get("display_name") or mid)[:120],
+                "enabled": bool(m.get("enabled", True)),
+            }
+        )
+    return out
+
+
+def _custom_check_format_auth(
+    format: str, auth_mode: str, auth_header: str | None
+) -> tuple[str, str, str | None]:
+    if format not in CUSTOM_FORMATS:
+        raise CloudError("invalid", f"format is one of {', '.join(CUSTOM_FORMATS)}")
+    if auth_mode not in CUSTOM_AUTH_MODES:
+        raise CloudError("invalid", f"auth mode is one of {', '.join(CUSTOM_AUTH_MODES)}")
+    header = (auth_header or "").strip() or None
+    if auth_mode == "custom-header":
+        if header is None or not HEADER_NAME.match(header):
+            raise CloudError("invalid", "give the auth header name, e.g. x-api-key")
+    elif header is not None:
+        raise CloudError("invalid", "an auth header name only applies to the custom-header mode")
+    return format, auth_mode, header
+
+
+def _custom_clean_key(value: object) -> str:
+    value = str(value or "").strip()
+    if not 8 <= len(value) <= 400 or any(c.isspace() for c in value):
+        raise CloudError("invalid", "that does not look like a key")
+    return value
+
+
+def _custom_write_key(
+    db: Any, store: CloudStore, company_id: str, key_env: str, value: str
+) -> None:
+    blob = store._vault.encrypt(f"{company_id}:{key_env}", _custom_clean_key(value))
+    db.execute(
+        "INSERT INTO company_keys(company_id, key_env, ciphertext, updated_at) VALUES (?,?,?,?)"
+        " ON CONFLICT(company_id, key_env) DO UPDATE SET ciphertext = excluded.ciphertext,"
+        " updated_at = excluded.updated_at",
+        (company_id, key_env, blob, now_ms()),
+    )
+
+
+def _custom_out(store: CloudStore, r: Any) -> dict[str, Any]:
+    """One custom provider as the console sees it: the same shape as a built-in in
+    providers_out, plus the custom fields. The key is never in the answer."""
+    key_env = _custom_key_env(str(r["id"]))
+    has_key = bool(
+        store._q(
+            "SELECT 1 FROM company_keys WHERE company_id = ? AND key_env = ?",
+            (str(r["company_id"]), key_env),
+        )
+    )
+    return {
+        "id": str(r["id"]),
+        "name": str(r["name"]),
+        "kind": str(r["kind"]),
+        "key_env": key_env,
+        "key_page": "",
+        "steps": "",
+        "free": "",
+        "models": _custom_models(str(r["models_json"])),
+        "client": True,
+        "key_set": has_key,
+        "updated_at": int(r["updated_at"]),
+        "test": None
+        if r["tested_at"] is None
+        else {
+            "ok": bool(r["test_ok"]),
+            "at": int(r["tested_at"]),
+            "detail": str(r["test_detail"] or ""),
+        },
+        "retiring": None,
+        "custom": True,
+        "base_url": str(r["base_url"]),
+        "format": str(r["format"]),
+        "auth_mode": str(r["auth_mode"]),
+        "auth_header": r["auth_header"],
+        "created_at": int(r["created_at"]),
+    }
+
+
+def _custom_row(store: CloudStore, company_id: str, provider_id: str) -> Any:
+    store.company_row(company_id)
+    rows = store._q(
+        "SELECT * FROM custom_providers WHERE company_id = ? AND id = ?", (company_id, provider_id)
+    )
+    if not rows:
+        raise CloudError("not_found", "no such custom provider")
+    return rows[0]
+
+
+def custom_providers(store: CloudStore, company_id: str) -> list[dict[str, Any]]:
+    """Rows for Catalog.with_custom_providers: the endpoint is resolved from the stored
+    record (D-082), never from a request body."""
+    out = []
+    for r in store._q(
+        "SELECT * FROM custom_providers WHERE company_id = ? ORDER BY name COLLATE NOCASE",
+        (company_id,),
+    ):
+        key_env = _custom_key_env(str(r["id"]))
+        has_key = bool(
+            store._q(
+                "SELECT 1 FROM company_keys WHERE company_id = ? AND key_env = ?",
+                (company_id, key_env),
+            )
+        )
+        out.append(
+            {
+                "id": str(r["id"]),
+                "name": str(r["name"]),
+                "kind": str(r["kind"]),
+                "base_url": str(r["base_url"]),
+                "format": str(r["format"]),
+                "auth_mode": str(r["auth_mode"]),
+                "auth_header": r["auth_header"],
+                "models": _custom_models(str(r["models_json"])),
+                "has_key": has_key,
+            }
+        )
+    return out
+
+
+def custom_providers_out(store: CloudStore, company_id: str) -> dict[str, Any]:
+    store.company_row(company_id)
+    rows = store._q(
+        "SELECT * FROM custom_providers WHERE company_id = ? ORDER BY name COLLATE NOCASE",
+        (company_id,),
+    )
+    return {"providers": [_custom_out(store, r) for r in rows]}
+
+
+def custom_provider(store: CloudStore, company_id: str, provider_id: str) -> dict[str, Any]:
+    return _custom_out(store, _custom_row(store, company_id, provider_id))
+
+
+def company_catalog(store: CloudStore, seed: Seed, company_id: str) -> Catalog:
+    """The seed catalogue plus this company's custom providers (D-084), with the owner's
+    per-model overrides applied (D-081)."""
+    rows = custom_providers(store, company_id)
+    catalog = seed.catalog.with_custom_providers(rows) if rows else seed.catalog
+    overrides = model_overrides(store)
+    return catalog.with_model_overrides(overrides) if overrides else catalog
+
+
+def model_overrides(store: CloudStore) -> dict[tuple[str, str], bool]:
+    """{(provider_id, model): enabled} for seed models the owner toggled (D-081). A
+    missing row means enabled."""
+    return {
+        (str(r["provider_id"]), str(r["model"])): bool(r["enabled"])
+        for r in store._q("SELECT provider_id, model, enabled FROM platform_model_overrides")
+    }
+
+
+def platform_catalog(store: CloudStore, seed: Seed) -> Catalog:
+    """The seed catalogue with the owner's per-model overrides applied (D-081)."""
+    overrides = model_overrides(store)
+    return seed.catalog.with_model_overrides(overrides) if overrides else seed.catalog
+
+
+def set_model_override(
+    store: CloudStore,
+    seed: Seed,
+    owner: Principal,
+    provider_id: str,
+    model: str,
+    enabled: bool,
+    *,
+    ip: str,
+) -> None:
+    """A per-model Enabled toggle for a seed provider (OpenCode §5, D-081): immediate, no
+    Save. Only a model the seed catalogue lists can be toggled — a custom provider keeps
+    its own per-model flags in models_json, and a free-form (unlisted) model has nothing
+    to toggle. Disabling never swaps a stored route: the route stays and is flagged
+    unavailable until the owner re-picks."""
+    _owner(owner)
+    if not isinstance(enabled, bool):
+        raise CloudError("invalid", "enabled must be true or false")
+    provider = seed.catalog.providers.get(provider_id)
+    if provider is None or provider.custom:
+        raise CloudError("not_found", f"unknown provider {provider_id!r}")
+    model = str(model or "").strip()
+    if model not in [m.id for m in provider.models_detailed]:
+        raise CloudError("invalid", f"{provider.name} does not list {model!r}")
+    with store._tx() as db:
+        db.execute(
+            "INSERT INTO platform_model_overrides(provider_id, model, enabled, updated_at)"
+            " VALUES (?,?,?,?) ON CONFLICT(provider_id, model) DO UPDATE SET"
+            " enabled = excluded.enabled, updated_at = excluded.updated_at",
+            (provider_id, model, int(enabled), now_ms()),
+        )
+        store.audit(
+            db,
+            "owner.model.enabled" if enabled else "owner.model.disabled",
+            f"{provider_id}/{model}",
+            actor=owner,
+            ip=ip,
+        )
+
+
+def company_seed(store: CloudStore, seed: Seed, company_id: str) -> Seed:
+    """The seed a company's bundle is built from: the catalogue merged with that company's
+    custom providers. The bundle handler and needed_keys must use this seed, not the global
+    one, or a custom route fails route_for as 'unknown provider'."""
+    catalog = company_catalog(store, seed, company_id)
+    return dataclasses.replace(seed, catalog=catalog) if catalog is not seed.catalog else seed
+
+
+def custom_provider_key(store: CloudStore, company_id: str, provider_id: str) -> str | None:
+    """The custom provider's key, server-side only (a test); None when missing/unreadable."""
+    _custom_row(store, company_id, provider_id)
+    key_env = _custom_key_env(provider_id)
+    rows = store._q(
+        "SELECT ciphertext FROM company_keys WHERE company_id = ? AND key_env = ?",
+        (company_id, key_env),
+    )
+    if not rows:
+        return None
+    try:
+        return store._vault.decrypt(f"{company_id}:{key_env}", rows[0]["ciphertext"])
+    except VaultError:
+        return None
+
+
+def create_custom_provider(
+    store: CloudStore,
+    owner: Principal,
+    company_id: str,
+    *,
+    name: object,
+    kind: object = "llm",
+    base_url: object,
+    format: object = "chat-completions",
+    auth_mode: object = "bearer",
+    auth_header: object = None,
+    credential: object = None,
+    ip: str = "",
+) -> dict[str, Any]:
+    """OpenCode §4: Name + Base URL + Format + Auth mode (+ header name iff custom-header)
+    + Credential. No model fields — a custom provider starts with 0 models (D-081)."""
+    from sotto_worker.server.catalog import check_endpoint_url
+
+    _owner(owner)
+    store.company_row(company_id)
+    clean_name = str(name or "").strip()
+    if not 2 <= len(clean_name) <= 40:
+        raise CloudError("invalid", "the provider name is 2 to 40 characters")
+    if str(kind or "llm") not in CUSTOM_KINDS:
+        raise CloudError("invalid", "kind is llm or stt")
+    fmt, mode, header = _custom_check_format_auth(
+        str(format or "chat-completions"), str(auth_mode or "bearer"),
+        None if auth_header is None else str(auth_header),
+    )
+    credential = None if credential is None else str(credential)
+    try:
+        url = check_endpoint_url(str(base_url or ""), has_key=bool(credential))
+    except ValueError as e:
+        raise CloudError("invalid", str(e)) from None
+    base = _custom_slug(clean_name)
+    provider_id = base
+    n = 2
+    while store._q("SELECT 1 FROM custom_providers WHERE id = ?", (provider_id,)):
+        if n > 10:
+            raise CloudError("invalid", "a provider with that name already exists")
+        provider_id = f"{base}-{n}"
+        n += 1
+    t = now_ms()
+    with store._tx() as db:
+        db.execute(
+            "INSERT INTO custom_providers(id, company_id, name, kind, base_url, format,"
+            " auth_mode, auth_header, models_json, created_at, updated_at)"
+            " VALUES (?,?,?,?,?,?,?,?,'[]',?,?)",
+            (
+                provider_id,
+                company_id,
+                clean_name,
+                str(kind or "llm"),
+                url,
+                fmt,
+                mode,
+                header,
+                t,
+                t,
+            ),
+        )
+        if credential:
+            _custom_write_key(db, store, company_id, _custom_key_env(provider_id), credential)
+        store.audit(
+            db,
+            "owner.custom_provider.created",
+            provider_id,
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+    return custom_provider(store, company_id, provider_id)
+
+
+def update_custom_provider(
+    store: CloudStore,
+    owner: Principal,
+    company_id: str,
+    provider_id: str,
+    *,
+    name: object = None,
+    base_url: object = None,
+    format: object = None,
+    auth_mode: object = None,
+    auth_header: object = None,
+    credential: object = None,
+    ip: str = "",
+) -> dict[str, Any]:
+    """Edit a custom provider. The id never changes (OpenCode §2). An empty credential
+    keeps the saved key; a new one replaces it."""
+    from sotto_worker.server.catalog import check_endpoint_url
+
+    _owner(owner)
+    r = _custom_row(store, company_id, provider_id)
+    clean_name = str(name).strip() if name is not None else str(r["name"])
+    if not 2 <= len(clean_name) <= 40:
+        raise CloudError("invalid", "the provider name is 2 to 40 characters")
+    mode = str(auth_mode) if auth_mode is not None else str(r["auth_mode"])
+    header: str | None
+    if mode != "custom-header":
+        header = None  # leaving custom-header clears the stored header name
+    elif auth_header is not None:
+        header = str(auth_header)
+    else:
+        header = str(r["auth_header"]) if r["auth_header"] else None
+    fmt, mode, header = _custom_check_format_auth(
+        str(format) if format is not None else str(r["format"]),
+        mode,
+        header,
+    )
+    credential = None if credential is None else str(credential)
+    has_key = custom_provider_key(store, company_id, provider_id) is not None
+    try:
+        url = check_endpoint_url(
+            str(base_url) if base_url is not None else str(r["base_url"]),
+            has_key=bool(credential) or has_key,
+        )
+    except ValueError as e:
+        raise CloudError("invalid", str(e)) from None
+    with store._tx() as db:
+        db.execute(
+            "UPDATE custom_providers SET name = ?, base_url = ?, format = ?, auth_mode = ?,"
+            " auth_header = ?, updated_at = ? WHERE company_id = ? AND id = ?",
+            (clean_name, url, fmt, mode, header, now_ms(), company_id, provider_id),
+        )
+        if credential:
+            _custom_write_key(db, store, company_id, _custom_key_env(provider_id), credential)
+        store.audit(
+            db,
+            "owner.custom_provider.updated",
+            provider_id,
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+    return custom_provider(store, company_id, provider_id)
+
+
+def delete_custom_provider(
+    store: CloudStore, owner: Principal, company_id: str, provider_id: str, *, ip: str = ""
+) -> None:
+    """Removes the provider, its key, and every stage route naming it — a deleted provider
+    must not leave a stage pointing at an endpoint that no longer exists (D-081)."""
+    _owner(owner)
+    _custom_row(store, company_id, provider_id)
+    stages = [
+        str(r["stage"])
+        for r in store._q(
+            "SELECT stage FROM company_routes WHERE company_id = ? AND provider_id = ?",
+            (company_id, provider_id),
+        )
+    ]
+    with store._tx() as db:
+        db.execute(
+            "DELETE FROM company_routes WHERE company_id = ? AND provider_id = ?",
+            (company_id, provider_id),
+        )
+        db.execute(
+            "DELETE FROM company_keys WHERE company_id = ? AND key_env = ?",
+            (company_id, _custom_key_env(provider_id)),
+        )
+        db.execute(
+            "DELETE FROM custom_providers WHERE company_id = ? AND id = ?",
+            (company_id, provider_id),
+        )
+        store.audit(
+            db,
+            "owner.custom_provider.deleted",
+            provider_id + (f" (routes reset: {','.join(stages)})" if stages else ""),
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+
+
+def add_custom_model(
+    store: CloudStore,
+    owner: Principal,
+    company_id: str,
+    provider_id: str,
+    *,
+    model_id: object,
+    display_name: object = None,
+    ip: str = "",
+) -> dict[str, Any]:
+    """OpenCode §5 "+ Add Model": Display name + Model ID only. A new model starts enabled."""
+    _owner(owner)
+    r = _custom_row(store, company_id, provider_id)
+    mid = str(model_id or "").strip()
+    if not mid or len(mid) > 200 or any(c.isspace() for c in mid):
+        raise CloudError("invalid", "the model ID is a non-empty ID without spaces")
+    display = str(display_name or mid).strip()[:120] or mid
+    models = _custom_models(str(r["models_json"]))
+    if any(m["id"] == mid for m in models):
+        raise CloudError("invalid", "that model is already listed for this provider")
+    models.append({"id": mid, "display_name": display, "enabled": True})
+    with store._tx() as db:
+        db.execute(
+            "UPDATE custom_providers SET models_json = ?, updated_at = ?"
+            " WHERE company_id = ? AND id = ?",
+            (json.dumps(models), now_ms(), company_id, provider_id),
+        )
+        store.audit(
+            db,
+            "owner.custom_provider.model.added",
+            f"{provider_id}/{mid}",
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+    return custom_provider(store, company_id, provider_id)
+
+
+def update_custom_model(
+    store: CloudStore,
+    owner: Principal,
+    company_id: str,
+    provider_id: str,
+    model_id: str,
+    *,
+    enabled: object = None,
+    display_name: object = None,
+    ip: str = "",
+) -> dict[str, Any]:
+    """The Enabled toggle applies immediately — no Save step (OpenCode §5). The model ID
+    itself never changes."""
+    _owner(owner)
+    r = _custom_row(store, company_id, provider_id)
+    models = _custom_models(str(r["models_json"]))
+    target = next((m for m in models if m["id"] == model_id), None)
+    if target is None:
+        raise CloudError("not_found", "no such model for this provider")
+    if enabled is not None:
+        if not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be true or false")
+        target["enabled"] = enabled
+    if display_name is not None:
+        display = str(display_name).strip()[:120]
+        if not display:
+            raise CloudError("invalid", "the display name cannot be empty")
+        target["display_name"] = display
+    with store._tx() as db:
+        db.execute(
+            "UPDATE custom_providers SET models_json = ?, updated_at = ?"
+            " WHERE company_id = ? AND id = ?",
+            (json.dumps(models), now_ms(), company_id, provider_id),
+        )
+        store.audit(
+            db,
+            "owner.custom_provider.model.updated",
+            f"{provider_id}/{model_id}",
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+    return custom_provider(store, company_id, provider_id)
+
+
+def delete_custom_model(
+    store: CloudStore,
+    owner: Principal,
+    company_id: str,
+    provider_id: str,
+    model_id: str,
+    *,
+    ip: str = "",
+) -> dict[str, Any]:
+    """Removes a model from the list. A stage already using it keeps its route until the
+    owner re-picks (no silent fallback); the console flags it unavailable (D-081)."""
+    _owner(owner)
+    r = _custom_row(store, company_id, provider_id)
+    models = _custom_models(str(r["models_json"]))
+    if not any(m["id"] == model_id for m in models):
+        raise CloudError("not_found", "no such model for this provider")
+    models = [m for m in models if m["id"] != model_id]
+    with store._tx() as db:
+        db.execute(
+            "UPDATE custom_providers SET models_json = ?, updated_at = ?"
+            " WHERE company_id = ? AND id = ?",
+            (json.dumps(models), now_ms(), company_id, provider_id),
+        )
+        store.audit(
+            db,
+            "owner.custom_provider.model.deleted",
+            f"{provider_id}/{model_id}",
+            company_id=company_id,
+            actor=owner,
+            ip=ip,
+        )
+    return custom_provider(store, company_id, provider_id)
+
+
+def record_custom_models(
+    store: CloudStore, company_id: str, provider_id: str, ids: list[str]
+) -> dict[str, Any]:
+    """What "Test" discovered, merged in: new IDs join the list as enabled models (the
+    local server's record_endpoint_models). Nothing is ever removed by a test."""
+    r = _custom_row(store, company_id, provider_id)
+    models = _custom_models(str(r["models_json"]))
+    known = {m["id"] for m in models}
+    for mid in ids:
+        mid = str(mid).strip()
+        if mid and len(mid) <= 200 and not any(c.isspace() for c in mid) and mid not in known:
+            models.append({"id": mid, "display_name": mid, "enabled": True})
+            known.add(mid)
+    with store._tx() as db:
+        db.execute(
+            "UPDATE custom_providers SET models_json = ?, updated_at = ?"
+            " WHERE company_id = ? AND id = ?",
+            (json.dumps(models), now_ms(), company_id, provider_id),
+        )
+    return custom_provider(store, company_id, provider_id)
+
+
+def record_custom_test(
+    store: CloudStore, company_id: str, provider_id: str, ok: bool, detail: str
+) -> None:
+    _custom_row(store, company_id, provider_id)
+    with store._tx() as db:
+        db.execute(
+            "UPDATE custom_providers SET tested_at = ?, test_ok = ?, test_detail = ?"
+            " WHERE company_id = ? AND id = ?",
+            (now_ms(), int(ok), detail[:200], company_id, provider_id),
+        )
 
 
 # --- circuit breaking (ZC-06) --------------------------------------------------------------------

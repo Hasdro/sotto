@@ -53,7 +53,10 @@ def make_routes(
     data.ensure(store)
     attachments.ensure(store)
 
-    async def test_send(account: SmtpAccount | None, to: str) -> Response:
+    async def test_send(
+        account: SmtpAccount | None, to: str
+    ) -> tuple[bool, Response]:
+        """Sends the test email; returns (worked, response). The caller records the result."""
         if account is None:
             raise CloudError("invalid", "save the mailbox first")
         mail = Outgoing(
@@ -66,8 +69,10 @@ def make_routes(
         try:
             await sender(account, mail)
         except SmtpSendError as e:
-            return JSONResponse({"ok": False, "to": to, "error": str(e)}, headers=NO_STORE)
-        return JSONResponse({"ok": True, "to": to}, headers=NO_STORE)
+            return False, JSONResponse(
+                {"ok": False, "to": to, "error": str(e)}, headers=NO_STORE
+            )
+        return True, JSONResponse({"ok": True, "to": to}, headers=NO_STORE)
 
     # --- owner: platform mailbox -----------------------------------------------------------------
     async def o_get(_r: Request, _who: Principal) -> Response:
@@ -82,7 +87,9 @@ def make_routes(
         return JSONResponse(data.status(store, None)["platform"], headers=NO_STORE)
 
     async def o_test(_r: Request, who: Principal) -> Response:
-        return await test_send(data.account(store, data.PLATFORM), who.email)
+        ok, response = await test_send(data.account(store, data.PLATFORM), who.email)
+        data.record_test(store, data.PLATFORM, ok)
+        return response
 
     # --- owner: the org's mailbox and one mailbox per user (round 2, D-078) ----------------------
     # The client no longer configures mail: the vendor sets the org mailbox and each user's
@@ -101,7 +108,10 @@ def make_routes(
         return JSONResponse(data.status(store, cid), headers=NO_STORE)
 
     async def o_org_test(r: Request, who: Principal) -> Response:
-        return await test_send(data.account(store, r.path_params["id"]), who.email)
+        cid = r.path_params["id"]
+        ok, response = await test_send(data.account(store, cid), who.email)
+        data.record_test(store, cid, ok)
+        return response
 
     async def o_user_get(r: Request, _who: Principal) -> Response:
         cid, uid = r.path_params["id"], r.path_params["uid"]
@@ -119,7 +129,9 @@ def make_routes(
 
     async def o_user_test(r: Request, who: Principal) -> Response:
         cid, uid = r.path_params["id"], r.path_params["uid"]
-        return await test_send(data.user_account(store, cid, uid), who.email)
+        ok, response = await test_send(data.user_account(store, cid, uid), who.email)
+        data.record_test(store, f"user:{cid}:{uid}", ok)
+        return response
 
     # --- admin: the org's mailbox and formats ----------------------------------------------------
     @app_route

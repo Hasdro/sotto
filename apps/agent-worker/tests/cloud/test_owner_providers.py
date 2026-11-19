@@ -247,3 +247,356 @@ def test_owner_only(client: TestClient, sign_up: SignUp) -> None:
     ):
         r = client.request(method, path, json={}, headers={**H, **s["auth"]})
         assert r.status_code == 401, path
+
+
+# --- Round 3 (M-003, D-081/D-083/D-084): DeepSeek + per-company custom providers -----------
+
+CUSTOM_URL = "https://llm.acme.test/v1"
+CUSTOM_KEY = "sk-acme-" + "k" * 20
+CUSTOM_BAD_KEY = "sk-" + "x" * 20 + "bad"
+
+
+def _custom(c: TestClient, cid: str, **kw: Any) -> dict[str, Any]:
+    body = {"name": "Acme LLM", "base_url": CUSTOM_URL, "credential": CUSTOM_KEY}
+    body.update(kw)
+    r = c.post(f"/api/owner/companies/{cid}/providers", json=body, headers=H)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _company_routes(c: TestClient, cid: str) -> list[dict[str, Any]]:
+    r = c.get(f"/api/owner/companies/{cid}/routes", headers=H)
+    assert r.status_code == 200, r.text
+    return r.json()["stages"]
+
+
+def test_deepseek_selectable_with_host_bound_key(
+    owner: TestClient, store: CloudStore, sign_up: SignUp
+) -> None:
+    s = sign_up()
+    providers = owner.get("/api/owner/providers", headers=H).json()["providers"]
+    deepseek = next(p for p in providers if p["id"] == "deepseek")
+    assert deepseek["kind"] == "llm"
+    assert deepseek["key_env"] == "DEEPSEEK_API_KEY"
+    assert [m["id"] for m in deepseek["models"]] == ["deepseek-flash", "deepseek-v4-pro"]
+    assert all(m["enabled"] for m in deepseek["models"])
+    assert "deepseek-chat" not in [m["id"] for m in deepseek["models"]]  # retired 2026-07-24
+    owner.put("/api/owner/keys/DEEPSEEK_API_KEY", json={"value": "sk-ds-" + "d" * 20}, headers=H)
+    r = owner.put(
+        "/api/owner/routes/suggest",
+        json={"provider": "deepseek", "model": "deepseek-flash"},
+        headers=H,
+    )
+    assert r.status_code == 200, r.text
+    b = owner.get("/api/v1/bundle", headers=s["auth"]).json()
+    assert b["stages"]["suggest"]["base_url"] == "https://api.deepseek.com/v1"
+    assert b["stages"]["suggest"]["api_key_env"] == "DEEPSEEK_API_KEY"
+    assert b["stages"]["suggest"]["vendor"] == "deepseek"
+    # The key only goes to api.deepseek.com (D-016).
+    from sotto_worker.adapters.factory import check_key_host
+
+    check_key_host("DEEPSEEK_API_KEY", "https://api.deepseek.com/v1")
+    with pytest.raises(ValueError):
+        check_key_host("DEEPSEEK_API_KEY", "https://api.evil.test/v1")
+
+
+def test_custom_provider_crud_starts_with_zero_models(owner: TestClient, sign_up: SignUp) -> None:
+    s = sign_up()
+    cid = s["company"]["id"]
+    p = _custom(owner, cid)
+    assert p["id"] == "custom-acme-llm"
+    assert p["models"] == []  # OpenCode §4: a custom provider starts with 0 models
+    assert p["key_set"] is True  # same field name as a built-in provider
+    assert p["key_env"] == "ENDPOINT_CUSTOMACMELLM_KEY"
+    assert p["custom"] is True
+    assert CUSTOM_KEY not in owner.get(
+        f"/api/owner/companies/{cid}/providers", headers=H
+    ).text
+    # The company page list merges it in alongside the built-ins.
+    merged = owner.get(f"/api/owner/providers?company={cid}", headers=H).json()["providers"]
+    assert next(x for x in merged if x["id"] == "custom-acme-llm")["custom"] is True
+    assert next(x for x in merged if x["id"] == "groq")["custom"] is False
+    # Add a model, toggle it, rename the provider (the id never changes).
+    r = owner.post(
+        f"/api/owner/companies/{cid}/providers/{p['id']}/models",
+        json={"id": "acme-large", "display_name": "Acme Large"},
+        headers=H,
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["models"] == [
+        {"id": "acme-large", "display_name": "Acme Large", "enabled": True}
+    ]
+    r = owner.patch(
+        f"/api/owner/companies/{cid}/providers/{p['id']}/models/acme-large",
+        json={"enabled": False},
+        headers=H,
+    )
+    assert r.json()["models"][0]["enabled"] is False
+    r = owner.patch(
+        f"/api/owner/companies/{cid}/providers/{p['id']}",
+        json={"name": "Acme LLM 2"},
+        headers=H,
+    )
+    assert r.json()["id"] == "custom-acme-llm"
+    assert r.json()["name"] == "Acme LLM 2"
+    # Validation: an http endpoint with a key, an unknown format, a custom header
+    # without a name — and a duplicate model id.
+    for bad in (
+        {"name": "Bad", "base_url": "http://x.test/v1", "credential": CUSTOM_KEY},
+        {"name": "Bad", "base_url": CUSTOM_URL, "format": "smoke-signals"},
+        {"name": "Bad", "base_url": CUSTOM_URL, "auth_mode": "custom-header"},
+    ):
+        assert (
+            owner.post(f"/api/owner/companies/{cid}/providers", json=bad, headers=H).status_code
+            == 400
+        )
+    assert (
+        owner.post(
+            f"/api/owner/companies/{cid}/providers/{p['id']}/models",
+            json={"id": "acme-large"},
+            headers=H,
+        ).status_code
+        == 400
+    )
+    assert owner.get("/api/owner/companies/nope/providers", headers=H).status_code == 404
+
+
+def test_custom_route_needs_an_enabled_model_and_flags_it_when_disabled(
+    owner: TestClient, sign_up: SignUp
+) -> None:
+    s = sign_up()
+    cid = s["company"]["id"]
+    p = _custom(owner, cid)
+    pid = p["id"]
+    owner.post(
+        f"/api/owner/companies/{cid}/providers/{pid}/models",
+        json={"id": "acme-large"},
+        headers=H,
+    )
+    owner.post(
+        f"/api/owner/companies/{cid}/providers/{pid}/models",
+        json={"id": "acme-small"},
+        headers=H,
+    )
+    owner.patch(
+        f"/api/owner/companies/{cid}/providers/{pid}/models/acme-small",
+        json={"enabled": False},
+        headers=H,
+    )
+    # A disabled model cannot be set on a stage.
+    r = owner.put(
+        f"/api/owner/companies/{cid}/routes/suggest",
+        json={"provider": pid, "model": "acme-small"},
+        headers=H,
+    )
+    assert r.status_code == 400
+    assert r.json()["code"] == "model_unavailable"
+    # An enabled one can — and setting it turns BYO on (D-079).
+    r = owner.put(
+        f"/api/owner/companies/{cid}/routes/suggest",
+        json={"provider": pid, "model": "acme-large"},
+        headers=H,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["byo"] is True
+    stage = next(x for x in r.json()["stages"] if x["id"] == "suggest")
+    assert (stage["provider_id"], stage["model"], stage["source"]) == (
+        pid,
+        "acme-large",
+        "company",
+    )
+    assert stage["model_available"] is True
+    # Disabling the model in use flags the stage; it is never silently swapped.
+    owner.patch(
+        f"/api/owner/companies/{cid}/providers/{pid}/models/acme-large",
+        json={"enabled": False},
+        headers=H,
+    )
+    stage = next(x for x in _company_routes(owner, cid) if x["id"] == "suggest")
+    assert stage["model_available"] is False
+    assert stage["model"] == "acme-large"  # still the stored pair, flagged for a re-pick
+
+
+def test_custom_provider_test_records_discovered_models(
+    tested: TestClient, store: CloudStore, sign_up: SignUp
+) -> None:
+    o = _owner(tested, store)
+    s = sign_up()
+    cid = s["company"]["id"]
+    p = _custom(o, cid)
+    r = o.post(
+        f"/api/owner/companies/{cid}/providers/{p['id']}/test", json={}, headers=H
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["result"] == {
+        "ok": True,
+        "detail": "key works; 3 models available",
+        "discovered_models": ["m1", "m2", "m3"],
+    }
+    assert [m["id"] for m in r.json()["models"]] == ["m1", "m2", "m3"]
+    assert all(m["enabled"] for m in r.json()["models"])
+    # A rejected key fails the test and records nothing.
+    bad = _custom(o, cid, name="Bad Key", credential=CUSTOM_BAD_KEY)
+    r = o.post(
+        f"/api/owner/companies/{cid}/providers/{bad['id']}/test", json={}, headers=H
+    )
+    assert r.json()["result"]["ok"] is False
+    assert r.json()["models"] == []
+    assert r.json()["test"]["ok"] is False
+
+
+def test_custom_route_reaches_the_bundle_from_the_db(
+    owner: TestClient, store: CloudStore, sign_up: SignUp, seed: Seed
+) -> None:
+    from sotto_worker.cloud.bundle import build_bundle
+    from sotto_worker.cloud.store import Principal
+
+    s = sign_up()
+    cid = s["company"]["id"]
+    p = _custom(owner, cid)
+    pid = p["id"]
+    owner.post(
+        f"/api/owner/companies/{cid}/providers/{pid}/models",
+        json={"id": "acme-large"},
+        headers=H,
+    )
+    r = owner.put(
+        f"/api/owner/companies/{cid}/routes/suggest",
+        json={"provider": pid, "model": "acme-large"},
+        headers=H,
+    )
+    assert r.status_code == 200, r.text
+    # The global seed does not know the provider (D-082: the endpoint comes from the DB).
+    with pytest.raises(ValueError, match="unknown provider"):
+        seed.catalog.route_for("suggest", pid, "acme-large", seed.routing.stages["suggest"])
+    merged = platform.company_seed(store, seed, cid)
+    out = build_bundle(
+        merged,
+        company_name="Acme",
+        settings={},
+        routes=platform.effective_routes(store, cid),
+        own_playbook=[],
+        keys=None,
+    )
+    stage = out["stages"]["suggest"]
+    assert stage["base_url"] == CUSTOM_URL  # the DB endpoint, never from the request
+    assert stage["api_key_env"] == "ENDPOINT_CUSTOMACMELLM_KEY"
+    assert stage["vendor"] == pid
+    # The key itself travels only through the keys allow-list, while BYO is on.
+    row = store._q(
+        "SELECT id, email, name FROM users WHERE company_id = ?", (cid,)
+    )[0]
+    who = Principal(
+        user_id=str(row["id"]),
+        company_id=cid,
+        role="admin",
+        device_id=None,
+        email=str(row["email"]),
+        name=str(row["name"]),
+    )
+    assert store.keys_for_call(who, {"ENDPOINT_CUSTOMACMELLM_KEY"}) == {
+        "ENDPOINT_CUSTOMACMELLM_KEY": CUSTOM_KEY
+    }
+
+
+def test_delete_custom_provider_resets_its_routes(owner: TestClient, sign_up: SignUp) -> None:
+    s = sign_up()
+    cid = s["company"]["id"]
+    p = _custom(owner, cid)
+    pid = p["id"]
+    owner.post(
+        f"/api/owner/companies/{cid}/providers/{pid}/models",
+        json={"id": "acme-large"},
+        headers=H,
+    )
+    r = owner.put(
+        f"/api/owner/companies/{cid}/routes/suggest",
+        json={"provider": pid, "model": "acme-large"},
+        headers=H,
+    )
+    assert r.status_code == 200, r.text
+    r = owner.delete(f"/api/owner/companies/{cid}/providers/{pid}", headers=H)
+    assert r.status_code == 200, r.text
+    assert r.json()["providers"] == []
+    stage = next(x for x in _company_routes(owner, cid) if x["id"] == "suggest")
+    assert stage["source"] in ("platform", "default")  # no longer the company's override
+    assert stage["provider_id"] != pid
+    assert stage["model_available"] is True
+
+
+def test_providers_list_honours_company_id_param(owner: TestClient, sign_up: SignUp) -> None:
+    """Follow-up 1: the company page calls GET /api/owner/providers?company_id=<id>
+    (the ?company= spelling keeps working). A custom provider only appears with the
+    company named; without it the list is built-ins only."""
+    s = sign_up()
+    cid = s["company"]["id"]
+    _custom(owner, cid)
+    plain = owner.get("/api/owner/providers", headers=H).json()["providers"]
+    assert not any(p.get("custom") for p in plain)
+    for q in (f"?company_id={cid}", f"?company={cid}"):
+        with_company = owner.get(f"/api/owner/providers{q}", headers=H).json()["providers"]
+        assert any(p.get("custom") for p in with_company)
+    assert owner.get("/api/owner/providers?company_id=nope", headers=H).status_code == 404
+
+
+def test_seed_model_toggle_disables_it_everywhere(
+    owner: TestClient, sign_up: SignUp
+) -> None:
+    """Follow-up 2 (D-081): a per-model Enabled toggle for a seed provider, immediate,
+    no Save. A disabled model leaves providers_out, cannot be set on a stage, and a
+    stored route using it is flagged unavailable (never silently swapped). Re-enabling
+    clears the flag. The Groq ids carry a slash, so this also exercises {mid:path}."""
+    s = sign_up()
+    cid = s["company"]["id"]
+    pid, model, other = "groq", "openai/gpt-oss-20b", "openai/gpt-oss-120b"
+    r = owner.put(
+        f"/api/owner/companies/{cid}/routes/suggest",
+        json={"provider": pid, "model": model},
+        headers=H,
+    )
+    assert r.status_code == 200, r.text
+    r = owner.patch(
+        f"/api/owner/providers/{pid}/models/{model}", json={"enabled": False}, headers=H
+    )
+    assert r.status_code == 200, r.text
+    groq = next(p for p in r.json()["providers"] if p["id"] == pid)
+    assert next(m for m in groq["models"] if m["id"] == model)["enabled"] is False
+    assert next(m for m in groq["models"] if m["id"] == other)["enabled"] is True
+    r = owner.put(
+        "/api/owner/routes/suggest", json={"provider": pid, "model": model}, headers=H
+    )
+    assert r.status_code == 400 and r.json()["code"] == "model_unavailable"
+    stage = next(x for x in _company_routes(owner, cid) if x["id"] == "suggest")
+    assert stage["model_available"] is False
+    assert stage["model"] == model  # the stored pair is untouched
+    r = owner.patch(
+        f"/api/owner/providers/{pid}/models/{model}", json={"enabled": True}, headers=H
+    )
+    assert r.status_code == 200, r.text
+    groq = next(p for p in r.json()["providers"] if p["id"] == pid)
+    assert next(m for m in groq["models"] if m["id"] == model)["enabled"] is True
+    stage = next(x for x in _company_routes(owner, cid) if x["id"] == "suggest")
+    assert stage["model_available"] is True
+    assert (
+        owner.patch("/api/owner/providers/nope/models/x", json={"enabled": False}, headers=H)
+        .status_code
+        == 404
+    )
+    assert (
+        owner.patch(f"/api/owner/providers/{pid}/models/nope", json={"enabled": False}, headers=H)
+        .status_code
+        == 400
+    )
+    assert (
+        owner.patch(f"/api/owner/providers/{pid}/models/{model}", json={"enabled": "yes"}, headers=H)
+        .status_code
+        == 400
+    )
+    # A custom provider id is not a seed provider: the override table never touches it.
+    custom = _custom(owner, cid)
+    assert (
+        owner.patch(
+            f"/api/owner/providers/{custom['id']}/models/m1", json={"enabled": False}, headers=H
+        ).status_code
+        == 404
+    )

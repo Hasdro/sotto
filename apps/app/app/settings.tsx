@@ -28,6 +28,7 @@ import { useZoho } from "../features/crm/useZoho";
 import { ZohoConnect } from "../features/crm/ZohoConnect";
 import { Health } from "../features/settings/Health";
 import { Knowledge } from "../features/settings/Knowledge";
+import { BugReportSheet } from "../features/support/BugReport";
 import { APP_VERSION, cloudOrigin } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
 import { shortcutKeys } from "../lib/platform";
@@ -67,6 +68,14 @@ export default function SettingsScreen() {
   const admin = signedIn && cloud.me.user.role === "admin";
   const staff = role !== "agent"; // draft D-050 (backlog): agents have no playbook editor
   useScrollToHash();
+  const [bugOpen, setBugOpen] = useState(false);
+  // ⌘K "Report a bug" (CommandPalette) opens the form here.
+  useEffect(() => {
+    if (p.bugReportRequested) {
+      setBugOpen(true);
+      setPrefs({ bugReportRequested: false });
+    }
+  }, [p.bugReportRequested]);
   const toggle = (key: keyof Prefs) => (v: boolean) => setPrefs({ [key]: v });
   const recordPolicy = useCompanyDefaults().defaults.record_calls;
 
@@ -212,6 +221,19 @@ export default function SettingsScreen() {
               />
             </Row>
             {staff ? (
+              <Row label={t("settings.adminTour")} body={t("settings.adminTour.body")}>
+                <Button
+                  variant="secondary"
+                  label={t("settings.adminTour.play")}
+                  onPress={() => {
+                    setPrefs({ adminTourDone: false, adminTourRequested: true });
+                    router.push("/admin");
+                  }}
+                  testID="settings-admin-tour"
+                />
+              </Row>
+            ) : null}
+            {staff ? (
               <Row label={t("settings.playbookGuide")} body={t("settings.playbookGuide.body")}>
                 <Button
                   variant="secondary"
@@ -259,6 +281,15 @@ export default function SettingsScreen() {
         <Text variant="label" weight="medium" tone="primary">
           {t("brand.poweredBy")}
         </Text>
+        <Row label={t("settings.bugReport")} body={t("settings.bugReport.body")}>
+          <Button
+            variant="secondary"
+            label={t("settings.bugReport")}
+            onPress={() => setBugOpen(true)}
+            testID="settings-bug-report"
+          />
+        </Row>
+        <BugReportSheet open={bugOpen} onClose={() => setBugOpen(false)} />
       </Group>
     </ScrollView>
   );

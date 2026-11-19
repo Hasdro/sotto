@@ -97,9 +97,10 @@ def test_unknown_email_gets_the_same_200_and_no_mail(rc: TestClient, outbox: Out
     junk = rc.post("/api/v1/auth/reset/request", json={"email": "not an email"})
     assert known.status_code == unknown.status_code == junk.status_code == 200
     assert known.json() == unknown.json() == junk.json()
-    wait_for(lambda: len(outbox.sent) == 1)
+    # Signup now sends a welcome mail too (D-087), so count reset mails, not all mail.
+    wait_for(lambda: len([m for m in outbox.sent if "reset-password" in m.text]) == 1)
     time.sleep(0.05)
-    assert [m.to for m in outbox.sent] == ["admin@acme.test"]
+    assert [m.to for m in outbox.sent if "reset-password" in m.text] == ["admin@acme.test"]
 
 
 def test_token_is_stored_hashed_and_works_once(
@@ -240,6 +241,7 @@ def test_link_uses_the_configured_origin_not_the_host_header(
         headers={"host": "evil.example"},
     )
     assert r.status_code == 200
-    wait_for(lambda: len(outbox.sent) == 1)
-    assert f"{ORIGIN}/reset-password#token=" in outbox.sent[0].text
-    assert "evil.example" not in outbox.sent[0].text
+    wait_for(lambda: any("reset-password" in m.text for m in outbox.sent))
+    mail = next(m for m in outbox.sent if "reset-password" in m.text)
+    assert f"{ORIGIN}/reset-password#token=" in mail.text
+    assert "evil.example" not in mail.text

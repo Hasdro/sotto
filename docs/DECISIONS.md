@@ -616,3 +616,66 @@ Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058
 ## D-080 — Email formats are rich text (owner, 18 Nov 2026)
 2026-11-18 · owner (M-002, T-098)
 - **Decision:** email formats store Markdown. The editor has a bold/italic/list/link toolbar. The server renders `multipart/alternative` (plain-text part = markers stripped; HTML part = a sanitised Markdown subset) only when the filled text contains Markdown — plain formats send exactly as before (single text part). Subject stays plain text.
+
+## D-081 — Provider/model system, OpenCode model (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-103/T-104)
+- **Decision:** one provider entity per organisation: immutable id, name, kind (`llm` | `stt`), format (chat-completions default; anthropic-compatible / responses-api / google-generative-ai stored, only chat-completions wired), auth mode (bearer default; api-key-header / custom-header stored, only bearer wired), base URL, key env, and models — each `{id, display_name, enabled}`. Selection = connect provider → per-model Enabled toggles (immediate, no Save) → per-stage picker over connected providers' ENABLED models only, searchable, storing the `providerId/modelId` pair. A stored model later disabled or removed shows as unavailable and forces a re-pick — never a silent fallback.
+- **Built-in toggles:** seed models are toggled through a platform override table (`platform_model_overrides`) via `PATCH /api/owner/providers/{pid}/models/{mid:path}`; the override merges into `providers_out` and `company_catalog()`, and `route_for(require_enabled=True)` refuses a listed-but-disabled seed model with `model_unavailable` (400). Disabling never breaks a live call (the bundle path leaves `require_enabled` off).
+- **TTS:** carried as a modality in the data model only. No TTS adapter is built this round — a whole new adapter family, deferred.
+- **Scope:** per organisation, owner-console-only (D-078/D-079 unchanged). No custom STT and no non-chat-completions/Bearer format is runnable this round (guarded `invalid` in `check_route`).
+
+## D-082 — Endpoints are server-resolved, never client-supplied (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-103/T-104)
+- **Decision:** a route stores `(provider_id, model)` only. The server resolves the base URL from the provider record — the seed catalogue for built-ins (including DeepSeek), the `custom_providers` table for custom providers. The client never supplies an endpoint. This is what "endpoint detected by the DB" means.
+
+## D-083 — DeepSeek is a first-class provider (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-103)
+- **Decision:** DeepSeek joins the seed catalogue as an OpenAI-compatible provider (`openai_compatible` + `OpenAILLM`; no new adapter). Models are **`deepseek-flash`** and **`deepseek-v4-pro`** — `deepseek-chat` / `deepseek-reasoner` were retired 24 Jul 2026 and are NOT added. Base URL `https://api.deepseek.com/v1`; key `DEEPSEEK_API_KEY` host-bound in `adapters/factory.py` and `packages/engine/src/adapters/llm.ts`; prices in `prices.yaml` (flash $0.30 in / $1.20 out, cache-hit $0.006; v4-pro $1.32 in / $3.96 out, cache-hit $0.044, peak per MTok, off-peak half); tenant-auth mode `console_only` (DeepSeek has no sub-key/token API).
+- **Accepted gap:** a live benchmark run needs a real key + live calls — the benchmark guard only fires when a failed `model_benchmarks` row exists, so a DeepSeek route with no row passes unchecked. Mac/gate step.
+
+## D-084 — Custom providers live in the database (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-104)
+- **Decision:** per-company table `custom_providers` (id, company_id, name, base_url, format, auth_mode, auth_header, models_json, created/updated). The cloud Seed/catalog merges them like the local server's `with_endpoints`. `providers_out` includes them flagged `custom: true`; the bundle emits `base_url` for a custom stage route but never the key except through the existing keys allow-list; `vendor_of` returns the custom provider id.
+- **Key storage (corrected from the round contract):** the custom provider's key is vaulted as `ENDPOINT_<SLUG>_KEY` inside `company_keys`, not under a `custom-provider:{company_id}:{provider_id}` vault name — so `keys_for_call` delivers it through the existing allow-list, the same way the local server's `ENDPOINT_CUSTOMOLLAMA_KEY` works. (The contract's vault name would have stranded the key where no call path could reach it.)
+
+## D-085 — GitHub issues from the owner console (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-106)
+- **Decision:** no OAuth, no App install. The owner pastes a repo name (`owner/repo`) and a token into the owner console (Account view › GitHub issues); the token is encrypted in the vault (vault name `platform:github`, table `platform_github`), write-only, owner-only, and the status shows repo + saved date only. Issue creation is server-side via GitHub REST (`POST /repos/{repo}/issues`); the token is decrypted at call time, never logged, never sent to a client. Every page carries a small GitHub icon opening a dialog that auto-fills the exact page address (location.href + `#v-<name>` or `#sec-<key>`) and a screenshot upload, plus a description; submit creates the issue.
+- **Screenshot hosting:** the screenshot is uploaded to the server (raw image body, ≤5 MB, PNG/JPEG/WebP/GIF — no multipart, `python-multipart` is not a dependency) and served back at an unguessable public URL (`GET /api/v1/issue-attachments/{token}`, image only, no listing), embedded as a Markdown image in the issue body. The upload answers with an **absolute** URL; the bug-report store keeps the **relative** path only (external hosts are rejected) and the submit path re-prefixes it with the server origin before calling GitHub.
+
+## D-086 — Bug reports: client → vendor review → GitHub (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-107)
+- **Decision:** table `bug_reports` (id, company_id, user_id, title, description, page_url, screenshot_url, status `new|reviewed|submitted|closed`, github_issue_url, created_at, updated_at). In the app the user reports description only — no auto-capture — and may attach screenshots/files. The vendor reviews and edits the report in the owner console (Bug reports tab) and, if it passes review, submits it as a GitHub issue; the issue URL is stored on the report.
+- **Screenshot rule:** only server-hosted `/api/v1/issue-attachments/` URLs are accepted on a bug report; external URLs are rejected (400). The in-app review queue works only where the browser also holds an owner session on the same origin (local/demo); in production the owner console is the queue.
+
+## D-087 — Signup: new-company API, OTP, welcome email (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-108)
+- **Decision:** the CRM calls a new `POST /api/v1/companies` with a shared secret (second secret in `platform_settings`, header `X-AGN-Signup-Secret`, HMAC like the Forms pattern). Body: company name, admin name, admin email, Zoho plan code, trial. It creates the company + first admin (random password, `must_change=True`), sets defaults, records `companies.billing_plan_code` (new nullable column), and sends a welcome email + 6-digit OTP (10-min TTL, hash-only, max 5 attempts, single-use) in the background. Duplicate email → 200 no-op. Plan mapping: `SHIELD-STARTER` → starter, `SHIELD-GROWTH` → growth, `SHIELD-SCALE` → scale.
+- **OTP endpoints:** `POST /api/v1/auth/otp/request` (always `{ok: true}`, no enumeration) and `POST /api/v1/auth/otp/verify` → `{access, refresh, must_change}`. The OTP is minted synchronously in the handler (the background task under Starlette's test portal never resumed) — only the mail goes to the background.
+- **First password:** while `must_change` is set, `change_password` needs no current password — the OTP session is the proof. (The CRM admin's password is random and unknown, so the welcome email's "choose your own password" would otherwise be impossible.) Rotating a known password still needs the current one.
+- **Welcome email:** subject "Welcome to AGN Sales Shield" / AR "مرحباً بك في AGN Sales Shield", sent in the background after company creation (new-company API and self-signup), only when a platform sender is configured; failures are logged, never blocking.
+
+## D-088 — Internal plan presets match Zoho Billing (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-108/T-109)
+- **Decision:** starter seats **5 → 3** (to match the Zoho Starter product actually sold); add **growth (10 seats, 5,000 min)** and **scale (100 seats, 20,000 min)** — growth/scale numbers provisional, one-line change in `PLANS`. The company-page plan dropdown gains growth/scale. Existing companies are unaffected until their plan is re-saved.
+
+## D-089 — Platform sender is the DB platform SMTP scope (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-108)
+- **Decision:** the canonical platform sender path is DB `smtp:platform`. The legacy file-based `platform:email` stays as the fallback for sends, NOT removed. The mailbox `sales-shield@agncompu.com` must be provisioned and its credentials entered via the owner SMTP page (owner/Mac step); the code never hardcodes the address. The sender read model now carries `tested_at`/`test_ok`.
+
+## D-090 — Client billing reads a server plan table; Zoho webhook deferred (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-109)
+- **Decision:** the client billing screen reads plan/price from a server-side plan table (`GET /api/v1/billing`): Starter AED 990, Growth AED 2,490, Scale AED 4,990/mo; extra agent AED 149. "What they paid" = the current plan's monthly price + `paid_until` (no payment history exists in the repo). The Upgrade button shows only when `upgrade_url` is a real URL. Upgrade/subscribe links use placeholder hrefs `TODO-ZOHO-HOSTED-URL-STARTER`/`-GROWTH`/`-SCALE` until the real hosted page URLs are copied from Zoho Billing (Mac step, never guessed) — the page must not go live with them as-is.
+- **Deferred:** the Zoho Billing webhook receiver (owner handles payments on the Zoho end; the signup API is this round's scope).
+
+## D-091 — Take-a-tour, client and admin (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-110)
+- **Decision:** the client tour (existing 5-step `Tutorial.tsx` modal) auto-plays on first sign-in while `tutorialDone` is false; Skip and "Don't show this again" stay. Closing without the box hides it for this sign-in only — it plays again next sign-in. ⌘K `act-tutorial` now sets `tutorialRequested: true` (it previously only cleared `tutorialDone` and showed nothing). The admin tour is a separate 5-step overlay in the owner console (plain JS) with its own "do not show again" (`localStorage sotto.adminTourDone`) and a "Take the tour" button. Desktop inherits the client tour (same web build).
+
+## D-092 — Company page is tiles opening popups (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-105)
+- **Decision:** the company page shows tiles — Users, Devices (a SEPARATE tile, not inside Users), Integrations (Gallabox + delivery webhook + Email org/per-user SMTP + Zoho fields + platform sender status), Models, Plan, Calls, Audit, Danger zone. Each tile has a status dot + headline number; click opens a `<dialog>` with the existing section body (nodes moved in/out so existing renderers work verbatim). Every section gets an `id` (`#sec-*`). Status uses the owner.css `.pill`/`.status` system only (plus a new `.status.warn` amber); the unused `.ss-badge`/`.ss-dot` system in components.css is not used.
+
+## D-093 — Dropdowns: contained, searchable, labelled (owner, 19 Nov 2026)
+2026-11-19 · owner (M-003, T-105/T-110)
+- **Decision:** owner console — the Gallabox templates `<details>` picker is replaced with a contained scrollable searchable list; every select gets a visible associated label; empty model lists fall back to a free-text input. Client — a new `@sotto/ui` `Dropdown` (Sheet-based, searchable single-select) for lists over 4 options, first used by the FormatsEditor format picker (replacing the dynamic-length SegmentedControl); 2–3-option SegmentedControls stay.

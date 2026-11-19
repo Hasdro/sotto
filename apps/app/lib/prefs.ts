@@ -14,8 +14,13 @@ export type Prefs = {
   record: boolean;
   micId: string | null;
   tutorialDone: boolean;
-  /** ZC A15: the tutorial opens only when the person asks for it in Settings. */
+  /** D-091: the tutorial auto-plays on first sign-in; an explicit request opens it. */
   tutorialRequested: boolean;
+  /** D-091: the admin tour (Admin › People / Connections / Company), same rule as the tutorial. */
+  adminTourDone: boolean;
+  adminTourRequested: boolean;
+  /** Round 3: ⌘K "Report a bug" opens the bug form in Settings. */
+  bugReportRequested: boolean;
   playbookHelpSeen: boolean;
   /** UX-10: the audio check passed once on this device (set by the call screen's check). */
   audioChecked: boolean;
@@ -32,6 +37,9 @@ export const DEFAULT_PREFS: Prefs = {
   micId: null,
   tutorialDone: false,
   tutorialRequested: false,
+  adminTourDone: false,
+  adminTourRequested: false,
+  bugReportRequested: false,
   playbookHelpSeen: false,
   audioChecked: false,
   setupDone: [],

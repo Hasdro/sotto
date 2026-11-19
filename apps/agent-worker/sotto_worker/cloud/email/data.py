@@ -74,7 +74,33 @@ def ensure(store: CloudStore) -> None:
         return
     with store._lock:
         store._db.executescript(SCHEMA)
+        # Round 3 (D-089): when a mailbox was last tested, and whether it worked.
+        for table in ("smtp_accounts", "smtp_user_accounts"):
+            have = {r["name"] for r in store._db.execute(f"PRAGMA table_info({table})")}
+            for column, kind in (("tested_at", "INTEGER"), ("test_ok", "INTEGER")):
+                if column not in have:
+                    store._db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     _ready.add(store)
+
+
+def record_test(store: CloudStore, scope: str, ok: bool) -> None:
+    """Remembers a 'Send test email' result, so the sender read model can show it. The scope
+    is 'platform', a company id, or 'user:<company_id>:<user_id>'."""
+    ensure(store)
+    t = now_ms()
+    with store._lock:
+        if scope.startswith("user:"):
+            _tag, company_id, user_id = scope.split(":", 2)
+            store._db.execute(
+                "UPDATE smtp_user_accounts SET tested_at = ?, test_ok = ?"
+                " WHERE company_id = ? AND user_id = ?",
+                (t, int(ok), company_id, user_id),
+            )
+        else:
+            store._db.execute(
+                "UPDATE smtp_accounts SET tested_at = ?, test_ok = ? WHERE scope = ?",
+                (t, int(ok), scope),
+            )
 
 
 def _one_line(value: object, what: str, limit: int, *, required: bool = True) -> str:
@@ -319,6 +345,9 @@ def _public(row: sqlite3.Row | None) -> dict[str, Any]:
         "from_name": row["from_name"],
         "from_address": row["from_address"],
         "updated_at": int(row["updated_at"]),
+        # Round 3 (D-089): the last 'Send test email' result, None when never tested.
+        "tested_at": int(row["tested_at"]) if row["tested_at"] is not None else None,
+        "test_ok": bool(row["test_ok"]) if row["test_ok"] is not None else None,
     }
 
 

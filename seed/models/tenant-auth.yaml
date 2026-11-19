@@ -54,3 +54,8 @@ vendors:
     in_app: false
     detail: "No token or key-creation API found; project keys and limits in the console only (unverified)"
     source: https://console.groq.com/docs/api-keys
+  deepseek:
+    mode: console_only
+    in_app: false
+    detail: "No sub-key or token API found; keys and budgets managed by hand in the DeepSeek console"
+    source: https://api-docs.deepseek.com/

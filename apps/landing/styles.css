@@ -852,6 +852,41 @@ h3 {
 .file-btn:hover {
   background: var(--ss-bubble);
 }
+
+/* ---------- Pricing ---------- */
+.plans {
+  display: grid;
+  gap: var(--ss-space-lg);
+  max-inline-size: 1080px;
+  margin: 0 auto;
+}
+@media (min-width: 1024px) {
+  .plans {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: var(--ss-space-xl);
+  }
+}
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ss-space-md);
+}
+.plan-price {
+  margin: 0;
+  font-size: var(--ss-text-title);
+  font-weight: 600;
+}
+.plan-points {
+  margin: 0;
+  padding-inline-start: var(--ss-space-lg);
+  display: grid;
+  gap: var(--ss-space-xs);
+}
+.plan-sub {
+  margin-block-start: auto;
+  inline-size: 100%;
+  justify-content: center;
+}
 .first-open {
   border-block-start: 1px solid var(--ss-border);
 }
