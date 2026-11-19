@@ -24,7 +24,7 @@
       <header class="page-head"><h1 class="ss-page-title" id="cName">Company</h1><p class="ss-lead ss-muted" id="cMeta"></p></header>
       <div id="stats"></div>
       <p id="intRollup" class="note" role="status"></p>
-      <div id="tiles" class="tiles" role="list"></div>
+      <ul id="tiles" class="tiles"></ul>
       <!-- Round 3 (D-092): the sections live here, hidden, and open in the tile dialog.
            Each section keeps its own heading; the tile shows its status + headline number. -->
       <div id="sectionHome" hidden>
@@ -49,7 +49,7 @@
 </div>
 
 <dialog id="tileDialog" class="ss-sheet ss-glass" aria-labelledby="tileTitle">
-  <h2 id="tileTitle"></h2>
+  <h2 id="tileTitle">Details</h2>
   <div id="tileBody"></div>
   <div class="row"><button type="button" id="tileClose" class="primary">Done</button></div>
 </dialog>

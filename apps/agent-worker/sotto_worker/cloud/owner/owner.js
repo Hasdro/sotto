@@ -73,8 +73,7 @@ async function start() {
     } else {
       show("overview");
       // Round 3 (D-091): the admin tour plays once, unless dismissed.
-      if (localStorage.getItem("sotto.adminTourDone") !== "1")
-        setTimeout(openTour, 600);
+      if (localStorage.getItem("sotto.adminTourDone") !== "1") setTimeout(openTour, 600);
     }
   } catch {
     /* showLogin already ran */
@@ -871,7 +870,11 @@ function bugRow(r) {
       ? h(
           "span",
           { class: "meta" },
-          h("a", { href: r.screenshot_url, target: "_blank", rel: "noopener noreferrer" }, "screenshot"),
+          h(
+            "a",
+            { href: r.screenshot_url, target: "_blank", rel: "noopener noreferrer" },
+            "screenshot",
+          ),
         )
       : null,
   );
@@ -918,7 +921,11 @@ function bugRow(r) {
 }
 function editBugRow(r, titleCell, statusCell, actions) {
   const titleInput = h("input", { value: r.title, "aria-label": "Report title" });
-  const descInput = h("textarea", { rows: 3, "aria-label": "Report description" }, r.description || "");
+  const descInput = h(
+    "textarea",
+    { rows: 3, "aria-label": "Report description" },
+    r.description || "",
+  );
   const statusSel = h(
     "select",
     { "aria-label": "Report status" },

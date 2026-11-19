@@ -199,8 +199,8 @@ function renderTiles() {
     ...Object.keys(SECTIONS).map((key) => {
       const s = tileSummary(key);
       return h(
-        "div",
-        { role: "listitem" },
+        "li",
+        {},
         h(
           "button",
           {
@@ -234,7 +234,7 @@ function renderRollup() {
   }
   const done = parts.filter((s) => s === "ok" || s === "warn").length;
   $("#intRollup").textContent =
-    `Integrations: ${done} of 5 set up` + (known < 5 ? ` (${known} checked so far).` : ".");
+    `Integrations: ${done} of 5 set up${known < 5 ? ` (${known} checked so far).` : "."}`;
 }
 function openTile(key) {
   const sec = document.getElementById(SECTIONS[key].sec);
@@ -832,7 +832,8 @@ async function renderUserSmtp() {
           method: "POST",
           body: {},
         }),
-      remove: () => api(`/api/owner/companies/${id}/users/${pick.value}/smtp`, { method: "DELETE" }),
+      remove: () =>
+        api(`/api/owner/companies/${id}/users/${pick.value}/smtp`, { method: "DELETE" }),
     },
     "user",
   );
@@ -879,11 +880,7 @@ async function renderAgn() {
       "p",
       {},
       missing.length
-        ? h(
-            "span",
-            { class: "status warn" },
-            `${missing.length} of 4 fields missing on Deals`,
-          )
+        ? h("span", { class: "status warn" }, `${missing.length} of 4 fields missing on Deals`)
         : h("span", { class: "status ok" }, "All four fields exist on Deals"),
     ),
     h("p", { class: "note" }, `Checked through ${data.connected_as}'s Zoho connection.`),
@@ -1086,25 +1083,20 @@ async function loadDiscover(pickers, status) {
     const mapping = {};
     const paramRows = t.params.map((p) => {
       const pid = `tpl-${k.replace(/[^a-zA-Z0-9_-]/g, "-")}-${p.name.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      const sel = h(
-        "select",
-        { id: pid, "aria-label": `Source for ${p.name} in ${t.name}` },
-        [
-          h("option", { value: "" }, "agent types it"),
-          ...SOURCES.map((s) =>
-            h(
-              "option",
-              {
-                value: s,
-                selected:
-                  s ===
-                  ((cur && cur.params.find((x) => x.name === p.name)?.source) || p.source || ""),
-              },
-              s,
-            ),
+      const sel = h("select", { id: pid, "aria-label": `Source for ${p.name} in ${t.name}` }, [
+        h("option", { value: "" }, "agent types it"),
+        ...SOURCES.map((s) =>
+          h(
+            "option",
+            {
+              value: s,
+              selected:
+                s === (cur?.params.find((x) => x.name === p.name)?.source || p.source || ""),
+            },
+            s,
           ),
-        ],
-      );
+        ),
+      ]);
       mapping[p.name] = sel;
       return h("div", { class: "tpl-param" }, h("label", { for: pid }, p.name), sel);
     });
@@ -1355,7 +1347,10 @@ async function renderModels() {
             type: "button",
             class: "ghost",
             onclick: async () => {
-              if (!addId.value.trim()) return (msg.textContent = "Type a model id first.");
+              if (!addId.value.trim()) {
+                msg.textContent = "Type a model id first.";
+                return;
+              }
               try {
                 await api(`/api/owner/companies/${id}/providers/${cp.id}/models`, {
                   method: "POST",
@@ -1486,8 +1481,10 @@ async function renderModels() {
             type: "button",
             class: "primary",
             onclick: async () => {
-              if (!name.value.trim() || !base.value.trim())
-                return (msg.textContent = "Name and base URL are required.");
+              if (!name.value.trim() || !base.value.trim()) {
+                msg.textContent = "Name and base URL are required.";
+                return;
+              }
               try {
                 await api(`/api/owner/companies/${id}/providers`, {
                   method: "POST",
@@ -1645,9 +1642,7 @@ async function renderModels() {
           } else {
             // Not in the seed list (e.g. set as free text on the platform view): keep it
             // selectable so saving does not silently change the route.
-            modelCtl.append(
-              h("option", { value: current, selected: true }, `${current} (custom)`),
-            );
+            modelCtl.append(h("option", { value: current, selected: true }, `${current} (custom)`));
           }
         }
         for (const m of enabled)
@@ -1663,8 +1658,7 @@ async function renderModels() {
             for (const opt of modelCtl.options) {
               if (opt.value === "") continue;
               const hit =
-                opt.textContent.toLowerCase().includes(q) ||
-                opt.value.toLowerCase().includes(q);
+                opt.textContent.toLowerCase().includes(q) || opt.value.toLowerCase().includes(q);
               opt.hidden = !!q && !hit;
             }
           });
@@ -1716,7 +1710,6 @@ async function renderModels() {
       },
       "Back to platform",
     );
-    const curProv = providers.find((p) => p.id === stage.provider_id);
     // The server's model_available flag is the authority (D-081): the seed list is only
     // suggestions, so a model merely absent from it is not "unavailable".
     const isUnavailable = !!stage.model && stage.model_available === false;

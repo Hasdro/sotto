@@ -911,10 +911,13 @@ ul.plain li label {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--ss-space-md);
+  margin-block-start: 0;
   margin-block-end: var(--ss-space-lg);
+  padding-inline-start: 0;
+  list-style: none;
 }
-/* The listitem wrapper keeps the list semantics; display:contents keeps the tile the grid item. */
-.tiles > [role="listitem"] {
+/* The li wrapper keeps the list semantics; display:contents keeps the tile the grid item. */
+.tiles > li {
   display: contents;
 }
 .tile {
