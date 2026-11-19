@@ -24,6 +24,7 @@ jest.mock("../lib/useCloud", () => ({
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
   usePathname: () => "/home",
+  useRouter: () => ({ push: (h: string) => mockPush(h) }),
   router: { push: (h: string) => mockPush(h) },
 }));
 

@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 import { setPrefs, usePrefs } from "../lib/prefs";
-import { TutorialDialog, type Step } from "./Tutorial";
+import { type Step, TutorialDialog } from "./Tutorial";
 
 const ADMIN_STEPS: readonly Step[] = [
   { mascot: "idle", title: "tutorial.admin.1.title", body: "tutorial.admin.1.body" },
@@ -23,7 +23,9 @@ export function AdminTour() {
   const [dismissed, setDismissed] = useState(false);
   // The tour mounts with the admin layout, so leaving /admin unmounts it and the next visit
   // starts fresh: the tour plays again unless "Don't show this again" was ticked.
-  const show = !dismissed && (adminTourRequested || !adminTourDone);
+  // An explicit request (Settings › Advanced) replays it even after a close; auto-play
+  // still respects a close until the next visit to /admin.
+  const show = adminTourRequested || (!dismissed && !adminTourDone);
   if (!show) return null;
   return (
     <TutorialDialog

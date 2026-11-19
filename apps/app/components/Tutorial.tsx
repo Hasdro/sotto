@@ -42,9 +42,10 @@ const STEPS: readonly Step[] = [
 ];
 
 /** D-091: auto-play on first sign-in while the tour was never dismissed for good; an
- * explicit request (Settings, ⌘K) always opens it. `dismissed` keeps a close from
- * reopening the dialog in the same sign-in; signing out clears it, so the next sign-in
- * plays the tour again unless "Don't show this again" was ticked. */
+ * explicit request (Settings, ⌘K) always opens it, even after a close this sign-in.
+ * `dismissed` keeps a close from reopening the dialog in the same sign-in; signing out
+ * clears it, so the next sign-in plays the tour again unless "Don't show this again"
+ * was ticked. */
 export function Tutorial() {
   const cloud = useCloud();
   const { tutorialRequested, tutorialDone } = usePrefs();
@@ -53,7 +54,7 @@ export function Tutorial() {
   useEffect(() => {
     if (!signedIn) setDismissed(false);
   }, [signedIn]);
-  const show = signedIn && !dismissed && (tutorialRequested || !tutorialDone);
+  const show = signedIn && (tutorialRequested || (!dismissed && !tutorialDone));
   if (!show) return null;
   return (
     <TutorialDialog

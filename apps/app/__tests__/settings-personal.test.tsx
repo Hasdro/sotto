@@ -25,6 +25,7 @@ jest.mock("../features/crm/useZoho", () => ({
 jest.mock("../features/call/mic", () => ({ computerAudioAvailable: () => true }));
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
+  usePathname: () => "/settings",
   router: { push: (h: string) => mockPush(h) },
   useRouter: () => ({ push: (h: string) => mockPush(h) }),
 }));

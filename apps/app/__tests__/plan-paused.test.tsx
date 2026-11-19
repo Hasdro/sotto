@@ -7,7 +7,10 @@ import { LocaleProvider } from "../lib/locale";
 let mockPath = "/call";
 let mockRole = "agent";
 let mockCompany: Record<string, unknown> = {};
-jest.mock("expo-router", () => ({ usePathname: () => mockPath }));
+jest.mock("expo-router", () => ({
+  usePathname: () => mockPath,
+  useRouter: () => ({ push: jest.fn() }),
+}));
 jest.mock("../lib/role", () => ({ useRole: () => ({ role: mockRole }) }));
 jest.mock("../lib/useCloud", () => ({
   useCloud: () => ({

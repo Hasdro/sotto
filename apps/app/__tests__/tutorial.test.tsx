@@ -1,5 +1,5 @@
 /** The practice tutorial (T-038): it walks through the steps and can be turned off for good. */
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import { Tutorial, TutorialDialog } from "../components/Tutorial";
 import { prefs, setPrefs } from "../lib/prefs";
 
@@ -24,12 +24,16 @@ describe("tutorial", () => {
   });
 });
 
-describe("tutorial on request (ZC A15)", () => {
-  it("does not open by itself on the first run; Play the tutorial opens it", async () => {
+describe("tutorial on request (ZC A15, D-091)", () => {
+  it("opens by itself on the first run; closing hides it, a request replays it", async () => {
     await render(<Tutorial />);
-    expect(screen.queryByTestId("tutorial")).toBeNull();
-    await act(async () => setPrefs({ tutorialDone: false, tutorialRequested: true }));
     expect(screen.getByTestId("tutorial")).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId("tutorial-close"));
+    expect(screen.queryByTestId("tutorial")).toBeNull();
+    // An explicit request (Settings, ⌘K) reopens it in the same sign-in.
+    // The store update reaches the mounted dialog on the next tick, so wait for it.
+    setPrefs({ tutorialDone: false, tutorialRequested: true });
+    expect(await screen.findByTestId("tutorial")).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId("tutorial-close"));
     expect(prefs().tutorialRequested).toBe(false);
   });
