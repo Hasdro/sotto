@@ -82,7 +82,7 @@ function Setup({
   const waMessage: Message | null =
     wa.state !== "available"
       ? null
-      : whatsapp && whatsapp.recipient.phone
+      : whatsapp?.recipient.phone
         ? whatsapp
         : fallback && phone
           ? {

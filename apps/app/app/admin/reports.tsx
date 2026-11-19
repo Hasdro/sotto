@@ -13,8 +13,8 @@ import {
   layout,
   Panel,
   Screen,
-  space,
   Stack,
+  space,
   Table,
   Text,
   TextField,
@@ -23,12 +23,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { PageHeader } from "../../components/PageHeader";
 import {
+  type BugReport,
+  type BugReportStatus,
   listBugReports,
   OwnerApiError,
   submitBugReportToGithub,
   updateBugReport,
-  type BugReport,
-  type BugReportStatus,
 } from "../../features/support/api";
 import { useI18n } from "../../lib/locale";
 

@@ -142,8 +142,7 @@ const en = {
   "billing.seats": "Seats",
   "billing.minutes": "Minutes this month",
   "billing.upgrade": "Upgrade",
-  "billing.upgradeSoon":
-    "Online upgrade is being set up. Talk to us and we will switch your plan.",
+  "billing.upgradeSoon": "Online upgrade is being set up. Talk to us and we will switch your plan.",
   "billing.topPlan": "You are on the top plan.",
   "billing.loadFailed": "Could not load billing. Check the connection and try again.",
   "billing.retry": "Try again",
@@ -747,7 +746,8 @@ const en = {
   "settings.adminTour.body": "A five-step tour of People, Connections, AI and Company.",
   "settings.adminTour.play": "Play the admin tour",
   "settings.bugReport": "Report a bug",
-  "settings.bugReport.body": "Tell us what went wrong. We review your report before it goes anywhere.",
+  "settings.bugReport.body":
+    "Tell us what went wrong. We review your report before it goes anywhere.",
   "settings.playbookGuide": "Playbook guide",
   "settings.playbookGuide.body": "What the playbook is and how it feeds your cards.",
   "settings.open": "Open",

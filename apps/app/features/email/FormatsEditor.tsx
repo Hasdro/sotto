@@ -7,10 +7,10 @@
  */
 import { Button, Dropdown, Panel, Stack, Text, TextField } from "@sotto/ui";
 import { useEffect, useState } from "react";
+import { useI18n } from "../../lib/locale";
 import { type EmailFormat, emailFormats, saveFormats } from "./api";
 import { RichTextField } from "./RichTextField";
 import { useEmailText } from "./strings";
-import { useI18n } from "../../lib/locale";
 
 const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 

@@ -70,7 +70,12 @@ export function Dropdown<V extends string>({
           },
         ]}
       >
-        <Text variant="body" tone={chosen ? "default" : "muted"} numberOfLines={1} style={styles.grow}>
+        <Text
+          variant="body"
+          tone={chosen ? "default" : "muted"}
+          numberOfLines={1}
+          style={styles.grow}
+        >
           {chosen ? chosen.label : (placeholder ?? accessibilityLabel)}
         </Text>
         <Icon name="chevron" size={18} color={color.textMuted} />
@@ -103,10 +108,7 @@ export function Dropdown<V extends string>({
                 onChange(o.value);
               }}
               testID={testID ? `${testID}-${o.value}` : undefined}
-              style={[
-                styles.item,
-                selected ? { backgroundColor: color.surfaceSunken } : null,
-              ]}
+              style={[styles.item, selected ? { backgroundColor: color.surfaceSunken } : null]}
             >
               <Text variant="body" weight={selected ? "semibold" : "regular"} style={styles.grow}>
                 {o.label}

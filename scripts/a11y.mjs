@@ -193,6 +193,10 @@ try {
       ([locale]) => {
         localStorage.setItem("sotto.locale", locale);
         localStorage.setItem("sotto.viewRole", "admin");
+        // Round 3 (D-091): the owner-console tour auto-plays once per profile and
+        // its dialog would intercept the tab clicks below; the tour itself is
+        // checked visually in R-009, not by axe.
+        localStorage.setItem("sotto.adminTourDone", "1");
       },
       [mode.locale],
     );

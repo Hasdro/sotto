@@ -67,7 +67,7 @@ const MODES = [
         );
         const page = await ctx.newPage();
         const tag = `${width}-${scheme}-${locale}`;
-        await page.goto(base + "/admin/integrations", { waitUntil: "networkidle" });
+        await page.goto(`${base}/admin/integrations`, { waitUntil: "networkidle" });
         try {
           await page.getByTestId("smtp-settings").waitFor({ timeout: 8000 });
         } catch (e) {
@@ -89,7 +89,7 @@ const MODES = [
           .screenshot({ path: path.join(out, `integrations-gallabox-${tag}.png`) });
         await check(page, `/admin/integrations ${tag} (templates loaded)`);
         console.log("integrations", tag);
-        await page.goto(base + "/dev-messaging", { waitUntil: "networkidle" });
+        await page.goto(`${base}/dev-messaging`, { waitUntil: "networkidle" });
         await page.getByTestId("email-preview").waitFor();
         await page.waitForTimeout(800);
         await page.getByTestId("email-preview").click();
@@ -111,7 +111,7 @@ const MODES = [
   } finally {
     await browser.close();
     server.close();
-    require("node:fs").writeFileSync(path.join(out, "axe.txt"), report.join("\n") + "\n");
+    require("node:fs").writeFileSync(path.join(out, "axe.txt"), `${report.join("\n")}\n`);
     console.log(report.join("\n"));
   }
 })().catch((e) => {
