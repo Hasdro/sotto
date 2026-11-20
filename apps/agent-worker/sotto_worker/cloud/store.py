@@ -80,9 +80,9 @@ BILLING_PLANS: dict[str, dict[str, Any]] = {
     "custom": {"name": "Custom", "price_aed": None, "zoho_code": None, "upgrade_to": None},
 }
 ZOHO_HOSTED_URLS = {
-    "SHIELD-STARTER": "TODO-ZOHO-HOSTED-URL-STARTER",
-    "SHIELD-GROWTH": "TODO-ZOHO-HOSTED-URL-GROWTH",
-    "SHIELD-SCALE": "TODO-ZOHO-HOSTED-URL-SCALE",
+    "SHIELD-STARTER": "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-STARTER",
+    "SHIELD-GROWTH": "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-GROWTH",
+    "SHIELD-SCALE": "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-SCALE",
 }
 SETTINGS: dict[str, tuple[type, tuple[object, ...]]] = {
     "ai_answers_allowed": (bool, ()),
