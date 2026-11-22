@@ -633,7 +633,10 @@ def test_billing_trial_and_growth(
     assert body["price_aed"] == 0
     assert body["currency"] == "AED"
     assert body["billing_period"] == "monthly"
-    assert body["upgrade_url"] == "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-STARTER"
+    assert (
+        body["upgrade_url"]
+        == "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-STARTER"
+    )
     assert mclient.get("/api/v1/billing").status_code == 401
 
     assert crm_create(mclient, crm_secret, admin_email="growth@acme.test").status_code == 201
@@ -662,7 +665,10 @@ def test_billing_trial_and_growth(
     assert body["zoho_plan_code"] == "SHIELD-GROWTH"
     assert body["paid_until"]
     assert body["paid_until"] > now_ms()
-    assert body["upgrade_url"] == "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-SCALE"
+    assert (
+        body["upgrade_url"]
+        == "https://billing.zohosecure.com/subscribe/395005657ac33fead73baa455ab040b3b9de07abf9a0975fad482bf477cf719e/SHIELD-SCALE"
+    )
 
 
 # --- platform sender read model (D-089) -----------------------------------------------------------

@@ -9,3 +9,10 @@ auditConfig:
   ignoreGhsas:
     - GHSA-86w9-cpqp-85rv # node-forge via @expo/cli (T-001)
     - GHSA-vfj7-8cjw-p6xm # braces via metro-file-map (T-001)
+# @expo/cli 58.1.11 pins node-forge 1.4.0 and zod 3.25.76 (8 high audit advisories).
+# 58.1.21 drops zod and resolves node-forge ^1.4.0 to a patched version.
+# node-forge is pinned because pnpm keeps the locked 1.4.0 while the range is satisfied.
+# Remove when expo bumps its @expo/cli requirement.
+overrides:
+  '@expo/cli': 58.1.21
+  node-forge: 1.4.3
