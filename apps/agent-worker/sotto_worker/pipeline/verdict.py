@@ -162,6 +162,7 @@ class VerdictParser:
         self._why_buf = ""
         self._opener_resolved = False
         self._word_limit_hit = False
+        self._capitalize_next = False
 
     def _could_be_prefix(self, head: str) -> bool:
         return any(p.startswith(head) for p in PREFIXES) or NO_ANSWER.startswith(head)
@@ -182,6 +183,13 @@ class VerdictParser:
         if self._in_why:
             self._why_buf += incoming
             return ""
+        if self._capitalize_next and incoming:
+            trimmed = _LEADING_SEP.sub("", incoming)
+            if trimmed:
+                if trimmed[0].islower():
+                    trimmed = trimmed[0].upper() + trimmed[1:]
+                self._capitalize_next = False
+            incoming = trimmed
         self._body_buf += incoming
 
         # Detect WHY: marker inside accumulated body buffer
@@ -200,6 +208,8 @@ class VerdictParser:
             if stripped:
                 self.strips += 1
                 log_event("verdict", "banned_opener_stripped", call_id=self._call_id, count=1)
+                if not cleaned:
+                    self._capitalize_next = True
             self._body_buf = cleaned
             self._opener_resolved = True
 
