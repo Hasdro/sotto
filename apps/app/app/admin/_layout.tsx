@@ -65,6 +65,7 @@ export const ADMIN_GROUPS: readonly Group[] = [
     icon: "spark",
     pages: [
       { href: "/admin/instructions", label: "learning.tab", icon: "spark" },
+      { href: "/admin/memory", label: { en: "Style memory", ar: "ذاكرة الأسلوب" }, icon: "spark" },
       { href: "/playbook", label: "admin.playbookLink", icon: "playbook" },
     ],
   },

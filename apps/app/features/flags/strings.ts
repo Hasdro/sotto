@@ -59,6 +59,8 @@ const en: Text = {
     local_models_text: "Local text models",
     local_models_voice: "Local voice models",
     setup_guide: "Setup guide",
+    postcall_wizard: "Post-call wizard",
+    style_memory: "Style memory",
   },
   about: {
     call_review: "Scores and coaching after each call.",
@@ -86,6 +88,8 @@ const en: Text = {
     local_models_text: "Allows connecting a local OpenAI-compatible text model endpoint.",
     local_models_voice: "Allows connecting local speech-to-text and text-to-speech endpoints.",
     setup_guide: "Step-by-step setup checklist with live status and Test it checks.",
+    postcall_wizard: "Step-by-step wrap-up after every call (review, follow-ups, Zoho, feedback).",
+    style_memory: "Learns each agent's style preferences from post-call feedback.",
   },
   state: {
     available: "On",
@@ -144,6 +148,8 @@ const ar: Text = {
     local_models_text: "النماذج النصية المحلية",
     local_models_voice: "النماذج الصوتية المحلية",
     setup_guide: "دليل الإعداد",
+    postcall_wizard: "معالج ما بعد المكالمة",
+    style_memory: "ذاكرة الأسلوب",
   },
   about: {
     call_review: "تقييم وتوجيه بعد كل مكالمة.",
@@ -170,6 +176,8 @@ const ar: Text = {
     local_models_text: "يتيح الاتصال بنقطة نهاية نموذج نصي محلي متوافق مع OpenAI.",
     local_models_voice: "يتيح الاتصال بخوادم التحويل الصوتي المحلية.",
     setup_guide: "قائمة إعداد خطوة بخطوة مع الحالة المباشرة واختبار الإعداد.",
+    postcall_wizard: "ملخص متدرّج بعد كل مكالمة (مراجعة، متابعة، زوهو، تقييم).",
+    style_memory: "يتعلّم أسلوب كل موظف من ملاحظات ما بعد المكالمة.",
   },
   state: {
     available: "مفعّلة",
