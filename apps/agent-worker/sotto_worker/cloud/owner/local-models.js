@@ -1,5 +1,5 @@
 // Owner console JS controller for Local & Offline Models (L6, D-095, D-096)
-(function () {
+(() => {
   const listEl = document.getElementById("local-models-list");
   async function refresh() {
     if (!listEl) return;

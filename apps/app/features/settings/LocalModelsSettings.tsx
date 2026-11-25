@@ -4,7 +4,7 @@
  * live status ("Local model: connected ✓" / "Local model: unreachable"), and D-096 opt-in
  * warning when measured latency exceeds 1.5 s.
  */
-import { Badge, Button, radius, space, Stack, Text, TextField, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, Stack, space, Text, TextField, useTheme } from "@sotto/ui";
 import { useState } from "react";
 import { StyleSheet, Switch, View } from "react-native";
 
@@ -45,12 +45,21 @@ export function LocalModelsSettings({
   };
 
   return (
-    <View testID="local-models-settings" style={{ backgroundColor: color.surface, borderColor: color.border, borderWidth: 1, borderRadius: radius.lg, padding: space.lg }}>
+    <View
+      testID="local-models-settings"
+      style={{
+        backgroundColor: color.surface,
+        borderColor: color.border,
+        borderWidth: 1,
+        borderRadius: radius.lg,
+        padding: space.lg,
+      }}
+    >
       <Stack gap="md">
         <Text variant="title" weight="semibold">
           Local &amp; offline model
         </Text>
-        <Text variant="caption" color={color.muted}>
+        <Text variant="label" color={color.textMuted}>
           What this does: routes AI requests to your localhost or company-network model server.
           Recommended default: off unless enabled by your platform owner.
         </Text>
@@ -77,7 +86,7 @@ export function LocalModelsSettings({
           ) : null}
         </View>
         {status?.reachable && status.measuredMs !== null ? (
-          <Text variant="caption" color={color.muted} testID="local-model-bench">
+          <Text variant="label" color={color.textMuted} testID="local-model-bench">
             {status.meetsR1
               ? `Measured delay: ${status.measuredMs} ms — fast enough for live cards.`
               : `Measured delay: ${status.measuredMs} ms — slower than 1.5 s. Used for slow jobs only unless you opt in below.`}
@@ -89,9 +98,9 @@ export function LocalModelsSettings({
               <Text variant="label" weight="medium">
                 Use it for live cards anyway
               </Text>
-              <Text variant="caption" color={color.muted}>
-                A holding line appears at 1.5 s and the local card replaces it with a
-                &ldquo;local model – slower&rdquo; badge.
+              <Text variant="label" color={color.textMuted}>
+                A holding line appears at 1.5 s and the local card replaces it with a &ldquo;local
+                model – slower&rdquo; badge.
               </Text>
             </View>
             <Switch

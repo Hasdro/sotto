@@ -30,7 +30,12 @@ const { parseMicUsage } = require("./win-mic.cjs");
 const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
 const { registerDeepLinks, registerPrivacy } = require("./deep-link.cjs");
 const { registerNotify } = require("./notify.cjs");
-const { createDiskLogger, installProcessHandlers, attachWindowSafety, registerSafetyIpc } = require("./crash-safety.cjs");
+const {
+  createDiskLogger,
+  installProcessHandlers,
+  attachWindowSafety,
+  registerSafetyIpc,
+} = require("./crash-safety.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -276,7 +281,12 @@ function createWindow() {
     },
   });
   guard(win);
-  attachWindowSafety({ win, origin: ORIGIN, logger: safetyLogger, getRecoveryState: () => safetyIpc.getRecoveryState() });
+  attachWindowSafety({
+    win,
+    origin: ORIGIN,
+    logger: safetyLogger,
+    getRecoveryState: () => safetyIpc.getRecoveryState(),
+  });
   mainWin = win;
   win.webContents.on("did-finish-load", () => {
     if (pendingLink) win.webContents.send("deep-link", pendingLink);

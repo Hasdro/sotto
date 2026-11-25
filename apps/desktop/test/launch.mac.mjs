@@ -12,8 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const appBundle =
-  process.argv[2] ??
-  join(process.cwd(), "apps/desktop/release/mac-arm64/AGN Sales Shield.app");
+  process.argv[2] ?? join(process.cwd(), "apps/desktop/release/mac-arm64/AGN Sales Shield.app");
 const binary = join(appBundle, "Contents/MacOS/AGN Sales Shield");
 
 if (!existsSync(binary)) {
@@ -44,7 +43,9 @@ async function waitForSignIn() {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (res.ok) {
         const targets = await res.json();
-        const page = targets.find((t) => t.type === "page" && String(t.url || "").startsWith("app://sotto"));
+        const page = targets.find(
+          (t) => t.type === "page" && String(t.url || "").startsWith("app://sotto"),
+        );
         if (page) return page;
       }
     } catch {

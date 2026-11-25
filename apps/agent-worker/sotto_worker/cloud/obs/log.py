@@ -8,6 +8,7 @@ Contract (§3.4):
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
@@ -140,9 +141,7 @@ def redact_meta(meta: dict[str, MetaValue]) -> dict[str, MetaValue]:
     for k, v in meta.items():
         if _is_blocked_key(k):
             continue
-        if isinstance(v, bool):
-            out[k] = v
-        elif isinstance(v, int):
+        if isinstance(v, bool | int):
             out[k] = v
         elif isinstance(v, str):
             out[k] = redact_text(v)
@@ -206,8 +205,5 @@ def log_event(
     else:
         logger.info(payload)
     for sink in list(_sinks):
-        try:
+        with contextlib.suppress(Exception):
             sink(entry)
-        except Exception:
-            # Observability sinks must never crash the caller.
-            pass

@@ -28,7 +28,12 @@ def layers(**kw: set[str]) -> Layers:
         "connections": set(),
     }
     base.update(kw)
-    return Layers(**{k: frozenset(v) for k, v in base.items()})
+    return Layers(
+        killed=frozenset(base["killed"]),
+        not_entitled=frozenset(base["not_entitled"]),
+        org_off=frozenset(base["org_off"]),
+        connections=frozenset(base["connections"]),
+    )
 
 
 # --- the evaluator --------------------------------------------------------------------------------

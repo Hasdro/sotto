@@ -3,7 +3,7 @@
  * Steps in plain words with "what this does", recommended defaults, live status
  * ("Zoho: connected ✓", "WhatsApp / Email: not set up → Fix it"), and "Test it" checks.
  */
-import { Badge, Button, radius, space, Stack, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, Stack, space, Text, useTheme } from "@sotto/ui";
 import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -16,13 +16,18 @@ import { usePrefs } from "../../lib/prefs";
 import { useRole } from "../../lib/role";
 import { useCloud } from "../../lib/useCloud";
 
-export type StepTester = (step: SetupStep, facts: SetupFacts) => Promise<{ ok: boolean; detail: string }>;
+export type StepTester = (
+  step: SetupStep,
+  facts: SetupFacts,
+) => Promise<{ ok: boolean; detail: string }>;
 
 const defaultTester: StepTester = async (step, facts) => {
   const ok = step.done(facts);
   return {
     ok,
-    detail: ok ? `${step.statusLine(facts)} (verified)` : `${step.statusLine(facts)} — open Fix it to complete.`,
+    detail: ok
+      ? `${(step.statusLine ? step.statusLine(facts) : step.id)} (verified)`
+      : `${(step.statusLine ? step.statusLine(facts) : step.id)} — open Fix it to complete.`,
   };
 };
 
@@ -85,20 +90,30 @@ export function SetupGuideView({
         <Text variant="heading" weight="semibold" accessibilityRole="header">
           Setup guide ({facts.role})
         </Text>
-        <Text variant="body" color={color.muted}>
+        <Text variant="body" color={color.textMuted}>
           Check each step below, run a quick test, or jump straight to Fix it.
         </Text>
       </Stack>
 
       {steps.map((step) => {
         const ok = results[step.id]?.ok ?? step.done(facts);
-        const statusText = results[step.id]?.detail ?? step.statusLine(facts);
+        const statusText = results[step.id]?.detail ?? (step.statusLine ? step.statusLine(facts) : step.id);
         return (
-          <View key={step.id} testID={`setup-guide-step-${step.id}`} style={{ backgroundColor: color.surface, borderColor: color.border, borderWidth: 1, borderRadius: radius.lg, padding: space.lg }}>
+          <View
+            key={step.id}
+            testID={`setup-guide-step-${step.id}`}
+            style={{
+              backgroundColor: color.surface,
+              borderColor: color.border,
+              borderWidth: 1,
+              borderRadius: radius.lg,
+              padding: space.lg,
+            }}
+          >
             <Stack gap="sm">
               <View style={styles.headerRow}>
                 <Text variant="title" weight="semibold">
-                  {step.title}
+                  {step.title ?? step.id}
                 </Text>
                 <Badge
                   tone={ok ? "neutral" : "notice"}
@@ -106,9 +121,9 @@ export function SetupGuideView({
                   testID={`setup-guide-status-${step.id}`}
                 />
               </View>
-              <Text variant="body">{step.whatItDoes}</Text>
-              <Text variant="caption" color={color.muted}>
-                Recommended default: {step.recommendedDefault}
+              <Text variant="body">{step.whatItDoes ?? ''}</Text>
+              <Text variant="label" color={color.textMuted}>
+                Recommended default: {step.recommendedDefault ?? ''}
               </Text>
               <View style={styles.actions}>
                 <Button

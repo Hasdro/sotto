@@ -72,10 +72,7 @@ function FallbackCard({
     <View
       testID={`safe-boundary-${name}`}
       accessibilityRole="alert"
-      style={[
-        styles.card,
-        { backgroundColor: color.surface, borderColor: color.border },
-      ]}
+      style={[styles.card, { backgroundColor: color.surface, borderColor: color.border }]}
     >
       <Text variant="body" weight="medium" color={color.text}>
         {message}

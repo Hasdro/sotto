@@ -24,9 +24,24 @@ export const BUDGETS = Object.freeze({
 export function evaluateBudgets(metrics) {
   const checks = [
     { name: "cold_start_ms", actual: metrics.coldStartMs, limit: BUDGETS.coldStartMs, unit: "ms" },
-    { name: "screen_switch_ms", actual: metrics.screenSwitchMs, limit: BUDGETS.screenSwitchMs, unit: "ms" },
-    { name: "card_render_ms", actual: metrics.cardRenderMs, limit: BUDGETS.cardRenderMs, unit: "ms" },
-    { name: "call_memory_mb", actual: metrics.callMemoryMb, limit: BUDGETS.callMemoryMb, unit: "MB" },
+    {
+      name: "screen_switch_ms",
+      actual: metrics.screenSwitchMs,
+      limit: BUDGETS.screenSwitchMs,
+      unit: "ms",
+    },
+    {
+      name: "card_render_ms",
+      actual: metrics.cardRenderMs,
+      limit: BUDGETS.cardRenderMs,
+      unit: "ms",
+    },
+    {
+      name: "call_memory_mb",
+      actual: metrics.callMemoryMb,
+      limit: BUDGETS.callMemoryMb,
+      unit: "MB",
+    },
     { name: "call_cpu_pct", actual: metrics.callCpuPct, limit: BUDGETS.callCpuPct, unit: "%" },
   ].map((c) => ({
     ...c,
@@ -74,7 +89,8 @@ async function measurePackagedMacApp(binaryPath) {
       }
       await new Promise((r) => setTimeout(r, 50));
     }
-    if (readyMs === null) throw new Error("Timed out waiting for packaged app to reach ready state");
+    if (readyMs === null)
+      throw new Error("Timed out waiting for packaged app to reach ready state");
 
     // Sample RSS memory and CPU via `ps` on macOS
     const psOut = await new Promise((resolve) => {
@@ -114,7 +130,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (jsonOut) console.log(JSON.stringify(report, null, 2));
     else {
       for (const c of report.checks) {
-        console.log(`${c.pass ? "PASS" : "FAIL"} ${c.name}: ${c.actual} ${c.unit} (budget <= ${c.limit} ${c.unit})`);
+        console.log(
+          `${c.pass ? "PASS" : "FAIL"} ${c.name}: ${c.actual} ${c.unit} (budget <= ${c.limit} ${c.unit})`,
+        );
       }
     }
     process.exit(report.pass ? 0 : 1);

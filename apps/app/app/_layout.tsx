@@ -64,15 +64,21 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
     >
       <StatusBar style="auto" />
       {bare ? (
-        <SafeBoundary name="screen"><Slot /></SafeBoundary>
+        <SafeBoundary name="screen">
+          <Slot />
+        </SafeBoundary>
       ) : (
-        <SafeBoundary name="app.root"><AccessGate>
-          <CallSessionProvider>
-            <AppShell>
-              <SafeBoundary name="screen"><Slot /></SafeBoundary>
-            </AppShell>
-          </CallSessionProvider>
-        </AccessGate></SafeBoundary>
+        <SafeBoundary name="app.root">
+          <AccessGate>
+            <CallSessionProvider>
+              <AppShell>
+                <SafeBoundary name="screen">
+                  <Slot />
+                </SafeBoundary>
+              </AppShell>
+            </CallSessionProvider>
+          </AccessGate>
+        </SafeBoundary>
       )}
     </View>
   );

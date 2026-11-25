@@ -1,5 +1,5 @@
 // Owner console Setup Guide controller (L2)
-(function () {
+(() => {
   const root = document.getElementById("owner-setup-steps");
   async function load() {
     if (!root) return;

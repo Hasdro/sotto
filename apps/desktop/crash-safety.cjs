@@ -50,7 +50,12 @@ function redactRecord(obj) {
  * Redacted critical-error disk logger stored in `<userData>/logs/safety.log` (L5).
  * Enforces <= 5 MB total size and <= 7 days retention on write and prune.
  */
-function createDiskLogger({ userDataDir, now = () => Date.now(), maxBytes = MAX_LOG_BYTES, maxAgeMs = MAX_LOG_AGE_MS }) {
+function createDiskLogger({
+  userDataDir,
+  now = () => Date.now(),
+  maxBytes = MAX_LOG_BYTES,
+  maxAgeMs = MAX_LOG_AGE_MS,
+}) {
   const dir = path.join(userDataDir, "logs");
   const file = path.join(dir, "safety.log");
 
@@ -75,7 +80,7 @@ function createDiskLogger({ userDataDir, now = () => Date.now(), maxBytes = MAX_
     let joined = kept.join("\n") + (kept.length ? "\n" : "");
     while (Buffer.byteLength(joined, "utf8") > maxBytes && kept.length > 1) {
       kept.shift();
-      joined = kept.join("\n") + "\n";
+      joined = `${kept.join("\n")}\n`;
     }
     fs.writeFileSync(file, joined, "utf8");
   }
@@ -160,9 +165,10 @@ function attachWindowSafety({
     }
     reloadTimes.push(t);
     const saved = getRecoveryState();
-    const target = saved?.route && typeof saved.route === "string" && saved.route.startsWith("/")
-      ? `${origin}${saved.route}`
-      : `${origin}/`;
+    const target =
+      saved?.route && typeof saved.route === "string" && saved.route.startsWith("/")
+        ? `${origin}${saved.route}`
+        : `${origin}/`;
     setTimeout(() => {
       if (!win.isDestroyed()) void win.loadURL(target);
     }, reloadDelayMs);
@@ -177,15 +183,18 @@ function attachWindowSafety({
     if (details?.reason !== "clean-exit") scheduleReload(details?.reason || "crashed");
   });
 
-  win.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    if (isMainFrame === false || errorCode === -3) return; // ignore subframe or aborted loads
-    logger.writeCritical("electron.renderer", "did-fail-load", {
-      errorCode: Number(errorCode),
-      errorDescription: String(errorDescription || ""),
-      url: String(validatedURL || ""),
-    });
-    scheduleReload(`did-fail-load:${errorCode}`);
-  });
+  win.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame === false || errorCode === -3) return; // ignore subframe or aborted loads
+      logger.writeCritical("electron.renderer", "did-fail-load", {
+        errorCode: Number(errorCode),
+        errorDescription: String(errorDescription || ""),
+        url: String(validatedURL || ""),
+      });
+      scheduleReload(`did-fail-load:${errorCode}`);
+    },
+  );
 
   return { scheduleReload };
 }

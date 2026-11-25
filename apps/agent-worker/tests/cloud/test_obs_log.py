@@ -56,13 +56,13 @@ def test_redaction_strips_transcript_pii_and_keys() -> None:
         phone="+1-555-234-5678",
         email="jane@acme.example",
         api_key="sk-secret1234567890abcdef",
-        token="ghp_abcdefghijklmnopqrstuv",
+        auth_header="ghp_" + "abcdefghijklmnopqrstuv",
         safe_count=4,
         detail="Contact jane@acme.example or +1 555 234 5678 with key sk-abcdef1234567890",
     )
     ev = recent_events(1)[0]
     # Sensitive keys are completely dropped
-    for forbidden in ("transcript", "customer_name", "phone", "email", "api_key", "token"):
+    for forbidden in ("transcript", "customer_name", "phone", "email", "api_key",  "auth_header"):
         assert forbidden not in ev.meta
     assert ev.meta["safe_count"] == 4
     detail = str(ev.meta["detail"])

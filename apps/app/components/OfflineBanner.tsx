@@ -31,10 +31,7 @@ export function OfflineBanner({ offline, queued }: { offline: boolean; queued: n
     <View
       testID="offline-banner"
       accessibilityRole="alert"
-      style={[
-        styles.bar,
-        { backgroundColor: color.noticeFill, borderColor: color.noticeBorder },
-      ]}
+      style={[styles.bar, { backgroundColor: color.noticeFill, borderColor: color.noticeBorder }]}
     >
       <Text variant="label" weight="medium" color={color.noticeText} style={styles.text}>
         {text}

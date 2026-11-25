@@ -12,8 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const binary =
-  process.argv[2] ??
-  join(process.cwd(), "apps/desktop/release/win-unpacked/AGN Sales Shield.exe");
+  process.argv[2] ?? join(process.cwd(), "apps/desktop/release/win-unpacked/AGN Sales Shield.exe");
 
 if (!existsSync(binary)) {
   console.error(`launch.win: packaged Windows binary not found at ${binary}`);
@@ -44,7 +43,9 @@ async function waitForSignIn() {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (res.ok) {
         const targets = await res.json();
-        const page = targets.find((t) => t.type === "page" && String(t.url || "").startsWith("app://sotto"));
+        const page = targets.find(
+          (t) => t.type === "page" && String(t.url || "").startsWith("app://sotto"),
+        );
         if (page) return page;
       }
     } catch {

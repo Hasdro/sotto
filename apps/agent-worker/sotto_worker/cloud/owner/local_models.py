@@ -21,7 +21,8 @@ def overview(store: CloudStore) -> dict[str, Any]:
         dict(r)
         for r in store._q(
             "SELECT company_id, user_id, feature_id, enabled, updated_at"
-            " FROM obs_user_overrides WHERE feature_id IN ('local_models_text', 'local_models_voice')"
+            " FROM obs_user_overrides"
+            " WHERE feature_id IN ('local_models_text', 'local_models_voice')"
         )
     ]
     return {"companies": items, "user_overrides": overrides}
@@ -59,4 +60,10 @@ def update_user_override(
     ip: str = "127.0.0.1",
 ) -> dict[str, Any]:
     obs_store.set_user_override(store, owner, company_id, user_id, feature_id, enabled, ip=ip)
-    return {"ok": True, "company_id": company_id, "user_id": user_id, "feature_id": feature_id, "enabled": enabled}
+    return {
+        "ok": True,
+        "company_id": company_id,
+        "user_id": user_id,
+        "feature_id": feature_id,
+        "enabled": enabled,
+    }

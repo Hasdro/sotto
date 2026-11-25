@@ -1,5 +1,5 @@
 // Owner console UI controller for Call Logs to GitHub (L3, L4, D-095)
-(function () {
+(() => {
   const statusEl = document.getElementById("logs-repo-status");
   const listEl = document.getElementById("logs-company-list");
   const form = document.getElementById("logs-repo-form");

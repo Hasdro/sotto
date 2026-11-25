@@ -5,8 +5,8 @@ import {
   enqueue,
   flushOutbox,
   listOutbox,
-  outboxCount,
   type OutboxStorage,
+  outboxCount,
   registerOutboxSender,
 } from "../lib/outbox";
 import { PipelineSupervisor } from "../lib/pipelineSupervisor";

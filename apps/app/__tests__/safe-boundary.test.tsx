@@ -5,7 +5,8 @@ import { SafeBoundary } from "../components/SafeBoundary";
 import { clearEvents, recentEvents } from "../lib/obs";
 
 function Boom({ shouldThrow }: { shouldThrow: boolean | (() => boolean) }) {
-  if (typeof shouldThrow === "function" ? shouldThrow() : shouldThrow) throw new Error("panel exploded");
+  if (typeof shouldThrow === "function" ? shouldThrow() : shouldThrow)
+    throw new Error("panel exploded");
   return <RNText testID="recovered-panel">Recovered OK</RNText>;
 }
 
@@ -34,9 +35,9 @@ describe("SafeBoundary (S2)", () => {
     expect(screen.getByTestId("safe-boundary-wizard.step2")).toBeTruthy();
     expect(screen.getByText("This part didn't load")).toBeTruthy();
     const events = recentEvents(5);
-    expect(events.some((e) => e.stage === "ui.boundary" && e.meta.boundary === "wizard.step2")).toBe(
-      true,
-    );
+    expect(
+      events.some((e) => e.stage === "ui.boundary" && e.meta.boundary === "wizard.step2"),
+    ).toBe(true);
 
     fail = false;
     await fireEvent.press(screen.getByTestId("safe-boundary-retry-wizard.step2"));

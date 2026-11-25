@@ -225,11 +225,13 @@ export function CallView({
   // R10: Zoho lookup in the rail; the dev mock call uses canned records (never in a release).
   // Before the call: the full brief editor; live: a quiet read-only brief (UX-01).
   const crm = (
-    <SafeBoundary name="call.rail"><CrmRail
-      stage={idle ? "prepare" : "live"}
-      lookup={mock ? mockLookup : undefined}
-      perform={mock ? mockPerform : undefined}
-    /></SafeBoundary>
+    <SafeBoundary name="call.rail">
+      <CrmRail
+        stage={idle ? "prepare" : "live"}
+        lookup={mock ? mockLookup : undefined}
+        perform={mock ? mockPerform : undefined}
+      />
+    </SafeBoundary>
   );
   const notes = !practice && !idle ? <CallNotes /> : null;
   const controls = scripted ? (
@@ -301,13 +303,15 @@ export function CallView({
         />
       ) : null}
       {state.phase !== "idle" && state.phase !== "ended" ? (
-        <SafeBoundary name="call.cards"><CardStack
-          cards={cards}
-          wide={wide}
-          listening={live}
-          speaking={Boolean(state.partial)}
-          practice={practice}
-        /></SafeBoundary>
+        <SafeBoundary name="call.cards">
+          <CardStack
+            cards={cards}
+            wide={wide}
+            listening={live}
+            speaking={Boolean(state.partial)}
+            practice={practice}
+          />
+        </SafeBoundary>
       ) : null}
     </View>
   );

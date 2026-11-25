@@ -80,7 +80,9 @@ export function BugReportSheet({ open, onClose }: { open: boolean; onClose: () =
 
   const copyDiagnostics = () => {
     void buildDiagnosticsText({ route: pathname }).then(async (txt) => {
-      const nav = (globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } }).navigator;
+      const nav = (
+        globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } }
+      ).navigator;
       if (nav?.clipboard?.writeText) await nav.clipboard.writeText(txt).catch(() => {});
       setDiagCopied(true);
     });
@@ -173,6 +175,7 @@ export function BugReportSheet({ open, onClose }: { open: boolean; onClose: () =
             label={diagCopied ? "Diagnostics copied" : "Copy diagnostics"}
             onPress={copyDiagnostics}
             testID="copy-diagnostics-button"
+          />
         </Stack>
       )}
     </Sheet>

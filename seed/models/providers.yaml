@@ -121,6 +121,19 @@ providers:
     models: [scribe_v2_realtime]
     client: false  # the Python worker runs it; the apps (packages/engine) do not yet
 
+
+# Stages the panel lets the owner set, and which kind of vendor each takes.
+stages:
+  stt: {kind: stt, label: Speech-to-text (main)}
+  stt_backup: {kind: stt, label: Speech-to-text (backup)}
+  trigger: {kind: llm, label: Question detector}
+  suggest: {kind: llm, label: Live suggestion (main)}
+  suggest_backup: {kind: llm, label: Live suggestion (backup)}
+  summary: {kind: llm, label: After-call summary}
+  judge: {kind: llm, label: Quality judge}
+
+# Self-hosted / local model templates (L6, D-096; http://localhost or LAN allowed)
+local_providers:
   local_openai:
     name: Local OpenAI-compatible (Ollama / LM Studio)
     kind: llm
@@ -154,13 +167,3 @@ providers:
       provider: local_tts
       base_url: http://127.0.0.1:8001
     models: []
-
-# Stages the panel lets the owner set, and which kind of vendor each takes.
-stages:
-  stt: {kind: stt, label: Speech-to-text (main)}
-  stt_backup: {kind: stt, label: Speech-to-text (backup)}
-  trigger: {kind: llm, label: Question detector}
-  suggest: {kind: llm, label: Live suggestion (main)}
-  suggest_backup: {kind: llm, label: Live suggestion (backup)}
-  summary: {kind: llm, label: After-call summary}
-  judge: {kind: llm, label: Quality judge}

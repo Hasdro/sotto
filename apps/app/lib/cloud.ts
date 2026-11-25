@@ -10,9 +10,9 @@ import { type CallBundle, type PrimaryFailure, setFailureReporter } from "@sotto
 import { AppState, Platform } from "react-native";
 import type { FeatureMap } from "../features/flags/catalog";
 import { clearDeviceCalls, setDeviceOwner } from "./deviceHistory";
-import { clearRecordings } from "./recordings";
 import { logEvent } from "./obs";
 import { flushOutbox } from "./outbox";
+import { clearRecordings } from "./recordings";
 
 export type CloudUser = {
   id: string;
@@ -58,7 +58,9 @@ const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]);
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 let offlineFlag = false;
 const offlineListeners = new Set<() => void>();
-export function isOffline(): boolean { return offlineFlag; }
+export function isOffline(): boolean {
+  return offlineFlag;
+}
 export function subscribeOffline(fn: () => void): () => void {
   offlineListeners.add(fn);
   return () => offlineListeners.delete(fn);

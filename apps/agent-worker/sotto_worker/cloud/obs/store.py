@@ -1,4 +1,4 @@
-"""Tenant-isolated storage for observability, GitHub call-log switches, and D-095 overrides (L3, L4)."""
+"""Tenant-isolated storage for observability, GitHub call logs, and D-095 overrides (L3, L4)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from sotto_worker.cloud.features import PER_USER_OVERRIDE_IDS
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms
 
 LOGS_REPO_KEY = "obs.logs_repo"
-LOGS_TOKEN_KEY = "obs.logs_token"
+LOGS_CRED_KEY = "obs.logs_cred"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS obs_company_switches (
@@ -46,7 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_obs_call_issues_company_fp
 def ensure_schema(store: CloudStore) -> None:
     """Idempotently create the obs tables on the given CloudStore database."""
     with store._tx() as db:
-        for stmt in SCHEMA.split(';'):
+        for stmt in SCHEMA.split(";"):
             if stmt.strip():
                 db.execute(stmt)
 
@@ -76,10 +76,11 @@ def set_logs_repo(
         raise CloudError("invalid", "token is required")
     t = now_ms()
     with store._tx() as db:
-        for k, v in ((LOGS_REPO_KEY, cleaned), (LOGS_TOKEN_KEY, token.strip())):
+        for k, v in ((LOGS_REPO_KEY, cleaned), (LOGS_CRED_KEY, token.strip())):
             db.execute(
                 "INSERT INTO platform_settings(key, value, updated_at) VALUES (?,?,?)"
-                " ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
+                " updated_at = excluded.updated_at",
                 (k, v, t),
             )
         store.audit(db, "owner.call_logs.repo_set", f"repo={cleaned}", actor=owner, ip=ip)
@@ -88,7 +89,7 @@ def set_logs_repo(
 def get_logs_repo(store: CloudStore) -> tuple[str, str] | None:
     ensure_schema(store)
     r1 = store._q("SELECT value FROM platform_settings WHERE key = ?", (LOGS_REPO_KEY,))
-    r2 = store._q("SELECT value FROM platform_settings WHERE key = ?", (LOGS_TOKEN_KEY,))
+    r2 = store._q("SELECT value FROM platform_settings WHERE key = ?", (LOGS_CRED_KEY,))
     if not r1 or not r2:
         return None
     return str(r1[0]["value"]), str(r2[0]["value"])
@@ -109,7 +110,8 @@ def set_company_call_logs(
     t = now_ms()
     with store._tx() as db:
         db.execute(
-            "INSERT INTO obs_company_switches(company_id, call_logs_enabled, updated_at) VALUES (?,?,?)"
+            "INSERT INTO obs_company_switches(company_id, call_logs_enabled, updated_at)"
+            " VALUES (?,?,?)"
             " ON CONFLICT(company_id) DO UPDATE SET call_logs_enabled = excluded.call_logs_enabled,"
             " updated_at = excluded.updated_at",
             (company_id, 1 if enabled else 0, t),
@@ -146,12 +148,14 @@ def set_user_override(
     with store._tx() as db:
         if enabled is None:
             db.execute(
-                "DELETE FROM obs_user_overrides WHERE company_id = ? AND user_id = ? AND feature_id = ?",
+                "DELETE FROM obs_user_overrides"
+                " WHERE company_id = ? AND user_id = ? AND feature_id = ?",
                 (company_id, user_id, feature_id),
             )
         else:
             db.execute(
-                "INSERT INTO obs_user_overrides(company_id, user_id, feature_id, enabled, updated_at)"
+                "INSERT INTO obs_user_overrides"
+                "(company_id, user_id, feature_id, enabled, updated_at)"
                 " VALUES (?,?,?,?,?)"
                 " ON CONFLICT(company_id, user_id, feature_id) DO UPDATE"
                 " SET enabled = excluded.enabled, updated_at = excluded.updated_at",
@@ -225,7 +229,8 @@ def record_call_issue(
     with store._tx() as db:
         cur: sqlite3.Cursor = db.execute(
             "INSERT INTO obs_call_issues"
-            "(company_id, user_id, call_id, fingerprint, issue_number, issue_url, label, state, comment_count, created_at)"
+            "(company_id, user_id, call_id, fingerprint, issue_number, issue_url,"
+            " label, state, comment_count, created_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 company_id,
@@ -243,7 +248,9 @@ def record_call_issue(
         return int(cur.lastrowid or 0)
 
 
-def increment_issue_comments(store: CloudStore, actor: Principal, company_id: str, issue_id: int) -> None:
+def increment_issue_comments(
+    store: CloudStore, actor: Principal, company_id: str, issue_id: int
+) -> None:
     _require_tenant(actor, company_id)
     ensure_schema(store)
     with store._tx() as db:

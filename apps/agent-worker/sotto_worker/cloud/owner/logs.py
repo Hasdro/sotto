@@ -28,14 +28,20 @@ def logs_overview(store: CloudStore) -> dict[str, Any]:
         "repo": cfg[0] if cfg else None,
         "configured": cfg is not None,
         "companies": [
-            {"id": str(c["id"]), "name": str(c["name"]), "enabled": switches.get(str(c["id"]), False)}
+            {
+                "id": str(c["id"]),
+                "name": str(c["name"]),
+                "enabled": switches.get(str(c["id"]), False),
+            }
             for c in companies
         ],
         "user_overrides": overrides,
     }
 
 
-def save_repo(store: CloudStore, owner: Principal, repo: str, token: str, *, ip: str) -> dict[str, Any]:
+def save_repo(
+    store: CloudStore, owner: Principal, repo: str, token: str, *, ip: str
+) -> dict[str, Any]:
     obs_store.set_logs_repo(store, owner, repo, token, ip=ip)
     return {"ok": True, "repo": repo.strip()}
 

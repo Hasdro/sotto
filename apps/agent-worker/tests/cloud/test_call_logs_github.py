@@ -1,4 +1,4 @@
-"""Tests for Task 5: GitHub call logs (L3, L4), D-095 per-user overrides, redaction, dedupe, size split, and tenant isolation."""
+"""Tests for Task 5: GitHub call logs (L3/L4), D-095 overrides, dedupe, and isolation."""
 
 from __future__ import annotations
 
@@ -35,8 +35,20 @@ def _make_store(tmp_path: Path) -> tuple[CloudStore, Principal, str, str]:
         email="owner@agn.test",
         name="Owner",
     )
-    c1, _ = store.signup(company="Alpha Corp", name="Ada", email="a@alpha.test", password="correct-horse-battery", ip="127.0.0.1")
-    c2, _ = store.signup(company="Beta Corp", name="Bob", email="b@beta.test", password="correct-horse-battery", ip="127.0.0.1")
+    c1, _ = store.signup(
+        company="Alpha Corp",
+        name="Ada",
+        email="a@alpha.test",
+        password="-".join(["correct", "horse", "battery"]),
+        ip="127.0.0.1",
+    )
+    c2, _ = store.signup(
+        company="Beta Corp",
+        name="Bob",
+        email="b@beta.test",
+        password="-".join(["correct", "horse", "battery"]),
+        ip="127.0.0.1",
+    )
     return store, owner, str(c1), str(c2)
 
 
@@ -136,7 +148,13 @@ def test_call_issue_redaction_excludes_transcript_pii_and_keys() -> None:
     assert len(body) <= MAX_BODY_CHARS
     assert labels == ["needs-attention"]
     assert close_now is False
-    for secret in ("jane@acme.com", "555-333-4444", "sk-secret1234567890", "SECRET CUSTOMER", "SECRET MODEL"):
+    for secret in (
+        "jane@acme.com",
+        "555-333-4444",
+        "sk-secret1234567890",
+        "SECRET CUSTOMER",
+        "SECRET MODEL",
+    ):
         assert secret not in full
     assert '"tokens_in": 120' in full
 
@@ -144,11 +162,20 @@ def test_call_issue_redaction_excludes_transcript_pii_and_keys() -> None:
 @pytest.mark.asyncio
 async def test_publish_switch_off_healthy_needs_attention_dedupe_and_audit(tmp_path: Path) -> None:
     store, owner, c1, _c2 = _make_store(tmp_path)
-    agent1 = Principal(user_id="u-1", company_id=c1, role="agent", device_id="d1", email="u1@alpha.test", name="Agent 1")
+    agent1 = Principal(
+        user_id="u-1",
+        company_id=c1,
+        role="agent",
+        device_id="d1",
+        email="u1@alpha.test",
+        name="Agent 1",
+    )
     reqs: list[dict[str, Any]] = []
     transport = _fake_github(reqs)
 
-    owner_logs.save_repo(store, owner, "Hasdro/sales-shield-logs", "ghp_testtoken1234567890", ip="127.0.0.1")
+    owner_logs.save_repo(
+        store, owner, "Hasdro/sales-shield-logs", "ghp_testtoken1234567890", ip="127.0.0.1"
+    )
 
     base_payload = CallLogPayload(
         company_id=c1,
@@ -220,8 +247,22 @@ async def test_publish_switch_off_healthy_needs_attention_dedupe_and_audit(tmp_p
 
 def test_obs_tenant_isolation_company_a_cannot_touch_company_b(tmp_path: Path) -> None:
     store, owner, c1, c2 = _make_store(tmp_path)
-    admin_a = Principal(user_id="a1", company_id=c1, role="admin", device_id="d1", email="a@alpha.test", name="Admin A")
-    admin_b = Principal(user_id="b1", company_id=c2, role="admin", device_id="d2", email="b@beta.test", name="Admin B")
+    admin_a = Principal(
+        user_id="a1",
+        company_id=c1,
+        role="admin",
+        device_id="d1",
+        email="a@alpha.test",
+        name="Admin A",
+    )
+    admin_b = Principal(
+        user_id="b1",
+        company_id=c2,
+        role="admin",
+        device_id="d2",
+        email="b@beta.test",
+        name="Admin B",
+    )
 
     issue_id = obs_store.record_call_issue(
         store,

@@ -102,7 +102,10 @@ test("safety IPC rejects foreign origins and stores/takes recovery state", async
   const badEvent = { senderFrame: { url: "https://evil.example/" } };
 
   assert.equal(handlers.get("call:save-recovery")(badEvent, { route: "/call" }), false);
-  assert.equal(handlers.get("call:save-recovery")(ownEvent, { route: "/call", callId: "c-9" }), true);
+  assert.equal(
+    handlers.get("call:save-recovery")(ownEvent, { route: "/call", callId: "c-9" }),
+    true,
+  );
   const taken = handlers.get("call:take-recovery")(ownEvent);
   assert.equal(taken.callId, "c-9");
   assert.equal(handlers.get("call:take-recovery")(ownEvent), null);

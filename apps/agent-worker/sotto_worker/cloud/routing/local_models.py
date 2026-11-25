@@ -4,7 +4,7 @@
 - Company owner setting `allow_cloud_backup` (default on) controls mid-call failure fallback.
 - User enters a URL (localhost or company LAN), runs Test (reachability + short benchmark).
 - Meets R1 (<= 1500 ms) -> may drive live cards; else slow jobs only unless opted in (D-096:
-  holding line at 1.5 s, local card replaces it with "local model – slower" badge, measured but
+  holding line at 1.5 s, local card replaces it with "local model \u2013 slower" badge, measured but
   excluded from the p95 alarm).
 - Every fallback is logged via cloud/obs/log.py (metadata only).
 """
@@ -24,7 +24,7 @@ from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms
 
 EndpointKind = Literal["text", "stt", "tts"]
 R1_LIMIT_MS = 1500
-SLOW_BADGE = "local model – slower"
+SLOW_BADGE = "local model \u2013 slower"
 HOLDING_LINE_MS = 1500
 
 SCHEMA = """
@@ -147,10 +147,8 @@ def get_company_policy(store: CloudStore, company_id: str) -> dict[str, Any]:
     }
 
 
-def is_local_enabled(
-    store: CloudStore, company_id: str, user_id: str, kind: EndpointKind
-) -> bool:
-    """Effective L6 switch: per-user owner override (D-095) wins, else company policy (default off)."""
+def is_local_enabled(store: CloudStore, company_id: str, user_id: str, kind: EndpointKind) -> bool:
+    """Effective L6 switch: user override (D-095) wins, else company policy (default off)."""
     ensure_schema(store)
     feature_id = "local_models_text" if kind == "text" else "local_models_voice"
     overrides = obs_store.user_overrides_for(store, company_id, user_id)
@@ -169,7 +167,7 @@ class BenchmarkResult:
     detail: str
 
 
-async def test_local_endpoint(
+async def probe_local_endpoint(
     base_url: str,
     kind: EndpointKind,
     *,
@@ -216,7 +214,10 @@ async def test_local_endpoint(
         detail=(
             f"connected ✓ ({measured_ms} ms — meets 1.5 s live budget)"
             if meets
-            else f"connected ✓ ({measured_ms} ms — slower than 1.5 s; slow jobs only unless opted in)"
+            else (
+                f"connected ✓ ({measured_ms} ms — slower than 1.5 s;"
+                " slow jobs only unless opted in)"
+            )
         ),
     )
 
@@ -242,7 +243,8 @@ def save_user_endpoint(
     with store._tx() as db:
         db.execute(
             "INSERT INTO local_model_user_endpoints"
-            "(company_id, user_id, kind, base_url, status, measured_ms, meets_r1, live_opt_in, updated_at)"
+            "(company_id, user_id, kind, base_url, status, measured_ms,"
+            " meets_r1, live_opt_in, updated_at)"
             " VALUES (?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(company_id, user_id, kind) DO UPDATE SET"
             " base_url = excluded.base_url, status = excluded.status,"
@@ -279,7 +281,8 @@ def get_user_endpoints(
     _require_tenant(actor, company_id)
     ensure_schema(store)
     rows = store._q(
-        "SELECT * FROM local_model_user_endpoints WHERE company_id = ? AND user_id = ? ORDER BY kind",
+        "SELECT * FROM local_model_user_endpoints"
+        " WHERE company_id = ? AND user_id = ? ORDER BY kind",
         (company_id, user_id),
     )
     return [dict(r) for r in rows]
@@ -292,7 +295,8 @@ def delete_user_endpoint(
     ensure_schema(store)
     with store._tx() as db:
         cur = db.execute(
-            "DELETE FROM local_model_user_endpoints WHERE company_id = ? AND user_id = ? AND kind = ?",
+            "DELETE FROM local_model_user_endpoints"
+            " WHERE company_id = ? AND user_id = ? AND kind = ?",
             (company_id, user_id, kind),
         )
         return cur.rowcount > 0
@@ -353,7 +357,7 @@ def resolve_mid_call_failure(
     kind: EndpointKind = "text",
     reason: str = "endpoint_error",
 ) -> dict[str, Any]:
-    """Handle mid-call local-model failure: cloud backup if allowed, else holding line. Always logged."""
+    """Handle mid-call local failure: cloud backup if allowed, else holding line."""
     policy = get_company_policy(store, company_id)
     allow_backup = bool(policy["allow_cloud_backup"])
     if allow_backup:
@@ -377,3 +381,6 @@ def resolve_mid_call_failure(
         allow_cloud_backup=False,
     )
     return {"action": "holding_line", "holding_line": True, "logged": True}
+
+
+test_local_endpoint = probe_local_endpoint

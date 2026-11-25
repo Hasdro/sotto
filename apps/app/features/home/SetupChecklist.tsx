@@ -90,7 +90,12 @@ function Checklist({ facts }: { facts: SetupFacts }) {
           {t("setup.progress", { done: total - pending.length, total })}
         </Text>
         {facts.role !== "agent" ? (
-          <Button variant="ghost" label="Setup guide" onPress={() => router.push("/admin/setup")} testID="setup-open-guide" />
+          <Button
+            variant="ghost"
+            label="Setup guide"
+            onPress={() => router.push("/admin/setup")}
+            testID="setup-open-guide"
+          />
         ) : null}
       </View>
       {pending.map((step) => (

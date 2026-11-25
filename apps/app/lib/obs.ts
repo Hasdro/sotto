@@ -115,7 +115,9 @@ export function redactText(value: string): string {
   return cleaned;
 }
 
-export function redactMeta(meta: Record<string, ObsMetaValue>): Record<string, string | number | boolean> {
+export function redactMeta(
+  meta: Record<string, ObsMetaValue>,
+): Record<string, string | number | boolean> {
   const out: Record<string, string | number | boolean> = {};
   for (const [k, v] of Object.entries(meta)) {
     if (k === "callId" || k === "level" || k === "durationMs") continue;
@@ -219,7 +221,9 @@ export function readSafetyLog(now = Date.now()): ObsEvent[] {
 }
 
 /** Redacted diagnostics string for Help → "Copy diagnostics" (L5). */
-export async function buildDiagnosticsText(extra?: Record<string, string | number | boolean>): Promise<string> {
+export async function buildDiagnosticsText(
+  extra?: Record<string, string | number | boolean>,
+): Promise<string> {
   const bridge = desktopObs();
   let desktopLog = "";
   if (bridge?.readDiagnostics) {

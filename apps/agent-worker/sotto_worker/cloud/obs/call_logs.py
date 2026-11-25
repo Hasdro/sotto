@@ -142,17 +142,27 @@ def format_call_issue(payload: CallLogPayload) -> tuple[str, str, list[str], lis
         f"## Call Log `{redact_text(payload.call_id)}`",
         f"- **Company:** `{redact_text(payload.company_id)}`",
         f"- **User:** `{redact_text(payload.user_id)}`",
-        f"- **Platform / OS:** `{redact_text(payload.platform)}` / `{redact_text(payload.os_version)}`",
-        f"- **App version / Device:** `{redact_text(payload.app_version)}` / `{redact_text(payload.device)}`",
+        f"- **Platform / OS:** `{redact_text(payload.platform)}`"
+        f" / `{redact_text(payload.os_version)}`",
+        f"- **App version / Device:** `{redact_text(payload.app_version)}`"
+        f" / `{redact_text(payload.device)}`",
         f"- **Status:** `{label}` (p95={p95} ms, errors={len(payload.errors)})",
         f"- **Timings (ms):** `{json.dumps(payload.timings, sort_keys=True)}`",
-        f"- **Connections:** `{json.dumps({k: redact_text(str(v)) for k, v in payload.connections.items()}, sort_keys=True)}`",
+        "- **Connections:** `"
+        + json.dumps(
+            {k: redact_text(str(v)) for k, v in payload.connections.items()}, sort_keys=True
+        )
+        + "`",
     ]
     detail_lines: list[str] = []
     for err in payload.errors:
         detail_lines.append("ERROR " + json.dumps(_sanitize_error(err), sort_keys=True))
     for auto in payload.automations:
-        safe_auto = {k: redact_text(str(v)) for k, v in auto.items() if k not in ("body", "text", "email", "phone")}
+        safe_auto = {
+            k: redact_text(str(v))
+            for k, v in auto.items()
+            if k not in ("body", "text", "email", "phone")
+        }
         detail_lines.append("AUTOMATION " + json.dumps(safe_auto, sort_keys=True))
     for trace in payload.model_traces:
         detail_lines.append("MODEL " + json.dumps(_sanitize_model_trace(trace), sort_keys=True))
@@ -220,7 +230,7 @@ async def publish_background_failure(
     stack: str = "",
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict[str, Any]:
-    """Publish or deduplicate a background-failure issue (schedules, syncs, webhooks) by fingerprint."""
+    """Publish or deduplicate a background-failure issue by error fingerprint."""
     if not obs_store.call_logs_enabled_for(store, company_id, user_id):
         return {"sent": False, "reason": "disabled"}
     cfg = obs_store.get_logs_repo(store)
@@ -230,7 +240,8 @@ async def publish_background_failure(
     fp = failure_fingerprint(job_kind, stage, error_code)
     existing = obs_store.find_open_issue_by_fingerprint(store, company_id, fp)
     detail = (
-        f"Occurrence for `{redact_text(job_kind)}` / `{redact_text(stage)}` (`{redact_text(error_code)}`)\n"
+        f"Occurrence for `{redact_text(job_kind)}` / `{redact_text(stage)}`"
+        f" (`{redact_text(error_code)}`)\n"
         f"- Company: `{redact_text(company_id)}`\n"
         f"- Message: `{redact_text(error_message)}`\n"
         + (f"- Stack: `{redact_text(stack)}`\n" if stack else "")

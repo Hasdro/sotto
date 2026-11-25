@@ -46,7 +46,11 @@ export type Desktop = {
   readDiagnostics?: () => Promise<string>;
   /** S2: persist/restore active call recovery state across renderer reload. */
   saveRecoveryState?: (state: { route: string; callId?: string | null } | null) => Promise<boolean>;
-  takeRecoveryState?: () => Promise<{ route: string; callId?: string | null; savedAt: number } | null>;
+  takeRecoveryState?: () => Promise<{
+    route: string;
+    callId?: string | null;
+    savedAt: number;
+  } | null>;
 };
 
 /** What the page may put in a notification: a step id (16 hex) and two short lines. */

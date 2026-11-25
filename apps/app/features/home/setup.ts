@@ -27,17 +27,17 @@ export type SetupStep = {
   /** An i18n key, or a Home-local one (features/home/strings.ts, D-058). */
   label: StringKey | HomeTextKey;
   /** Plain-language title for the Setup Guide screen (L2). */
-  title: string;
+  title?: string;
   /** One-line "what this does" description (L2). */
-  whatItDoes: string;
+  whatItDoes?: string;
   /** Recommended default shown beside the setting/step (L2). */
-  recommendedDefault: string;
+  recommendedDefault?: string;
   href: string;
   /** Hidden from the list entirely (not offered, still loading). */
   hidden?: (f: SetupFacts) => boolean;
   done: (f: SetupFacts) => boolean;
   /** Live status line shown in the Setup Guide (e.g. "Zoho: connected ✓"). */
-  statusLine: (f: SetupFacts) => string;
+  statusLine?: (f: SetupFacts) => string;
 };
 
 export const SETUP_STEPS: readonly SetupStep[] = [
@@ -69,12 +69,14 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     roles: ["agent", "manager", "admin"],
     label: "setup.practice",
     title: "Practice call",
-    whatItDoes: "Runs a 60-second simulated call so you can see live cards before calling a customer.",
+    whatItDoes:
+      "Runs a 60-second simulated call so you can see live cards before calling a customer.",
     recommendedDefault: "Recommended once before first live call",
     href: "/call?practice=1",
     hidden: (f) => !f.practiceOffered,
     done: (f) => f.markedDone.includes("practice"),
-    statusLine: (f) => (f.markedDone.includes("practice") ? "Practice: completed ✓" : "Practice: not tried yet"),
+    statusLine: (f) =>
+      f.markedDone.includes("practice") ? "Practice: completed ✓" : "Practice: not tried yet",
   },
   {
     id: "playbook",
@@ -86,9 +88,7 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     href: "/playbook",
     done: (f) => f.playbookEntries > 0,
     statusLine: (f) =>
-      f.playbookEntries > 0
-        ? `Playbook: ${f.playbookEntries} entries ready ✓`
-        : "Playbook: empty",
+      f.playbookEntries > 0 ? `Playbook: ${f.playbookEntries} entries ready ✓` : "Playbook: empty",
   },
   {
     id: "invite",
