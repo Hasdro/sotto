@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Call Logs to GitHub · AGN Sales Shield Owner</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <link rel="stylesheet" href="owner.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="page-header">
+      <h1>Call logs to GitHub</h1>
+      <p class="muted">Automatic redacted call diagnostics posted to your private logs repository (default off, audit-logged).</p>
+    </header>
+    <section class="card" aria-labelledby="repo-heading">
+      <h2 id="repo-heading">Private logs repository</h2>
+      <p class="muted">What this does: sets the private GitHub repo and token used for automatic call-log issues. Recommended default: dedicated private repo (e.g. Hasdro/sales-shield-logs).</p>
+      <form id="logs-repo-form" class="stack">
+        <label>Repository (owner/name)<input name="repo" placeholder="Hasdro/sales-shield-logs" required /></label>
+        <label>Personal access token<input name="token" type="password" placeholder="ghp_..." required /></label>
+        <button type="submit" class="btn primary">Save repository</button>
+      </form>
+      <div id="logs-repo-status" class="muted" role="status"></div>
+    </section>
+    <section class="card" aria-labelledby="company-heading">
+      <h2 id="company-heading">Per-company switches &amp; per-user overrides</h2>
+      <p class="muted">Users inherit their company switch unless overridden below. Every change is audit-logged.</p>
+      <div id="logs-company-list"></div>
+    </section>
+  </main>
+  <script src="logs.js"></script>
+</body>
+</html>

@@ -52,8 +52,9 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
         "email_attachments",
     }
     autoconfig = {"playbook_bootstrap"}  # T-083 ZC-04, default off (D-076)
+    round4_platform = {"call_logs_github", "local_models_text", "local_models_voice", "setup_guide"}
     assert set(features.CATALOG) == (
-        existing | learning | planned | followup | autoconfig | {"zoho"}
+        existing | learning | planned | followup | autoconfig | round4_platform | {"zoho"}
     )
     assert "playbook_bootstrap" in features.DEFAULT_OFF
     assert evaluate("playbook_bootstrap", "agent", NONE).state == "no_permission"
@@ -431,7 +432,14 @@ def test_meeting_reminders_and_whatsapp_status_are_off_until_the_admin_turns_the
             "INSERT INTO company_gallabox(company_id, ciphertext, updated_at) VALUES (?,?,0)",
             (company, b"x"),
         )
-    assert {"meeting_reminders", "whatsapp_status", "playbook_bootstrap"} == features.DEFAULT_OFF
+    assert {
+        "meeting_reminders",
+        "whatsapp_status",
+        "playbook_bootstrap",
+        "call_logs_github",
+        "local_models_text",
+        "local_models_voice",
+    } == features.DEFAULT_OFF
     m = client.get("/api/v1/features", headers=h).json()["features"]
     assert m["meeting_reminders"]["state"] == "off_by_org"
     assert m["whatsapp_status"]["state"] == "off_by_org"
