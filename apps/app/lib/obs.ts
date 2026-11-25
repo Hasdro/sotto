@@ -77,9 +77,14 @@ const BLOCKED_SUBSTRINGS = [
   "access_token",
   "refresh_token",
   "auth_token",
+  "auth_header",
+  "set_cookie",
   "password",
   "api_key",
   "apikey",
+  "private_key",
+  "prompt_text",
+  "reply_text",
   "cookie",
   "customer_name",
   "phone",
@@ -87,18 +92,27 @@ const BLOCKED_SUBSTRINGS = [
 ];
 
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const PHONE_RE = /(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)/g;
+const PHONE_RE =
+  /(?<![\w-])(?!\d{4}-\d{2}-\d{2}\b)(?![0-9a-f]{8}-[0-9a-f]{4}-)(?:\+?\d[\d\s().-]{7,}\d)(?![\w-])/gi;
 const KEY_RE =
-  /\b(?:sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{16,}|gho_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|AIza[0-9A-Za-z_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|Bearer\s+[A-Za-z0-9._~+/=-]{12,})\b/gi;
+  /\b(?:sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{16,}|gho_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|AIza[0-9A-Za-z_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sa_[A-Za-z0-9_-]{12,}|sr_[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._~+/=-]{12,}|Basic\s+[A-Za-z0-9+/=]{8,})\b/gi;
+const URL_SECRET_RE =
+  /([?&#](?:token|access_token|refresh_token|api_key|apikey|key|secret|code)=)[^&\s#]+/gi;
 
 const MAX_STR_LEN = 256;
 const MAX_RING = 200;
+const SAFETY_MAX_ITEMS = 200;
 const SAFETY_STORAGE_KEY = "sotto.safety_log";
 export const SAFETY_MAX_BYTES = 5 * 1024 * 1024; // 5 MB (L5)
 export const SAFETY_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (L5)
 
 const ring: ObsEvent[] = [];
 const listeners = new Set<(ev: ObsEvent) => void>();
+let criticalHook: ((entry: ObsEvent) => void) | null = null;
+
+export function registerCriticalHook(fn: ((entry: ObsEvent) => void) | null): void {
+  criticalHook = fn;
+}
 
 function isBlockedKey(key: string): boolean {
   const low = key.toLowerCase().trim();
@@ -106,13 +120,17 @@ function isBlockedKey(key: string): boolean {
   return BLOCKED_SUBSTRINGS.some((sub) => low.includes(sub));
 }
 
-export function redactText(value: string): string {
-  let cleaned = value
+export function redactMultilineText(value: string): string {
+  return value
     .replace(KEY_RE, "[REDACTED_KEY]")
+    .replace(URL_SECRET_RE, "$1[REDACTED_KEY]")
     .replace(EMAIL_RE, "[REDACTED_EMAIL]")
     .replace(PHONE_RE, "[REDACTED_PHONE]");
-  if (cleaned.length > MAX_STR_LEN) cleaned = `${cleaned.slice(0, MAX_STR_LEN)}…`;
-  return cleaned;
+}
+
+export function redactText(value: string): string {
+  const cleaned = redactMultilineText(value);
+  return cleaned.length > MAX_STR_LEN ? `${cleaned.slice(0, MAX_STR_LEN)}…` : cleaned;
 }
 
 export function redactMeta(
@@ -153,7 +171,9 @@ function persistCriticalLocal(entry: ObsEvent, now = Date.now()): void {
     const raw = ls.getItem(SAFETY_STORAGE_KEY);
     const parsed: ObsEvent[] = raw ? (JSON.parse(raw) as ObsEvent[]) : [];
     const cutoff = now - SAFETY_MAX_AGE_MS;
-    const kept = parsed.filter((e) => typeof e?.tsMs === "number" && e.tsMs >= cutoff);
+    const kept = parsed
+      .filter((e) => typeof e?.tsMs === "number" && e.tsMs >= cutoff)
+      .slice(-(SAFETY_MAX_ITEMS - 1));
     kept.push(entry);
     // Keep within 5 MB ceiling by dropping oldest entries first.
     let serialized = JSON.stringify(kept);
@@ -164,6 +184,15 @@ function persistCriticalLocal(entry: ObsEvent, now = Date.now()): void {
     ls.setItem(SAFETY_STORAGE_KEY, serialized);
   } catch {
     // Storage quota or unavailable — ring buffer still holds the event.
+  }
+}
+
+export function clearSafetyLog(): void {
+  ring.length = 0;
+  try {
+    globalThis.localStorage?.removeItem(SAFETY_STORAGE_KEY);
+  } catch {
+    // Ignore storage unavailable
   }
 }
 
@@ -181,7 +210,10 @@ export function logEvent(stage: string, event: string, meta: ObsMeta = {}): void
   };
   ring.push(entry);
   if (ring.length > MAX_RING) ring.shift();
-  if (level === "error") persistCriticalLocal(entry, now);
+  if (level === "error") {
+    persistCriticalLocal(entry, now);
+    criticalHook?.(entry);
+  }
   for (const l of listeners) {
     try {
       l(entry);
@@ -238,7 +270,7 @@ export async function buildDiagnosticsText(
     env: extra ? redactMeta(extra) : {},
     recentErrors: readSafetyLog().slice(-25),
     recentEvents: ring.slice(-30),
-    desktopLog: desktopLog ? redactText(desktopLog) : undefined,
+    desktopLog: desktopLog ? redactMultilineText(desktopLog) : undefined,
   };
   return JSON.stringify(summary, null, 2);
 }

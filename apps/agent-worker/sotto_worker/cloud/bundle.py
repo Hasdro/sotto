@@ -112,6 +112,7 @@ def build_bundle(
     samples: bool = False,
     prompts: dict[str, dict[str, Any]] | None = None,
     demoted: dict[str, int] | None = None,
+    local_model: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """`routes` are the effective choices (AGN's platform routes, plus the company's own under
     BYO). `prompts`: the effective prompt versions (DD-2); `demoted`: vendors demoted for
@@ -192,4 +193,5 @@ def build_bundle(
         "scenarios": seed.scenarios if samples else [],
         "practice": seed.practice,
         "keys": keys,
+        **({"local_model": local_model} if local_model is not None else {}),
     }

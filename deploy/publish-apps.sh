@@ -14,8 +14,8 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 echo "==> Chrome extension"
 bash apps/extension/build.sh >/dev/null
-files=(apps/desktop/release/*.dmg apps/desktop/release/*.exe apps/desktop/release/*.AppImage apps/extension/release/*.zip)
 shopt -s nullglob
+files=(apps/desktop/release/*.dmg apps/desktop/release/*.exe apps/desktop/release/*.AppImage apps/extension/release/*.zip)
 files+=(apps/mobile-builds/*.apk)
 echo "==> Uploading ${#files[@]} files"
 ssh "$TARGET" "rm -rf /var/www/downloads.new && mkdir -p /var/www/downloads.new"

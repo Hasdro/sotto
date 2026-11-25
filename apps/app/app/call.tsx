@@ -158,7 +158,7 @@ export function CallView({
     return () => clearTimeout(id);
   }, [notice, dismissNotice]);
 
-  if (state.connection === "offline") {
+  if (state.connection === "offline" && session.pipeline?.status !== "reconnecting") {
     return (
       <Screen testID="call-offline" style={styles.center}>
         <EmptyState
@@ -318,6 +318,7 @@ export function CallView({
   // UX-07: top-end on wide, above the composer on narrow; never takes a touch (pointerEvents
   // none), so rows under it stay usable. An escalation says only "Sent to your manager": the
   // question is already in the transcript line.
+  const pipelineBanner = session.pipeline?.bannerText ?? null;
   const toast = notice ? (
     <View testID="toast-wrap" style={[styles.toast, wide ? styles.toastWide : styles.toastNarrow]}>
       <Toast
@@ -335,6 +336,10 @@ export function CallView({
             ? { body: notice.text }
             : {})}
       />
+    </View>
+  ) : pipelineBanner ? (
+    <View testID="toast-wrap" style={[styles.toast, wide ? styles.toastWide : styles.toastNarrow]}>
+      <Toast testID="pipeline-banner" title={pipelineBanner} />
     </View>
   ) : null;
 
@@ -369,10 +374,16 @@ export function CallView({
             </ScrollView>
             {idle ? null : (
               <View style={styles.sideScroll}>
-                <TranscriptPane lines={state.transcript} scroll />
+                <SafeBoundary name="call.rail">
+                  <TranscriptPane lines={state.transcript} scroll />
+                </SafeBoundary>
               </View>
             )}
-            {notes ? <View style={styles.sideNotes}>{notes}</View> : null}
+            {notes ? (
+              <View style={styles.sideNotes}>
+                <SafeBoundary name="call.rail">{notes}</SafeBoundary>
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -394,8 +405,12 @@ export function CallView({
         >
           <View testID="call-rail" style={styles.railNarrow}>
             {crm}
-            {idle ? null : <TranscriptPane lines={state.transcript} limit={6} scroll={false} />}
-            {notes}
+            {idle ? null : (
+              <SafeBoundary name="call.rail">
+                <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
+              </SafeBoundary>
+            )}
+            {notes ? <SafeBoundary name="call.rail">{notes}</SafeBoundary> : null}
           </View>
         </Sheet>
         {toast}

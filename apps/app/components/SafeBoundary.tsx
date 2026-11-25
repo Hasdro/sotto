@@ -15,6 +15,8 @@ export type SafeBoundaryProps = {
   message?: string;
   /** Optional callback when the user taps Retry. */
   onRetry?: () => void;
+  /** When this key changes (e.g. route pathname), reset the error state automatically. */
+  resetKey?: string | number | null;
 };
 
 type State = {
@@ -27,6 +29,12 @@ class BoundaryCore extends Component<SafeBoundaryProps, State> {
 
   static getDerivedStateFromError(): Partial<State> {
     return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps: SafeBoundaryProps): void {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {

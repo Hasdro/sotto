@@ -79,10 +79,14 @@ _BLOCKED_SUBSTRINGS: tuple[str, ...] = (
     "access_token",
     "refresh_token",
     "auth_token",
+    "auth_header",
+    "set_cookie",
     "password",
     "api_key",
     "apikey",
-    "auth_header",
+    "private_key",
+    "prompt_text",
+    "reply_text",
     "cookie",
     "customer_name",
     "phone",
@@ -91,11 +95,20 @@ _BLOCKED_SUBSTRINGS: tuple[str, ...] = (
 
 # Value-level patterns redacted even when passed under an innocuous key.
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-_PHONE_RE = re.compile(r"(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)")
+_PHONE_RE = re.compile(
+    r"(?<![\w-])(?!\d{4}-\d{2}-\d{2}\b)(?![0-9a-f]{8}-[0-9a-f]{4}-)"
+    r"(?:\+?\d[\d\s().-]{7,}\d)(?![\w-])",
+    re.IGNORECASE,
+)
 _KEY_RE = re.compile(
     r"\b(?:sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{16,}|"
     r"gho_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|AIza[0-9A-Za-z_-]{20,}|"
-    r"xox[baprs]-[A-Za-z0-9-]{10,}|Bearer\s+[A-Za-z0-9._~+/=-]{12,})\b",
+    r"xox[baprs]-[A-Za-z0-9-]{10,}|sa_[A-Za-z0-9_-]{12,}|sr_[A-Za-z0-9_-]{12,}|"
+    r"Bearer\s+[A-Za-z0-9._~+/=-]{12,}|Basic\s+[A-Za-z0-9+/=]{8,})\b",
+    re.IGNORECASE,
+)
+_URL_SECRET_RE = re.compile(
+    r"([?&#](?:token|access_token|refresh_token|api_key|apikey|key|secret|code)=)[^&\s#]+",
     re.IGNORECASE,
 )
 
@@ -118,16 +131,21 @@ _buffer: deque[ObsEvent] = deque(maxlen=_MAX_BUFFER)
 _sinks: list[Callable[[ObsEvent], None]] = []
 
 
-def _is_blocked_key(key: str) -> bool:
+def is_blocked_key(key: str) -> bool:
+    """True when `key` may carry transcripts, PII, or credentials."""
     low = key.lower().strip()
     if low in _BLOCKED_KEYS:
         return True
     return any(sub in low for sub in _BLOCKED_SUBSTRINGS)
 
 
+_is_blocked_key = is_blocked_key
+
+
 def redact_text(value: str) -> str:
-    """Scrub emails, phone numbers, and API keys/tokens from a metadata string."""
+    """Scrub emails, phone numbers, URL tokens, and API keys/tokens from a metadata string."""
     cleaned = _KEY_RE.sub("[REDACTED_KEY]", value)
+    cleaned = _URL_SECRET_RE.sub(r"\1[REDACTED_KEY]", cleaned)
     cleaned = _EMAIL_RE.sub("[REDACTED_EMAIL]", cleaned)
     cleaned = _PHONE_RE.sub("[REDACTED_PHONE]", cleaned)
     if len(cleaned) > _MAX_STRING_LEN:

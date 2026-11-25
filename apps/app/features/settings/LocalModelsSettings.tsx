@@ -92,7 +92,7 @@ export function LocalModelsSettings({
               : `Measured delay: ${status.measuredMs} ms — slower than 1.5 s. Used for slow jobs only unless you opt in below.`}
           </Text>
         ) : null}
-        {status?.reachable && !status.meetsR1 ? (
+        {(status?.reachable && !status.meetsR1) || liveOptIn ? (
           <View style={styles.optRow} testID="local-model-slow-warning">
             <View style={styles.optText}>
               <Text variant="label" weight="medium">
@@ -119,7 +119,12 @@ export function LocalModelsSettings({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" },
-  optRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  row: { flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" },
+  optRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.md,
+  },
   optText: { flex: 1 },
 });

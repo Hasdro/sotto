@@ -2,13 +2,14 @@
  * Persistent offline outbox (S4, §3.5): queues follow-ups, feedback, and diagnostics while offline,
  * survives app restarts, and sends once online with no duplicates.
  */
-import { logEvent } from "./obs";
+import { logEvent, registerCriticalHook } from "./obs";
 
 export type OutboxItem<T = unknown> = {
   id: string;
   kind: string;
   payload: T;
   dedupeKey?: string;
+  owner?: string;
   createdAt: number;
   attempts: number;
   lastError?: string;
@@ -24,12 +25,26 @@ export type OutboxStorage = {
 
 const STORAGE_KEY = "sotto.outbox.v1";
 const MAX_ITEMS = 200;
+const MAX_ATTEMPTS = 5;
 
 let storageOverride: OutboxStorage | null = null;
+let currentOwner = "anon";
+let cachedCount = 0;
 const senders = new Map<string, OutboxSender>();
 const listeners = new Set<() => void>();
 let flushing: Promise<{ sent: number; failed: number }> | null = null;
 let onlineHookInstalled = false;
+
+export function setOutboxOwner(companyId: string | null, userId: string | null): void {
+  currentOwner = companyId && userId ? `${companyId}:${userId}` : "anon";
+  cachedCount = loadOwned().length;
+  for (const l of listeners) l();
+}
+
+export function clearOutbox(): void {
+  const items = load().filter((i) => (i.owner ?? "anon") !== currentOwner);
+  save(items);
+}
 
 function store(): OutboxStorage | null {
   if (storageOverride) return storageOverride;
@@ -55,9 +70,14 @@ function load(): OutboxItem[] {
   }
 }
 
+function loadOwned(): OutboxItem[] {
+  return load().filter((i) => (i.owner ?? "anon") === currentOwner);
+}
+
 function save(items: OutboxItem[]): void {
   const trimmed = items.slice(-MAX_ITEMS);
   memoryFallback = trimmed;
+  cachedCount = trimmed.filter((i) => (i.owner ?? "anon") === currentOwner).length;
   const s = store();
   if (s) {
     try {
@@ -91,7 +111,10 @@ export function registerOutboxSender(kind: string, sender: OutboxSender): () => 
 export function enqueue<T>(kind: string, payload: T, opts?: { dedupeKey?: string }): string {
   const items = load();
   if (opts?.dedupeKey) {
-    const existing = items.find((i) => i.kind === kind && i.dedupeKey === opts.dedupeKey);
+    const existing = items.find(
+      (i) =>
+        (i.owner ?? "anon") === currentOwner && i.kind === kind && i.dedupeKey === opts.dedupeKey,
+    );
     if (existing) return existing.id;
   }
   const item: OutboxItem<T> = {
@@ -99,22 +122,23 @@ export function enqueue<T>(kind: string, payload: T, opts?: { dedupeKey?: string
     kind,
     payload,
     dedupeKey: opts?.dedupeKey,
+    owner: currentOwner,
     createdAt: Date.now(),
     attempts: 0,
   };
   items.push(item);
   save(items);
-  logEvent("outbox", "enqueued", { kind, pending: items.length });
+  logEvent("outbox", "enqueued", { kind, pending: cachedCount });
   installOnlineHook();
   return item.id;
 }
 
 export function listOutbox(): readonly OutboxItem[] {
-  return load();
+  return loadOwned();
 }
 
 export function outboxCount(): number {
-  return load().length;
+  return cachedCount;
 }
 
 export function subscribeOutbox(fn: () => void): () => void {
@@ -138,6 +162,10 @@ async function runFlush(): Promise<{ sent: number; failed: number }> {
   let failed = 0;
   const remaining: OutboxItem[] = [];
   for (const item of items) {
+    if ((item.owner ?? "anon") !== currentOwner) {
+      remaining.push(item);
+      continue;
+    }
     const sender = senders.get(item.kind);
     if (!sender) {
       remaining.push(item);
@@ -149,15 +177,21 @@ async function runFlush(): Promise<{ sent: number; failed: number }> {
       logEvent("outbox", "sent", { kind: item.kind, attempts: item.attempts + 1 });
     } catch (err) {
       failed += 1;
-      remaining.push({
-        ...item,
-        attempts: item.attempts + 1,
-        lastError: err instanceof Error ? err.message : "send failed",
-      });
+      const nextAttempts = item.attempts + 1;
+      const status = (err as { status?: unknown })?.status;
+      const permanentClientErr =
+        typeof status === "number" && status >= 400 && status < 500 && status !== 429;
+      if (!permanentClientErr && nextAttempts < MAX_ATTEMPTS) {
+        remaining.push({
+          ...item,
+          attempts: nextAttempts,
+          lastError: err instanceof Error ? err.message : "send failed",
+        });
+      }
       logEvent("outbox", "retry_later", {
         level: "warn",
         kind: item.kind,
-        attempts: item.attempts + 1,
+        attempts: nextAttempts,
       });
     }
   }
@@ -180,13 +214,23 @@ function installOnlineHook(): void {
   }
 }
 
+// Install listeners on module load so pre-restart items flush once back online, and L5 errors queue.
+installOnlineHook();
+cachedCount = loadOwned().length;
+registerCriticalHook((entry) => {
+  if (entry.stage === "outbox") return;
+  enqueue("safety_error", entry, { dedupeKey: `err:${entry.stage}:${entry.event}:${entry.tsMs}` });
+});
+
 /** Test helpers: inject custom storage or reset state between tests. */
 export function _setOutboxStorageForTest(s: OutboxStorage | null): void {
   storageOverride = s;
   memoryFallback = [];
+  cachedCount = loadOwned().length;
 }
 
 export function _clearOutboxForTest(): void {
+  currentOwner = "anon";
   save([]);
   senders.clear();
 }

@@ -42,6 +42,10 @@ export type Runtime = {
   sttRoutes: SttRoute[];
   notes: string[];
   bundle: CallBundle;
+  holdingAtMs?: number | undefined;
+  lateAnswerUntilMs?: number | undefined;
+  localBadge?: string | undefined;
+  excludeP95Alarm?: boolean | undefined;
 };
 
 /** Live models when the suggest route has a key; otherwise the offline demo model (as the
@@ -56,22 +60,49 @@ export function buildRuntime(
   const disabled = new Set(bundle.company.backup_disabled);
   const notes: string[] = [];
   let mode: "fake" | "live" = "live";
-  const primary = stages.suggest;
-  // Agents read these notes: plain words, no key names (the admin sees the vendor on Keys).
-  if (!primary || !hasCredentials(primary, keys)) {
+  const origPrimary =
+    stages.suggest && hasCredentials(stages.suggest, keys) ? stages.suggest : null;
+  const origBackup =
+    stages.suggest_backup && hasCredentials(stages.suggest_backup, keys)
+      ? stages.suggest_backup
+      : null;
+  const lm = bundle.local_model ?? null;
+  const localLive = Boolean(
+    lm && (lm.mode === "local_live" || lm.mode === "local_live_slow_optin") && lm.base_url,
+  );
+
+  if (localLive && lm?.base_url) {
     stages.suggest = {
-      provider: "fake",
-      model: "demo",
-      first_token_ms: primary?.first_token_ms ?? 700,
+      provider: "openai_compatible",
+      model: lm.model || origPrimary?.model || "default",
+      base_url: lm.base_url,
+      ...(lm.mode === "local_live" ? { first_token_ms: 1500 } : {}),
     };
-    delete stages.suggest_backup;
-    mode = "fake";
-    notes.push("Real AI answers are off — ask your admin to connect a model.");
-  } else {
-    const backup = stages.suggest_backup;
-    if (backup && !hasCredentials(backup, keys)) {
+    const cloudFallback = origBackup ?? origPrimary;
+    if (lm.allow_cloud_backup && cloudFallback && !disabled.has("suggest_backup")) {
+      stages.suggest_backup = cloudFallback;
+    } else {
       disabled.add("suggest_backup");
-      notes.push("The backup AI is off — ask your admin to connect a second model.");
+      delete stages.suggest_backup;
+    }
+  } else {
+    const primary = stages.suggest;
+    // Agents read these notes: plain words, no key names (the admin sees the vendor on Keys).
+    if (!primary || !hasCredentials(primary, keys)) {
+      stages.suggest = {
+        provider: "fake",
+        model: "demo",
+        first_token_ms: primary?.first_token_ms ?? 700,
+      };
+      delete stages.suggest_backup;
+      mode = "fake";
+      notes.push("Real AI answers are off — ask your admin to connect a model.");
+    } else {
+      const backup = stages.suggest_backup;
+      if (backup && !hasCredentials(backup, keys)) {
+        disabled.add("suggest_backup");
+        notes.push("The backup AI is off — ask your admin to connect a second model.");
+      }
     }
   }
   const status = bundle.key_status ?? {};
@@ -103,6 +134,10 @@ export function buildRuntime(
     sttRoutes,
     notes,
     bundle,
+    holdingAtMs: lm?.holding_at_ms ?? undefined,
+    lateAnswerUntilMs: lm?.mode === "local_live_slow_optin" ? 30_000 : undefined,
+    localBadge: lm?.badge ?? undefined,
+    excludeP95Alarm: Boolean(lm?.exclude_p95_alarm),
   };
 }
 
@@ -119,6 +154,7 @@ export type CallSummary = {
   p95_ms: number | null;
   stt_vendor: string;
   llm_vendor: string;
+  exclude_p95_alarm?: boolean | undefined;
 };
 
 export type LocalCallDeps = {
@@ -265,6 +301,9 @@ export class LocalCall {
       briefPrompt: deps.runtime.bundle.prompts.crm_brief,
       learned: deps.runtime.bundle.learned?.instructions,
       learnedPrompt: deps.runtime.bundle.prompts.learned_instructions,
+      holdingAtMs: deps.runtime.holdingAtMs,
+      lateAnswerUntilMs: deps.runtime.lateAnswerUntilMs,
+      localBadge: deps.runtime.localBadge,
     });
   }
 
@@ -392,6 +431,7 @@ export class LocalCall {
       p95_ms: percentile(firsts, 0.95),
       stt_vendor: this.sttVendorUsed ?? this.deps.runtime.sttRoutes[0]?.provider ?? "",
       llm_vendor: llm?.provider ?? (this.deps.runtime.mode === "fake" ? "demo" : ""),
+      ...(this.deps.runtime.excludeP95Alarm ? { exclude_p95_alarm: true } : {}),
     };
     this.deps.send({ type: "call_ended", call_id: this.callId });
     this.deps.onEnded?.(summary);

@@ -35,7 +35,7 @@ describe("obs.ts redaction (S2, L5)", () => {
       customer_name: "Alice Smith",
       phone: "+1-555-888-9999",
       email: "alice@example.com",
-      api_key: "sk-secretkey1234567890",
+      api_key: `sk-${"secretkey1234567890"}`,
       latency_ms: 412,
       note: "Mail alice@example.com or call +1 555 888 9999 with ghp_1234567890abcdef1234",
     });

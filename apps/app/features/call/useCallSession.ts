@@ -5,7 +5,9 @@
 import type { DemoClientMessage } from "@sotto/shared";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { callSource, setCallSource } from "../../lib/callSource";
+import { desktop } from "../../lib/desktop";
 import type { Locale } from "../../lib/i18n";
+import { PipelineSupervisor, type PipelineSupervisorState } from "../../lib/pipelineSupervisor";
 import { prefs } from "../../lib/prefs";
 import { saveRecording, setCallBusy } from "../../lib/recordings";
 import { useCloud } from "../../lib/useCloud";
@@ -47,6 +49,8 @@ export type CallSession = {
   toggleMic: (source?: AudioSource) => void;
   /** A real call (D-024): starts the call and listens to the given source at once. */
   startListening: (source: AudioSource) => void;
+  /** S2: supervisor status during transient mid-call bridge/pipeline drops. */
+  pipeline?: PipelineSupervisorState;
 };
 
 export type MicState = "off" | "starting" | "on" | MicError;
@@ -62,6 +66,14 @@ export function useCallSession(opts: {
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const bridge = useRef<Bridge | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const supervisor = useRef<PipelineSupervisor | null>(null);
+  const sup = supervisor.current ?? new PipelineSupervisor();
+  supervisor.current = sup;
+  const [pipeline, setPipeline] = useState<PipelineSupervisorState>(() => sup.snapshot());
+  useEffect(() => supervisor.current?.subscribe(setPipeline), []);
+  const liveCallIdRef = useRef<string | null>(null);
+  const connectionRef = useRef(state.connection);
+  const restartWaiters = useRef<Array<() => void>>([]);
   // The locale only matters to the mock script; the real bridge must not reconnect on a language switch.
   const mockLocale: Locale | null = opts.mock ? opts.locale : null;
   const { socketFactory } = opts;
@@ -75,11 +87,54 @@ export function useCallSession(opts: {
     void attempt;
     if (!demoEnabled()) return; // production build: no localhost socket, no mock data
     if (!enabled) return;
+    const resolveWaiters = () => {
+      for (const done of restartWaiters.current.splice(0)) done();
+    };
     const handlers: BridgeHandlers = {
-      onStatus: (status) => dispatch({ type: "connection", status }),
+      onStatus: (status) => {
+        connectionRef.current = status;
+        dispatch({ type: "connection", status });
+        if (status === "open") {
+          resolveWaiters();
+          if (liveCallIdRef.current) supervisor.current?.markConnected(liveCallIdRef.current);
+        } else if (
+          status === "offline" &&
+          liveCallIdRef.current &&
+          supervisor.current?.snapshot().status === "connected"
+        ) {
+          void supervisor.current.handleDrop(async () => {
+            await new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, 2400);
+              restartWaiters.current.push(() => {
+                clearTimeout(timer);
+                resolve();
+              });
+              setAttempt((n) => n + 1);
+            });
+            return connectionRef.current === "open";
+          }, "bridge_drop");
+        }
+      },
       onMessage: (msg) => {
         // The raw server error goes to the console only; the screen shows a localised line.
         if (msg.type === "error") console.warn("[demo-bridge] server error:", msg.message);
+        if (msg.type === "hello") {
+          connectionRef.current = "open";
+          resolveWaiters();
+          if (liveCallIdRef.current) supervisor.current?.markConnected(liveCallIdRef.current);
+        } else if (msg.type === "call_started") {
+          liveCallIdRef.current = msg.call_id;
+          supervisor.current?.markConnected(msg.call_id);
+          void desktop()
+            ?.saveRecoveryState?.({ route: "/call", callId: msg.call_id })
+            .catch(() => {});
+        } else if (msg.type === "call_ended") {
+          liveCallIdRef.current = null;
+          supervisor.current?.markEnded();
+          void desktop()
+            ?.saveRecoveryState?.(null)
+            .catch(() => {});
+        }
         dispatch({ type: "server", msg, now: Date.now() });
       },
     };
@@ -182,8 +237,9 @@ export function useCallSession(opts: {
     },
     [send, stopMic],
   );
-  // The microphone never outlives the call or the connection.
-  const callOver = state.phase !== "live" || state.connection !== "open";
+  // The microphone never outlives the call or the connection (except transient supervised reconnect).
+  const reconnecting = pipeline.status === "reconnecting";
+  const callOver = state.phase !== "live" || (state.connection !== "open" && !reconnecting);
   const callId = state.callId;
   // Recordings upload only between calls (and once at app start).
   useEffect(() => setCallBusy(!callOver), [callOver]);
@@ -222,5 +278,6 @@ export function useCallSession(opts: {
       },
       [send, toggleMic],
     ),
+    pipeline,
   };
 }

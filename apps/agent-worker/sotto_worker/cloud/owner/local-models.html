@@ -1,25 +1,54 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Local &amp; Offline Models · AGN Sales Shield Owner</title>
-  <link rel="stylesheet" href="tokens.css" />
-  <link rel="stylesheet" href="components.css" />
-  <link rel="stylesheet" href="owner.css" />
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/owner/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/owner/tokens.css">
+  <link rel="stylesheet" href="/owner/fonts.css">
+  <link rel="stylesheet" href="/owner/components.css">
+  <link rel="stylesheet" href="/owner/owner.css">
+  <script src="/owner/local-models.js" defer></script>
 </head>
 <body>
-  <main class="shell">
-    <header class="page-header">
-      <h1>Local &amp; offline models</h1>
-      <p class="muted">Enable OpenAI-compatible text or local voice endpoints per company and per user (default off). Control mid-call cloud backup per company (default on).</p>
+<div class="shell ss-shell">
+  <main class="ss-main"><div class="ss-page ss-page--wide">
+    <p><a href="/owner">← Owner console</a></p>
+    <header class="page-head">
+      <h1 class="ss-page-title">Local &amp; offline models</h1>
+      <p class="ss-lead ss-muted">Enable OpenAI-compatible text or local voice endpoints per company and per user (default off). Control mid-call cloud backup per company (default on).</p>
     </header>
-    <section class="card" aria-labelledby="lm-heading">
+    <section class="panel" aria-labelledby="lm-heading">
       <h2 id="lm-heading">Company policies</h2>
-      <p class="muted">What this does: allows companies or specific users to connect localhost or company-network models. Recommended default: off until tested; Allow cloud backup on.</p>
+      <p class="note">What this does: allows companies or specific users to connect localhost or company-network models. Recommended default: off until tested; Allow cloud backup on.</p>
+      <p id="local-models-status" class="note" role="status"></p>
       <div id="local-models-list"></div>
     </section>
-  </main>
-  <script src="local-models.js"></script>
+    <section class="panel narrow" aria-labelledby="lm-user-heading">
+      <h2 id="lm-user-heading">Per-user override (D-095)</h2>
+      <form id="lm-user-form">
+        <label for="lmUserCompany">Company</label>
+        <select id="lmUserCompany" name="company_id"></select>
+        <label for="lmUserId">User ID</label>
+        <input id="lmUserId" name="user_id" placeholder="user-id" autocomplete="off" spellcheck="false" required>
+        <label for="lmUserFeature">Feature</label>
+        <select id="lmUserFeature" name="feature_id">
+          <option value="local_models_text">Local text models</option>
+          <option value="local_models_voice">Local voice models</option>
+        </select>
+        <label for="lmUserMode">Override</label>
+        <select id="lmUserMode" name="mode">
+          <option value="inherit">Inherit company</option>
+          <option value="on">Force on</option>
+          <option value="off">Force off</option>
+        </select>
+        <p><button type="submit" class="primary">Save user override</button></p>
+      </form>
+      <div id="local-models-users"></div>
+    </section>
+  </div></main>
+</div>
 </body>
 </html>

@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+import ipaddress
+import socket
 import time
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -23,13 +25,15 @@ from sotto_worker.cloud.obs.log import log_event
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms
 
 EndpointKind = Literal["text", "stt", "tts"]
+VALID_KINDS: tuple[str, ...] = ("text", "stt", "tts")
 R1_LIMIT_MS = 1500
 SLOW_BADGE = "local model \u2013 slower"
 HOLDING_LINE_MS = 1500
+_BLOCKED_METADATA_HOSTS = frozenset({"metadata.google.internal", "metadata"})
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS local_model_company_policy (
-  company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  company_id TEXT PRIMARY KEY NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   text_enabled INTEGER NOT NULL DEFAULT 0,
   voice_enabled INTEGER NOT NULL DEFAULT 0,
   allow_cloud_backup INTEGER NOT NULL DEFAULT 1,
@@ -70,11 +74,70 @@ def _require_tenant(actor: Principal, company_id: str) -> None:
         raise CloudError("forbidden", "cannot access another company's local-model settings")
 
 
+def require_kind(kind: str) -> EndpointKind:
+    if kind == "text":
+        return "text"
+    if kind == "stt":
+        return "stt"
+    if kind == "tts":
+        return "tts"
+    raise CloudError("invalid", f"kind must be one of {VALID_KINDS}")
+
+
+_require_kind = require_kind
+
+
+def _is_forbidden_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped is not None:
+        return _is_forbidden_ip(ip_obj.ipv4_mapped)
+    if ip_obj.is_unspecified or ip_obj.is_link_local or ip_obj.is_multicast:
+        return True
+    # Block AWS/cloud IPv6 metadata ULA fd00:ec2::254
+    if str(ip_obj).lower() == "fd00:ec2::254":
+        return True
+    # L6 allows only localhost or private LAN addresses, never public internet IPs.
+    return not (ip_obj.is_loopback or ip_obj.is_private)
+
+
+def _check_hostname(host: str) -> None:
+    low = host.strip().rstrip(".").strip("[]").lower()
+    if not low or low in _BLOCKED_METADATA_HOSTS or low.startswith("169.254."):
+        raise CloudError("invalid", "cloud metadata and unspecified endpoints are not allowed")
+    # Block alternate integer/hex/octal IP encodings (e.g. 2852039166 or 0xa9fea9fe)
+    if low.isdigit() or (low.startswith("0x") and all(c in "0123456789abcdef" for c in low[2:])):
+        raise CloudError("invalid", "enter a standard hostname or dotted IP address")
+    try:
+        ip_obj = ipaddress.ip_address(low)
+    except ValueError:
+        # Resolve DNS for hostnames when available (best effort for non-existent LAN names)
+        try:
+            infos = socket.getaddrinfo(low, None)
+        except OSError:
+            return
+        for info in infos:
+            addr = str(info[4][0]).split("%", 1)[0]
+            try:
+                if _is_forbidden_ip(ipaddress.ip_address(addr)):
+                    raise CloudError("invalid", "endpoint resolves to a disallowed address")
+            except ValueError:
+                continue
+    else:
+        if _is_forbidden_ip(ip_obj):
+            raise CloudError("invalid", "endpoint address is not allowed for local models")
+
+
 def validate_local_url(url: str) -> str:
     cleaned = url.strip().rstrip("/")
     parsed = urlparse(cleaned)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+    if parsed.scheme not in ("http", "https") or not parsed.netloc or not parsed.hostname:
         raise CloudError("invalid", "enter a valid http:// or https:// endpoint URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise CloudError("invalid", "credentials are not allowed inside the endpoint URL")
+    if parsed.query or parsed.fragment:
+        raise CloudError(
+            "invalid", "query parameters and fragments are not allowed in endpoint URL"
+        )
+    _check_hostname(parsed.hostname)
     return cleaned
 
 
@@ -113,6 +176,7 @@ def set_company_policy(
             db,
             "owner.local_models.policy_set",
             f"company={company_id} text={next_text} voice={next_voice} backup={next_backup}",
+            company_id=company_id,
             actor=owner,
             ip=ip,
         )
@@ -124,7 +188,11 @@ def set_company_policy(
     }
 
 
-def get_company_policy(store: CloudStore, company_id: str) -> dict[str, Any]:
+def get_company_policy(
+    store: CloudStore, company_id: str, *, actor: Principal | None = None
+) -> dict[str, Any]:
+    if actor is not None:
+        _require_tenant(actor, company_id)
     ensure_schema(store)
     rows = store._q(
         "SELECT text_enabled, voice_enabled, allow_cloud_backup"
@@ -175,12 +243,16 @@ async def probe_local_endpoint(
     timeout_s: float = 5.0,
 ) -> BenchmarkResult:
     """Check reachability and run a short latency benchmark against a local model server (L6)."""
+    _require_kind(kind)
     cleaned = validate_local_url(base_url)
     probe_path = "/v1/models" if kind == "text" else "/health"
     t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(
-            base_url=cleaned, transport=transport, timeout=timeout_s
+            base_url=cleaned,
+            transport=transport,
+            timeout=timeout_s,
+            follow_redirects=False,
         ) as client:
             r = await client.get(probe_path)
             if r.status_code >= 400:
@@ -191,12 +263,27 @@ async def probe_local_endpoint(
                     meets_r1=False,
                     detail=f"endpoint returned HTTP {r.status_code}",
                 )
-            # Optional header lets deterministic tests specify simulated benchmark delay
-            sim_ms = r.headers.get("x-bench-ms")
+            # Test transport may provide deterministic simulated timing via header
+            sim_ms = r.headers.get("x-bench-ms") if transport is not None else None
             if sim_ms is not None and sim_ms.isdigit():
                 measured_ms = int(sim_ms)
             else:
                 measured_ms = max(1, int((time.monotonic() - t0) * 1000))
+                if kind == "text" and transport is None:
+                    # Measure a 1-token chat completion when a model is listed (real latency).
+                    model_id = _first_model_id(r)
+                    if model_id:
+                        t_inf = time.monotonic()
+                        cr = await client.post(
+                            "/v1/chat/completions",
+                            json={
+                                "model": model_id,
+                                "messages": [{"role": "user", "content": "Say ok"}],
+                                "max_tokens": 1,
+                            },
+                        )
+                        if cr.status_code < 400:
+                            measured_ms = max(1, int((time.monotonic() - t_inf) * 1000))
     except httpx.HTTPError:
         return BenchmarkResult(
             reachable=False,
@@ -222,6 +309,18 @@ async def probe_local_endpoint(
     )
 
 
+def _first_model_id(response: httpx.Response) -> str | None:
+    try:
+        data = response.json()
+    except ValueError:
+        return None
+    items = data.get("data") if isinstance(data, dict) else None
+    if isinstance(items, list) and items and isinstance(items[0], dict):
+        mid = str(items[0].get("id") or "").strip()
+        return mid or None
+    return None
+
+
 def save_user_endpoint(
     store: CloudStore,
     actor: Principal,
@@ -233,9 +332,9 @@ def save_user_endpoint(
     bench: BenchmarkResult,
     live_opt_in: bool = False,
 ) -> dict[str, Any]:
-    _require_tenant(actor, company_id)
-    if actor.role != "owner" and actor.role != "admin" and actor.user_id != user_id:
-        raise CloudError("forbidden", "cannot modify another user's local endpoint")
+    _require_kind(kind)
+    obs_store._require_tenant_user(actor, company_id, user_id)
+    obs_store._assert_user_belongs_to_company(store, company_id, user_id)
     ensure_schema(store)
     cleaned = validate_local_url(base_url)
     status = "connected" if bench.reachable else "unreachable"
@@ -262,6 +361,14 @@ def save_user_endpoint(
                 t,
             ),
         )
+        store.audit(
+            db,
+            "local_models.endpoint_saved",
+            f"user={user_id} kind={kind} status={status} opt_in={live_opt_in}",
+            company_id=company_id,
+            actor=actor,
+            ip="127.0.0.1",
+        )
     return {
         "company_id": company_id,
         "user_id": user_id,
@@ -278,7 +385,7 @@ def save_user_endpoint(
 def get_user_endpoints(
     store: CloudStore, actor: Principal, company_id: str, user_id: str
 ) -> list[dict[str, Any]]:
-    _require_tenant(actor, company_id)
+    obs_store._require_tenant_user(actor, company_id, user_id)
     ensure_schema(store)
     rows = store._q(
         "SELECT * FROM local_model_user_endpoints"
@@ -291,7 +398,8 @@ def get_user_endpoints(
 def delete_user_endpoint(
     store: CloudStore, actor: Principal, company_id: str, user_id: str, kind: EndpointKind
 ) -> bool:
-    _require_tenant(actor, company_id)
+    _require_kind(kind)
+    obs_store._require_tenant_user(actor, company_id, user_id)
     ensure_schema(store)
     with store._tx() as db:
         cur = db.execute(
@@ -299,6 +407,15 @@ def delete_user_endpoint(
             " WHERE company_id = ? AND user_id = ? AND kind = ?",
             (company_id, user_id, kind),
         )
+        if cur.rowcount > 0:
+            store.audit(
+                db,
+                "local_models.endpoint_deleted",
+                f"user={user_id} kind={kind}",
+                company_id=company_id,
+                actor=actor,
+                ip="127.0.0.1",
+            )
         return cur.rowcount > 0
 
 
@@ -318,8 +435,11 @@ def decide_live_route(
     user_id: str,
     *,
     kind: EndpointKind = "text",
+    actor: Principal | None = None,
 ) -> LocalRouteDecision:
     """Decide whether live cards use local endpoint, slow-jobs-only, or D-096 slow opt-in."""
+    if actor is not None:
+        obs_store._require_tenant_user(actor, company_id, user_id)
     if not is_local_enabled(store, company_id, user_id, kind):
         return LocalRouteDecision("cloud", None, None, None, False, None)
     ensure_schema(store)
@@ -356,8 +476,11 @@ def resolve_mid_call_failure(
     call_id: str,
     kind: EndpointKind = "text",
     reason: str = "endpoint_error",
+    actor: Principal | None = None,
 ) -> dict[str, Any]:
     """Handle mid-call local failure: cloud backup if allowed, else holding line."""
+    if actor is not None:
+        obs_store._require_tenant_user(actor, company_id, user_id)
     policy = get_company_policy(store, company_id)
     allow_backup = bool(policy["allow_cloud_backup"])
     if allow_backup:

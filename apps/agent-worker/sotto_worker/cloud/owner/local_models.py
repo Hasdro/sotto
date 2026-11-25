@@ -9,7 +9,9 @@ from sotto_worker.cloud.routing import local_models as lm
 from sotto_worker.cloud.store import CloudStore, Principal
 
 
-def overview(store: CloudStore) -> dict[str, Any]:
+def overview(store: CloudStore, owner: Principal | None = None) -> dict[str, Any]:
+    if owner is not None:
+        lm._require_owner(owner)
     lm.ensure_schema(store)
     companies = store._q("SELECT id, name FROM companies ORDER BY name")
     items = []

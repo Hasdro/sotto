@@ -9,27 +9,91 @@ const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5 MB (L5)
 const MAX_LOG_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (L5)
 
 const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const PHONE_RE = /(?<!\w)(?:\+?\d[\d\s().-]{7,}\d)(?!\w)/g;
+const PHONE_RE =
+  /(?<![\w-])(?!\d{4}-\d{2}-\d{2}\b)(?![0-9a-f]{8}-[0-9a-f]{4}-)(?:\+?\d[\d\s().-]{7,}\d)(?![\w-])/gi;
 const KEY_RE =
-  /\b(?:sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{16,}|gho_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|AIza[0-9A-Za-z_-]{20,}|Bearer\s+[A-Za-z0-9._~+/=-]{12,})\b/gi;
+  /\b(?:sk-[A-Za-z0-9_-]{12,}|sk-ant-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9]{16,}|gho_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|AIza[0-9A-Za-z_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sa_[A-Za-z0-9_-]{12,}|sr_[A-Za-z0-9_-]{12,}|Bearer\s+[A-Za-z0-9._~+/=-]{12,}|Basic\s+[A-Za-z0-9+/=]{8,})\b/gi;
+const URL_SECRET_RE =
+  /([?&#](?:token|access_token|refresh_token|api_key|apikey|key|secret|code)=)[^&\s#]+/gi;
 
 const BLOCKED_KEYS = new Set([
   "transcript",
-  "customer_name",
+  "transcript_text",
+  "customer_text",
+  "agent_text",
+  "utterance",
+  "speech",
+  "prompt",
+  "prompt_text",
+  "response_text",
+  "completion",
+  "reply_text",
+  "card_text",
+  "body",
+  "content",
+  "message_text",
   "name",
+  "customer_name",
+  "full_name",
+  "first_name",
+  "last_name",
+  "contact_name",
   "phone",
+  "phone_number",
+  "mobile",
+  "tel",
   "email",
+  "email_address",
+  "customer_email",
   "api_key",
-  "token",
+  "apikey",
+  "key",
   "secret",
+  "token",
+  "access_token",
+  "refresh_token",
   "password",
+  "passwd",
   "authorization",
   "cookie",
+  "bearer",
+  "private_key",
+  "audio",
+  "pcm",
 ]);
+
+const BLOCKED_SUBSTRINGS = [
+  "transcript",
+  "secret",
+  "access_token",
+  "refresh_token",
+  "auth_token",
+  "auth_header",
+  "set_cookie",
+  "password",
+  "api_key",
+  "apikey",
+  "private_key",
+  "prompt_text",
+  "reply_text",
+  "cookie",
+  "customer_name",
+  "phone",
+  "email",
+];
+
+function isBlockedKey(key) {
+  const low = String(key || "")
+    .toLowerCase()
+    .trim();
+  if (BLOCKED_KEYS.has(low)) return true;
+  return BLOCKED_SUBSTRINGS.some((sub) => low.includes(sub));
+}
 
 function redactString(value) {
   return String(value)
     .replace(KEY_RE, "[REDACTED_KEY]")
+    .replace(URL_SECRET_RE, "$1[REDACTED_KEY]")
     .replace(EMAIL_RE, "[REDACTED_EMAIL]")
     .replace(PHONE_RE, "[REDACTED_PHONE]")
     .slice(0, 1024);
@@ -39,7 +103,7 @@ function redactRecord(obj) {
   if (!obj || typeof obj !== "object") return {};
   const out = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (BLOCKED_KEYS.has(k.toLowerCase())) continue;
+    if (isBlockedKey(k)) continue;
     if (typeof v === "string") out[k] = redactString(v);
     else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
   }
@@ -82,7 +146,7 @@ function createDiskLogger({
       kept.shift();
       joined = `${kept.join("\n")}\n`;
     }
-    fs.writeFileSync(file, joined, "utf8");
+    fs.writeFileSync(file, joined, { encoding: "utf8", mode: 0o600 });
   }
 
   function writeCritical(stage, event, details = {}) {
@@ -95,7 +159,7 @@ function createDiskLogger({
         event: redactString(event),
         meta: redactRecord(details),
       };
-      fs.appendFileSync(file, `${JSON.stringify(entry)}\n`, "utf8");
+      fs.appendFileSync(file, `${JSON.stringify(entry)}\n`, { encoding: "utf8", mode: 0o600 });
       const stat = fs.statSync(file);
       if (stat.size > maxBytes) prune();
     } catch {
@@ -190,7 +254,7 @@ function attachWindowSafety({
       logger.writeCritical("electron.renderer", "did-fail-load", {
         errorCode: Number(errorCode),
         errorDescription: String(errorDescription || ""),
-        url: String(validatedURL || ""),
+        url: String(validatedURL || "").split(/[?#]/)[0],
       });
       scheduleReload(`did-fail-load:${errorCode}`);
     },

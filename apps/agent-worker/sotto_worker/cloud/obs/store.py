@@ -6,14 +6,20 @@ import sqlite3
 from typing import Any
 
 from sotto_worker.cloud.features import PER_USER_OVERRIDE_IDS
-from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms
+from sotto_worker.cloud.store import GITHUB_REPO, CloudError, CloudStore, Principal, now_ms
+from sotto_worker.server.vault import VaultError
 
-LOGS_REPO_KEY = "obs.logs_repo"
-LOGS_CRED_KEY = "obs.logs_cred"
+OBS_LOGS_VAULT = "platform:obs_logs"
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS obs_logs_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  repo TEXT NOT NULL,
+  ciphertext BLOB NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS obs_company_switches (
-  company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  company_id TEXT PRIMARY KEY NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   call_logs_enabled INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
@@ -63,36 +69,54 @@ def _require_tenant(actor: Principal, company_id: str) -> None:
         raise CloudError("forbidden", "cannot access another company's observability records")
 
 
+def _require_tenant_user(actor: Principal, company_id: str, user_id: str) -> None:
+    _require_tenant(actor, company_id)
+    if actor.role in ("owner", "admin"):
+        return
+    if actor.user_id != user_id:
+        raise CloudError("forbidden", "cannot access another user's observability records")
+
+
+def _assert_user_belongs_to_company(store: CloudStore, company_id: str, user_id: str) -> None:
+    rows = store._q("SELECT company_id FROM users WHERE id = ?", (user_id,))
+    if rows and str(rows[0]["company_id"]) != company_id:
+        raise CloudError("forbidden", "user does not belong to that company")
+
+
 def set_logs_repo(
     store: CloudStore, owner: Principal, repo: str, token: str, *, ip: str = "127.0.0.1"
 ) -> None:
-    """Owner sets the private GitHub logs repo (e.g. Hasdro/sales-shield-logs) and token."""
+    """Owner sets the private GitHub logs repo (encrypted token in Vault)."""
     _require_owner(owner)
     ensure_schema(store)
     cleaned = repo.strip()
-    if "/" not in cleaned or len(cleaned) > 120:
+    if len(cleaned) > 120 or not GITHUB_REPO.fullmatch(cleaned):
         raise CloudError("invalid", "repo must be in owner/name format")
-    if not token.strip():
-        raise CloudError("invalid", "token is required")
+    cleaned_tok = token.strip()
+    if not cleaned_tok or len(cleaned_tok) > 500 or any(c in cleaned_tok for c in "\r\n"):
+        raise CloudError("invalid", "valid token is required")
+    blob = store._vault.encrypt(OBS_LOGS_VAULT, cleaned_tok)
     t = now_ms()
     with store._tx() as db:
-        for k, v in ((LOGS_REPO_KEY, cleaned), (LOGS_CRED_KEY, token.strip())):
-            db.execute(
-                "INSERT INTO platform_settings(key, value, updated_at) VALUES (?,?,?)"
-                " ON CONFLICT(key) DO UPDATE SET value = excluded.value,"
-                " updated_at = excluded.updated_at",
-                (k, v, t),
-            )
+        db.execute(
+            "INSERT INTO obs_logs_config(id, repo, ciphertext, updated_at) VALUES (1,?,?,?)"
+            " ON CONFLICT(id) DO UPDATE SET repo = excluded.repo,"
+            " ciphertext = excluded.ciphertext, updated_at = excluded.updated_at",
+            (cleaned, blob, t),
+        )
         store.audit(db, "owner.call_logs.repo_set", f"repo={cleaned}", actor=owner, ip=ip)
 
 
 def get_logs_repo(store: CloudStore) -> tuple[str, str] | None:
     ensure_schema(store)
-    r1 = store._q("SELECT value FROM platform_settings WHERE key = ?", (LOGS_REPO_KEY,))
-    r2 = store._q("SELECT value FROM platform_settings WHERE key = ?", (LOGS_CRED_KEY,))
-    if not r1 or not r2:
+    rows = store._q("SELECT repo, ciphertext FROM obs_logs_config WHERE id = 1")
+    if not rows:
         return None
-    return str(r1[0]["value"]), str(r2[0]["value"])
+    try:
+        token = store._vault.decrypt(OBS_LOGS_VAULT, bytes(rows[0]["ciphertext"]))
+    except VaultError:
+        return None
+    return str(rows[0]["repo"]), token
 
 
 def set_company_call_logs(
@@ -120,6 +144,7 @@ def set_company_call_logs(
             db,
             "owner.call_logs.company_switch",
             f"company={company_id} enabled={enabled}",
+            company_id=company_id,
             actor=owner,
             ip=ip,
         )
@@ -144,6 +169,7 @@ def set_user_override(
             f"per-user override is only allowed for {sorted(PER_USER_OVERRIDE_IDS)}",
         )
     store.company_row(company_id)
+    _assert_user_belongs_to_company(store, company_id, user_id)
     t = now_ms()
     with store._tx() as db:
         if enabled is None:
@@ -165,6 +191,7 @@ def set_user_override(
             db,
             "owner.feature_override.set",
             f"company={company_id} user={user_id} feature={feature_id} enabled={enabled}",
+            company_id=company_id,
             actor=owner,
             ip=ip,
         )
@@ -264,10 +291,17 @@ def increment_issue_comments(
 def list_call_issues(store: CloudStore, actor: Principal, company_id: str) -> list[dict[str, Any]]:
     _require_tenant(actor, company_id)
     ensure_schema(store)
-    rows = store._q(
-        "SELECT * FROM obs_call_issues WHERE company_id = ? ORDER BY id DESC LIMIT 100",
-        (company_id,),
-    )
+    if actor.role in ("owner", "admin"):
+        rows = store._q(
+            "SELECT * FROM obs_call_issues WHERE company_id = ? ORDER BY id DESC LIMIT 100",
+            (company_id,),
+        )
+    else:
+        rows = store._q(
+            "SELECT * FROM obs_call_issues WHERE company_id = ? AND user_id = ?"
+            " ORDER BY id DESC LIMIT 100",
+            (company_id, actor.user_id),
+        )
     return [dict(r) for r in rows]
 
 
@@ -275,8 +309,23 @@ def delete_call_issue(store: CloudStore, actor: Principal, company_id: str, issu
     _require_tenant(actor, company_id)
     ensure_schema(store)
     with store._tx() as db:
-        cur = db.execute(
-            "DELETE FROM obs_call_issues WHERE id = ? AND company_id = ?",
-            (issue_id, company_id),
-        )
+        if actor.role in ("owner", "admin"):
+            cur = db.execute(
+                "DELETE FROM obs_call_issues WHERE id = ? AND company_id = ?",
+                (issue_id, company_id),
+            )
+        else:
+            cur = db.execute(
+                "DELETE FROM obs_call_issues WHERE id = ? AND company_id = ? AND user_id = ?",
+                (issue_id, company_id, actor.user_id),
+            )
+        if cur.rowcount > 0:
+            store.audit(
+                db,
+                "obs.call_issue.deleted",
+                f"issue_id={issue_id}",
+                company_id=company_id,
+                actor=actor,
+                ip="127.0.0.1",
+            )
         return cur.rowcount > 0

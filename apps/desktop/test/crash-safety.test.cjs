@@ -110,3 +110,20 @@ test("safety IPC rejects foreign origins and stores/takes recovery state", async
   assert.equal(taken.callId, "c-9");
   assert.equal(handlers.get("call:take-recovery")(ownEvent), null);
 });
+
+test("disk logger enforces 0600 mode, strips URL secrets, and preserves ISO dates", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sotto-sec-"));
+  const logger = createDiskLogger({ userDataDir: dir });
+  logger.writeCritical("electron.renderer", "did-fail-load", {
+    url: "app://sotto/auth?token=supersecret123#frag",
+    auth_header: "Bearer should_not_appear",
+    dateNote: "failure on 2026-11-25 via https://api.test/cb?access_token=abc999",
+  });
+  const text = logger.readRecent(5);
+  assert.doesNotMatch(text, /supersecret123/);
+  assert.doesNotMatch(text, /should_not_appear/);
+  assert.doesNotMatch(text, /abc999/);
+  assert.match(text, /2026-11-25/);
+  const mode = fs.statSync(logger.file).mode & 0o777;
+  assert.equal(mode, 0o600);
+});

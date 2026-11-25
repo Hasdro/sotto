@@ -62,7 +62,7 @@ def test_redaction_strips_transcript_pii_and_keys() -> None:
     )
     ev = recent_events(1)[0]
     # Sensitive keys are completely dropped
-    for forbidden in ("transcript", "customer_name", "phone", "email", "api_key",  "auth_header"):
+    for forbidden in ("transcript", "customer_name", "phone", "email", "api_key", "auth_header"):
         assert forbidden not in ev.meta
     assert ev.meta["safe_count"] == 4
     detail = str(ev.meta["detail"])

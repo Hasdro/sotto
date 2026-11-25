@@ -117,35 +117,50 @@ async def create_log_issue(
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    async with httpx.AsyncClient(
-        transport=transport, timeout=TIMEOUT_S, base_url=GITHUB_API
-    ) as client:
-        r = await client.post(
-            f"/repos/{repo}/issues",
-            headers=headers,
-            json={"title": title[:200], "body": body, "labels": labels},
-        )
-        if r.status_code != 201:
-            raise CloudError("github_unavailable", f"GitHub answered {r.status_code}")
-        data = r.json()
-        number = int(data["number"])
-        url = str(data["html_url"])
-        for comment in (comments or [])[:5]:
-            await client.post(
-                f"/repos/{repo}/issues/{number}/comments",
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, timeout=TIMEOUT_S, base_url=GITHUB_API
+        ) as client:
+            r = await client.post(
+                f"/repos/{repo}/issues",
                 headers=headers,
-                json={"body": comment},
+                json={"title": title[:200], "body": body, "labels": labels},
             )
-        if close_immediately:
-            await client.patch(
-                f"/repos/{repo}/issues/{number}",
-                headers=headers,
-                json={"state": "closed"},
-            )
+            if r.status_code != 201:
+                raise CloudError("github_unavailable", f"GitHub answered {r.status_code}")
+            data = r.json()
+            number = int(data["number"])
+            url = str(data["html_url"])
+            for comment in (comments or [])[:5]:
+                cr = await client.post(
+                    f"/repos/{repo}/issues/{number}/comments",
+                    headers=headers,
+                    json={"body": comment},
+                )
+                if cr.status_code != 201:
+                    raise CloudError(
+                        "github_unavailable", f"GitHub comment answered {cr.status_code}"
+                    )
+            final_state = "open"
+            if close_immediately:
+                pr = await client.patch(
+                    f"/repos/{repo}/issues/{number}",
+                    headers=headers,
+                    json={"state": "closed"},
+                )
+                if pr.status_code != 200:
+                    raise CloudError(
+                        "github_unavailable", f"GitHub close answered {pr.status_code}"
+                    )
+                final_state = "closed"
+    except httpx.HTTPError as e:
+        raise CloudError(
+            "github_unavailable", f"GitHub could not be reached ({type(e).__name__})"
+        ) from e
     return {
         "issue_number": number,
         "issue_url": url,
-        "state": "closed" if close_immediately else "open",
+        "state": final_state,
         "labels": labels,
     }
 
@@ -164,14 +179,19 @@ async def comment_on_log_issue(
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    async with httpx.AsyncClient(
-        transport=transport, timeout=TIMEOUT_S, base_url=GITHUB_API
-    ) as client:
-        r = await client.post(
-            f"/repos/{repo}/issues/{issue_number}/comments",
-            headers=headers,
-            json={"body": body},
-        )
-        if r.status_code != 201:
-            raise CloudError("github_unavailable", f"GitHub answered {r.status_code}")
-        return {"comment_id": int(r.json().get("id", 0)), "issue_number": issue_number}
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, timeout=TIMEOUT_S, base_url=GITHUB_API
+        ) as client:
+            r = await client.post(
+                f"/repos/{repo}/issues/{issue_number}/comments",
+                headers=headers,
+                json={"body": body},
+            )
+    except httpx.HTTPError as e:
+        raise CloudError(
+            "github_unavailable", f"GitHub could not be reached ({type(e).__name__})"
+        ) from e
+    if r.status_code != 201:
+        raise CloudError("github_unavailable", f"GitHub answered {r.status_code}")
+    return {"comment_id": int(r.json().get("id", 0)), "issue_number": issue_number}

@@ -177,6 +177,9 @@ class CallSession:
         on_escalation: Callable[[Escalation], Awaitable[None]],
         on_timing: Callable[[CardTimingRecord], None],
         new_id: Callable[[], str] = lambda: str(uuid.uuid4()),
+        holding_at_ms: int | None = None,
+        late_answer_until_ms: int | None = None,
+        local_badge: str | None = None,
     ) -> None:
         self.call_id = call_id
         self.company = company
@@ -192,7 +195,12 @@ class CallSession:
         self._events: list[TranscriptEvent] = []
         self._tasks: set[asyncio.Task[None]] = set()
         self._escalated: set[str] = set()
-        self.holding_at_ms = HOLDING_AT_MS
+        self.holding_at_ms = HOLDING_AT_MS if holding_at_ms is None else holding_at_ms
+        self.late_answer_until_ms = (
+            LATE_ANSWER_UNTIL_MS if late_answer_until_ms is None else late_answer_until_ms
+        )
+        self.answer_hard_limit_ms = max(ANSWER_HARD_LIMIT_MS, self.late_answer_until_ms + 3000)
+        self._local_badge = local_badge
         self.echo_gate = EchoGate()
         self.prompts_key = "suggest"
 
@@ -302,14 +310,14 @@ class CallSession:
         try:
             # Statements and buying signals get no holding line: a late card still helps.
             asked = needs_answer(turn.kind)
-            first_wait = self.holding_at_ms if asked else LATE_ANSWER_UNTIL_MS
+            first_wait = self.holding_at_ms if asked else self.late_answer_until_ms
             finished = await self._wait(task, until_ms=turn.t0_ms + first_wait)
             if not finished and writer is None and asked:
                 await self._holding(turn)
                 holding_sent = True
-                finished = await self._wait(task, until_ms=turn.t0_ms + LATE_ANSWER_UNTIL_MS)
+                finished = await self._wait(task, until_ms=turn.t0_ms + self.late_answer_until_ms)
             if not finished and writer is not None:  # an answer is streaming: give it a hard cap
-                finished = await self._wait(task, until_ms=turn.t0_ms + ANSWER_HARD_LIMIT_MS)
+                finished = await self._wait(task, until_ms=turn.t0_ms + self.answer_hard_limit_ms)
             answered = False
             if finished:
                 try:
@@ -331,7 +339,12 @@ class CallSession:
     def _ai_writer(self, turn: _Turn, card_type: CardType, result: RouteResult) -> _CardWriter:
         source: CardSource = "backup" if result.winner == "backup" else "ai"
         label = (
-            self.company.escalation_label.get(turn.language) or self.company.escalation_label["en"]
+            self._local_badge
+            if source != "backup" and self._local_badge
+            else (
+                self.company.escalation_label.get(turn.language)
+                or self.company.escalation_label["en"]
+            )
         )
         return _CardWriter(
             self, card_type=card_type, source=source, label=label, turn=turn, result=result

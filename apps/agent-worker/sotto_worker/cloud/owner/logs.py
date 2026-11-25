@@ -8,8 +8,10 @@ from sotto_worker.cloud.obs import store as obs_store
 from sotto_worker.cloud.store import CloudStore, Principal
 
 
-def logs_overview(store: CloudStore) -> dict[str, Any]:
+def logs_overview(store: CloudStore, owner: Principal | None = None) -> dict[str, Any]:
     """Summary for owner console Logs panel: repo configured, company switches, user overrides."""
+    if owner is not None:
+        obs_store._require_owner(owner)
     obs_store.ensure_schema(store)
     cfg = obs_store.get_logs_repo(store)
     companies = store._q("SELECT id, name FROM companies ORDER BY name")

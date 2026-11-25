@@ -68,6 +68,7 @@ export async function api<T>(
   init: ApiInit = {},
   fetcher: typeof fetch = fetch,
 ): Promise<T> {
+  if (!path.startsWith("/")) throw new ApiError(400, "invalid request path");
   if (cloudOrigin() && !cloudActive()) throw new ApiError(401, "sign in first");
   if (cloudActive()) {
     try {

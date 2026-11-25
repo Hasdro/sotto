@@ -90,6 +90,7 @@ class Catalog:
     providers: dict[str, Provider]
     stages: dict[str, StageSlot]
     key_envs: frozenset[str] = field(default_factory=frozenset)
+    local_providers: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path) -> Catalog:
@@ -114,11 +115,27 @@ class Catalog:
             sid: StageSlot(id=sid, kind=s["kind"], label=str(s["label"]))
             for sid, s in cast(dict[str, dict[str, Any]], raw["stages"]).items()
         }
+        local_raw = cast(dict[str, dict[str, Any]], raw.get("local_providers") or {})
+        local_providers = {
+            pid: {
+                "id": pid,
+                "name": str(p.get("name", pid)),
+                "kind": str(p.get("kind", "llm")),
+                "route": dict(p.get("route") or {}),
+                "steps": str(p.get("steps", "")),
+            }
+            for pid, p in local_raw.items()
+        }
         for p in providers.values():
             for url in (p.key_page, p.models_url() or "https://"):
                 if not url.startswith("https://"):
                     raise ValueError(f"{p.id}: {url} must be https")
-        return cls(providers, stages, frozenset(p.key_env for p in providers.values()))
+        return cls(
+            providers,
+            stages,
+            frozenset(p.key_env for p in providers.values()),
+            local_providers,
+        )
 
     def with_endpoints(self, endpoints: list[dict[str, Any]]) -> Catalog:
         """This catalogue plus the owner's own OpenAI-compatible endpoints (P6.4)."""

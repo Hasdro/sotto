@@ -172,12 +172,25 @@ describe("persistent login", () => {
     serve({
       "POST /api/v1/auth/login": { status: 200, body: PAIR },
       "GET /api/v1/me": { status: 200, body: ME },
-      "GET /api/v1/team": [{ status: 502 }, "network"],
+      "GET /api/v1/team": [
+        { status: 502 },
+        { status: 502 },
+        { status: 502 },
+        "network",
+        "network",
+        "network",
+      ],
     });
     const cloud = load();
     await cloud.signIn("a@a.test", "pw");
-    await expect(cloud.cloudApi("/api/v1/team")).rejects.toMatchObject({ status: 502 });
-    await expect(cloud.cloudApi("/api/v1/team")).rejects.toMatchObject({ code: "offline" });
+    const first = expect(cloud.cloudApi("/api/v1/team")).rejects.toMatchObject({ status: 502 });
+    await jest.advanceTimersByTimeAsync(5000);
+    await first;
+    const second = expect(cloud.cloudApi("/api/v1/team")).rejects.toMatchObject({
+      code: "offline",
+    });
+    await jest.advanceTimersByTimeAsync(5000);
+    await second;
     expect(cloud.cloudState().status).toBe("signed_in");
     expect(session()).toMatchObject({ access: "sa_1" });
   });
@@ -228,7 +241,9 @@ describe("persistent login", () => {
     mockStore.set("sotto.session", JSON.stringify({ ...tokensOf(PAIR), me: ME }));
     serve({ "GET /api/v1/me": "network", "GET /api/v1/bundle": "network" });
     const cloud = load();
-    await cloud.startCloud();
+    const starting = cloud.startCloud();
+    await jest.advanceTimersByTimeAsync(5000);
+    await starting;
     const s = cloud.cloudState();
     expect(s.status).toBe("signed_in");
     expect(s.status === "signed_in" && s.offline).toBe(true);

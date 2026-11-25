@@ -1,7 +1,7 @@
 // Run: node --test scripts/perf/measure-desktop.test.mjs
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BUDGETS, evaluateBudgets } from "./measure-desktop.mjs";
+import { BUDGETS, evaluateBudgets, resolveMacBinaryPath } from "./measure-desktop.mjs";
 
 test("S1 budgets match CONSTRAINTS.md", () => {
   assert.equal(BUDGETS.coldStartMs, 3000);
@@ -34,4 +34,22 @@ test("evaluateBudgets fails when any metric exceeds budget", () => {
   assert.equal(res.pass, false);
   const cold = res.checks.find((c) => c.name === "cold_start_ms");
   assert.equal(cold?.pass, false);
+});
+
+test("evaluateBudgets fails when any metric is missing or non-finite", () => {
+  const res = evaluateBudgets({
+    coldStartMs: 1200,
+    screenSwitchMs: undefined,
+    cardRenderMs: 42,
+    callMemoryMb: 280,
+    callCpuPct: 10,
+  });
+  assert.equal(res.pass, false);
+});
+
+test("resolveMacBinaryPath expands .app bundle directory to Contents/MacOS binary", () => {
+  assert.equal(
+    resolveMacBinaryPath("/tmp/AGN Sales Shield.app/Contents/MacOS/AGN Sales Shield"),
+    "/tmp/AGN Sales Shield.app/Contents/MacOS/AGN Sales Shield",
+  );
 });

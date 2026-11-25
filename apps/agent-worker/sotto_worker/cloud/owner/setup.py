@@ -6,11 +6,13 @@ from typing import Any
 
 from sotto_worker.cloud.obs import store as obs_store
 from sotto_worker.cloud.routing import local_models as lm
-from sotto_worker.cloud.store import CloudStore
+from sotto_worker.cloud.store import CloudStore, Principal
 
 
-def owner_setup_steps(store: CloudStore) -> list[dict[str, Any]]:
+def owner_setup_steps(store: CloudStore, owner: Principal | None = None) -> list[dict[str, Any]]:
     """Return owner-role setup steps with live status, what-this-does, default, and Fix it href."""
+    if owner is not None:
+        obs_store._require_owner(owner)
     obs_store.ensure_schema(store)
     lm.ensure_schema(store)
     logs_cfg = obs_store.get_logs_repo(store)

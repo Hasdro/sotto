@@ -28,9 +28,16 @@ import { useZoho } from "../features/crm/useZoho";
 import { ZohoConnect } from "../features/crm/ZohoConnect";
 import { Health } from "../features/settings/Health";
 import { Knowledge } from "../features/settings/Knowledge";
+import { LocalModelsSettings } from "../features/settings/LocalModelsSettings";
 import { BugReportSheet } from "../features/support/BugReport";
-import { APP_VERSION, cloudOrigin } from "../lib/cloud";
+import { APP_VERSION, cloudOrigin, refreshCloud } from "../lib/cloud";
 import { useI18n } from "../lib/locale";
+import {
+  fetchLocalModels,
+  type LocalEndpointRow,
+  saveLocalEndpoint,
+  testLocalEndpoint,
+} from "../lib/localModels";
 import { shortcutKeys } from "../lib/platform";
 import { type Prefs, setPrefs, usePrefs } from "../lib/prefs";
 import { useRole } from "../lib/role";
@@ -249,6 +256,8 @@ export default function SettingsScreen() {
         </Disclosure>
       </View>
 
+      <LocalModelsGroup />
+
       {admin ? (
         <Group icon="spark" title={t("settings.knowledge")}>
           <FeatureGate feature="ai_knowledge">
@@ -308,6 +317,88 @@ function ZohoPanel({ title }: { title: string }) {
   return (
     <Group icon="globe" title={title} testID="settings-zoho" nativeID="zoho">
       <ZohoConnect zoho={zoho} />
+    </Group>
+  );
+}
+
+/** L6 / D-095 / D-096: Local or offline model server settings when enabled for this person. */
+function LocalModelsGroup() {
+  const textFeat = useFeature("local_models_text").state;
+  const voiceFeat = useFeature("local_models_voice").state;
+  if (textFeat !== "available" && voiceFeat !== "available") return null;
+  return (
+    <LocalModelsPanel showText={textFeat === "available"} showVoice={voiceFeat === "available"} />
+  );
+}
+
+function LocalModelsPanel({ showText, showVoice }: { showText: boolean; showVoice: boolean }) {
+  const [endpoints, setEndpoints] = useState<LocalEndpointRow[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLocalModels()
+      .then((res) => {
+        if (!cancelled) setEndpoints(Array.isArray(res?.endpoints) ? res.endpoints : []);
+      })
+      .catch(() => {
+        if (!cancelled) setEndpoints([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (endpoints === null) return null;
+  const textEp = endpoints.find((e) => e.kind === "text");
+  const sttEp = endpoints.find((e) => e.kind === "stt");
+  const ttsEp = endpoints.find((e) => e.kind === "tts");
+
+  return (
+    <Group icon="spark" title="Local & offline models" testID="settings-local-models">
+      {showText ? (
+        <LocalModelsSettings
+          initialUrl={textEp?.base_url || "http://127.0.0.1:11434/v1"}
+          initialOptIn={textEp?.live_opt_in ?? false}
+          onTest={async (url) => {
+            const res = await testLocalEndpoint("text", url, textEp?.live_opt_in ?? false);
+            await refreshCloud();
+            return res;
+          }}
+          onSave={async (cfg) => {
+            await saveLocalEndpoint("text", cfg.url, cfg.liveOptIn);
+            await refreshCloud();
+          }}
+        />
+      ) : null}
+      {showVoice ? (
+        <LocalModelsSettings
+          initialUrl={sttEp?.base_url || "http://127.0.0.1:8000"}
+          initialOptIn={sttEp?.live_opt_in ?? false}
+          onTest={async (url) => {
+            const res = await testLocalEndpoint("stt", url, sttEp?.live_opt_in ?? false);
+            await refreshCloud();
+            return res;
+          }}
+          onSave={async (cfg) => {
+            await saveLocalEndpoint("stt", cfg.url, cfg.liveOptIn);
+            await refreshCloud();
+          }}
+        />
+      ) : null}
+      {showVoice ? (
+        <LocalModelsSettings
+          initialUrl={ttsEp?.base_url || "http://127.0.0.1:8001"}
+          initialOptIn={ttsEp?.live_opt_in ?? false}
+          onTest={async (url) => {
+            const res = await testLocalEndpoint("tts", url, ttsEp?.live_opt_in ?? false);
+            await refreshCloud();
+            return res;
+          }}
+          onSave={async (cfg) => {
+            await saveLocalEndpoint("tts", cfg.url, cfg.liveOptIn);
+            await refreshCloud();
+          }}
+        />
+      ) : null}
     </Group>
   );
 }

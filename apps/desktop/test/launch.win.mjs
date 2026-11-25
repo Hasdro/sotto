@@ -26,19 +26,22 @@ const child = spawn(binary, [`--user-data-dir=${userData}`, `--remote-debugging-
   windowsHide: true,
 });
 
-let exitedEarly = false;
+let exitInfo = null;
 let stderr = "";
 child.stderr.on("data", (d) => {
   stderr += d.toString();
 });
-child.on("exit", (code) => {
-  if (code !== 0 && code !== null) exitedEarly = true;
+child.on("exit", (code, signal) => {
+  exitInfo = { code, signal };
 });
 
 async function waitForSignIn() {
   const deadline = Date.now() + 25_000;
   while (Date.now() < deadline) {
-    if (exitedEarly) throw new Error(`App exited early:\n${stderr}`);
+    if (exitInfo)
+      throw new Error(
+        `App exited early (code=${exitInfo.code}, signal=${exitInfo.signal}):\n${stderr}`,
+      );
     try {
       const res = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (res.ok) {

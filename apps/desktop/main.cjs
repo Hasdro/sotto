@@ -54,9 +54,12 @@ installProcessHandlers({ proc: process, logger: safetyLogger });
 let safetyIpc = { getRecoveryState: () => null };
 // Pages may reach https/wss vendors (calls run on this device); scripts only from the app itself.
 // SOTTO_LOCAL_SERVER (development only) also allows a plain-http server on this machine.
-const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(process.env.SOTTO_LOCAL_SERVER ?? "")
+const EXTRA_LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(
+  process.env.SOTTO_LOCAL_SERVER ?? "",
+)
   ? ` ${process.env.SOTTO_LOCAL_SERVER}`
   : "";
+const LOCAL = ` http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*${EXTRA_LOCAL}`;
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   `img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:${LOCAL}; ` +

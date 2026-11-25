@@ -46,9 +46,15 @@ from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
 from sotto_worker.cloud.metering.store import Metering
+from sotto_worker.cloud.obs import call_logs as obs_call_logs
+from sotto_worker.cloud.obs import store as obs_store
+from sotto_worker.cloud.owner import local_models as owner_local_models
+from sotto_worker.cloud.owner import logs as owner_logs
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.owner import routes as owner_routes
+from sotto_worker.cloud.owner import setup as owner_setup
 from sotto_worker.cloud.recordings import KINDS, Recordings
+from sotto_worker.cloud.routing import local_models as lm_mod
 from sotto_worker.cloud.routing.job import weekly as routing_weekly
 from sotto_worker.cloud.scheduler import routes as followup_routes
 from sotto_worker.cloud.scheduler.runner import DAY_MS, Scheduler
@@ -969,6 +975,20 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         if not store.org_feature_on(who.company, "ai_knowledge"):
             settings.pop("context", None)  # D-036: the knowledge is withheld, not just hidden
         settings.update(store.text_defaults(who.company))  # ZC-11c tone and call goal
+        local_dec = lm_mod.decide_live_route(store, who.company, who.user_id, kind="text")
+        local_pol = lm_mod.get_company_policy(store, who.company)
+        local_cfg = (
+            {
+                "mode": local_dec.mode,
+                "base_url": local_dec.base_url,
+                "holding_at_ms": local_dec.holding_at_ms,
+                "badge": local_dec.badge,
+                "exclude_p95_alarm": local_dec.exclude_p95_alarm,
+                "allow_cloud_backup": local_pol["allow_cloud_backup"],
+            }
+            if local_dec.mode != "cloud"
+            else None
+        )
         out = build_bundle(
             platform.company_seed(store, seed, who.company),
             company_name=str(company["name"]),
@@ -977,6 +997,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             prompts=platform.effective_prompts(store, seed, who.company),
             demoted=platform.demotions(store),
             own_playbook=store.playbook(who.company),
+            local_model=local_cfg,
             keys=(
                 store.keys_for_call(
                     who,
@@ -1032,11 +1053,174 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             store.start_call(who, str(call_id))
         return JSONResponse({"ok": True, "plan": state})
 
+    pending_obs: set[asyncio.Task[Any]] = set()
+
+    def _spawn_call_log(who: Principal, payload: obs_call_logs.CallLogPayload) -> None:
+        if not obs_store.call_logs_enabled_for(store, who.company, who.user_id):
+            return
+        if obs_store.get_logs_repo(store) is None:
+            return
+
+        async def _send() -> None:
+            try:
+                await obs_call_logs.publish_call_log(
+                    store, who, payload, transport=config.github_transport
+                )
+            except Exception as err:
+                config.log(f"call log publish failed: {type(err).__name__}")
+
+        task = asyncio.create_task(_send())
+        pending_obs.add(task)
+        task.add_done_callback(pending_obs.discard)
+
     @app_route
     async def usage(request: Request, who: Principal) -> Response:
-        call_id = store.report_usage(who, await body(request), platform_of(request))
+        data = await body(request)
+        call_id = store.report_usage(who, data, platform_of(request))
         await metering.check(who.company, notify_owner)  # ZC-12: 80 % / 100 % alerts, once each
+        p95 = data.get("p95_ms")
+        p50 = data.get("p50_ms")
+        timings: dict[str, int] = {}
+        if isinstance(p50, int) and not isinstance(p50, bool):
+            timings["p50_ms"] = p50
+        if isinstance(p95, int) and not isinstance(p95, bool):
+            timings["p95_ms"] = p95
+        _spawn_call_log(
+            who,
+            obs_call_logs.CallLogPayload(
+                company_id=who.company,
+                user_id=who.user_id,
+                call_id=call_id,
+                platform=platform_of(request),
+                os_version=str(data.get("os_version") or "unknown"),
+                app_version=str(data.get("app_version") or "unknown"),
+                device=str(who.device_id or "unknown"),
+                timings=timings,
+                connections={
+                    "stt": str(data.get("stt_vendor") or "unknown"),
+                    "models": str(data.get("llm_vendor") or "unknown"),
+                },
+                exclude_p95_alarm=bool(data.get("exclude_p95_alarm") is True),
+            ),
+        )
         return JSONResponse({"ok": True, "id": call_id})
+
+    @app_route
+    async def obs_call_log_post(request: Request, who: Principal) -> Response:
+        data = await body(request)
+        timings = data.get("timings")
+        conns = data.get("connections")
+        payload = obs_call_logs.CallLogPayload(
+            company_id=who.company,
+            user_id=who.user_id,
+            call_id=str(data.get("call_id") or ""),
+            platform=platform_of(request),
+            os_version=str(data.get("os_version") or "unknown"),
+            app_version=str(data.get("app_version") or "unknown"),
+            device=str(data.get("device") or who.device_id or "unknown"),
+            timings=timings if isinstance(timings, dict) else {},
+            connections=conns if isinstance(conns, dict) else {},
+            automations=list(data.get("automations") or [])
+            if isinstance(data.get("automations"), list)
+            else [],
+            errors=list(data.get("errors") or []) if isinstance(data.get("errors"), list) else [],
+            model_traces=list(data.get("model_traces") or [])
+            if isinstance(data.get("model_traces"), list)
+            else [],
+            exclude_p95_alarm=bool(data.get("exclude_p95_alarm") is True),
+        )
+        out = await obs_call_logs.publish_call_log(
+            store, who, payload, transport=config.github_transport
+        )
+        return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def local_models_get(_request: Request, who: Principal) -> Response:
+        policy = lm_mod.get_company_policy(store, who.company, actor=who)
+        endpoints = lm_mod.get_user_endpoints(store, who, who.company, who.user_id)
+        return JSONResponse(
+            {"policy": policy, "endpoints": endpoints}, headers={"Cache-Control": "no-store"}
+        )
+
+    @app_route
+    async def local_models_test(request: Request, who: Principal) -> Response:
+        data = await body(request)
+        kind = lm_mod.require_kind(str(data.get("kind") or "text"))
+        store.require_feature(who, "local_models_text" if kind == "text" else "local_models_voice")
+        base_url = str(data.get("base_url") or "")
+        live_opt_in = bool(data.get("live_opt_in") is True)
+        bench = await lm_mod.probe_local_endpoint(base_url, kind)
+        saved = lm_mod.save_user_endpoint(
+            store,
+            who,
+            company_id=who.company,
+            user_id=who.user_id,
+            kind=kind,
+            base_url=base_url,
+            bench=bench,
+            live_opt_in=live_opt_in,
+        )
+        return JSONResponse(
+            {
+                "reachable": bench.reachable,
+                "status_label": bench.status_label,
+                "measured_ms": bench.measured_ms,
+                "meets_r1": bench.meets_r1,
+                "detail": bench.detail,
+                "endpoint": saved,
+            },
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app_route
+    async def local_models_put(request: Request, who: Principal) -> Response:
+        data = await body(request)
+        kind = lm_mod.require_kind(str(data.get("kind") or "text"))
+        store.require_feature(who, "local_models_text" if kind == "text" else "local_models_voice")
+        base_url = str(data.get("base_url") or "")
+        live_opt_in = bool(data.get("live_opt_in") is True)
+        existing = next(
+            (
+                e
+                for e in lm_mod.get_user_endpoints(store, who, who.company, who.user_id)
+                if e["kind"] == kind
+            ),
+            None,
+        )
+        bench = lm_mod.BenchmarkResult(
+            reachable=bool(existing and existing["status"] == "connected"),
+            status_label="Local model: connected ✓"
+            if existing and existing["status"] == "connected"
+            else "Local model: untested",
+            measured_ms=int(existing["measured_ms"])
+            if existing and existing["measured_ms"] is not None
+            else None,
+            meets_r1=bool(existing and existing["meets_r1"]),
+            detail="",
+        )
+        saved = lm_mod.save_user_endpoint(
+            store,
+            who,
+            company_id=who.company,
+            user_id=who.user_id,
+            kind=kind,
+            base_url=base_url,
+            bench=bench,
+            live_opt_in=live_opt_in,
+        )
+        return JSONResponse({"endpoint": saved}, headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def local_models_delete(request: Request, who: Principal) -> Response:
+        kind = lm_mod.require_kind(request.path_params["kind"])
+        deleted = lm_mod.delete_user_endpoint(
+            store,
+            who,
+            who.company,
+            who.user_id,
+            kind,
+        )
+        return JSONResponse({"ok": deleted})
 
     def recordings_on() -> Recordings:
         if config.recordings is None:
@@ -1489,6 +1673,100 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         store.mark_bug_report_submitted(report["id"], str(created["issue_url"]))
         return JSONResponse(created, headers={"Cache-Control": "no-store"})
 
+    # --- Round 4 (owner): Call logs to GitHub, local models policy, setup guide ----------------
+    async def o_logs(_r: Request, who: Principal) -> Response:
+        return JSONResponse(
+            owner_logs.logs_overview(store, who), headers={"Cache-Control": "no-store"}
+        )
+
+    async def o_logs_repo(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        return JSONResponse(
+            owner_logs.save_repo(
+                store, who, str(data.get("repo", "")), str(data.get("token", "")), ip=ip_of(r)
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_logs_company(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        if not isinstance(data.get("enabled"), bool):
+            raise CloudError("invalid", "enabled must be true or false")
+        return JSONResponse(
+            owner_logs.toggle_company(
+                store, who, str(data.get("company_id", "")), bool(data["enabled"]), ip=ip_of(r)
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_logs_user(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        enabled = data.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be true, false, or null")
+        return JSONResponse(
+            owner_logs.toggle_user(
+                store,
+                who,
+                str(data.get("company_id", "")),
+                str(data.get("user_id", "")),
+                enabled,
+                ip=ip_of(r),
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_local_models(_r: Request, who: Principal) -> Response:
+        return JSONResponse(
+            owner_local_models.overview(store, who), headers={"Cache-Control": "no-store"}
+        )
+
+    async def o_local_models_company(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        for field_name in ("text_enabled", "voice_enabled", "allow_cloud_backup"):
+            if (
+                field_name in data
+                and data[field_name] is not None
+                and not isinstance(data[field_name], bool)
+            ):
+                raise CloudError("invalid", f"{field_name} must be true or false")
+        return JSONResponse(
+            owner_local_models.update_company(
+                store,
+                who,
+                str(data.get("company_id", "")),
+                text_enabled=data.get("text_enabled"),
+                voice_enabled=data.get("voice_enabled"),
+                allow_cloud_backup=data.get("allow_cloud_backup"),
+                ip=ip_of(r),
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_local_models_user(r: Request, who: Principal) -> Response:
+        data = await body(r)
+        enabled = data.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be true, false, or null")
+        return JSONResponse(
+            owner_local_models.update_user_override(
+                store,
+                who,
+                str(data.get("company_id", "")),
+                str(data.get("user_id", "")),
+                str(data.get("feature_id", "")),
+                enabled,
+                ip=ip_of(r),
+            ),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    async def o_setup(_r: Request, who: Principal) -> Response:
+        return JSONResponse(
+            {"steps": owner_setup.owner_setup_steps(store, who)},
+            headers={"Cache-Control": "no-store"},
+        )
+
     # --- pages -----------------------------------------------------------------------------------
     async def healthz(_r: Request) -> Response:
         return JSONResponse({"ok": True, "service": "sotto-cloud"})
@@ -1514,6 +1792,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             "index.html",
             "company.html",
             "company.js",
+            "logs.html",
+            "logs.js",
+            "local-models.html",
+            "local-models.js",
+            "setup.html",
+            "setup.js",
             "owner.js",
             "platform.js",
             "owner.css",
@@ -1584,6 +1868,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route(f"{api}/stt-token/{{vendor}}", stt_token, methods=["POST"]),
         Route(f"{api}/calls/start", call_start, methods=["POST"]),
         Route(f"{api}/usage", usage, methods=["POST"]),
+        Route(f"{api}/obs/call-logs", obs_call_log_post, methods=["POST"]),
+        Route(f"{api}/local-models", local_models_get),
+        Route(f"{api}/local-models", local_models_put, methods=["PUT"]),
+        Route(f"{api}/local-models/test", local_models_test, methods=["POST"]),
+        Route(f"{api}/local-models/{{kind}}", local_models_delete, methods=["DELETE"]),
         Route(f"{api}/company/usage", company_usage),
         Route(f"{api}/calls/{{call_id}}/review", review_post, methods=["POST"]),
         Route(f"{api}/calls/{{call_id}}/brief", call_brief_put, methods=["PUT"]),
@@ -1678,6 +1967,30 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             owner_route(o_device_delete, mutating=True),
             methods=["DELETE"],
         ),
+        Route("/api/owner/logs", owner_route(o_logs)),
+        Route("/api/owner/logs/repo", owner_route(o_logs_repo, mutating=True), methods=["POST"]),
+        Route(
+            "/api/owner/logs/company",
+            owner_route(o_logs_company, mutating=True),
+            methods=["POST"],
+        ),
+        Route(
+            "/api/owner/logs/user",
+            owner_route(o_logs_user, mutating=True),
+            methods=["POST"],
+        ),
+        Route("/api/owner/local-models", owner_route(o_local_models)),
+        Route(
+            "/api/owner/local-models/company",
+            owner_route(o_local_models_company, mutating=True),
+            methods=["POST"],
+        ),
+        Route(
+            "/api/owner/local-models/user",
+            owner_route(o_local_models_user, mutating=True),
+            methods=["POST"],
+        ),
+        Route("/api/owner/setup", owner_route(o_setup)),
         *learning_routes.make_routes(
             learning=learning, app_route=app_route, body=body, ip_of=ip_of
         ),

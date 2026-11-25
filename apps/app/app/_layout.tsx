@@ -6,14 +6,16 @@ import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
 import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { UIProvider, useTheme } from "@sotto/ui";
 import { useFonts } from "expo-font";
-import { Slot, usePathname } from "expo-router";
+import { Slot, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect, useRef } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AccessGate } from "../components/AccessGate";
 import { AppShell } from "../components/AppShell";
 import { SafeBoundary } from "../components/SafeBoundary";
 import { CallSessionProvider } from "../features/call/CallSessionProvider";
 import { EscalationStoreProvider } from "../features/escalations/store";
+import { desktop } from "../lib/desktop";
 import { LocaleProvider, useI18n } from "../lib/locale";
 import { usePrefs } from "../lib/prefs";
 import { RoleProvider } from "../lib/role";
@@ -55,6 +57,26 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
   // The desktop mini window shows the main window's card: no menu, no sign-in, no call of its own.
   // The password-reset page (UX-39r) is opened signed out, from the reset email.
   const pathname = usePathname();
+  const router = useRouter();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const routerRef = useRef(router);
+  routerRef.current = router;
+  useEffect(() => {
+    const take = desktop()?.takeRecoveryState;
+    if (!take) return;
+    let cancelled = false;
+    void take()
+      .then((rec) => {
+        if (cancelled || !rec?.route || !rec.route.startsWith("/")) return;
+        if (Date.now() - rec.savedAt > 120_000) return;
+        if (rec.route !== pathnameRef.current) routerRef.current.replace(rec.route as never);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const bare = pathname === "/mini" || pathname === "/reset-password";
   return (
     <View
@@ -64,7 +86,7 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
     >
       <StatusBar style="auto" />
       {bare ? (
-        <SafeBoundary name="screen">
+        <SafeBoundary name="screen" key={pathname} resetKey={pathname}>
           <Slot />
         </SafeBoundary>
       ) : (
@@ -72,7 +94,7 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
           <AccessGate>
             <CallSessionProvider>
               <AppShell>
-                <SafeBoundary name="screen">
+                <SafeBoundary name="screen" key={pathname} resetKey={pathname}>
                   <Slot />
                 </SafeBoundary>
               </AppShell>

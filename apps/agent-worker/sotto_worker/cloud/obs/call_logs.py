@@ -19,7 +19,7 @@ import httpx
 
 from sotto_worker.cloud import github
 from sotto_worker.cloud.obs import store as obs_store
-from sotto_worker.cloud.obs.log import redact_text
+from sotto_worker.cloud.obs.log import is_blocked_key, redact_text
 from sotto_worker.cloud.store import CloudStore, Principal
 
 MAX_BODY_CHARS = 60_000
@@ -27,6 +27,16 @@ MAX_COMMENT_CHARS = 60_000
 MAX_COMMENTS = 5
 P95_HEALTHY_LIMIT_MS = 1500
 CUT_MARKER = "[… oldest details omitted to stay within GitHub size limit …]\n"
+_AUTOMATION_FIELDS = (
+    "id",
+    "kind",
+    "stage",
+    "status",
+    "duration_ms",
+    "ok",
+    "error_code",
+    "attempts",
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +54,7 @@ class CallLogPayload:
     errors: list[dict[str, Any]] = field(default_factory=list)
     # Model requests/replies as structure and sizes only (no text!)
     model_traces: list[dict[str, Any]] = field(default_factory=list)
+    exclude_p95_alarm: bool = False
 
 
 def _sanitize_model_trace(trace: dict[str, Any]) -> dict[str, Any]:
@@ -78,9 +89,38 @@ def _sanitize_error(err: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _sanitize_automation(auto: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k in _AUTOMATION_FIELDS:
+        if k in auto and auto[k] is not None and not is_blocked_key(k):
+            v = auto[k]
+            out[k] = v if isinstance(v, bool | int) else redact_text(str(v))
+    return out
+
+
+def _sanitize_timings(timings: dict[str, Any]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for k, v in timings.items():
+        if not is_blocked_key(k) and isinstance(v, int) and not isinstance(v, bool):
+            out[k] = v
+    return out
+
+
+def _sanitize_connections(conns: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for k, v in conns.items():
+        if not is_blocked_key(k):
+            out[k] = redact_text(str(v))
+    return out
+
+
 def is_healthy(payload: CallLogPayload) -> bool:
+    if len(payload.errors) > 0:
+        return False
+    if payload.exclude_p95_alarm:
+        return True
     p95 = int(payload.timings.get("p95_ms", 0))
-    return len(payload.errors) == 0 and p95 <= P95_HEALTHY_LIMIT_MS
+    return p95 <= P95_HEALTHY_LIMIT_MS
 
 
 def split_body_and_comments(
@@ -92,8 +132,12 @@ def split_body_and_comments(
     if not detail_lines:
         return body_prefix[:max_chars], []
 
+    clamped = [
+        line if len(line) < max_chars else line[: max_chars - 2] + "…" for line in detail_lines
+    ]
+
     # Check if everything fits in the body directly
-    joined = "\n".join(detail_lines)
+    joined = "\n".join(clamped)
     if len(body_prefix) + len(joined) <= max_chars:
         return body_prefix + joined, []
 
@@ -103,7 +147,7 @@ def split_body_and_comments(
     kept: list[str] = []
     used = 0
     truncated = False
-    for line in reversed(detail_lines):
+    for line in reversed(clamped):
         cost = len(line) + 1
         if used + cost + len(CUT_MARKER) > max_comment_budget:
             truncated = True
@@ -117,12 +161,12 @@ def split_body_and_comments(
     for line in kept:
         addition = line + "\n"
         if len(current) + len(addition) > max_chars and current:
-            chunks.append(current.rstrip())
+            chunks.append(current.rstrip()[:max_chars])
             current = addition
         else:
             current += addition
     if current.strip():
-        chunks.append(current.rstrip())
+        chunks.append(current.rstrip()[:max_chars])
 
     body = (body_prefix + (f"_Details split across {len(chunks[:MAX_COMMENTS])} comment(s)._\n"))[
         :max_chars
@@ -134,7 +178,8 @@ def format_call_issue(payload: CallLogPayload) -> tuple[str, str, list[str], lis
     """Return (title, body, comments, labels, close_immediately) with strict L3 redaction."""
     healthy = is_healthy(payload)
     label = "healthy" if healthy else "needs-attention"
-    p95 = int(payload.timings.get("p95_ms", 0))
+    timings = _sanitize_timings(payload.timings)
+    p95 = int(timings.get("p95_ms", 0))
     title = redact_text(
         f"[call:{payload.call_id}] {label} · company={payload.company_id} · p95={p95}ms"
     )
@@ -146,24 +191,18 @@ def format_call_issue(payload: CallLogPayload) -> tuple[str, str, list[str], lis
         f" / `{redact_text(payload.os_version)}`",
         f"- **App version / Device:** `{redact_text(payload.app_version)}`"
         f" / `{redact_text(payload.device)}`",
-        f"- **Status:** `{label}` (p95={p95} ms, errors={len(payload.errors)})",
-        f"- **Timings (ms):** `{json.dumps(payload.timings, sort_keys=True)}`",
-        "- **Connections:** `"
-        + json.dumps(
-            {k: redact_text(str(v)) for k, v in payload.connections.items()}, sort_keys=True
-        )
-        + "`",
+        f"- **Status:** `{label}` (p95={p95} ms, errors={len(payload.errors)}"
+        + (", local-slow-excluded=true" if payload.exclude_p95_alarm else "")
+        + ")",
+        f"- **Timings (ms):** `{json.dumps(timings, sort_keys=True)}`",
+        f"- **Connections:** "
+        f"`{json.dumps(_sanitize_connections(payload.connections), sort_keys=True)}`",
     ]
     detail_lines: list[str] = []
     for err in payload.errors:
         detail_lines.append("ERROR " + json.dumps(_sanitize_error(err), sort_keys=True))
     for auto in payload.automations:
-        safe_auto = {
-            k: redact_text(str(v))
-            for k, v in auto.items()
-            if k not in ("body", "text", "email", "phone")
-        }
-        detail_lines.append("AUTOMATION " + json.dumps(safe_auto, sort_keys=True))
+        detail_lines.append("AUTOMATION " + json.dumps(_sanitize_automation(auto), sort_keys=True))
     for trace in payload.model_traces:
         detail_lines.append("MODEL " + json.dumps(_sanitize_model_trace(trace), sort_keys=True))
 
@@ -184,6 +223,7 @@ async def publish_call_log(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict[str, Any]:
     """Publish one GitHub issue for a finished call if L4 switch is ON for (company, user)."""
+    obs_store._require_tenant_user(actor, payload.company_id, payload.user_id)
     if not obs_store.call_logs_enabled_for(store, payload.company_id, payload.user_id):
         return {"sent": False, "reason": "disabled"}
     cfg = obs_store.get_logs_repo(store)
@@ -231,6 +271,7 @@ async def publish_background_failure(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict[str, Any]:
     """Publish or deduplicate a background-failure issue by error fingerprint."""
+    obs_store._require_tenant_user(actor, company_id, user_id)
     if not obs_store.call_logs_enabled_for(store, company_id, user_id):
         return {"sent": False, "reason": "disabled"}
     cfg = obs_store.get_logs_repo(store)
