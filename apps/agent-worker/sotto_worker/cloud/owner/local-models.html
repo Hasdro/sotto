@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Local &amp; Offline Models · AGN Sales Shield Owner</title>
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="components.css" />
+  <link rel="stylesheet" href="owner.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="page-header">
+      <h1>Local &amp; offline models</h1>
+      <p class="muted">Enable OpenAI-compatible text or local voice endpoints per company and per user (default off). Control mid-call cloud backup per company (default on).</p>
+    </header>
+    <section class="card" aria-labelledby="lm-heading">
+      <h2 id="lm-heading">Company policies</h2>
+      <p class="muted">What this does: allows companies or specific users to connect localhost or company-network models. Recommended default: off until tested; Allow cloud backup on.</p>
+      <div id="local-models-list"></div>
+    </section>
+  </main>
+  <script src="local-models.js"></script>
+</body>
+</html>

@@ -121,6 +121,40 @@ providers:
     models: [scribe_v2_realtime]
     client: false  # the Python worker runs it; the apps (packages/engine) do not yet
 
+  local_openai:
+    name: Local OpenAI-compatible (Ollama / LM Studio)
+    kind: llm
+    key_env: ""
+    key_page: ""
+    free: Self-hosted (localhost or company network)
+    steps: Start your local OpenAI-compatible server and enter its URL in Settings → Local models.
+    route:
+      provider: openai_compatible
+      base_url: http://127.0.0.1:11434/v1
+    models: []
+  local_stt:
+    name: Local Speech-to-Text (Whisper-compatible)
+    kind: stt
+    key_env: ""
+    key_page: ""
+    free: Self-hosted (localhost or company network)
+    steps: Start your local Whisper-compatible server and enter its URL in Settings → Local models.
+    route:
+      provider: local_stt
+      base_url: http://127.0.0.1:8000
+    models: []
+  local_tts:
+    name: Local Text-to-Speech
+    kind: tts
+    key_env: ""
+    key_page: ""
+    free: Self-hosted (localhost or company network)
+    steps: Start your local TTS server and enter its URL in Settings → Local models.
+    route:
+      provider: local_tts
+      base_url: http://127.0.0.1:8001
+    models: []
+
 # Stages the panel lets the owner set, and which kind of vendor each takes.
 stages:
   stt: {kind: stt, label: Speech-to-text (main)}
