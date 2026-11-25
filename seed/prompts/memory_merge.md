@@ -3,7 +3,7 @@ key: memory_merge
 version: 1
 scope: platform
 stage: memory_merge
-description: Background merge job (Round 4, A3): merges per-agent feedback (card ratings, reason chips, card notes, whole-call notes, coach-review answers) into compact per-agent style memory rules. Receives only PII-stripped feedback, never a full transcript.
+description: "Background merge job (Round 4, A3) that merges per-agent feedback into compact per-agent style memory rules without transcripts."
 variables:
   - company.name
   - memory.current

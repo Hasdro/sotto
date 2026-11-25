@@ -1,4 +1,6 @@
-export { memoryApi, submitFeedbackOrQueue, wizardApi } from "./api";
+export { SafeBoundary } from "../../components/SafeBoundary";
+export { logEvent } from "../../lib/obs";
+export { enqueue } from "../../lib/outbox";
 export type {
   AdminAgentMemory,
   AdminMemoryOverview,
@@ -10,8 +12,10 @@ export type {
   SavedWizardState,
   StyleRule,
 } from "./api";
+export { memoryApi, submitFeedbackOrQueue, wizardApi } from "./api";
 export { FeedbackStep } from "./FeedbackStep";
 export { PostCallWizard } from "./PostCallWizard";
+export { StyleMemoryScreen } from "./StyleMemoryScreen";
 export {
   ALL_WIZARD_STEPS,
   computeVisibleSteps,
@@ -25,4 +29,4 @@ export {
   shouldOpenWizard,
 } from "./steps";
 export { postCallText, usePostCallText } from "./strings";
-export { enqueue, logEvent, SafeBoundary, startReview } from "./stubs";
+export { startReview } from "./stubs";

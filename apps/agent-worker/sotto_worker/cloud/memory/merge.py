@@ -12,7 +12,6 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from sotto_worker.cloud.memory.obs_stub import log_event
 from sotto_worker.cloud.memory.redact import strip_personal_data
 from sotto_worker.cloud.memory.store import (
     MAX_RULES,
@@ -20,6 +19,7 @@ from sotto_worker.cloud.memory.store import (
     MERGE_MAX_RETRIES,
     MemoryStore,
 )
+from sotto_worker.cloud.obs.log import log_event
 
 PROMPT_FILE = Path(__file__).resolve().parents[5] / "seed" / "prompts" / "memory_merge.md"
 _BULLET_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+(.+)$")
@@ -68,10 +68,11 @@ def render_merge_prompt(
     prompt_body: str | None = None,
 ) -> str:
     body = prompt_body if prompt_body is not None else load_merge_prompt_body()
+    safe_company = " ".join((company_name or "").split())[:120] or "Company"
     current_block = "\n".join(f"- {r}" for r in current_rules) if current_rules else "(none)"
     packet = build_feedback_packet(feedback_rows)
     return (
-        body.replace("{{company.name}}", company_name)
+        body.replace("{{company.name}}", safe_company)
         .replace("{{memory.current}}", current_block)
         .replace("{{memory.max_rules}}", str(MAX_RULES))
         .replace("{{memory.max_words}}", str(MAX_WORDS))
@@ -165,7 +166,7 @@ async def run_memory_merge(
                 status=str(result["status"]),
             )
             return result
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             last_err = f"{type(exc).__name__}: {exc}"
             log_event(
                 "style_memory",

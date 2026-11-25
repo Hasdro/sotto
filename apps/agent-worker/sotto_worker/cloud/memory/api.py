@@ -49,5 +49,5 @@ def add_feedback(
 
 
 def get_style_memory(company_id: str, user_id: str) -> list[str]:
-    """Return <= 12 active style rules for the live prompt (company rules first, then agent rules)."""
+    """Return <= 12 active style rules for the live prompt (company rules first, then agent)."""
     return _require_store().get_style_memory(company_id, user_id)

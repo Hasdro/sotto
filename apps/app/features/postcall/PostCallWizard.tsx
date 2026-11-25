@@ -3,24 +3,29 @@
  * Steps: 1 Review -> 2 WhatsApp -> 3 Email -> 4 Zoho actions -> 5 Card feedback.
  * - Steps 2–4 hidden when their feature is off or nothing is suggested.
  * - Back / Skip / Next on every step + progress dots; Next/Skip NEVER send (R12).
- * - Each step wrapped in <SafeBoundary name="wizard.stepN"> (Agent 4 stub).
+ * - Each step wrapped in <SafeBoundary name="wizard.stepN"> (Agent 4 real boundary).
  * - Step 1 shows "Talk it through" when `voice_coach` is available (calls Agent 3 stub).
  * - "Finish later" persists the step + unsent drafts server-side for 24h (feedback stays 7d).
  */
 import { Button, Panel, radius, Stack, space, Text, useTheme } from "@sotto/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
+import { SafeBoundary } from "../../components/SafeBoundary";
 import { useReview } from "../../lib/deviceHistory";
+import { logEvent } from "../../lib/obs";
+import { useCloud } from "../../lib/useCloud";
 import type { Perform } from "../actions/ActionCard";
 import { AfterCallChecklist, type SaveLog } from "../actions/AfterCallChecklist";
 import type { CardView } from "../cards/reducer";
 import { useAttached } from "../crm/attached";
 import { EmailAction } from "../email";
+import type { Draft as EmailDraft } from "../email/api";
 import { CallReviewPanel } from "../review/CallReviewPanel";
 import { WhatsAppAction } from "../whatsapp";
+import type { Message as WhatsAppMessage } from "../whatsapp/api";
 import { type SavedWizardState, wizardApi } from "./api";
-import { FeedbackStep } from "./FeedbackStep";
+import { type FeedbackDraftState, FeedbackStep } from "./FeedbackStep";
 import {
   computeVisibleSteps,
   goBack,
@@ -32,7 +37,7 @@ import {
   type WizardStepNumber,
 } from "./steps";
 import { type PostCallKey, usePostCallText } from "./strings";
-import { logEvent, SafeBoundary, startReview } from "./stubs";
+import { startReview } from "./stubs";
 
 export type PostCallWizardProps = {
   callId: string | null;
@@ -50,6 +55,12 @@ export type PostCallWizardProps = {
   saveLog?: SaveLog;
   onFinish?: () => void;
   onFinishLater?: (savedStep: WizardStepNumber) => void;
+};
+
+type WizardDrafts = {
+  whatsapp?: WhatsAppMessage | null;
+  email?: EmailDraft | null;
+  feedback?: FeedbackDraftState;
 };
 
 const STEP_LABEL: Record<WizardStepDef["id"], PostCallKey> = {
@@ -75,12 +86,20 @@ export function PostCallWizard({
 }: PostCallWizardProps) {
   const ft = usePostCallText();
   const { color } = useTheme();
+  const cloud = useCloud();
   const wizardFlag = useFeature("postcall_wizard");
   const waFlag = useFeature("whatsapp");
   const emailFlag = useFeature("email_send");
   const zohoFlag = useFeature("zoho");
-  // ASSUMPTION: `voice_coach` is registered by Agent 3 in features.json; cast safely until merge.
+  // ASSUMPTION: `voice_coach` is registered by Agent 3 in features.json; check presence in cloud map.
   const voiceCoachFlag = useFeature("voice_coach" as never);
+  const voiceCoachReady =
+    voiceCoachFlag.state === "available" &&
+    Boolean(callId) &&
+    (cloud.status !== "signed_in" ||
+      Boolean(
+        cloud.me.features && "voice_coach" in (cloud.me.features as Record<string, unknown>),
+      ));
   const review = useReview(callId);
   const crm = useAttached();
   const person = crm.kind === "attached" ? crm.brief.person : null;
@@ -114,11 +133,33 @@ export function PostCallWizard({
 
   const [nav, setNav] = useState(() => initWizardNav(visible, initialSaved?.current_step));
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, unknown>>(initialSaved?.drafts ?? {});
+  const [drafts, setDrafts] = useState<WizardDrafts>(
+    () => (initialSaved?.drafts as WizardDrafts | undefined) ?? {},
+  );
 
   useEffect(() => {
-    setNav((prev) => initWizardNav(visible, prev.steps[prev.index]?.number ?? initialSaved?.current_step));
+    setNav((prev) =>
+      initWizardNav(visible, prev.steps[prev.index]?.number ?? initialSaved?.current_step),
+    );
   }, [visible, initialSaved?.current_step]);
+
+  const handleWhatsAppDraft = useCallback((msg: WhatsAppMessage | null) => {
+    setDrafts((prev) => {
+      if (JSON.stringify(prev.whatsapp ?? null) === JSON.stringify(msg ?? null)) return prev;
+      return { ...prev, whatsapp: msg };
+    });
+  }, []);
+
+  const handleEmailDraft = useCallback((d: EmailDraft) => {
+    setDrafts((prev) => {
+      if (JSON.stringify(prev.email ?? null) === JSON.stringify(d)) return prev;
+      return { ...prev, email: d };
+    });
+  }, []);
+
+  const handleFeedbackDraft = useCallback((fb: FeedbackDraftState) => {
+    setDrafts((prev) => ({ ...prev, feedback: fb }));
+  }, []);
 
   if (!shouldOpenWizard({ durationS, wizardEnabled: wizardFlag.state === "available" })) {
     return null;
@@ -133,12 +174,13 @@ export function PostCallWizard({
       try {
         await wizardApi.save(callId, {
           current_step: current.number,
-          drafts,
+          drafts: drafts as unknown as Record<string, unknown>,
           completed_steps: [...nav.completed],
           feedback_done: false,
         });
       } catch {
-        // Keep local notice even if offline; server state syncs when back online.
+        setSavedNotice(ft("wizard.saveError"));
+        return;
       }
     }
     logEvent("postcall_wizard", "finish_later", { step: current.number });
@@ -163,7 +205,7 @@ export function PostCallWizard({
         return (
           <Stack gap="md">
             <CallReviewPanel callId={callId} />
-            {voiceCoachFlag.state === "available" && callId ? (
+            {voiceCoachReady && callId ? (
               <View style={styles.coachRow}>
                 <Button
                   testID="wizard-talk-it-through"
@@ -183,7 +225,8 @@ export function PostCallWizard({
               ...(person?.name ? { name: person.name } : {}),
               ...(person?.phone ? { phone: person.phone } : {}),
             }}
-            onChoose={(msg) => setDrafts((d) => ({ ...d, whatsapp: msg }))}
+            preset={drafts.whatsapp ?? null}
+            onChoose={handleWhatsAppDraft}
           />
         );
       case "email":
@@ -194,7 +237,8 @@ export function PostCallWizard({
               ...(person?.name ? { name: person.name } : {}),
               ...(person?.email ? { email: person.email } : {}),
             }}
-            onDraft={(d) => setDrafts((prev) => ({ ...prev, email: d }))}
+            prepared={drafts.email ?? null}
+            onDraft={handleEmailDraft}
           />
         );
       case "zoho":
@@ -207,7 +251,14 @@ export function PostCallWizard({
           />
         ) : null;
       case "feedback":
-        return <FeedbackStep callId={callId} cards={cards} />;
+        return (
+          <FeedbackStep
+            callId={callId}
+            cards={cards}
+            draftState={drafts.feedback}
+            onDraftChange={handleFeedbackDraft}
+          />
+        );
     }
   };
 
@@ -250,7 +301,7 @@ export function PostCallWizard({
           </Text>
         ) : null}
 
-        <SafeBoundary name={current.boundaryName}>
+        <SafeBoundary key={current.number} resetKey={current.number} name={current.boundaryName}>
           <View testID={`wizard-step-${current.number}`}>{renderStepBody()}</View>
         </SafeBoundary>
 

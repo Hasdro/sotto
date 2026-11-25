@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse, Response
+from starlette.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
 from sotto_worker.cloud.memory.store import MemoryStore
@@ -27,16 +27,32 @@ def make_routes(
     *,
     memory: MemoryStore,
     owner_route: Callable[..., Handler],
+    owner_host_ok: Callable[[Request], bool] | None = None,
+    csp: str | None = None,
 ) -> list[Route]:
+    page_headers = dict(NO_STORE)
+    if csp:
+        page_headers["Content-Security-Policy"] = csp
+
     async def o_memory(_r: Request, _who: Principal) -> Response:
         return JSONResponse(memory.owner_overview(), headers=NO_STORE)
 
-    async def page(_r: Request) -> Response:
-        return FileResponse(OWNER_DIR / "memory.html", media_type="text/html; charset=utf-8")
-
-    async def script(_r: Request) -> Response:
+    async def page(request: Request) -> Response:
+        if owner_host_ok is not None and not owner_host_ok(request):
+            return PlainTextResponse("not found\n", status_code=404)
         return FileResponse(
-            OWNER_DIR / "memory.js", media_type="application/javascript; charset=utf-8"
+            OWNER_DIR / "memory.html",
+            media_type="text/html; charset=utf-8",
+            headers=page_headers,
+        )
+
+    async def script(request: Request) -> Response:
+        if owner_host_ok is not None and not owner_host_ok(request):
+            return PlainTextResponse("not found\n", status_code=404)
+        return FileResponse(
+            OWNER_DIR / "memory.js",
+            media_type="application/javascript; charset=utf-8",
+            headers=page_headers,
         )
 
     return [

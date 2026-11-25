@@ -2,9 +2,10 @@
  * Client API for style memory (A2–A4) and post-call wizard persistence (A1).
  * Calls the exported `cloudApi` helper without modifying `lib/cloud.ts` (master §3.5).
  */
-import { cloudActive, cloudApi } from "../../lib/cloud";
+import { CloudError, cloudActive, cloudApi } from "../../lib/cloud";
+import { logEvent } from "../../lib/obs";
+import { enqueue, registerOutboxSender } from "../../lib/outbox";
 import type { WizardStepNumber } from "./steps";
-import { enqueue, logEvent } from "./stubs";
 
 export type FeedbackSource = "card" | "call_note" | "coach_review";
 export type FeedbackRating = "up" | "down";
@@ -93,7 +94,7 @@ export type SavedWizardState = {
   drafts_active: boolean;
 };
 
-export type RuleDraft = { id?: string; text: string; enabled: boolean };
+export type RuleDraft = { id?: string; text: string; enabled: boolean; _key?: string };
 
 export const memoryApi = {
   addFeedback: (payload: FeedbackPayload) =>
@@ -105,19 +106,18 @@ export const memoryApi = {
   editRules: (scope: "company" | "agent", userId: string | null, items: RuleDraft[]) =>
     cloudApi<AdminMemoryOverview>("/api/v1/memory/rules", {
       method: "PUT",
-      body: { scope, user_id: userId, items },
+      body: {
+        scope,
+        user_id: userId,
+        items: items.map(({ id, text, enabled }) => ({ ...(id ? { id } : {}), text, enabled })),
+      },
     }),
   revert: (scope: "company" | "agent", userId: string | null, version: number) =>
     cloudApi<AdminMemoryOverview>(`/api/v1/memory/versions/${version}/revert`, {
       method: "POST",
       body: { scope, user_id: userId },
     }),
-  decide: (
-    scope: "company" | "agent",
-    userId: string | null,
-    version: number,
-    approve: boolean,
-  ) =>
+  decide: (scope: "company" | "agent", userId: string | null, version: number, approve: boolean) =>
     cloudApi<AdminMemoryOverview>(
       `/api/v1/memory/versions/${version}/${approve ? "approve" : "reject"}`,
       { method: "POST", body: { scope, user_id: userId } },
@@ -136,7 +136,8 @@ export const memoryApi = {
 
 export const wizardApi = {
   list: () => cloudApi<{ items: SavedWizardState[] }>("/api/v1/postcall/wizard"),
-  get: (callId: string) => cloudApi<SavedWizardState>(`/api/v1/postcall/wizard/${callId}`),
+  get: (callId: string) =>
+    cloudApi<SavedWizardState>(`/api/v1/postcall/wizard/${encodeURIComponent(callId)}`),
   save: (
     callId: string,
     body: {
@@ -146,34 +147,43 @@ export const wizardApi = {
       feedback_done?: boolean;
     },
   ) =>
-    cloudApi<SavedWizardState>(`/api/v1/postcall/wizard/${callId}`, {
+    cloudApi<SavedWizardState>(`/api/v1/postcall/wizard/${encodeURIComponent(callId)}`, {
       method: "PUT",
       body,
     }),
   remove: (callId: string) =>
-    cloudApi<{ ok: boolean }>(`/api/v1/postcall/wizard/${callId}`, { method: "DELETE" }),
+    cloudApi<{ ok: boolean }>(`/api/v1/postcall/wizard/${encodeURIComponent(callId)}`, {
+      method: "DELETE",
+    }),
 };
 
+registerOutboxSender("memory_feedback", async (raw) => {
+  await memoryApi.addFeedback(raw as FeedbackPayload);
+});
+
 /**
- * Submit feedback to the server; if offline or the request fails, queue it in Agent 4's outbox
- * so nothing is ever lost (A2, S4).
+ * Submit feedback to the server; if offline or transient error, queue in Agent 4's outbox (A2, S4).
  */
 export async function submitFeedbackOrQueue(
   payload: FeedbackPayload,
 ): Promise<{ queued: boolean; id?: string }> {
+  const dedupeKey = `fb:${payload.source}:${payload.call_id ?? "none"}:${payload.card_id ?? "call"}`;
   if (!cloudActive()) {
-    await enqueue("memory_feedback", payload as unknown as Record<string, unknown>);
+    enqueue("memory_feedback", payload as unknown as Record<string, unknown>, { dedupeKey });
     return { queued: true };
   }
   try {
     const res = await memoryApi.addFeedback(payload);
     return { queued: false, id: res.id };
   } catch (err) {
+    if (err instanceof CloudError && err.status >= 400 && err.status < 500 && err.status !== 429) {
+      throw err;
+    }
     logEvent("style_memory", "feedback_queued_offline", {
       source: payload.source,
       error: err instanceof Error ? err.name : "network_error",
     });
-    await enqueue("memory_feedback", payload as unknown as Record<string, unknown>);
+    enqueue("memory_feedback", payload as unknown as Record<string, unknown>, { dedupeKey });
     return { queued: true };
   }
 }

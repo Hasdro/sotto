@@ -292,6 +292,12 @@ export function CallView({
           practice={practice}
           mock={mock}
           callId={state.callId ?? null}
+          durationS={
+            state.startedAt !== null && state.endedAt !== null
+              ? Math.max(0, Math.round((state.endedAt - state.startedAt) / 1000))
+              : undefined
+          }
+          cards={cards}
           perform={mock ? mockPerform : undefined}
           onAgain={() =>
             realPractice

@@ -97,6 +97,8 @@ export type SessionDeps = {
   briefPrompt?: PromptRecord | undefined;
   /** R11: the org's learned instructions, fixed for the whole call (from the bundle). */
   learned?: readonly string[] | undefined;
+  /** R11 / A4: merged company + personal style memory rules (replaces legacy learned when set). */
+  styleMemory?: readonly string[] | undefined;
   /** The `learned_instructions` prompt; absent in older bundles, then no block is added. */
   learnedPrompt?: PromptRecord | undefined;
   /** D-096: override holding line deadline (e.g. 1500 ms for opted-in slow local model). */
@@ -431,7 +433,9 @@ export class CallSession {
       user = system;
       system = "";
     }
-    const learned = (this.deps.learned ?? []).filter((l) => l.trim());
+    const styleSource =
+      this.deps.styleMemory !== undefined ? this.deps.styleMemory : (this.deps.learned ?? []);
+    const learned = styleSource.filter((l) => l.trim());
     if (learned.length > 0 && this.deps.learnedPrompt) {
       // Per company and fixed for the call, so it joins the cacheable system part (D-034).
       const list = learned.map((l) => `- ${l.trim()}`).join("\n");

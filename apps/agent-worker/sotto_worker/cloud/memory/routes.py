@@ -1,4 +1,4 @@
-"""HTTP routes for style memory (A2–A4) and post-call wizard state (A1).
+"""HTTP routes for style memory (A2-A4) and post-call wizard state (A1).
 
 Mounted by cloud/app.py:
   POST   /api/v1/memory/feedback                 add card / call_note / coach_review feedback
@@ -59,15 +59,29 @@ def make_routes(
     async def submit_feedback(request: Request, who: Principal) -> Response:
         memory.s.require_feature(who, "style_memory")
         data = await body(request)
+        call_id = data.get("call_id")
+        card_id = data.get("card_id")
+        note = data.get("note")
+        reasons = data.get("reasons")
+        if call_id is not None and not isinstance(call_id, str):
+            raise CloudError("invalid", "call_id must be text")
+        if card_id is not None and not isinstance(card_id, str):
+            raise CloudError("invalid", "card_id must be text")
+        if note is not None and not isinstance(note, str):
+            raise CloudError("invalid", "note must be text")
+        if reasons is None:
+            reasons = []
+        if not isinstance(reasons, list):
+            raise CloudError("invalid", "reasons must be a list")
         fid = memory.add_feedback(
             company_id=who.company,
             user_id=who.user_id,
-            call_id=data.get("call_id"),
+            call_id=call_id,
             source=data.get("source", "card"),
             rating=data.get("rating"),
-            reasons=data.get("reasons") or [],
-            note=data.get("note"),
-            card_id=data.get("card_id"),
+            reasons=reasons,
+            note=note,
+            card_id=card_id,
             now=_now(),
         )
         return JSONResponse({"id": fid}, status_code=201)
@@ -90,7 +104,13 @@ def make_routes(
             call_id=call_id if isinstance(call_id, str) else None,
             now=_now(),
         )
-        return JSONResponse(res or {"version": None, "status": "noop", "learned_count": 0, "rules": []})
+        empty: dict[str, Any] = {
+            "version": None,
+            "status": "noop",
+            "learned_count": 0,
+            "rules": [],
+        }
+        return JSONResponse(res or empty)
 
     @app_route
     async def my_memory(_request: Request, who: Principal) -> Response:

@@ -277,6 +277,19 @@
     ],
     "body": "How this team prefers its cards (learned from the agents' ratings). Follow these when they fit, but the playbook entry, the company facts and every rule above always win; if one of these conflicts with them, ignore it:\n{{learning.instructions}}\n"
    },
+   "memory_merge": {
+    "key": "memory_merge",
+    "version": 1,
+    "stage": "memory_merge",
+    "variables": [
+     "company.name",
+     "memory.current",
+     "memory.max_rules",
+     "memory.max_words",
+     "memory.feedback"
+    ],
+    "body": "You maintain a compact style memory for a sales agent at {{company.name}}. The live-call AI reads these rules on future calls to match how this agent prefers suggestion cards to sound and behave.\n\nCurrent style rules for this agent:\n{{memory.current}}\n\nNew feedback collected after recent calls (personal data already removed; no transcript):\n{{memory.feedback}}\n\nUpdate the agent's style rules by merging the new feedback into the current list:\n- Output at most {{memory.max_rules}} rules, each a single line of at most {{memory.max_words}} words.\n- Add new rules when feedback reveals a clear preference, reword or strengthen existing rules when reinforced, and drop rules that are contradicted or redundant.\n- Focus strictly on style, tone, brevity, phrasing, pacing, and sales approach.\n- Never include customer names, phone numbers, email addresses, prices, product facts, or promises.\n- Never write rules that contradict or override the company playbook or company-wide rules.\n- If the feedback teaches nothing new, repeat the current rules unchanged.\n\nReply with one rule per line, each starting with \"- \", and nothing else. Reply with NONE if there should be no rules.\n"
+   },
    "playbook_bootstrap": {
     "key": "playbook_bootstrap",
     "version": 1,

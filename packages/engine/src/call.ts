@@ -300,6 +300,7 @@ export class LocalCall {
       crmBrief: deps.crmBrief,
       briefPrompt: deps.runtime.bundle.prompts.crm_brief,
       learned: deps.runtime.bundle.learned?.instructions,
+      styleMemory: deps.runtime.bundle.style_memory ?? undefined,
       learnedPrompt: deps.runtime.bundle.prompts.learned_instructions,
       holdingAtMs: deps.runtime.holdingAtMs,
       lateAnswerUntilMs: deps.runtime.lateAnswerUntilMs,

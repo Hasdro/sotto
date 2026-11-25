@@ -43,7 +43,9 @@ export type WizardAvailability = {
 };
 
 /** Whether the post-call wizard should open for this call (A1: < 30s -> no wizard). */
-export function shouldOpenWizard(avail: Pick<WizardAvailability, "durationS" | "wizardEnabled">): boolean {
+export function shouldOpenWizard(
+  avail: Pick<WizardAvailability, "durationS" | "wizardEnabled">,
+): boolean {
   return avail.wizardEnabled && avail.durationS >= MIN_WIZARD_DURATION_S;
 }
 
@@ -55,7 +57,8 @@ export function shouldOpenWizard(avail: Pick<WizardAvailability, "durationS" | "
 export function computeVisibleSteps(avail: WizardAvailability): WizardStepDef[] {
   if (!shouldOpenWizard(avail)) return [];
   if (avail.draftsExpired) {
-    return [ALL_WIZARD_STEPS[4]!];
+    const fbStep = ALL_WIZARD_STEPS[4];
+    return fbStep ? [fbStep] : [];
   }
   return ALL_WIZARD_STEPS.filter((step) => {
     if (step.id === "review" || step.id === "feedback") return true;

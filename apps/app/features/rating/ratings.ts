@@ -16,7 +16,12 @@ export const RATING_REASONS = [
   "not_our_style",
 ] as const;
 export type RatingReason = (typeof RATING_REASONS)[number];
-export type CanonicalReason = "too_long" | "too_formal" | "wrong" | "not_relevant" | "good_phrasing";
+export type CanonicalReason =
+  | "too_long"
+  | "too_formal"
+  | "wrong"
+  | "not_relevant"
+  | "good_phrasing";
 export type Rating = "up" | "down";
 
 /** Map legacy R11 reason names to Round 4 canonical reasons. */
@@ -37,7 +42,7 @@ export type RatedCard = {
   source: CardSource;
   text: string;
   rating: Rating;
-  reasons: CanonicalReason[];
+  reasons: RatingReason[];
   note?: string;
 };
 

@@ -1,4 +1,4 @@
-"""Per-agent and company-wide style memory + post-call wizard state (Round 4, A1–A4, R11).
+"""Per-agent and company-wide style memory + post-call wizard state (Round 4, A1-A4, R11).
 
 Every table carries `company_id` and every query filters by `company_id`, ensuring strict
 multi-tenant isolation (company A can never read, insert, update, or delete company B rows).
@@ -14,8 +14,8 @@ import sqlite3
 import uuid
 from typing import Any, Literal
 
-from sotto_worker.cloud.memory.obs_stub import log_event
 from sotto_worker.cloud.memory.redact import strip_personal_data
+from sotto_worker.cloud.obs.log import log_event
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms
 
 MAX_RULES = 12
@@ -157,7 +157,8 @@ class MemoryStore:
     def migrate_from_learning(self, company_id: str) -> int:
         """Migrate active learned_versions (R11) into company-wide style memory once."""
         existing = self.s._q(
-            "SELECT active_version FROM memory_state WHERE company_id=? AND scope='company' AND user_id=''",
+            "SELECT active_version FROM memory_state"
+            " WHERE company_id=? AND scope='company' AND user_id=''",
             (company_id,),
         )
         if existing and int(existing[0]["active_version"]) > 0:
@@ -180,7 +181,8 @@ class MemoryStore:
         items: list[dict[str, Any]] = []
         if active_v > 0:
             v_rows = self.s._q(
-                "SELECT items, source_call, actor_id FROM learned_versions WHERE company_id=? AND version=?",
+                "SELECT items, source_call, actor_id FROM learned_versions"
+                " WHERE company_id=? AND version=?",
                 (company_id, active_v),
             )
             if v_rows:
@@ -237,14 +239,34 @@ class MemoryStore:
         """Store PII-stripped feedback for a user in a company. Returns the feedback row id."""
         if not company_id or not user_id:
             raise CloudError("invalid", "company_id and user_id are required")
+        if call_id is not None and (not isinstance(call_id, str) or len(call_id) > 80):
+            raise CloudError("invalid", "call_id must be a short string")
+        if card_id is not None and (not isinstance(card_id, str) or len(card_id) > 80):
+            raise CloudError("invalid", "card_id must be a short string")
+        if note is not None and not isinstance(note, str):
+            raise CloudError("invalid", "note must be text")
         if source not in SOURCES:
             raise CloudError("invalid", f"invalid feedback source: {source}")
         if rating is not None and rating not in ("up", "down"):
             raise CloudError("invalid", "rating must be 'up', 'down', or null")
-        if not isinstance(reasons, list):
-            raise CloudError("invalid", "reasons must be a list")
+        if not isinstance(reasons, list) or len(reasons) > 20:
+            raise CloudError("invalid", "reasons must be a list of at most 20 entries")
         clean_reasons = sorted({normalize_reason(str(r)) for r in reasons})
-        clean_note = strip_personal_data(note, known_names=known_names)
+        names = list(known_names)
+        if not names and call_id:
+            rows = self.s._q(
+                "SELECT brief_json FROM call_briefs WHERE company_id=? AND call_id=?",
+                (company_id, call_id),
+            )
+            if rows:
+                try:
+                    brief = json.loads(rows[0]["brief_json"])
+                    person = brief.get("person") if isinstance(brief, dict) else None
+                    if isinstance(person, dict) and isinstance(person.get("name"), str):
+                        names.append(person["name"])
+                except (TypeError, json.JSONDecodeError):
+                    pass
+        clean_note = strip_personal_data(note, known_names=tuple(names))
         if clean_note is not None and len(clean_note) > 1000:
             clean_note = clean_note[:1000]
         fid = str(uuid.uuid4())
@@ -315,24 +337,22 @@ class MemoryStore:
     def mark_feedback_merged(self, company_id: str, feedback_ids: list[str]) -> None:
         if not feedback_ids:
             return
-        placeholders = ",".join("?" for _ in feedback_ids)
         with self.s._tx() as db:
-            db.execute(
-                f"UPDATE memory_feedback SET merged=1, last_error=NULL"
-                f" WHERE company_id=? AND id IN ({placeholders})",
-                (company_id, *feedback_ids),
+            db.executemany(
+                "UPDATE memory_feedback SET merged=1, last_error=NULL WHERE company_id=? AND id=?",
+                [(company_id, fid) for fid in feedback_ids],
             )
 
     def record_merge_failure(self, company_id: str, feedback_ids: list[str], error: str) -> None:
         """Keep raw feedback unmerged and increment retry_count on merge failure (A3)."""
         if not feedback_ids:
             return
-        placeholders = ",".join("?" for _ in feedback_ids)
+        truncated = error[:200]
         with self.s._tx() as db:
-            db.execute(
-                f"UPDATE memory_feedback SET retry_count=retry_count+1, last_error=?"
-                f" WHERE company_id=? AND id IN ({placeholders})",
-                (error[:200], company_id, *feedback_ids),
+            db.executemany(
+                "UPDATE memory_feedback SET retry_count=retry_count+1, last_error=?"
+                " WHERE company_id=? AND id=?",
+                [(truncated, company_id, fid) for fid in feedback_ids],
             )
 
     def purge_expired_feedback(self, now: int | None = None) -> int:
@@ -358,7 +378,8 @@ class MemoryStore:
         self, company_id: str, scope: MemoryScope, user_id: str, version: int
     ) -> sqlite3.Row | None:
         rows = self.s._q(
-            "SELECT * FROM memory_versions WHERE company_id=? AND scope=? AND user_id=? AND version=?",
+            "SELECT * FROM memory_versions"
+            " WHERE company_id=? AND scope=? AND user_id=? AND version=?",
             (company_id, scope, user_id, version),
         )
         return rows[0] if rows else None
@@ -428,19 +449,28 @@ class MemoryStore:
                 (company_id, scope, user_id, version),
             )
         db.execute(
-            "DELETE FROM memory_versions WHERE company_id=? AND scope=? AND user_id=? AND version<=?",
-            (company_id, scope, user_id, version - KEPT_VERSIONS),
+            "DELETE FROM memory_versions WHERE company_id=? AND scope=? AND user_id=?"
+            " AND version<=? AND status != 'pending'"
+            " AND version != COALESCE((SELECT active_version FROM memory_state"
+            " WHERE company_id=? AND scope=? AND user_id=?), 0)",
+            (company_id, scope, user_id, version - KEPT_VERSIONS, company_id, scope, user_id),
         )
         return version
 
-    # --- contract §3.4 read ---------------------------------------------------------------------
+    # --- contract section 3.4 read --------------------------------------------------------------
     def get_style_memory(self, company_id: str, user_id: str) -> list[str]:
-        """Return <= 12 enabled rules for live prompt injection: company rules first, then agent rules."""
+        """Return <= 12 enabled rules for live prompt injection: company then agent rules."""
+        if not self.s.org_feature_on(company_id, "style_memory"):
+            return []
         company_items = [
-            i["text"] for i in self._active_items(company_id, "company", "") if i.get("enabled", True)
+            i["text"]
+            for i in self._active_items(company_id, "company", "")
+            if i.get("enabled", True)
         ]
         agent_items = [
-            i["text"] for i in self._active_items(company_id, "agent", user_id) if i.get("enabled", True)
+            i["text"]
+            for i in self._active_items(company_id, "agent", user_id)
+            if i.get("enabled", True)
         ]
         combined: list[str] = []
         seen: set[str] = set()
@@ -567,7 +597,8 @@ class MemoryStore:
         company_items = self._active_items(who.company, "company", "")
         company_versions = self._versions_out(who.company, "company", "")
         users = self.s._q(
-            "SELECT id, name, email, role FROM users WHERE company_id=? AND active=1 ORDER BY name ASC",
+            "SELECT id, name, email, role FROM users"
+            " WHERE company_id=? AND active=1 ORDER BY name ASC",
             (who.company,),
         )
         agents: list[dict[str, Any]] = []
@@ -637,7 +668,14 @@ class MemoryStore:
             )
         with self.s._tx() as db:
             version = self._write_version(
-                db, who.company, sc, uid, items, origin="edit", status="applied", actor_id=who.user_id
+                db,
+                who.company,
+                sc,
+                uid,
+                items,
+                origin="edit",
+                status="applied",
+                actor_id=who.user_id,
             )
             target = f"agent:{uid}" if sc == "agent" else "company"
             self.s.audit(
@@ -712,7 +750,8 @@ class MemoryStore:
             raise CloudError("not_found", "no such pending version")
         with self.s._tx() as db:
             db.execute(
-                "UPDATE memory_versions SET status=? WHERE company_id=? AND scope=? AND user_id=? AND version=?",
+                "UPDATE memory_versions SET status=?"
+                " WHERE company_id=? AND scope=? AND user_id=? AND version=?",
                 ("applied" if approve else "rejected", who.company, sc, uid, version),
             )
             if approve:
@@ -797,7 +836,8 @@ class MemoryStore:
         with self.s._tx() as db:
             db.execute(
                 "INSERT INTO memory_settings(company_id, review_before_apply) VALUES (?,?)"
-                " ON CONFLICT(company_id) DO UPDATE SET review_before_apply=excluded.review_before_apply",
+                " ON CONFLICT(company_id)"
+                " DO UPDATE SET review_before_apply=excluded.review_before_apply",
                 (who.company, int(enabled)),
             )
             self.s.audit(
@@ -828,7 +868,8 @@ class MemoryStore:
             self.migrate_from_learning(cid)
             company_rules = self._active_items(cid, "company", "")
             users = self.s._q(
-                "SELECT id, name, email, role FROM users WHERE company_id=? AND active=1 ORDER BY name ASC",
+                "SELECT id, name, email, role FROM users"
+                " WHERE company_id=? AND active=1 ORDER BY name ASC",
                 (cid,),
             )
             agents: list[dict[str, Any]] = []
@@ -873,22 +914,25 @@ class MemoryStore:
     ) -> dict[str, Any]:
         """Save the agent's place in the post-call wizard (24h drafts, 7d feedback queue)."""
         self.s.require_feature(who, "postcall_wizard")
-        if not call_id or len(call_id) > 80:
+        if not isinstance(call_id, str) or not call_id or len(call_id) > 80:
             raise CloudError("invalid", "call_id is required")
         step = data.get("current_step", 1)
-        if not isinstance(step, int) or not 1 <= step <= 5:
+        if isinstance(step, bool) or not isinstance(step, int) or not 1 <= step <= 5:
             raise CloudError("invalid", "current_step must be 1..5")
         drafts = data.get("drafts")
         if drafts is None:
             drafts = {}
-        if not isinstance(drafts, dict):
-            raise CloudError("invalid", "drafts must be an object")
+        if not isinstance(drafts, dict) or len(json.dumps(drafts)) > 32_000:
+            raise CloudError("invalid", "drafts must be a JSON object under 32 KB")
         completed = data.get("completed_steps") or []
         if not isinstance(completed, list) or any(
-            not isinstance(x, int) or not 1 <= x <= 5 for x in completed
+            isinstance(x, bool) or not isinstance(x, int) or not 1 <= x <= 5 for x in completed
         ):
             raise CloudError("invalid", "completed_steps must be step numbers 1..5")
-        feedback_done = bool(data.get("feedback_done", False))
+        raw_done = data.get("feedback_done", False)
+        if not isinstance(raw_done, bool):
+            raise CloudError("invalid", "feedback_done must be true or false")
+        feedback_done = raw_done
         ts = now_ms() if now is None else now
         existing = self.s._q(
             "SELECT saved_at, expires_drafts_at, expires_feedback_at FROM postcall_wizard_state"
@@ -901,7 +945,9 @@ class MemoryStore:
         else:
             exp_drafts = ts + WIZARD_DRAFT_TTL_MS
             exp_feedback = ts + WIZARD_FEEDBACK_TTL_MS
-        status = "done" if feedback_done else ("drafts_expired" if ts >= exp_drafts else "in_progress")
+        status = (
+            "done" if feedback_done else ("drafts_expired" if ts >= exp_drafts else "in_progress")
+        )
         if status == "drafts_expired":
             drafts = {}
             step = 5

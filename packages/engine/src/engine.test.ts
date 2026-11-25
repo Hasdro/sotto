@@ -863,7 +863,11 @@ describe("Learned instructions (R11, D-034)", () => {
     variables: ["learning.instructions"],
     body: "Team style (the playbook wins):\n{{learning.instructions}}",
   };
-  async function ask(learned: string[] | undefined, withPrompt = true): Promise<LLMRequest> {
+  async function ask(
+    learned: string[] | undefined,
+    withPrompt = true,
+    styleMemory?: string[],
+  ): Promise<LLMRequest> {
     const seen: LLMRequest[] = [];
     const capture: LLMAdapter = {
       provider: "fake",
@@ -891,6 +895,7 @@ describe("Learned instructions (R11, D-034)", () => {
       onEscalation: () => {},
       onTiming: () => {},
       learned,
+      styleMemory,
       learnedPrompt: withPrompt ? learnedPrompt : undefined,
     });
     session.onTranscript(
@@ -916,5 +921,14 @@ describe("Learned instructions (R11, D-034)", () => {
     for (const r of [await ask(undefined), await ask([]), await ask(["A."], false)]) {
       expect(r.system).not.toContain("Team style");
     }
+  });
+
+  it("injects styleMemory rules into the suggest prompt and overrides legacy learned", async () => {
+    const req = await ask(["Old company rule."], true, [
+      "Company style rule.",
+      "Personal agent rule.",
+    ]);
+    expect(req.system).toContain("- Company style rule.\n- Personal agent rule.");
+    expect(req.system).not.toContain("Old company rule.");
   });
 });

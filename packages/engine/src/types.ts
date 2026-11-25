@@ -152,6 +152,8 @@ export type CallBundle = {
   key_status?: Record<string, number>;
   /** R11: the org's active learned instructions (null/absent: feature off or an older server). */
   learned?: { version: number; instructions: string[] } | null;
+  /** R11 / A4: merged company + personal style memory rules injected into suggest prompt. */
+  style_memory?: string[] | null;
   /** L6 / D-096: per-user local model policy & routing decision for live calls. */
   local_model?: LocalModelBundleConfig | null;
 };

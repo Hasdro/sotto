@@ -3,7 +3,6 @@
  * Back/Skip/Next without sending, 24h draft expiry / 7d feedback queue, and Round 4
  * rating reason normalization (A1–A2, R11).
  */
-import { describe, expect, it } from "vitest";
 import { isRateable, normalizeReason, REASONS_FOR } from "../rating/ratings";
 import {
   computeVisibleSteps,

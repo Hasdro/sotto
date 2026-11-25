@@ -17,7 +17,7 @@
   }
 
   function renderRules(rules) {
-    if (!rules || !rules.length) {
+    if (!rules?.length) {
       return el("p", { class: "ss-muted" }, "No rules yet.");
     }
     const ul = el("ul", { class: "memory-rules" });
@@ -31,8 +31,8 @@
 
   function render() {
     if (!listEl) return;
-    const q = (searchEl && searchEl.value ? searchEl.value : "").trim().toLowerCase();
-    listEl.innerHTML = "";
+    const q = (searchEl?.value ? searchEl.value : "").trim().toLowerCase();
+    listEl.replaceChildren();
     const filtered = companies.filter((c) => {
       if (!q) return true;
       if (c.name.toLowerCase().includes(q)) return true;
@@ -53,7 +53,7 @@
       panel.appendChild(el("h3", null, "Company-wide rules"));
       panel.appendChild(renderRules(c.company_rules));
       panel.appendChild(el("h3", null, "Agents"));
-      if (!c.agents || !c.agents.length) {
+      if (!c.agents?.length) {
         panel.appendChild(el("p", { class: "ss-muted" }, "No active agents."));
       } else {
         for (const a of c.agents) {
