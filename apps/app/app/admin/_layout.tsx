@@ -40,6 +40,7 @@ type Group = { id: string; label: StringKey; icon: IconName; pages: readonly Pag
 
 const ATTACHMENTS_LABEL: OwnLabel = { en: "Attachments", ar: "المرفقات" };
 const SETUP_LABEL: OwnLabel = { en: "Setup guide", ar: "دليل الإعداد" };
+const TONE_LABEL: OwnLabel = { en: "Card tone", ar: "نبرة البطاقات" };
 
 /** UX-29, draft D-051 (backlog): four groups instead of nine tabs in a scrolling row. */
 export const ADMIN_GROUPS: readonly Group[] = [
@@ -66,6 +67,7 @@ export const ADMIN_GROUPS: readonly Group[] = [
     pages: [
       { href: "/admin/instructions", label: "learning.tab", icon: "spark" },
       { href: "/admin/memory", label: { en: "Style memory", ar: "ذاكرة الأسلوب" }, icon: "spark" },
+      { href: "/admin/tone", label: TONE_LABEL, icon: "message" },
       { href: "/playbook", label: "admin.playbookLink", icon: "playbook" },
     ],
   },

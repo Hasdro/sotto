@@ -27,6 +27,7 @@ import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
 import { PracticeStart } from "../features/call/components/PracticeStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
+import { TalkMeter } from "../features/call/components/TalkMeter";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
@@ -310,6 +311,17 @@ export function CallView({
       ) : null}
       {state.phase !== "idle" && state.phase !== "ended" ? (
         <SafeBoundary name="call.cards">
+          {live ? (
+            <TalkMeter
+              agentMs={state.transcript
+                .filter((e) => e.speaker === "agent")
+                .reduce((acc, e) => acc + Math.max(500, e.text.split(/\s+/).length * 350), 0)}
+              customerMs={state.transcript
+                .filter((e) => e.speaker === "customer")
+                .reduce((acc, e) => acc + Math.max(500, e.text.split(/\s+/).length * 350), 0)}
+              approximate={session.source === "mic"}
+            />
+          ) : null}
           <CardStack
             cards={cards}
             wide={wide}

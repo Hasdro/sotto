@@ -24,6 +24,20 @@ import { cardStrings } from "./strings";
 /** Heights of the static "listening" mark (distinct, so they double as keys). */
 const LISTEN_BARS = [10, 18, 12, 22, 14] as const;
 
+/** Splits optional `\nWHY: <insight>` (C1, D-094, D-100) from the main card line. */
+export function splitCardWhy(text: string): { main: string; why: string | null } {
+  const match = /(?:^|\n)\s*WHY:\s*/i.exec(text);
+  if (!match) return { main: text.trim(), why: null };
+  const main = text.slice(0, match.index).trim();
+  const why = text.slice(match.index + match[0].length).trim();
+  return { main, why: why || null };
+}
+
+const WHY_COPY = {
+  en: { show: "Why?", hide: "Hide insight" },
+  ar: { show: "لماذا؟", hide: "إخفاء الفكرة" },
+} as const;
+
 /** Older cards shown under the hero by default (UX-13); "Show earlier (n)" opens the rest. */
 export const EARLIER_LIMIT = 2;
 
@@ -76,6 +90,9 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
   // One older card open at a time (T-050 density rule); the rest stay at two lines.
   const [openId, setOpenId] = useState<string | null>(null);
   const [all, setAll] = useState(false);
+  const [whyOpenId, setWhyOpenId] = useState<string | null>(null);
+  const heroParts = hero ? splitCardWhy(hero.text) : null;
+  const heroWhyOpen = Boolean(hero && whyOpenId === hero.id);
   useAnnounceWhenDone(hero);
   const writing = Boolean(hero && !hero.done);
   const shown = all ? earlier : earlier.slice(0, EARLIER_LIMIT);
@@ -83,18 +100,28 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
   return (
     <View style={styles.stack}>
       {listening && hero ? <Activity speaking={speaking} writing={writing} /> : null}
-      {hero ? (
-        <SuggestionCard
-          key={hero.id}
-          testID="hero-card"
-          type={hero.type}
-          source={hero.source}
-          label={hero.label}
-          text={hero.text}
-          done={hero.done}
-          wide={wide}
-          strings={strings(hero.type, hero.source)}
-        />
+      {hero && heroParts ? (
+        <View style={styles.heroWrap}>
+          <SuggestionCard
+            key={hero.id}
+            testID="hero-card"
+            type={hero.type}
+            source={hero.source}
+            label={hero.label}
+            text={heroParts.main}
+            done={hero.done}
+            wide={wide}
+            strings={strings(hero.type, hero.source)}
+          />
+          {heroParts.why ? (
+            <WhyInsight
+              cardId={hero.id}
+              why={heroParts.why}
+              open={heroWhyOpen}
+              onToggle={() => setWhyOpenId((id) => (id === hero.id ? null : hero.id))}
+            />
+          ) : null}
+        </View>
       ) : listening ? (
         <Listening speaking={speaking} />
       ) : null}
@@ -122,7 +149,7 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
                   type={c.type}
                   source={c.source}
                   label={c.label}
-                  text={c.text}
+                  text={splitCardWhy(c.text).main}
                   done={c.done}
                   expanded={openId === c.id}
                   strings={strings(c.type, c.source)}
@@ -345,7 +372,54 @@ function Listening({ speaking }: { speaking: boolean }) {
   );
 }
 
+
+function WhyInsight({
+  cardId,
+  why,
+  open,
+  onToggle,
+}: {
+  cardId: string;
+  why: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { locale } = useI18n();
+  const { color } = useTheme();
+  const copy = WHY_COPY[locale];
+  return (
+    <View style={styles.whyWrap}>
+      <Pressable
+        testID={`hero-why-toggle-${cardId}`}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
+        onPress={onToggle}
+        style={styles.whyToggle}
+      >
+        <Text variant="label" weight="medium" tone="muted">
+          {open ? copy.hide : copy.show}
+        </Text>
+      </Pressable>
+      {open ? (
+        <View
+          testID={`hero-why-body-${cardId}`}
+          style={[styles.whyBox, { backgroundColor: color.surfaceSunken, borderColor: color.border }]}
+        >
+          <Text variant="label" tone="muted">
+            {why}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  heroWrap: { gap: space.xs },
+  whyWrap: { gap: space.xs },
+  whyToggle: { alignSelf: "flex-start", paddingVertical: space.xs },
+  whyBox: { padding: space.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   stack: { gap: space.xl },
   activity: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: -space.md },
   earlier: { gap: space.sm },

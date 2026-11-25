@@ -23,6 +23,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native"
 import { FeatureGate, useFeature } from "../components/FeatureGate";
 import { PageHeader } from "../components/PageHeader";
 import { useCompanyDefaults } from "../features/admin/defaults";
+import { AgentTonePicker } from "../features/call/components/AgentTonePicker";
 import { computerAudioAvailable } from "../features/call/mic";
 import { useZoho } from "../features/crm/useZoho";
 import { ZohoConnect } from "../features/crm/ZohoConnect";
@@ -165,6 +166,7 @@ export default function SettingsScreen() {
         })}
       </Group>
 
+      {signedIn ? <AgentTonePicker /> : null}
       {signedIn ? <ZohoGroup /> : null}
 
       <View
