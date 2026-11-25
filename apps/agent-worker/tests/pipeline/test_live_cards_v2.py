@@ -1,4 +1,4 @@
-"""Tests for Round 4 Agent 1: C1/C2 verdict parser, C5 call state, C6 style memory, C7 quality judge."""
+"""Tests for Round 4 Agent 1: C1/C2 verdict, C5 call state, C6 style memory, C7 judge."""
 
 from __future__ import annotations
 
@@ -25,7 +25,9 @@ def test_strip_banned_opener_english_and_arabic() -> None:
     assert stripped is True
     assert cleaned == "Let's check the monthly option today."
 
-    cleaned2, stripped2 = strip_banned_opener("That's a great question! We cover onboarding in week one.")
+    cleaned2, stripped2 = strip_banned_opener(
+        "That's a great question! We cover onboarding in week one."
+    )
     assert stripped2 is True
     assert cleaned2 == "We cover onboarding in week one."
 
@@ -101,19 +103,19 @@ def test_sanitize_card_counts_cuts_and_strips() -> None:
     raw = (
         "Great question! We can book a quick Friday demo so you see it live. "
         "And we also add five extra onboarding sessions for free next month.\n"
-        "WHY: Keeps the buyer focused on a concrete next step instead of debating features endlessly."
+        "WHY: Keeps the buyer focused on a concrete next step instead of debating endlessly."
     )
     main, why, cuts, strips = sanitize_card(raw)
     assert strips == 1
     assert cuts == 2  # main cut + why cut
     assert len(main.split()) <= 18
-    assert why is not None and len(why.split()) <= 12
+    assert why is not None
+    assert len(why.split()) <= 12
 
 
 def test_suggest_v5_prompt_includes_style_memory_game_plan_and_state() -> None:
-    prompt_text = (Path(__file__).resolve().parents[4] / "seed" / "prompts" / "suggest.md").read_text(
-        encoding="utf-8"
-    )
+    seed_dir = Path(__file__).resolve().parents[4] / "seed"
+    prompt_text = (seed_dir / "prompts" / "suggest.md").read_text(encoding="utf-8")
     for var in (
         "{{agent.style_memory}}",
         "{{call.game_plan}}",
@@ -123,13 +125,32 @@ def test_suggest_v5_prompt_includes_style_memory_game_plan_and_state() -> None:
     ):
         assert var in prompt_text, f"missing {var} in suggest.md v5"
     assert "Playbook answer" in prompt_text
-    assert "SAY:" in prompt_text and "TIP:" in prompt_text and "WHY:" in prompt_text
+    assert "SAY:" in prompt_text
+    assert "TIP:" in prompt_text
+    assert "WHY:" in prompt_text
+
+
+def test_verdict_parser_handles_case_and_empty_main_with_why() -> None:
+    p_ci = VerdictParser(banned=DEFAULT_BANNED_OPENERS)
+    out = p_ci.feed("say: I hear you! Ask about their launch date.") + p_ci.finish()
+    assert p_ci.verdict == "answer"
+    assert p_ci.kind == "say"
+    assert out == "Ask about their launch date."
+
+    # Never emit an empty main card containing only WHY: after stripping banned opener.
+    p_empty = VerdictParser(banned=DEFAULT_BANNED_OPENERS)
+    out_empty = p_empty.feed("SAY: I hear you.\nWHY: Lowers buyer risk.") + p_empty.finish()
+    assert p_empty.verdict == "no_answer"
+    assert out_empty == ""
 
 
 def test_quality_judge_thresholds() -> None:
     good = judge_card_stub(
         card_id="c1",
-        card_text="Let's lock in a 15-minute demo Thursday so your team tests the pricing.\nWHY: Anchors next step.",
+        card_text=(
+            "Let's lock in a 15-minute demo Thursday so your team tests the pricing.\n"
+            "WHY: Anchors next step."
+        ),
         turn_text="Can we see how pricing works for our team?",
         history=["customer: Can we see how pricing works for our team?"],
     )
@@ -153,13 +174,29 @@ def test_quality_judge_thresholds() -> None:
     rep_fail = QualityReport(scores=[good, bad])
     assert rep_fail.passed is False
 
+    empty_rep = QualityReport()
+    assert empty_rep.pass_rate == 1.0
+    assert empty_rep.mean_coherence == 5.0
+    blank_score = judge_card_stub(card_id="c3", card_text="", turn_text="Hi", history=[])
+    assert blank_score.coherence == 1.0
+    formal_score = judge_card_stub(
+        card_id="c4",
+        card_text="Pursuant to company terms, dear valued client.",
+        turn_text="Any terms?",
+        history=["customer: Any terms?"],
+    )
+    assert formal_score.formal is True
+
 
 def test_call_state_background_update_does_not_block() -> None:
     """Proves CallStateUpdater runs asynchronously and never blocks the caller (0 ms)."""
+    from typing import Any, cast
+
     from sotto_worker.pipeline.call_state import CallStateUpdater
+    from sotto_worker.router import CompanyRouting
 
     class _SlowRouter:
-        async def stream(self, *_args: object, **_kwargs: object):
+        async def stream(self, *_args: object, **_kwargs: object) -> Any:
             await asyncio.sleep(0.05)
 
             class _Chunk:
@@ -168,7 +205,7 @@ def test_call_state_background_update_does_not_block() -> None:
             yield _Chunk()
 
     class _Prompts:
-        def render(self, *_args: object, **_kwargs: object):
+        def render(self, *_args: object, **_kwargs: object) -> Any:
             class _R:
                 text = "sys---turn---usr"
 
@@ -183,17 +220,21 @@ def test_call_state_background_update_does_not_block() -> None:
         updater = CallStateUpdater(
             call_id="call-1",
             company_id="co-1",
-            router=_SlowRouter(),
-            routing=None,
-            prompts=_Prompts(),
+            router=cast(Any, _SlowRouter()),
+            routing=CompanyRouting(company_id="co-1"),
+            prompts=cast(Any, _Prompts()),
             on_update=on_update,
         )
-        # schedule_update returns immediately before the slow router finishes (0 ms on card path)
+        # Coalescing: rapid second update runs cleanly after the first finishes
+        updater.schedule_update("")
         updater.schedule_update("Customer: What is the annual price?")
+        updater.schedule_update("Customer: Does annual include onboarding?")
         assert updater.current == ""
         await updater.drain()
         assert "annual pricing" in updater.current
-        assert seen == [updater.current]
+        assert seen[-1] == updater.current
         await updater.close()
+        # Scheduling after close is a safe no-op
+        updater.schedule_update("Customer: Too late")
 
     asyncio.run(_run())

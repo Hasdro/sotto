@@ -99,6 +99,16 @@ export type SessionDeps = {
   learned?: readonly string[] | undefined;
   /** R11 / A4: merged company + personal style memory rules (replaces legacy learned when set). */
   styleMemory?: readonly string[] | undefined;
+  /** C3 / D-094: resolved effective card tone preset ("casual"|"direct"|"warm"|"formal"). */
+  agentTone?: string | undefined;
+  /** C3 / D-094: optional company free-text style guidance ("how we talk"). */
+  howWeTalk?: string | undefined;
+  /** C3 / D-094: merged banned opener phrases for this call. */
+  bannedPhrases?: readonly string[] | undefined;
+  /** Agent 3: optional rendered game plan text for this call. */
+  gamePlan?: string | null | undefined;
+  /** C5: optional live call state reader. */
+  callState?: (() => string) | undefined;
   /** The `learned_instructions` prompt; absent in older bundles, then no block is added. */
   learnedPrompt?: PromptRecord | undefined;
   /** D-096: override holding line deadline (e.g. 1500 ms for opted-in slow local model). */
@@ -322,7 +332,9 @@ export class CallSession {
       return;
     }
     const suggest = async (): Promise<boolean> => {
-      const parser = new VerdictParser();
+      const parser = new VerdictParser(
+        this.deps.bannedPhrases ? { banned: this.deps.bannedPhrases } : undefined,
+      );
       for await (const chunk of this.deps.router.stream("suggest", request, {
         t0: turn.t0,
         result,
@@ -413,16 +425,31 @@ export class CallSession {
   }
 
   private request(turn: Turn): LLMRequest {
+    const clean = (v: string) => v.replaceAll(TURN_MARKER, " ");
     const company = this.deps.company;
+    const styleSource =
+      this.deps.styleMemory !== undefined ? this.deps.styleMemory : (this.deps.learned ?? []);
+    const learned = styleSource.map((l) => l.trim()).filter(Boolean);
+    const tonePreset = this.deps.agentTone?.trim() || "casual";
+    const howWeTalk = this.deps.howWeTalk?.trim() || "";
+    const agentToneVal = howWeTalk ? `${tonePreset} — ${howWeTalk}` : tonePreset;
+    const bannedVal = this.deps.bannedPhrases?.length
+      ? this.deps.bannedPhrases.slice(0, 50).join(", ")
+      : "(none)";
     const variables: Record<string, string> = {
-      "company.name": company.name,
-      "company.tone": company.tone,
-      "company.call_goal": company.call_goal,
-      "company.context": company.context?.trim() || "(none)",
-      "playbook.match": matchText(turn.nearest),
-      "transcript.last_60s": this.context(turn.event.end_ms),
+      "company.name": clean(company.name),
+      "company.tone": clean(company.tone),
+      "company.call_goal": clean(company.call_goal),
+      "company.context": clean(company.context?.trim() || "(none)"),
+      "agent.tone": clean(agentToneVal),
+      "tone.banned": clean(bannedVal),
+      "agent.style_memory": clean(learned.map((l) => `- ${l}`).join("\n") || "(none)"),
+      "call.game_plan": clean(this.deps.gamePlan?.trim() || "(none)"),
+      "call.state": clean(this.deps.callState?.().trim() || "(none yet)"),
+      "playbook.match": clean(matchText(turn.nearest)),
+      "transcript.last_60s": clean(this.context(turn.event.end_ms)),
       "turn.kind": turn.kind,
-      "turn.text": turn.event.text,
+      "turn.text": clean(turn.event.text),
       "card.language": LANGUAGE_NAME[turn.language] ?? turn.language,
     };
     const text = renderPrompt(this.deps.prompt.body, variables);
@@ -433,12 +460,13 @@ export class CallSession {
       user = system;
       system = "";
     }
-    const styleSource =
-      this.deps.styleMemory !== undefined ? this.deps.styleMemory : (this.deps.learned ?? []);
-    const learned = styleSource.filter((l) => l.trim());
-    if (learned.length > 0 && this.deps.learnedPrompt) {
+    if (
+      learned.length > 0 &&
+      this.deps.learnedPrompt &&
+      !this.deps.prompt.variables.includes("agent.style_memory")
+    ) {
       // Per company and fixed for the call, so it joins the cacheable system part (D-034).
-      const list = learned.map((l) => `- ${l.trim()}`).join("\n");
+      const list = learned.map((l) => `- ${l}`).join("\n");
       const block = renderPrompt(this.deps.learnedPrompt.body, { "learning.instructions": list });
       system = system.trim() ? `${system.trim()}\n\n${block}` : block;
     }

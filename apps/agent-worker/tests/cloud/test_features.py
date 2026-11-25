@@ -59,6 +59,7 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
     autoconfig = {"playbook_bootstrap"}  # T-083 ZC-04, default off (D-076)
     round4_platform = {"call_logs_github", "local_models_text", "local_models_voice", "setup_guide"}
     round4_wizard_memory = {"postcall_wizard", "style_memory"}
+    round4_live_cards = {"card_style_v2", "call_state", "talk_meter"}
     assert set(features.CATALOG) == (
         existing
         | learning
@@ -67,6 +68,7 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
         | autoconfig
         | round4_platform
         | round4_wizard_memory
+        | round4_live_cards
         | {"zoho"}
     )
     assert "playbook_bootstrap" in features.DEFAULT_OFF

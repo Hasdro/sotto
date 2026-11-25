@@ -11,10 +11,12 @@ type Props = {
   /** In the narrow layout the transcript sits under the cards and shows only the latest lines. */
   limit?: number;
   scroll: boolean;
+  /** Live CallView mounts the compact C8 bar above CardStack, avoiding duplicate bars. */
+  hideTalkMeter?: boolean;
 };
 
 /** Secondary to the cards (DESIGN.md §5): customer lines carry weight, the agent's are muted. */
-export function TranscriptPane({ lines, limit, scroll }: Props) {
+export function TranscriptPane({ lines, limit, scroll, hideTalkMeter = false }: Props) {
   const { t } = useI18n();
   const ref = useRef<ScrollViewInstance>(null);
   const shown = limit ? lines.slice(-limit) : lines;
@@ -49,7 +51,7 @@ export function TranscriptPane({ lines, limit, scroll }: Props) {
       >
         {t("call.transcript")}
       </Text>
-      <TalkMeter lines={lines} />
+      {hideTalkMeter ? null : <TalkMeter lines={lines} />}
       {scroll ? (
         <ScrollView
           ref={ref}

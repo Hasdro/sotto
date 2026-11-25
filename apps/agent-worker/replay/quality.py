@@ -77,8 +77,7 @@ class QualityReport:
     @property
     def passed(self) -> bool:
         return (
-            self.pass_rate >= QUALITY_PASS_RATE_MIN
-            and self.mean_coherence >= QUALITY_COHERENCE_MIN
+            self.pass_rate >= QUALITY_PASS_RATE_MIN and self.mean_coherence >= QUALITY_COHERENCE_MIN
         )
 
 
@@ -151,6 +150,7 @@ def format_quality_report(report: QualityReport) -> str:
     status = "PASS" if report.passed else "FAIL"
     return (
         f"Quality judge ({report.mode}): {report.total} cards · "
-        f"length+banned pass {report.pass_rate * 100:.1f}% (min {QUALITY_PASS_RATE_MIN * 100:.0f}%) · "
+        f"length+banned pass {report.pass_rate * 100:.1f}% "
+        f"(min {QUALITY_PASS_RATE_MIN * 100:.0f}%) · "
         f"coherence {report.mean_coherence:.2f}/5 (min {QUALITY_COHERENCE_MIN:.1f}) · {status}"
     )

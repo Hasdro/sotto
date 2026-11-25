@@ -154,14 +154,20 @@ async def replay_synthetic(
             profile.chunk_ms,
             profile.providers_down,
         )
+        state_rng = random.Random(f"{profile.seed}:{scenario.id}:call_state")  # noqa: S311 - background simulation
+        call_state_llm = _JitterLLM(clock, state_rng, 250, 0.1, 20, profile.providers_down)
         config = RoutingConfig(
             stages={
                 "suggest": StageRoute(provider="fake", model="primary", first_token_ms=700),
                 "suggest_backup": StageRoute(provider="fake", model="backup", first_token_ms=700),
-                "call_state": StageRoute(provider="fake", model="backup", first_token_ms=700),
+                "call_state": StageRoute(provider="fake", model="call_state"),
             }
         )
-        adapters: dict[str, LLMAdapter] = {"primary": primary, "backup": backup}
+        adapters: dict[str, LLMAdapter] = {
+            "primary": primary,
+            "backup": backup,
+            "call_state": call_state_llm,
+        }
         router = ModelRouter(config, partial(_pick, adapters), clock)
         cards: list[CardMessage] = []
         records: list[CardTimingRecord] = []
@@ -187,7 +193,7 @@ async def replay_synthetic(
         if not holding_line:
             session.holding_at_ms = 10**9  # model path only
         t = 0
-        for line in scenario.lines:
+        for idx, line in enumerate(scenario.lines):
             t += line.gap_ms + line.duration_ms
             await clock.advance(max(t + profile.final_after_t0_ms - clock.now_ms(), 0))
             before = len({c.card_id for c in cards})
@@ -205,7 +211,7 @@ async def replay_synthetic(
             check_line(report, scenario, line, new_cards)
             record_match(report, base.playbook, line, new_cards)
             if line.speaker == "customer":
-                history_lines = [f"{ln.speaker}: {ln.text}" for ln in scenario.lines]
+                history_lines = [f"{ln.speaker}: {ln.text}" for ln in scenario.lines[: idx + 1]]
                 for nc in new_cards:
                     if nc.source in ("ai", "backup"):
                         full_text = "".join(c.delta for c in cards if c.card_id == nc.card_id)

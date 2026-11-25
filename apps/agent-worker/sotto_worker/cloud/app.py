@@ -36,6 +36,8 @@ from sotto_worker.clock import RealClock
 from sotto_worker.cloud import bugreports
 from sotto_worker.cloud import github as github_mod
 from sotto_worker.cloud.bundle import Seed, build_bundle
+from sotto_worker.cloud.cards.routes import card_tone_routes
+from sotto_worker.cloud.cards.store import CardToneStore
 from sotto_worker.cloud.coaching import routes as coaching_routes
 from sotto_worker.cloud.coaching.store import CoachingStore
 from sotto_worker.cloud.email import attachments as email_attachments
@@ -248,6 +250,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     static_root = config.static_dir.resolve() if config.static_dir else None
     scheduler = Scheduler(store, clock=config.clock, log=config.log)
     coaching = CoachingStore(store)
+    card_tone = CardToneStore(store)
     memory = MemoryStore(store)
     memory_api.configure(memory)
 
@@ -1058,6 +1061,18 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             if store.feature_state(who, "style_memory").state == "available"
             else None
         )
+        if store.feature_state(who, "card_style_v2").state == "available":
+            eff_tone = card_tone.resolve(who.company, who.user_id)
+            out["card_tone"] = {
+                "tone": eff_tone.tone,
+                "how_we_talk": eff_tone.how_we_talk,
+                "banned_en": list(eff_tone.banned_en),
+                "banned_ar": list(eff_tone.banned_ar),
+            }
+        else:
+            out["card_tone"] = None
+        if store.feature_state(who, "call_state").state != "available":
+            out["prompts"] = {k: v for k, v in dict(out["prompts"]).items() if k != "call_state"}
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
     @app_route
@@ -2056,6 +2071,14 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             ip_of=ip_of,
             merge_runner=config.merge_runner or default_merge_runner,
             clock=config.clock,
+        ),
+        *card_tone_routes(
+            tone_store=card_tone,
+            cloud_store=store,
+            app_route=app_route,
+            owner_route=owner_route,
+            body=body,
+            ip_of=ip_of,
         ),
         *owner_memory.make_routes(
             memory=memory,

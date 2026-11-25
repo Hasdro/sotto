@@ -8,7 +8,13 @@ import { matchText, PlaybookIndex } from "./playbook.ts";
 import { AllProvidersFailed, ModelRouter, type RouteResult } from "./router.ts";
 import { CallSession } from "./session.ts";
 import { CustomerAudio, EndOfTurnVAD, midThought } from "./spoken.ts";
-import { classify, renderPrompt, VerdictParser } from "./turns.ts";
+import {
+  classify,
+  enforceWordLimit,
+  renderPrompt,
+  stripBannedOpener,
+  VerdictParser,
+} from "./turns.ts";
 import type { CallBundle, LLMAdapter, LLMRequest, TranscriptEvent } from "./types.ts";
 import { realClock } from "./types.ts";
 
@@ -148,6 +154,40 @@ describe("turns", () => {
     expect(n.verdict).toBe("no_answer");
     const raw = new VerdictParser();
     expect(raw.feed("Happy to help with that")).toBe("Happy to help with that");
+    const say = new VerdictParser();
+    const sayOut =
+      say.feed("SAY: I hear you, book the Thursday slot.\nWHY: Anchors next step.") + say.finish();
+    expect(say.kind).toBe("say");
+    expect(sayOut).toBe("Book the Thursday slot.\nWHY: Anchors next step.");
+
+    const tip = new VerdictParser({ banned: ["Great question"] });
+    expect(tip.feed("TIP: Great question! ")).toBe("");
+    expect(tip.feed("ask what timeline works.\n")).toContain("Ask what timeline works.");
+    expect(tip.finish()).toBe("");
+    expect(tip.kind).toBe("tip");
+
+    const emptyWhy = new VerdictParser();
+    expect(emptyWhy.feed("say: I hear you.\nWHY: Empty main.") + emptyWhy.finish()).toBe("");
+    expect(emptyWhy.verdict).toBe("no_answer");
+
+    const longWords = Array.from({ length: 24 }, (_, i) => `word${i}`).join(" ");
+    const over = new VerdictParser();
+    const cutOut =
+      over.feed(
+        `SAY: ${longWords}\nWHY: ${Array.from({ length: 16 }, (_, i) => `why${i}`).join(" ")}`,
+      ) + over.finish();
+    expect(over.cuts).toBe(2);
+    expect(cutOut.split("\n")[0]?.split(" ").length).toBeLessThanOrEqual(18);
+    expect(stripBannedOpener("Great question, book tomorrow.")).toEqual({
+      cleaned: "Book tomorrow.",
+      stripped: true,
+    });
+    expect(
+      enforceWordLimit(
+        "First sentence fits cleanly. Second sentence definitely exceeds the eighteen word limit by adding many extra words here right now.",
+        18,
+      ),
+    ).toEqual({ text: "First sentence fits cleanly.", cut: true });
   });
   it("renders prompts and refuses missing variables", () => {
     expect(renderPrompt("Hi {{ a.b }}", { "a.b": "x" })).toBe("Hi x");
@@ -908,16 +948,15 @@ describe("Learned instructions (R11, D-034)", () => {
     return req;
   }
 
-  it("adds the list to the cacheable system part, after the rules, never the turn", async () => {
+  it("adds style rules to the cacheable system part (never the turn)", async () => {
     const req = await ask(["Keep it under 15 words.", "  ", "Name the next step."]);
     expect(req.system).toContain(
-      "Team style (the playbook wins):\n- Keep it under 15 words.\n- Name the next step.",
+      "3. Agent style memory: - Keep it under 15 words.\n- Name the next step.",
     );
-    expect(req.system.indexOf("Team style")).toBeGreaterThan(req.system.indexOf("NO_SAFE_ANSWER"));
-    expect(req.messages[0]?.content).not.toContain("Team style");
+    expect(req.messages[0]?.content).not.toContain("Keep it under 15 words.");
   });
 
-  it("adds nothing without instructions or without the prompt (older bundles)", async () => {
+  it("adds nothing without instructions when prompt has no style_memory slot", async () => {
     for (const r of [await ask(undefined), await ask([]), await ask(["A."], false)]) {
       expect(r.system).not.toContain("Team style");
     }
@@ -930,5 +969,50 @@ describe("Learned instructions (R11, D-034)", () => {
     ]);
     expect(req.system).toContain("- Company style rule.\n- Personal agent rule.");
     expect(req.system).not.toContain("Old company rule.");
+  });
+
+  it("injects agentTone, howWeTalk, bannedPhrases, gamePlan, and callState", async () => {
+    const prompt = bundle.prompts.suggest;
+    if (!prompt) throw new Error("missing suggest prompt");
+    const seen: LLMRequest[] = [];
+    const cap: LLMAdapter = {
+      provider: "fake",
+      model: "capture",
+      warm: async () => {},
+      async *stream(req) {
+        seen.push(req);
+        yield "SAY: Send the calendar invite now.";
+      },
+    };
+    const s = new CallSession({
+      callId: "c-tone",
+      company: { ...bundle.company, ai_answers_allowed: true },
+      router: new ModelRouter(
+        { suggest: { provider: "fake", model: "capture" } },
+        () => cap,
+        realClock,
+      ),
+      prompt,
+      playbook: new PlaybookIndex([]),
+      clock: realClock,
+      onCard: () => {},
+      onEscalation: () => {},
+      onTiming: () => {},
+      agentTone: "direct",
+      howWeTalk: "Numbers first",
+      bannedPhrases: ["Trust me"],
+      gamePlan: "Goal 1: close demo",
+      callState: () => "Budget approved",
+    });
+    s.onTranscript(
+      { speaker: "customer", text: "What next?", final: true, start_ms: 0, end_ms: 1000 },
+      1000,
+    );
+    await s.drain();
+    const r = seen[0];
+    expect(r?.system).toContain("direct — Numbers first");
+    expect(r?.system).toContain("Trust me");
+    expect(r?.messages[0]?.content).toContain("Goal 1: close demo");
+    expect(r?.messages[0]?.content).toContain("Budget approved");
   });
 });

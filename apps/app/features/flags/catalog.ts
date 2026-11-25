@@ -29,6 +29,9 @@ export const FEATURE_IDS = [
   "setup_guide",
   "postcall_wizard",
   "style_memory",
+  "card_style_v2",
+  "call_state",
+  "talk_meter",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

@@ -22,6 +22,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { FeatureGate, useFeature } from "../components/FeatureGate";
 import { PageHeader } from "../components/PageHeader";
+import { SafeBoundary } from "../components/SafeBoundary";
 import { useCompanyDefaults } from "../features/admin/defaults";
 import { AgentTonePicker } from "../features/call/components/AgentTonePicker";
 import { computerAudioAvailable } from "../features/call/mic";
@@ -166,7 +167,13 @@ export default function SettingsScreen() {
         })}
       </Group>
 
-      {signedIn ? <AgentTonePicker /> : null}
+      {signedIn ? (
+        <SafeBoundary name="settings.agentTone">
+          <FeatureGate feature="card_style_v2">
+            <AgentTonePicker />
+          </FeatureGate>
+        </SafeBoundary>
+      ) : null}
       {signedIn ? <ZohoGroup /> : null}
 
       <View

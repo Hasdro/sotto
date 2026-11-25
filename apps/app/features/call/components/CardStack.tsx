@@ -2,6 +2,7 @@ import type { CardSource, CardType } from "@sotto/shared";
 import {
   Button,
   layout,
+  minTouchTarget,
   noticeFor,
   radius,
   SuggestionCard,
@@ -12,8 +13,9 @@ import {
   useReduceMotion,
   useTheme,
 } from "@sotto/ui";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-native";
+import { useFeature } from "../../../components/FeatureGate";
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import type { CardView } from "../../cards/reducer";
@@ -85,14 +87,16 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
   const { t, locale } = useI18n();
   const ct = useCallText();
   const strings = useCardStrings();
+  const cardStyleGate = useFeature("card_style_v2");
+  const showWhy = cardStyleGate.state === "available";
   const hero = cards[0];
   const earlier = earlierCards(cards);
   // One older card open at a time (T-050 density rule); the rest stay at two lines.
   const [openId, setOpenId] = useState<string | null>(null);
   const [all, setAll] = useState(false);
   const [whyOpenId, setWhyOpenId] = useState<string | null>(null);
-  const heroParts = hero ? splitCardWhy(hero.text) : null;
-  const heroWhyOpen = Boolean(hero && whyOpenId === hero.id);
+  const heroParts = useMemo(() => (hero ? splitCardWhy(hero.text) : null), [hero]);
+  const heroWhyOpen = Boolean(hero && showWhy && whyOpenId === hero.id);
   useAnnounceWhenDone(hero);
   const writing = Boolean(hero && !hero.done);
   const shown = all ? earlier : earlier.slice(0, EARLIER_LIMIT);
@@ -113,7 +117,7 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
             wide={wide}
             strings={strings(hero.type, hero.source)}
           />
-          {heroParts.why ? (
+          {showWhy && heroParts.why ? (
             <WhyInsight
               cardId={hero.id}
               why={heroParts.why}
@@ -260,7 +264,7 @@ function useAnnounceWhenDone(hero: CardView | undefined) {
     ? [
         t(`card.type.${hero.type}`),
         noticeFor(hero.source, hero.label, t("card.notInPlaybook")),
-        hero.text,
+        splitCardWhy(hero.text).main,
       ]
         .filter(Boolean)
         .join(". ")
@@ -372,7 +376,6 @@ function Listening({ speaking }: { speaking: boolean }) {
   );
 }
 
-
 function WhyInsight({
   cardId,
   why,
@@ -404,7 +407,10 @@ function WhyInsight({
       {open ? (
         <View
           testID={`hero-why-body-${cardId}`}
-          style={[styles.whyBox, { backgroundColor: color.surfaceSunken, borderColor: color.border }]}
+          style={[
+            styles.whyBox,
+            { backgroundColor: color.surfaceSunken, borderColor: color.border },
+          ]}
         >
           <Text variant="label" tone="muted">
             {why}
@@ -418,7 +424,12 @@ function WhyInsight({
 const styles = StyleSheet.create({
   heroWrap: { gap: space.xs },
   whyWrap: { gap: space.xs },
-  whyToggle: { alignSelf: "flex-start", paddingVertical: space.xs },
+  whyToggle: {
+    alignSelf: "flex-start",
+    justifyContent: "center",
+    minHeight: minTouchTarget,
+    paddingVertical: space.xs,
+  },
   whyBox: { padding: space.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   stack: { gap: space.xl },
   activity: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: -space.md },

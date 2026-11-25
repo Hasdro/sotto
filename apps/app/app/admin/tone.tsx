@@ -15,6 +15,7 @@ import {
 } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { FeatureGate } from "../../components/FeatureGate";
+import { SafeBoundary } from "../../components/SafeBoundary";
 import {
   getToneSettings,
   HOW_WE_TALK_MAX,
@@ -22,6 +23,7 @@ import {
   TONE_PRESETS,
   type TonePreset,
 } from "../../lib/cards";
+import { refreshCloud } from "../../lib/cloud";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 
@@ -39,6 +41,7 @@ const COPY = {
     save: "Save tone settings",
     saved: "Saved. Next call will use these settings.",
     failed: "Could not save tone settings.",
+    loadFailed: "Could not load tone settings.",
     signedOut: "Sign in to manage card tone.",
     presets: { casual: "Casual", direct: "Direct", warm: "Warm", formal: "Formal" },
   },
@@ -55,6 +58,7 @@ const COPY = {
     save: "حفظ إعدادات النبرة",
     saved: "تم الحفظ. ستُطبّق على المكالمة القادمة.",
     failed: "تعذّر حفظ إعدادات النبرة.",
+    loadFailed: "تعذّر تحميل إعدادات النبرة.",
     signedOut: "سجّل الدخول لإدارة نبرة البطاقات.",
     presets: { casual: "ودي", direct: "مباشر", warm: "دافئ", formal: "رسمي" },
   },
@@ -62,9 +66,11 @@ const COPY = {
 
 export default function AdminToneRoute() {
   return (
-    <FeatureGate feature="card_style_v2">
-      <AdminToneScreen />
-    </FeatureGate>
+    <SafeBoundary name="admin.tone">
+      <FeatureGate feature="card_style_v2">
+        <AdminToneScreen />
+      </FeatureGate>
+    </SafeBoundary>
   );
 }
 
@@ -101,8 +107,8 @@ export function AdminToneScreen() {
         setPlatformEn(res.platform_banned_en);
         setPlatformAr(res.platform_banned_ar);
       })
-      .catch(() => setStatus(copy.failed));
-  }, [cloud.status, copy.failed]);
+      .catch(() => setStatus(copy.loadFailed));
+  }, [cloud.status, copy.loadFailed]);
 
   useEffect(load, [load]);
 
@@ -129,7 +135,10 @@ export function AdminToneScreen() {
       banned_en: parseLines(bannedEn),
       banned_ar: parseLines(bannedAr),
     })
-      .then(() => setStatus(copy.saved))
+      .then(() => {
+        setStatus(copy.saved);
+        return refreshCloud();
+      })
       .catch(() => setStatus(copy.failed))
       .finally(() => setBusy(false));
   };
