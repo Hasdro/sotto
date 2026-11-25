@@ -48,6 +48,7 @@ import { useCrmText } from "../../crm/strings";
 import { type MeetingSource, UpcomingMeetings } from "../../crm/UpcomingMeetings";
 import { useZoho } from "../../crm/useZoho";
 import { ZohoConnect } from "../../crm/ZohoConnect";
+import { CallStatePanel, type GamePlan, GamePlanCard, PrepCoachPanel, SafeBoundary } from "../../coach";
 import { useCallText } from "../strings";
 
 export type Lookup = {
@@ -70,25 +71,39 @@ export function CrmRail({
   lookup,
   perform,
   stage = "prepare",
+  callId = "draft",
+  onStartListening,
 }: {
   lookup?: Lookup;
   perform?: Perform;
   stage?: RailStage;
+  callId?: string;
+  onStartListening?: () => void;
 }) {
+  const [gamePlan, setGamePlan] = useState<GamePlan | null>(null);
   return stage === "live" ? (
-    <LiveRail lookup={lookup} />
+    <SafeBoundary name="rail.live">
+      <LiveRail lookup={lookup} gamePlan={gamePlan} />
+    </SafeBoundary>
   ) : (
-    <Stack gap="md">
-      <ZohoPart lookup={lookup} perform={perform} />
-      <PrepPanel />
-    </Stack>
+    <SafeBoundary name="rail.prepare">
+      <Stack gap="md">
+        <ZohoPart lookup={lookup} perform={perform} />
+        <PrepPanel />
+        <PrepCoachPanel
+          callId={callId}
+          onGamePlanChange={setGamePlan}
+          onStartListening={onStartListening}
+        />
+      </Stack>
+    </SafeBoundary>
   );
 }
 
 // ---------------------------------------------------------------------------------------------
 // Live: read-only
 
-function LiveRail({ lookup }: { lookup?: Lookup | undefined }) {
+function LiveRail({ lookup, gamePlan }: { lookup?: Lookup | undefined; gamePlan: GamePlan | null }) {
   const tc = useCallText();
   const zoho = useFeature("zoho");
   const { crm } = useAttachedState();
@@ -110,6 +125,8 @@ function LiveRail({ lookup }: { lookup?: Lookup | undefined }) {
       ) : (
         <LiveBrief onEdit={() => setEditing(true)} />
       )}
+      <CallStatePanel />
+      <GamePlanCard plan={gamePlan} />
       {linked ? (
         <Disclosure title={tc("rail.more")} testID="crm-more">
           <BriefView brief={crm.brief} />
