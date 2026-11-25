@@ -33,6 +33,8 @@ Set on 2026-10-18 (P1.8). The owner deferred the interview (D-009), so the numbe
 | Live card render after first token (S1) | ≤ **100 ms** | Keeps the UI overhead negligible inside the 1.5 s R1 budget | `node scripts/perf/measure-desktop.mjs` |
 | Desktop memory during a call (S1) | ≤ **500 MB** | Leaves headroom alongside Zoom/Meet and browser tabs | `node scripts/perf/measure-desktop.mjs` |
 | Desktop average CPU during a call (S1) | ≤ **25 %** | Keeps fans quiet and call audio glitch-free | `node scripts/perf/measure-desktop.mjs` |
+| Card quality (C7): length + banned-phrase pass rate | ≥ **95%** of AI cards | Cards must stay ≤ 18 words with zero banned openers (D-094) | `pnpm replay --all` |
+| Card quality (C7): coherence score | ≥ **4.0 / 5.0** mean | Cards must track earlier call context without repeating or contradicting | `pnpm replay --all` |
 | Dependency advisories | none at **high** or above in production npm deps; none in Python runtime deps | Known exploitable issues must not ship | CI `audit` job: `pnpm audit --prod --audit-level high`, `uvx pip-audit --strict` |
 
 ## Measured only (not enforced yet)
