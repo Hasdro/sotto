@@ -58,8 +58,16 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
     }
     autoconfig = {"playbook_bootstrap"}  # T-083 ZC-04, default off (D-076)
     round4_platform = {"call_logs_github", "local_models_text", "local_models_voice", "setup_guide"}
+    round4_wizard_memory = {"postcall_wizard", "style_memory"}
     assert set(features.CATALOG) == (
-        existing | learning | planned | followup | autoconfig | round4_platform | {"zoho"}
+        existing
+        | learning
+        | planned
+        | followup
+        | autoconfig
+        | round4_platform
+        | round4_wizard_memory
+        | {"zoho"}
     )
     assert "playbook_bootstrap" in features.DEFAULT_OFF
     assert evaluate("playbook_bootstrap", "agent", NONE).state == "no_permission"

@@ -8,12 +8,15 @@ import { Button, Panel, Stack, space, Text } from "@sotto/ui";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { FeatureGate } from "../../../components/FeatureGate";
+import { FeatureGate, useFeature } from "../../../components/FeatureGate";
+import { SafeBoundary } from "../../../components/SafeBoundary";
 import { useReview } from "../../../lib/deviceHistory";
 import { useI18n } from "../../../lib/locale";
 import type { Perform } from "../../actions/ActionCard";
 import { AfterCallChecklist, type SaveLog } from "../../actions/AfterCallChecklist";
 import { ZohoGate } from "../../actions/PostCallPanel";
+import type { CardView } from "../../cards/reducer";
+import { MIN_WIZARD_DURATION_S, PostCallWizard } from "../../postcall";
 import { CallReviewPanel } from "../../review/CallReviewPanel";
 import { FollowUp } from "../../review/FollowUp";
 import { useReviewText } from "../../review/strings";
@@ -28,6 +31,10 @@ type Props = {
   /** The dev-only `?mock=1` stream: canned Zoho writes. */
   mock: boolean;
   callId: string | null;
+  /** Call duration in seconds; calls < 30s suppress post-call wizard/review (Round 4, A1). */
+  durationS?: number | undefined;
+  /** Cards shown during the call (for Step 5 style feedback). */
+  cards?: readonly CardView[] | undefined;
   /** Dev mock: canned Zoho writes (never in a release). */
   perform?: Perform | undefined;
   /** Tests: the call-log write. */
@@ -35,17 +42,30 @@ type Props = {
   onAgain: () => void;
 };
 
-export function EndedView({ cardCount, practice, mock, callId, perform, saveLog, onAgain }: Props) {
+export function EndedView({
+  cardCount,
+  practice,
+  mock,
+  callId,
+  durationS,
+  cards,
+  perform,
+  saveLog,
+  onAgain,
+}: Props) {
   const { t } = useI18n();
   const rt = useReviewText();
   const tc = useCallText();
   const keptNothing = usePracticeRun(); // D-073: a practice run in a real account
   const review = useReview(callId);
+  const wizardFlag = useFeature("postcall_wizard");
   const [openUpdates, setOpenUpdates] = useState(0);
   const [openFollowUp, setOpenFollowUp] = useState(0);
   const onUpdates = useCallback((n: number) => setOpenUpdates(n), []);
   const onFollowUp = useCallback((n: number) => setOpenFollowUp(n), []);
   const open = openUpdates + openFollowUp;
+  const wizardManaged = !practice && durationS !== undefined && wizardFlag.state === "available";
+  const showWizard = wizardManaged && durationS >= MIN_WIZARD_DURATION_S;
   const showUpdates = (!practice || mock) && callId;
   return (
     <Stack gap="md" testID="after-call">
@@ -72,12 +92,24 @@ export function EndedView({ cardCount, practice, mock, callId, perform, saveLog,
           />
         ) : null}
       </Panel>
-      {!practice ? (
+      {showWizard ? (
+        <SafeBoundary name="call.ended.wizard">
+          <PostCallWizard
+            callId={callId}
+            durationS={durationS}
+            cards={cards ?? []}
+            {...(perform ? { perform } : {})}
+            {...(saveLog ? { saveLog } : {})}
+            onFinish={onAgain}
+          />
+        </SafeBoundary>
+      ) : null}
+      {!wizardManaged && !practice ? (
         <FeatureGate feature="call_review">
           <CallReviewPanel callId={callId} />
         </FeatureGate>
       ) : null}
-      {showUpdates ? (
+      {!wizardManaged && showUpdates ? (
         // R12, draft D-044 (backlog): each ticked row is its own approval and its own idempotent write.
         <ZohoGate>
           <AfterCallChecklist
@@ -89,13 +121,13 @@ export function EndedView({ cardCount, practice, mock, callId, perform, saveLog,
           />
         </ZohoGate>
       ) : null}
-      {!practice ? (
+      {!wizardManaged && !practice ? (
         <FeatureGate feature="follow_up">
           <FollowUp callId={callId} auto onOpenChange={onFollowUp} />
         </FeatureGate>
       ) : null}
       <View style={styles.again} testID={`after-again-${open > 0 ? "secondary" : "primary"}`}>
-        {open === 0 && !practice ? (
+        {open === 0 && !practice && !showWizard ? (
           <Text variant="body" weight="semibold" testID="after-all-done">
             {rt("after.allDone")}
           </Text>

@@ -12,7 +12,7 @@ import contextlib
 import hashlib
 import re
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -23,7 +23,7 @@ from sotto_worker.pipeline.trigger import TurnKind, classify, needs_answer
 from sotto_worker.pipeline.verdict import VerdictParser
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.playbook.index import CONFIDENT, NEAR_ENTRIES, PlaybookHit, match_text
-from sotto_worker.prompts import PromptContext, PromptRegistry
+from sotto_worker.prompts import PromptContext, PromptNotFound, PromptRegistry, render
 from sotto_worker.protocol import CardMessage, CardTiming
 from sotto_worker.room import EchoGate
 from sotto_worker.router import ModelRouter, RouteResult
@@ -180,6 +180,8 @@ class CallSession:
         holding_at_ms: int | None = None,
         late_answer_until_ms: int | None = None,
         local_badge: str | None = None,
+        learned: Sequence[str] = (),
+        style_memory: Sequence[str] | None = None,
     ) -> None:
         self.call_id = call_id
         self.company = company
@@ -201,6 +203,8 @@ class CallSession:
         )
         self.answer_hard_limit_ms = max(ANSWER_HARD_LIMIT_MS, self.late_answer_until_ms + 3000)
         self._local_badge = local_badge
+        self._learned = tuple(learned)
+        self._style_memory = tuple(style_memory) if style_memory is not None else None
         self.echo_gate = EchoGate()
         self.prompts_key = "suggest"
 
@@ -404,13 +408,20 @@ class CallSession:
             "turn.text": turn.event.text,
             "card.language": LANGUAGE_NAME.get(turn.language, turn.language),
         }
-        rendered = self._prompts.render(
-            self.prompts_key, PromptContext(company_id=self.company.company_id), variables
-        )
+        ctx = PromptContext(company_id=self.company.company_id)
+        rendered = self._prompts.render(self.prompts_key, ctx, variables)
         settings = self._router.resolve("suggest", self._routing).settings
         system, _, user = rendered.text.partition(TURN_MARKER)
         if not user:  # prompt without a cache split: everything is per-turn
             system, user = "", system
+        style_src = self._style_memory if self._style_memory is not None else self._learned
+        rules = [r.strip() for r in style_src if r.strip()]
+        if rules:
+            with contextlib.suppress(PromptNotFound):
+                lp = self._prompts.get("learned_instructions", ctx)
+                bullets = "\n".join(f"- {r}" for r in rules)
+                block = render(lp.body, {"learning.instructions": bullets}).strip()
+                system = f"{system.strip()}\n\n{block}" if system.strip() else block
         return LLMRequest(
             system=system.strip(),
             messages=[Message(role="user", content=user.strip())],

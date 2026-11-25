@@ -168,6 +168,20 @@
       "requires": [],
       "depends": [],
       "built": true
+    },
+    {
+      "id": "postcall_wizard",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "style_memory",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
     }
   ]
 }

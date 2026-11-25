@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AGN Sales Shield · Owner · Style Memory</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/owner/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/owner/tokens.css">
+<link rel="stylesheet" href="/owner/fonts.css">
+<link rel="stylesheet" href="/owner/components.css">
+<link rel="stylesheet" href="/owner/owner.css">
+<script src="/owner/memory.js" defer></script>
+</head>
+<body>
+<main class="ss-main">
+  <div class="ss-page ss-page--wide">
+    <header class="page-head">
+      <h1 class="ss-page-title">Style memory</h1>
+      <p class="ss-lead ss-muted">Read-only view of company-wide and per-agent style rules across all companies.</p>
+    </header>
+    <div class="toolbar">
+      <label class="ss-search search-pill">
+        <input id="memorySearch" type="search" placeholder="Filter by company or agent" aria-label="Filter companies or agents">
+      </label>
+      <span class="spacer"></span>
+      <a href="/owner" class="ghost">Back to Owner Console</a>
+    </div>
+    <p id="memoryStatus" class="ss-muted" aria-live="polite">Loading style memory…</p>
+    <div id="memoryList"></div>
+  </div>
+</main>
+</body>
+</html>

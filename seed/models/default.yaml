@@ -76,3 +76,13 @@ stages:
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GEMINI_API_KEY
     model: gemini-2.5-flash
+  memory_merge:
+    # Round 4 (Agent 2, A3): cheap background model merging per-agent feedback into style rules.
+    provider: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-20b
+    settings:
+      max_tokens: 500
+      temperature: 0.2
+      reasoning_effort: low

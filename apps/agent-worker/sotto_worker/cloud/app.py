@@ -30,6 +30,9 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.adapters.email.smtp import Outgoing, send_mail
+from sotto_worker.adapters.factory import key_env as route_key_env
+from sotto_worker.adapters.factory import make_llm
+from sotto_worker.clock import RealClock
 from sotto_worker.cloud import bugreports
 from sotto_worker.cloud import github as github_mod
 from sotto_worker.cloud.bundle import Seed, build_bundle
@@ -45,11 +48,16 @@ from sotto_worker.cloud.gallabox import webhook as gallabox_webhook
 from sotto_worker.cloud.learning import routes as learning_routes
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.mail import render_escalation, send_with_retries
+from sotto_worker.cloud.memory import api as memory_api
+from sotto_worker.cloud.memory import routes as memory_routes
+from sotto_worker.cloud.memory.merge import MergeRunner
+from sotto_worker.cloud.memory.store import MemoryStore
 from sotto_worker.cloud.metering.store import Metering
 from sotto_worker.cloud.obs import call_logs as obs_call_logs
 from sotto_worker.cloud.obs import store as obs_store
 from sotto_worker.cloud.owner import local_models as owner_local_models
 from sotto_worker.cloud.owner import logs as owner_logs
+from sotto_worker.cloud.owner import memory as owner_memory
 from sotto_worker.cloud.owner import platform
 from sotto_worker.cloud.owner import routes as owner_routes
 from sotto_worker.cloud.owner import setup as owner_setup
@@ -62,6 +70,7 @@ from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms, plan_state
 from sotto_worker.cloud.zoho import routes as zoho_routes
 from sotto_worker.cloud.zoho import webhooks as zoho_webhooks
+from sotto_worker.contracts import LLMRequest, Message
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
 
@@ -158,6 +167,7 @@ class CloudConfig:
     smtp_sender: email_routes.Sender | None = None  # tests: a local fake SMTP server
     gallabox_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked Gallabox
     github_transport: httpx.AsyncBaseTransport | None = None  # tests: a mocked GitHub API
+    merge_runner: MergeRunner | None = None  # tests: fake style-memory merger
     run_scheduler: bool = False  # T-081: `serve` starts the in-process runner; tests tick by hand
     clock: Callable[[], int] = field(default=now_ms)  # ms; tests inject a fake clock
 
@@ -238,6 +248,35 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     static_root = config.static_dir.resolve() if config.static_dir else None
     scheduler = Scheduler(store, clock=config.clock, log=config.log)
     coaching = CoachingStore(store)
+    memory = MemoryStore(store)
+    memory_api.configure(memory)
+
+    async def default_merge_runner(stage: str, prompt_text: str) -> str:
+        routing = apply_overrides(seed.routing, seed.catalog, platform.platform_routes(store))
+        route = routing.stages.get(stage)
+        if route is None:
+            raise CloudError("unavailable", f"no model route for {stage}")
+        req_key = route_key_env(route)
+        env = dict(platform.platform_keys(store))
+        if req_key and req_key not in env:
+            raise CloudError("unavailable", "background merge model key is not configured")
+        adapter = make_llm(route, clock=RealClock(), env=env)
+        settings = dict(route.settings)
+        req = LLMRequest(
+            system="",
+            messages=[Message(role="user", content=prompt_text)],
+            max_tokens=int(settings.get("max_tokens", 500)),
+            temperature=float(settings.get("temperature", 0.2)),
+            settings=settings,
+        )
+        chunks = [chunk.text async for chunk in adapter.stream(req)]
+        return "".join(chunks)
+
+    async def memory_cleanup_job(now: int) -> None:
+        memory.purge_expired_feedback(now)
+        memory.expire_wizard_states(now)
+
+    scheduler.register("memory_cleanup", DAY_MS, memory_cleanup_job)
 
     async def digest_job(now: int) -> None:
         await coaching_routes.weekly_digest_job(
@@ -374,6 +413,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         "consent_required": HTTPStatus.CONFLICT,
         "off_domain": HTTPStatus.UNPROCESSABLE_ENTITY,
         "private_address": HTTPStatus.UNPROCESSABLE_ENTITY,
+        "unavailable": HTTPStatus.SERVICE_UNAVAILABLE,
     }
 
     def handle(
@@ -1013,6 +1053,11 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         out["key_status"] = store.key_status(who)
         out["features"] = store.features_for(who)
         out["learned"] = learning.active_for_call(who)  # R11: applies from the next call
+        out["style_memory"] = (
+            memory_api.get_style_memory(who.company, who.user_id)
+            if store.feature_state(who, "style_memory").state == "available"
+            else None
+        )
         return JSONResponse(out, headers={"Cache-Control": "no-store"})
 
     @app_route
@@ -2003,6 +2048,20 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             ip_of=ip_of,
             origin=config.public_origin or "http://localhost:8788",
             mailer=config.mailer,
+        ),
+        *memory_routes.make_routes(
+            memory=memory,
+            app_route=app_route,
+            body=body,
+            ip_of=ip_of,
+            merge_runner=config.merge_runner or default_merge_runner,
+            clock=config.clock,
+        ),
+        *owner_memory.make_routes(
+            memory=memory,
+            owner_route=owner_route,
+            owner_host_ok=owner_host_ok,
+            csp=OWNER_CSP,
         ),
         *zoho_routes.make_routes(
             store=store,

@@ -8,11 +8,20 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 Stage = Literal[
-    "stt", "stt_backup", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed", "judge"
+    "stt",
+    "stt_backup",
+    "turn",
+    "trigger",
+    "suggest",
+    "suggest_backup",
+    "summary",
+    "embed",
+    "judge",
+    "memory_merge",
 ]
 STAGES: tuple[Stage, ...] = (
     "stt", "stt_backup", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed",
-    "judge",
+    "judge", "memory_merge",
 )  # fmt: skip
 LIVE_STAGES: frozenset[Stage] = frozenset({"trigger", "suggest", "suggest_backup"})
 Speaker = Literal["customer", "agent"]

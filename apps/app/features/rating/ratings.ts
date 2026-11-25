@@ -1,20 +1,38 @@
 /**
- * Card ratings (R11, D-034, T-058): only AI advice cards are rateable. A rating is kept on this
- * device with the card's text (for the after-call learning packet) and sent to the server
- * without any words from the call: card id, type, source, up/down and reason chips.
+ * Card ratings (R11, D-034, T-058; extended Round 4 A2): only AI advice cards are rateable.
+ * Reason chips updated to Round 4 set (too_long, too_formal, wrong, not_relevant) while
+ * mapping legacy `not_our_style` -> `too_formal` cleanly for backward compatibility.
  */
 import type { CardSource, CardType } from "@sotto/shared";
 import { useSyncExternalStore } from "react";
 import { cloudActive, cloudApi } from "../../lib/cloud";
 
-export const RATING_REASONS = ["wrong", "too_long", "not_our_style", "good_phrasing"] as const;
+export const RATING_REASONS = [
+  "too_long",
+  "too_formal",
+  "wrong",
+  "not_relevant",
+  "good_phrasing",
+  "not_our_style",
+] as const;
 export type RatingReason = (typeof RATING_REASONS)[number];
+export type CanonicalReason =
+  | "too_long"
+  | "too_formal"
+  | "wrong"
+  | "not_relevant"
+  | "good_phrasing";
 export type Rating = "up" | "down";
 
-/** Reason chips offered after each choice. */
-export const REASONS_FOR: Record<Rating, readonly RatingReason[]> = {
+/** Map legacy R11 reason names to Round 4 canonical reasons. */
+export function normalizeReason(reason: RatingReason): CanonicalReason {
+  return reason === "not_our_style" ? "too_formal" : reason;
+}
+
+/** Reason chips offered after each choice (Round 4 A2). */
+export const REASONS_FOR: Record<Rating, readonly CanonicalReason[]> = {
   up: ["good_phrasing"],
-  down: ["wrong", "too_long", "not_our_style"],
+  down: ["too_long", "too_formal", "wrong", "not_relevant"],
 };
 
 export type RatedCard = {
@@ -25,6 +43,7 @@ export type RatedCard = {
   text: string;
   rating: Rating;
   reasons: RatingReason[];
+  note?: string;
 };
 
 type RateableCard = {
@@ -69,16 +88,18 @@ export function rateCard(
   card: RateableCard,
   rating: Rating | null,
   reasons: readonly RatingReason[] = [],
+  note?: string,
 ): void {
   if (!isRateable(card)) return;
   let call = byCall.get(card.callId);
   if (!call) {
     call = new Map();
     byCall.set(card.callId, call);
-    // Only the last few calls stay in memory: the packet is built right after a call ends.
     if (byCall.size > KEPT_CALLS) byCall = new Map([...byCall].slice(-KEPT_CALLS));
   }
-  const allowed = rating ? reasons.filter((r) => REASONS_FOR[rating].includes(r)) : [];
+  const normalized = reasons.map(normalizeReason);
+  const allowed = rating ? normalized.filter((r) => REASONS_FOR[rating].includes(r)) : [];
+  const trimmedNote = note?.trim();
   if (rating) {
     call.set(card.id, {
       cardId: card.id,
@@ -88,6 +109,7 @@ export function rateCard(
       text: card.text,
       rating,
       reasons: [...new Set(allowed)],
+      ...(trimmedNote ? { note: trimmedNote } : {}),
     });
   } else call.delete(card.id);
   changed();

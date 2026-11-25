@@ -16,7 +16,7 @@ import { useCloud } from "../lib/useCloud";
 
 export function useFeature(id: FeatureId): Effective {
   const cloud = useCloud();
-  return cloud.status === "signed_in" ? stateOf(cloud.me.features, id) : { state: "available" };
+  return cloud.status === "signed_in" ? stateOf(cloud.me?.features, id) : { state: "available" };
 }
 
 export function FeatureGate({ feature, children }: { feature: FeatureId; children: ReactNode }) {

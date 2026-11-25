@@ -27,6 +27,8 @@ export const FEATURE_IDS = [
   "local_models_text",
   "local_models_voice",
   "setup_guide",
+  "postcall_wizard",
+  "style_memory",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

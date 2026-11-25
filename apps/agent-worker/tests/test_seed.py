@@ -20,6 +20,7 @@ STAGES = {
     "summary",
     "embed",
     "judge",
+    "memory_merge",
 }
 LIVE_STAGES = {"trigger", "suggest", "suggest_backup"}
 SCOPES = {"platform", "company", "team", "campaign"}

@@ -12,14 +12,31 @@ import { useFeature } from "../../components/FeatureGate";
 import { useI18n } from "../../lib/locale";
 import { useCallText } from "../call/strings";
 import type { CardView } from "../cards/reducer";
+import { usePostCallText } from "../postcall/strings";
 import {
+  type CanonicalReason,
   isRateable,
+  normalizeReason,
   type Rating,
-  type RatingReason,
   REASONS_FOR,
   rateCard,
   useRating,
 } from "./ratings";
+
+const REASON_KEY: Record<
+  CanonicalReason,
+  | "feedback.reason.too_long"
+  | "feedback.reason.too_formal"
+  | "feedback.reason.wrong"
+  | "feedback.reason.not_relevant"
+  | "feedback.reason.good_phrasing"
+> = {
+  too_long: "feedback.reason.too_long",
+  too_formal: "feedback.reason.too_formal",
+  wrong: "feedback.reason.wrong",
+  not_relevant: "feedback.reason.not_relevant",
+  good_phrasing: "feedback.reason.good_phrasing",
+};
 
 /** Whether the controls would render for this card (rateable, finished, ratings on). */
 export function useCanRate(card: CardView): boolean {
@@ -39,17 +56,19 @@ export function RatingControls({
 }) {
   const { t } = useI18n();
   const ct = useCallText();
+  const ft = usePostCallText();
   const canRate = useCanRate(card);
   const current = useRating(card.callId, card.id);
   if (!canRate) return null;
   const choose = (r: Rating) => rateCard(card, current?.rating === r ? null : r, []);
-  const toggle = (reason: RatingReason) => {
+  const toggle = (reason: CanonicalReason) => {
     if (!current) return;
-    const has = current.reasons.includes(reason);
+    const normalized = current.reasons.map(normalizeReason);
+    const has = normalized.includes(reason);
     rateCard(
       card,
       current.rating,
-      has ? current.reasons.filter((x) => x !== reason) : [...current.reasons, reason],
+      has ? normalized.filter((x) => x !== reason) : [...normalized, reason],
     );
   };
   return (
@@ -87,8 +106,8 @@ export function RatingControls({
             <Chip
               key={reason}
               testID={`reason-${reason}-${card.id}`}
-              label={t(`rating.reason.${reason}`)}
-              on={current.reasons.includes(reason)}
+              label={ft(REASON_KEY[reason])}
+              on={current.reasons.map(normalizeReason).includes(reason)}
               onPress={() => toggle(reason)}
             />
           ))}

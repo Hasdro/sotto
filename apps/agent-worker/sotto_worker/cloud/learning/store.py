@@ -23,7 +23,7 @@ MAX_ITEMS = 8
 MAX_WORDS = 25
 MAX_CHARS = 220
 MIN_RATINGS = 3
-REASONS = ("wrong", "too_long", "not_our_style", "good_phrasing")
+REASONS = ("wrong", "too_long", "not_our_style", "too_formal", "not_relevant", "good_phrasing")
 # Only AI advice cards are rateable: playbook, holding and system cards are not (D-034).
 RATEABLE_SOURCES = ("ai", "backup")
 RATEABLE_TYPES = ("answer", "question", "objection", "signal", "warning")
