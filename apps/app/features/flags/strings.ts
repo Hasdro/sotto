@@ -61,6 +61,9 @@ const en: Text = {
     setup_guide: "Setup guide",
     postcall_wizard: "Post-call wizard",
     style_memory: "Style memory",
+    card_style_v2: "Card tone & style",
+    call_state: "Running call state",
+    talk_meter: "Talk balance bar",
   },
   about: {
     call_review: "Scores and coaching after each call.",
@@ -90,6 +93,9 @@ const en: Text = {
     setup_guide: "Step-by-step setup checklist with live status and Test it checks.",
     postcall_wizard: "Step-by-step wrap-up after every call (review, follow-ups, Zoho, feedback).",
     style_memory: "Learns each agent's style preferences from post-call feedback.",
+    card_style_v2: "Lets admins set company card tone, banned openers, and WHY insights.",
+    call_state: "Maintains a live summary of the conversation during calls.",
+    talk_meter: "Shows agent vs customer talk balance at the top of the live call screen.",
   },
   state: {
     available: "On",
@@ -150,6 +156,9 @@ const ar: Text = {
     setup_guide: "دليل الإعداد",
     postcall_wizard: "معالج ما بعد المكالمة",
     style_memory: "ذاكرة الأسلوب",
+    card_style_v2: "نبرة البطاقات والأسلوب",
+    call_state: "ملخص المكالمة المباشر",
+    talk_meter: "شريط توازن الحديث",
   },
   about: {
     call_review: "تقييم وتوجيه بعد كل مكالمة.",
@@ -178,6 +187,9 @@ const ar: Text = {
     setup_guide: "قائمة إعداد خطوة بخطوة مع الحالة المباشرة واختبار الإعداد.",
     postcall_wizard: "ملخص متدرّج بعد كل مكالمة (مراجعة، متابعة، زوهو، تقييم).",
     style_memory: "يتعلّم أسلوب كل موظف من ملاحظات ما بعد المكالمة.",
+    card_style_v2: "يتيح للمسؤول ضبط نبرة البطاقات والعبارات الممنوعة وتفسير الإجابات.",
+    call_state: "يحفظ ملخصًا مباشرًا لمجريات المكالمة أثناء الحديث.",
+    talk_meter: "يعرض نسبة حديث الموظف مقابل العميل أعلى شاشة المكالمة.",
   },
   state: {
     available: "مفعّلة",

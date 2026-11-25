@@ -182,6 +182,27 @@
       "requires": [],
       "depends": [],
       "built": true
+    },
+    {
+      "id": "card_style_v2",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "call_state",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "talk_meter",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
     }
   ]
 }

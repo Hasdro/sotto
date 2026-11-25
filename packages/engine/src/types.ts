@@ -112,6 +112,13 @@ export type PlanState = {
   blocked_reason: string | null;
 };
 
+export type CardToneBundleConfig = {
+  tone: string;
+  how_we_talk?: string;
+  banned_en?: string[];
+  banned_ar?: string[];
+};
+
 export type LocalModelBundleConfig = {
   mode: "cloud" | "local_live" | "slow_jobs_only" | "local_live_slow_optin";
   base_url: string | null;
@@ -154,6 +161,10 @@ export type CallBundle = {
   learned?: { version: number; instructions: string[] } | null;
   /** R11 / A4: merged company + personal style memory rules injected into suggest prompt. */
   style_memory?: string[] | null;
+  /** C3 / D-094: resolved effective card tone & banned openers for the session. */
+  card_tone?: CardToneBundleConfig | null;
+  /** Agent 3: optional rendered game plan text for suggest prompt. */
+  game_plan?: string | null;
   /** L6 / D-096: per-user local model policy & routing decision for live calls. */
   local_model?: LocalModelBundleConfig | null;
 };

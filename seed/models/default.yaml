@@ -86,3 +86,19 @@ stages:
       max_tokens: 500
       temperature: 0.2
       reasoning_effort: low
+  call_state:
+    # C5: cheap fast model for async running summary (<= 120 words), never on the 1.5 s card path.
+    provider: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-20b
+    settings:
+      max_tokens: 220
+      temperature: 0.1
+      reasoning_effort: low
+  quality_judge:
+    # C7: grades card length, banned phrases, casualness, and coherence (different family from suggest).
+    provider: openai_compatible
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: gemini-2.5-flash

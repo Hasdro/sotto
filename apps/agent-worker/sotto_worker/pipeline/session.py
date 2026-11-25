@@ -17,10 +17,14 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from sotto_worker.clock import Clock
+from sotto_worker.cloud.cards.store import HOW_WE_TALK_MAX, TONE_PRESETS
+from sotto_worker.cloud.memory import api as memory_api
 from sotto_worker.company import CompanyProfile
 from sotto_worker.contracts import LLMRequest, Message, TranscriptEvent
+from sotto_worker.pipeline.call_state import CallStateUpdater
+from sotto_worker.pipeline.stubs import get_game_plan
 from sotto_worker.pipeline.trigger import TurnKind, classify, needs_answer
-from sotto_worker.pipeline.verdict import VerdictParser
+from sotto_worker.pipeline.verdict import DEFAULT_BANNED_OPENERS, VerdictParser
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.playbook.index import CONFIDENT, NEAR_ENTRIES, PlaybookHit, match_text
 from sotto_worker.prompts import PromptContext, PromptNotFound, PromptRegistry, render
@@ -181,8 +185,17 @@ class CallSession:
         late_answer_until_ms: int | None = None,
         local_badge: str | None = None,
         learned: Sequence[str] = (),
+        user_id: str | None = None,
+        agent_tone: str = "casual",
+        how_we_talk: str = "",
+        banned_phrases: tuple[str, ...] | list[str] = DEFAULT_BANNED_OPENERS,
         style_memory: Sequence[str] | None = None,
+        game_plan: str | None = None,
+        call_state_enabled: bool = True,
+        on_call_state: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
+        if agent_tone not in TONE_PRESETS:
+            raise ValueError(f"invalid tone preset: {agent_tone!r}")
         self.call_id = call_id
         self.company = company
         self.clock = clock
@@ -204,12 +217,51 @@ class CallSession:
         self.answer_hard_limit_ms = max(ANSWER_HARD_LIMIT_MS, self.late_answer_until_ms + 3000)
         self._local_badge = local_badge
         self._learned = tuple(learned)
-        self._style_memory = tuple(style_memory) if style_memory is not None else None
         self.echo_gate = EchoGate()
         self.prompts_key = "suggest"
+        self.user_id = user_id or ""
+        self.agent_tone = agent_tone
+        self._how_we_talk = " ".join(how_we_talk.split()).strip()[:HOW_WE_TALK_MAX]
+        self._banned_phrases = tuple(banned_phrases)
+        self._style_memory = list(style_memory) if style_memory is not None else None
+        self._game_plan = game_plan
+        self._call_state_enabled = call_state_enabled
+        self.verdict_cuts = 0
+        self.verdict_strips = 0
+        self._call_state = CallStateUpdater(
+            call_id=call_id,
+            company_id=company.company_id,
+            router=router,
+            routing=self._routing,
+            prompts=prompts,
+            clock=clock,
+            on_update=on_call_state,
+        )
+
+    def _load_style_memory_once(self) -> list[str]:
+        if self._style_memory is not None:
+            return self._style_memory
+        if self.user_id and memory_api._default_store is not None:
+            try:
+                loaded = memory_api.get_style_memory(self.company.company_id, self.user_id)
+            except Exception:
+                loaded = []
+            self._style_memory = loaded or list(self._learned)
+        else:
+            self._style_memory = list(self._learned)
+        return self._style_memory
+
+    def _load_game_plan_once(self) -> str:
+        if self._game_plan is None:
+            self._game_plan = get_game_plan(self.company.company_id, self.call_id) or ""
+        return self._game_plan
 
     async def warm(self) -> None:
-        """Call start: open model connections for the live stage and its backup."""
+        """Call start: open model connections and pre-load style memory / game plan off-loop."""
+        if self._style_memory is None:
+            await asyncio.to_thread(self._load_style_memory_once)
+        if self._game_plan is None:
+            await asyncio.to_thread(self._load_game_plan_once)
         await self._router.warm("suggest", self._routing)
 
     def on_agent_voice(self, *, start_ms: int, end_ms: int, text: str = "") -> None:
@@ -228,6 +280,8 @@ class CallSession:
         if event.speaker == "agent" and not self.company.agent_context:
             return None
         self._events.append(event)
+        if len(self._events) > 500:
+            del self._events[:-500]
         kind = classify(event)  # R4: agent speech never classifies
         if kind is None:
             return None
@@ -242,9 +296,22 @@ class CallSession:
         task = asyncio.create_task(self._run_turn(turn))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        # C5: async call-state rewrite after each customer turn, never on the 1.5 s card path.
+        if self._call_state_enabled and self.company.ai_answers_allowed:
+            with contextlib.suppress(KeyError):
+                if self._prompts.get(
+                    "call_state", PromptContext(company_id=self.company.company_id)
+                ):
+                    self._call_state.schedule_update(self._context(event.end_ms))
         return turn.turn_id
 
+    @property
+    def call_state(self) -> str:
+        """Latest finished running call state (C5, read-only for CallStatePanel)."""
+        return self._call_state.current
+
     async def close(self) -> None:
+        await self._call_state.close()
         for task in list(self._tasks):
             task.cancel()
         for task in list(self._tasks):
@@ -287,7 +354,7 @@ class CallSession:
 
         async def suggest() -> bool:
             nonlocal writer
-            parser = VerdictParser()
+            parser = VerdictParser(banned=self._banned_phrases, call_id=self.call_id)
             request = self._request(turn)
             stream = self._router.stream(
                 "suggest", request, company=self._routing, t0_ms=turn.t0_ms, result=result
@@ -304,6 +371,8 @@ class CallSession:
             if tail:
                 writer = writer or self._ai_writer(turn, card_type, result)
                 await writer.delta(tail)
+            self.verdict_cuts += parser.cuts
+            self.verdict_strips += parser.strips
             if writer is None:
                 return False
             await writer.delta("", done=True)
@@ -396,32 +465,46 @@ class CallSession:
         return "\n".join(lines)
 
     def _request(self, turn: _Turn) -> LLMRequest:
-        playbook_text = match_text(turn.nearest)
+        def _clean(value: str) -> str:
+            return value.replace(TURN_MARKER, " ")
+
+        playbook_text = _clean(match_text(turn.nearest))
+        memory_rules = self._load_style_memory_once()
+        game_plan = _clean(self._load_game_plan_once())
+        tone_value = (
+            f"{self.agent_tone} — {self._how_we_talk}" if self._how_we_talk else self.agent_tone
+        )
         variables = {
-            "company.name": self.company.name,
-            "company.tone": self.company.tone,
-            "company.call_goal": self.company.call_goal,
-            "company.context": self.company.context or "(none)",
+            "company.name": _clean(self.company.name),
+            "company.tone": _clean(self.company.tone),
+            "company.call_goal": _clean(self.company.call_goal),
+            "company.context": _clean(self.company.context or "(none)"),
+            "agent.tone": _clean(tone_value),
+            "tone.banned": _clean(", ".join(self._banned_phrases[:50]) or "(none)"),
+            "agent.style_memory": _clean("\n".join(f"- {r}" for r in memory_rules) or "(none)"),
+            "call.game_plan": game_plan or "(none)",
+            "call.state": _clean(self._call_state.current or "(none yet)"),
             "playbook.match": playbook_text,
-            "transcript.last_60s": self._context(turn.event.end_ms),
+            "transcript.last_60s": _clean(self._context(turn.event.end_ms)),
             "turn.kind": turn.kind,
-            "turn.text": turn.event.text,
+            "turn.text": _clean(turn.event.text),
             "card.language": LANGUAGE_NAME.get(turn.language, turn.language),
         }
         ctx = PromptContext(company_id=self.company.company_id)
-        rendered = self._prompts.render(self.prompts_key, ctx, variables)
+        template = self._prompts.get(self.prompts_key, ctx)
+        rendered = render(template.body, variables)
         settings = self._router.resolve("suggest", self._routing).settings
-        system, _, user = rendered.text.partition(TURN_MARKER)
+        system, _, user = rendered.partition(TURN_MARKER)
         if not user:  # prompt without a cache split: everything is per-turn
             system, user = "", system
-        style_src = self._style_memory if self._style_memory is not None else self._learned
-        rules = [r.strip() for r in style_src if r.strip()]
-        if rules:
-            with contextlib.suppress(PromptNotFound):
-                lp = self._prompts.get("learned_instructions", ctx)
-                bullets = "\n".join(f"- {r}" for r in rules)
-                block = render(lp.body, {"learning.instructions": bullets}).strip()
-                system = f"{system.strip()}\n\n{block}" if system.strip() else block
+        if "agent.style_memory" not in template.variables:
+            rules = [r.strip() for r in memory_rules if r.strip()]
+            if rules:
+                with contextlib.suppress(PromptNotFound):
+                    lp = self._prompts.get("learned_instructions", ctx)
+                    bullets = "\n".join(f"- {r}" for r in rules)
+                    block = render(lp.body, {"learning.instructions": bullets}).strip()
+                    system = f"{system.strip()}\n\n{block}" if system.strip() else block
         return LLMRequest(
             system=system.strip(),
             messages=[Message(role="user", content=user.strip())],

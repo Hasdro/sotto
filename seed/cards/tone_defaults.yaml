@@ -1,0 +1,22 @@
+# Platform defaults for card tone presets and banned openers (C3, D-094).
+version: 1
+default_tone: casual
+presets:
+  - casual
+  - direct
+  - warm
+  - formal
+how_we_talk_max_chars: 200
+banned_phrases:
+  en:
+    - "I hear you"
+    - "I understand your concern"
+    - "Great question"
+    - "That's a great question"
+    - "I completely understand"
+  ar:
+    - "أفهمك تماماً"
+    - "أتفهم قلقك"
+    - "سؤال رائع"
+    - "هذا سؤال رائع"
+    - "أفهم قلقك"

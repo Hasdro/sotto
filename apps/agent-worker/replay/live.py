@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from replay.quality import judge_card_stub
 from replay.synthetic import ReplayReport, check_line, record_match
 from sotto_worker.adapters.factory import has_credentials, platform_key
 from sotto_worker.clock import RealClock
@@ -120,7 +121,7 @@ async def replay_live(
         # (TLS, HTTP/2) before the first customer turn, so it doesn't pay connection setup.
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(session.warm(), WARM_TIMEOUT_S)
-        for line in scenario.lines:
+        for idx, line in enumerate(scenario.lines):
             t0 = clock.now_ms()
             await clock.sleep(final_after_t0_ms)
             before = len([c for c in cards if c.seq == 0])
@@ -136,6 +137,19 @@ async def replay_live(
             new_cards = [c for c in cards if c.seq == 0][before:]
             check_line(report, scenario, line, new_cards)
             record_match(report, runtime.playbook, line, new_cards)
+            if line.speaker == "customer":
+                history_lines = [f"{ln.speaker}: {ln.text}" for ln in scenario.lines[: idx + 1]]
+                for nc in new_cards:
+                    if nc.source in ("ai", "backup"):
+                        full_text = "".join(c.delta for c in cards if c.card_id == nc.card_id)
+                        report.quality.scores.append(
+                            judge_card_stub(
+                                card_id=nc.card_id,
+                                card_text=full_text,
+                                turn_text=line.text,
+                                history=history_lines,
+                            )
+                        )
         await session.close()
         report.cards += len(records)
         report.escalations += len(escalations)

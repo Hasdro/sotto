@@ -10,8 +10,9 @@
  */
 import { EmptyState, layout, motion, Screen, Sheet, space, Toast, useTheme } from "@sotto/ui";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { useFeature } from "../components/FeatureGate";
 import { SafeBoundary } from "../components/SafeBoundary";
 import { useSharedCall } from "../features/call/CallSessionProvider";
 import { useCallApp } from "../features/call/callApp";
@@ -27,6 +28,7 @@ import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
 import { PracticeStart } from "../features/call/components/PracticeStart";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
+import { TalkMeter } from "../features/call/components/TalkMeter";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
 import { demoEnabled } from "../features/call/devGate";
 import { computerAudioAvailable } from "../features/call/mic";
@@ -126,6 +128,18 @@ export function CallView({
   const notice = state.notice;
   const { dismissNotice } = session;
   const [confirming, setConfirming] = useState(false);
+  const talkMeterGate = useFeature("talk_meter");
+  const talkDurations = useMemo(() => {
+    let agentMs = 0;
+    let customerMs = 0;
+    for (const e of state.transcript) {
+      const words = e.text.trim() ? e.text.trim().split(/\s+/).length : 0;
+      const ms = words > 0 ? Math.max(500, words * 350) : 0;
+      if (e.speaker === "agent") agentMs += ms;
+      else if (e.speaker === "customer") customerMs += ms;
+    }
+    return { agentMs, customerMs };
+  }, [state.transcript]);
   // Density rule (T-050): the live call shows the card, the status and one collapsed rail toggle.
   // Before the call the same toggle opens the brief editor (UX-01); Home's Prepare opens it.
   const [railOpen, setRailOpen] = useState(prepare);
@@ -310,6 +324,13 @@ export function CallView({
       ) : null}
       {state.phase !== "idle" && state.phase !== "ended" ? (
         <SafeBoundary name="call.cards">
+          {live && talkMeterGate.state === "available" ? (
+            <TalkMeter
+              agentMs={talkDurations.agentMs}
+              customerMs={talkDurations.customerMs}
+              approximate={session.source === "mic"}
+            />
+          ) : null}
           <CardStack
             cards={cards}
             wide={wide}
@@ -381,7 +402,11 @@ export function CallView({
             {idle ? null : (
               <View style={styles.sideScroll}>
                 <SafeBoundary name="call.rail">
-                  <TranscriptPane lines={state.transcript} scroll />
+                  <TranscriptPane
+                    lines={state.transcript}
+                    scroll
+                    hideTalkMeter={live && talkMeterGate.state === "available"}
+                  />
                 </SafeBoundary>
               </View>
             )}
@@ -413,7 +438,12 @@ export function CallView({
             {crm}
             {idle ? null : (
               <SafeBoundary name="call.rail">
-                <TranscriptPane lines={state.transcript} limit={6} scroll={false} />
+                <TranscriptPane
+                  lines={state.transcript}
+                  limit={6}
+                  scroll={false}
+                  hideTalkMeter={live && talkMeterGate.state === "available"}
+                />
               </SafeBoundary>
             )}
             {notes ? <SafeBoundary name="call.rail">{notes}</SafeBoundary> : null}

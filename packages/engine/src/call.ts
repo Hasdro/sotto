@@ -301,6 +301,15 @@ export class LocalCall {
       briefPrompt: deps.runtime.bundle.prompts.crm_brief,
       learned: deps.runtime.bundle.learned?.instructions,
       styleMemory: deps.runtime.bundle.style_memory ?? undefined,
+      agentTone: deps.runtime.bundle.card_tone?.tone,
+      howWeTalk: deps.runtime.bundle.card_tone?.how_we_talk,
+      bannedPhrases: deps.runtime.bundle.card_tone
+        ? [
+            ...(deps.runtime.bundle.card_tone.banned_en ?? []),
+            ...(deps.runtime.bundle.card_tone.banned_ar ?? []),
+          ]
+        : undefined,
+      gamePlan: deps.runtime.bundle.game_plan ?? undefined,
       learnedPrompt: deps.runtime.bundle.prompts.learned_instructions,
       holdingAtMs: deps.runtime.holdingAtMs,
       lateAnswerUntilMs: deps.runtime.lateAnswerUntilMs,
