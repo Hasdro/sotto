@@ -4,7 +4,7 @@
  * live status ("Local model: connected ✓" / "Local model: unreachable"), and D-096 opt-in
  * warning when measured latency exceeds 1.5 s.
  */
-import { Badge, Button, Card, Stack, Text, TextField, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, space, Stack, Text, TextField, useTheme } from "@sotto/ui";
 import { useState } from "react";
 import { StyleSheet, Switch, View } from "react-native";
 
@@ -45,7 +45,7 @@ export function LocalModelsSettings({
   };
 
   return (
-    <Card testID="local-models-settings">
+    <View testID="local-models-settings" style={{ backgroundColor: color.surface, borderColor: color.border, borderWidth: 1, borderRadius: radius.lg, padding: space.lg }}>
       <Stack gap="md">
         <Text variant="title" weight="semibold">
           Local &amp; offline model
@@ -70,7 +70,7 @@ export function LocalModelsSettings({
           />
           {status ? (
             <Badge
-              tone={status.reachable ? "success" : "danger"}
+              tone={status.reachable ? "neutral" : "notice"}
               label={status.statusLabel}
               testID="local-model-status"
             />
@@ -105,7 +105,7 @@ export function LocalModelsSettings({
           </View>
         ) : null}
       </Stack>
-    </Card>
+    </View>
   );
 }
 
