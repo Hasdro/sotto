@@ -37,3 +37,6 @@ ios/Pods/
 
 # Phone builds (T-016)
 apps/mobile-builds/
+
+# Round 4 agent archives (local staging only)
+temp/

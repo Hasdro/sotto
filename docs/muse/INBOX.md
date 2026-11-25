@@ -5,6 +5,7 @@ Mac-Claude appends the owner's feature requests and bug reports here (newest at 
 Format: `- [ ] <id> · <type: feature|bug|change> · <date> · <priority: now|next|later> — <what the owner wants, in their words>. Acceptance: <how we know it works>.`
 
 ## Open
+- [ ] M-004 · change · 2026-11-25 · now — The little smily character's smile is a bit small; make it a bit bigger, but not too big. (Mascot in packages/ui/src/components/Mascot.tsx, Smile component.) Acceptance: the mascot's smile is visibly slightly larger in all states, not oversized; existing mascot tests still pass.
 
 ## Done
 - [x] M-002 · change · 2026-11-18 · now — Move Zoho AGN fields, SMTP, Gallabox + delivery webhook, and model configuration out of the client app into the vendor panel per organisation; client shows Gallabox status only and templates become a multi-select; Admin › People add-new-user on top; email formats become usable rich-text fields; vendor company profile opens in a new tab. Acceptance: one push, Mac gate green, owner console company page verified in a new tab. Done in commit `f91e5ed8` (round 2, 18 Nov 2026), merged to main at `27f5710`, deployed to us3; Mac gate R-001..R-007 green.
