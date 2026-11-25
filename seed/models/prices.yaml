@@ -61,6 +61,28 @@ prices:
     source: https://api-docs.deepseek.com/quick_start/pricing
     confidence: vendor
     checked: 2026-11-19
+  # --- Round 4 Agent 3: Voice coach STT/TTS vendor estimates (D-121) ---
+  - vendor: deepgram
+    model: nova-3
+    unit: per_hour
+    usd: 0.258
+    source: https://deepgram.com/pricing
+    confidence: vendor
+    checked: 2026-11-25
+  - vendor: deepgram
+    model: aura-2-thalia-en
+    unit: per_1k_chars
+    usd: 0.030
+    source: https://deepgram.com/pricing
+    confidence: vendor
+    checked: 2026-11-25
+  - vendor: elevenlabs
+    model: eleven_flash_v2_5
+    unit: per_1k_chars
+    usd: 0.060
+    source: https://elevenlabs.io/pricing
+    confidence: vendor
+    checked: 2026-11-25
 
 # What one call minute uses, for metering client-reported calls (the apps report minutes and
 # card counts, not tokens). Set from `pnpm cost:estimate` (synthetic replay, 2026-11-14); output

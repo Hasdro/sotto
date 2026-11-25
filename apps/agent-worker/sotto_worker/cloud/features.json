@@ -4,32 +4,58 @@
   "features": [
     {
       "id": "call_review",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
     {
       "id": "follow_up",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
     {
       "id": "recordings",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
     {
       "id": "reports",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
+    {
+      "id": "ai_knowledge",
+      "roles": [
+        "admin"
+      ],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+<<<<<<< HEAD
     {
       "id": "ai_knowledge",
       "roles": ["admin"],
@@ -37,102 +63,193 @@
       "depends": [],
       "built": true
     },
+=======
+>>>>>>> feat(coach): add feature flags, model stages, pricing and prompt seeds
     {
       "id": "integrations",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
     {
       "id": "zoho",
-      "roles": ["admin", "manager", "agent"],
-      "requires": ["zoho"],
-      "depends": ["integrations"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
+      "requires": [
+        "zoho"
+      ],
+      "depends": [
+        "integrations"
+      ],
       "built": true
     },
     {
       "id": "gallabox",
-      "roles": ["admin"],
-      "requires": ["gallabox"],
-      "depends": ["integrations"],
+      "roles": [
+        "admin"
+      ],
+      "requires": [
+        "gallabox"
+      ],
+      "depends": [
+        "integrations"
+      ],
       "built": true
     },
     {
       "id": "email_send",
-      "roles": ["admin", "manager", "agent"],
-      "requires": ["email_sender"],
-      "depends": ["follow_up"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
+      "requires": [
+        "email_sender"
+      ],
+      "depends": [
+        "follow_up"
+      ],
       "built": true
     },
     {
       "id": "whatsapp",
-      "roles": ["admin", "manager", "agent"],
-      "requires": ["gallabox"],
-      "depends": ["integrations", "gallabox"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
+      "requires": [
+        "gallabox"
+      ],
+      "depends": [
+        "integrations",
+        "gallabox"
+      ],
       "built": true
     },
     {
       "id": "prep",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
     {
       "id": "card_ratings",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
       "depends": [],
       "built": true
     },
     {
       "id": "learned_instructions",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
-      "depends": ["card_ratings"],
+      "depends": [
+        "card_ratings"
+      ],
       "built": true
     },
     {
       "id": "followup_plan",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
-      "depends": ["follow_up"],
+      "depends": [
+        "follow_up"
+      ],
       "built": true
     },
     {
       "id": "meeting_reminders",
-      "roles": ["admin", "manager", "agent"],
-      "requires": ["gallabox"],
-      "depends": ["followup_plan", "whatsapp"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
+      "requires": [
+        "gallabox"
+      ],
+      "depends": [
+        "followup_plan",
+        "whatsapp"
+      ],
       "built": true,
       "default": "off"
     },
     {
       "id": "whatsapp_status",
-      "roles": ["admin", "manager", "agent"],
-      "requires": ["gallabox"],
-      "depends": ["whatsapp"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
+      "requires": [
+        "gallabox"
+      ],
+      "depends": [
+        "whatsapp"
+      ],
       "built": true,
       "default": "off"
     },
     {
       "id": "zoho_watch",
-      "roles": ["admin", "manager", "agent"],
-      "requires": ["zoho_notifications"],
-      "depends": ["zoho"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
+      "requires": [
+        "zoho_notifications"
+      ],
+      "depends": [
+        "zoho"
+      ],
       "built": true
     },
     {
       "id": "email_attachments",
-      "roles": ["admin", "manager", "agent"],
+      "roles": [
+        "admin",
+        "manager",
+        "agent"
+      ],
       "requires": [],
-      "depends": ["email_send"],
+      "depends": [
+        "email_send"
+      ],
       "built": true
     },
     {
       "id": "playbook_bootstrap",
-      "roles": ["admin", "manager"],
+      "roles": [
+        "admin",
+        "manager"
+      ],
       "requires": [],
       "depends": [],
       "built": true,
@@ -199,6 +316,28 @@
     },
     {
       "id": "talk_meter",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
+    {
+      "id": "prep_coach",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": ["prep"],
+      "built": true
+    },
+    {
+      "id": "voice_coach",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "morning_brief",
       "roles": ["admin", "manager", "agent"],
       "requires": [],
       "depends": [],
