@@ -28,6 +28,11 @@ Set on 2026-10-18 (P1.8). The owner deferred the interview (D-009), so the numbe
 | Engine coverage (`packages/engine`, the live pipeline since D-022) | ≥ **80%** statements + branches; **90%** at Phase 8 | The engine runs every real call, so it needs a floor like the worker's. Set 2026-10-21 (T-042) at 92.6% statements / 82.0% branches. | `pnpm --filter @sotto/engine test` (vitest + `@vitest/coverage-v8`, thresholds in `packages/engine/vitest.config.ts`) |
 | Colour contrast of every token pair the app uses for text | ≥ **4.5 : 1** (WCAG 2.2 AA), light and dark | ENGINEERING §11 | `pnpm --filter @sotto/ui test` |
 | Web bundle | ≤ **450 KB** gzipped JS in total | Today it is 291 KB, which is mostly React Native Web and Expo Router. That leaves about 150 KB for LiveKit and the call UI before a PWA on 4G feels slow. | `python3 scripts/check_bundle_size.py apps/app/dist` (CI, after `export:web`) |
+| Desktop cold start (S1, Apple chip Mac) | ≤ **3 s** (`3000 ms`) | App must open ready to sign in or take a call without waiting | `node scripts/perf/measure-desktop.mjs` |
+| Desktop screen / tab switch (S1) | ≤ **300 ms** | Switching tabs mid-call must feel instant | `node scripts/perf/measure-desktop.mjs` |
+| Live card render after first token (S1) | ≤ **100 ms** | Keeps the UI overhead negligible inside the 1.5 s R1 budget | `node scripts/perf/measure-desktop.mjs` |
+| Desktop memory during a call (S1) | ≤ **500 MB** | Leaves headroom alongside Zoom/Meet and browser tabs | `node scripts/perf/measure-desktop.mjs` |
+| Desktop average CPU during a call (S1) | ≤ **25 %** | Keeps fans quiet and call audio glitch-free | `node scripts/perf/measure-desktop.mjs` |
 | Dependency advisories | none at **high** or above in production npm deps; none in Python runtime deps | Known exploitable issues must not ship | CI `audit` job: `pnpm audit --prod --audit-level high`, `uvx pip-audit --strict` |
 
 ## Measured only (not enforced yet)

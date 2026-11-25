@@ -89,6 +89,12 @@ function Checklist({ facts }: { facts: SetupFacts }) {
         <Text variant="label" tone="muted">
           {t("setup.progress", { done: total - pending.length, total })}
         </Text>
+        <Button
+          variant="ghost"
+          label="Setup guide"
+          onPress={() => router.push(facts.role === "admin" ? "/admin/setup" : "/setup")}
+          testID="setup-open-guide"
+        />
       </View>
       {pending.map((step) => (
         <View key={step.id} style={styles.row}>

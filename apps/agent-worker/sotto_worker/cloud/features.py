@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -73,6 +73,10 @@ def load_catalog(path: Path = CATALOG_FILE) -> dict[str, Feature]:
 CATALOG = load_catalog()
 FEATURE_IDS = tuple(CATALOG)
 DEFAULT_OFF = frozenset(f.id for f in CATALOG.values() if not f.default_on)
+# D-095: per-user owner overrides are permitted ONLY for these three feature IDs.
+PER_USER_OVERRIDE_IDS: frozenset[str] = frozenset(
+    {"call_logs_github", "local_models_text", "local_models_voice"}
+)
 
 
 class FeatureUnavailable(Exception):
@@ -92,6 +96,8 @@ class Layers:
     not_entitled: frozenset[str]  # owner's entitlement matrix for this org (default entitled)
     org_off: frozenset[str]  # Admin → Features toggles turned off (default on)
     connections: frozenset[str]  # connections this org (or person) has
+    # D-095: owner-only per-user overrides for PER_USER_OVERRIDE_IDS (True=on, False=off).
+    user_overrides: Mapping[str, bool] = field(default_factory=dict)
 
 
 def _chain(feature: str, catalog: Mapping[str, Feature]) -> list[Feature]:
@@ -122,10 +128,21 @@ def evaluate(
             return what
         return None if f.id == feature else f.id
 
+    override: bool | None = (
+        layers.user_overrides.get(feature) if feature in PER_USER_OVERRIDE_IDS else None
+    )
     for f in chain:
-        if f.id in layers.killed or f.id in layers.not_entitled:
+        if f.id in layers.killed:
+            return Effective("off_by_platform", cause(f))
+        if f.id == feature and override is False:
+            return Effective("off_by_platform")
+        if f.id == feature and override is True:
+            continue
+        if f.id in layers.not_entitled:
             return Effective("off_by_platform", cause(f))
     for f in chain:
+        if f.id == feature and override is True:
+            continue
         if f.id in layers.org_off:
             return Effective("off_by_org", cause(f))
     for f in chain:

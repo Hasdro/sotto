@@ -55,6 +55,10 @@ const en: Text = {
     zoho_watch: "Zoho change alerts",
     email_attachments: "Email attachments",
     playbook_bootstrap: "Playbook drafts",
+    call_logs_github: "Automatic call logs (GitHub)",
+    local_models_text: "Local text models",
+    local_models_voice: "Local voice models",
+    setup_guide: "Setup guide",
   },
   about: {
     call_review: "Scores and coaching after each call.",
@@ -78,6 +82,10 @@ const en: Text = {
     email_attachments: "Files your admin approved, added to follow-up emails.",
     playbook_bootstrap:
       "Drafts playbook answers from your website, Zoho or a document, for review.",
+    call_logs_github: "Posts redacted call diagnostics to the owner's private GitHub repo.",
+    local_models_text: "Allows connecting a local OpenAI-compatible text model endpoint.",
+    local_models_voice: "Allows connecting local speech-to-text and text-to-speech endpoints.",
+    setup_guide: "Step-by-step setup checklist with live status and Test it checks.",
   },
   state: {
     available: "On",
@@ -132,6 +140,10 @@ const ar: Text = {
     zoho_watch: "تنبيهات تغييرات Zoho",
     email_attachments: "مرفقات البريد",
     playbook_bootstrap: "مسودات دليل المبيعات",
+    call_logs_github: "سجلات المكالمات التلقائية (GitHub)",
+    local_models_text: "النماذج النصية المحلية",
+    local_models_voice: "النماذج الصوتية المحلية",
+    setup_guide: "دليل الإعداد",
   },
   about: {
     call_review: "تقييم وتوجيه بعد كل مكالمة.",
@@ -154,6 +166,10 @@ const ar: Text = {
     zoho_watch: "يحدّث ملخص المكالمة عند تغيّر الصفقة أو الاجتماع في Zoho.",
     email_attachments: "ملفات اعتمدها المسؤول تُضاف إلى بريد المتابعة.",
     playbook_bootstrap: "يصوغ إجابات لدليل المبيعات من موقعك أو Zoho أو مستند، للمراجعة.",
+    call_logs_github: "يرسل تشخيصات المكالمات المنقحة إلى مستودع GitHub الخاص بالمالك.",
+    local_models_text: "يتيح الاتصال بنقطة نهاية نموذج نصي محلي متوافق مع OpenAI.",
+    local_models_voice: "يتيح الاتصال بخوادم التحويل الصوتي المحلية.",
+    setup_guide: "قائمة إعداد خطوة بخطوة مع الحالة المباشرة واختبار الإعداد.",
   },
   state: {
     available: "مفعّلة",

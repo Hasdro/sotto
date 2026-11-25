@@ -98,3 +98,100 @@ async def test_repo(
     if r.status_code == 404:
         return {"ok": False, "detail": "GitHub cannot see that repo with this token"}
     return {"ok": False, "detail": f"GitHub answered {r.status_code}"}
+
+
+async def create_log_issue(
+    repo: str,
+    token: str,
+    *,
+    title: str,
+    body: str,
+    labels: list[str],
+    close_immediately: bool = False,
+    comments: list[str] | None = None,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> dict[str, Any]:
+    """Create a call-log or background-failure issue in a private logs repo (L3, D-098)."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, timeout=TIMEOUT_S, base_url=GITHUB_API
+        ) as client:
+            r = await client.post(
+                f"/repos/{repo}/issues",
+                headers=headers,
+                json={"title": title[:200], "body": body, "labels": labels},
+            )
+            if r.status_code != 201:
+                raise CloudError("github_unavailable", f"GitHub answered {r.status_code}")
+            data = r.json()
+            number = int(data["number"])
+            url = str(data["html_url"])
+            for comment in (comments or [])[:5]:
+                cr = await client.post(
+                    f"/repos/{repo}/issues/{number}/comments",
+                    headers=headers,
+                    json={"body": comment},
+                )
+                if cr.status_code != 201:
+                    raise CloudError(
+                        "github_unavailable", f"GitHub comment answered {cr.status_code}"
+                    )
+            final_state = "open"
+            if close_immediately:
+                pr = await client.patch(
+                    f"/repos/{repo}/issues/{number}",
+                    headers=headers,
+                    json={"state": "closed"},
+                )
+                if pr.status_code != 200:
+                    raise CloudError(
+                        "github_unavailable", f"GitHub close answered {pr.status_code}"
+                    )
+                final_state = "closed"
+    except httpx.HTTPError as e:
+        raise CloudError(
+            "github_unavailable", f"GitHub could not be reached ({type(e).__name__})"
+        ) from e
+    return {
+        "issue_number": number,
+        "issue_url": url,
+        "state": final_state,
+        "labels": labels,
+    }
+
+
+async def comment_on_log_issue(
+    repo: str,
+    token: str,
+    issue_number: int,
+    body: str,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+) -> dict[str, Any]:
+    """Append a deduplicated occurrence comment to an existing background-failure issue (L3)."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, timeout=TIMEOUT_S, base_url=GITHUB_API
+        ) as client:
+            r = await client.post(
+                f"/repos/{repo}/issues/{issue_number}/comments",
+                headers=headers,
+                json={"body": body},
+            )
+    except httpx.HTTPError as e:
+        raise CloudError(
+            "github_unavailable", f"GitHub could not be reached ({type(e).__name__})"
+        ) from e
+    if r.status_code != 201:
+        raise CloudError("github_unavailable", f"GitHub answered {r.status_code}")
+    return {"comment_id": int(r.json().get("id", 0)), "issue_number": issue_number}

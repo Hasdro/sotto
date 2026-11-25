@@ -526,6 +526,7 @@ ADDED_COLUMNS = (
     ("zoho_connections", "dc", "TEXT"),  # ZC-02: the person's detected (or chosen) DC
     ("zoho_connections", "failed_at", "INTEGER"),  # ZC-14: last refresh Zoho refused
     ("companies", "billing_plan_code", "TEXT"),  # Round 3 (D-087): the Zoho Billing plan code
+    ("usage", "exclude_p95_alarm", "INTEGER"),  # Round 4 (D-096): slow local model excluded
 )
 OTP_TTL_MS = 10 * 60_000  # a sign-in code works for 10 minutes
 OTP_MAX_ATTEMPTS = 5  # then the code is spent; ask for a new one
@@ -1667,13 +1668,14 @@ class CloudStore:
             platform if platform in PLATFORMS else "unknown",
             t,
             source if source in CALL_SOURCES else "computer",
+            1 if data.get("exclude_p95_alarm") is True else 0,
         )
         with self._tx() as db:
             db.execute(
                 "INSERT OR IGNORE INTO usage(id, company_id, user_id, device_id, started_at,"
                 " duration_s, cards, playbook_cards, ai_cards, holding_lines, escalations, p50_ms,"
-                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source, exclude_p95_alarm)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 row,
             )
         return call_id
@@ -1791,6 +1793,40 @@ class CloudStore:
         org_off = {f for f, on in chosen.items() if not on} | {
             f for f in features.DEFAULT_OFF if not chosen.get(f, False)
         }
+        # L4 / L6 / D-095: owner-only features stay off_by_platform until enabled by the owner.
+        if self._table_exists("obs_company_switches"):
+            sw = self._q(
+                "SELECT call_logs_enabled FROM obs_company_switches WHERE company_id = ?",
+                (company_id,),
+            )
+            logs_on = bool(sw[0]["call_logs_enabled"]) if sw else False
+        else:
+            logs_on = False
+        if not logs_on:
+            not_entitled.add("call_logs_github")
+        else:
+            org_off.discard("call_logs_github")
+
+        if self._table_exists("local_model_company_policy"):
+            pol = self._q(
+                "SELECT text_enabled, voice_enabled FROM local_model_company_policy"
+                " WHERE company_id = ?",
+                (company_id,),
+            )
+            text_on = bool(pol[0]["text_enabled"]) if pol else False
+            voice_on = bool(pol[0]["voice_enabled"]) if pol else False
+        else:
+            text_on = False
+            voice_on = False
+        if not text_on:
+            not_entitled.add("local_models_text")
+        else:
+            org_off.discard("local_models_text")
+        if not voice_on:
+            not_entitled.add("local_models_voice")
+        else:
+            org_off.discard("local_models_voice")
+
         return features.Layers(
             killed=frozenset(killed),
             not_entitled=frozenset(not_entitled),
@@ -1798,17 +1834,34 @@ class CloudStore:
             connections=self.connections(company_id),
         )
 
+    def _table_exists(self, table: str) -> bool:
+        rows = self._q("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,))
+        return bool(rows)
+
     def person_layers(self, who: Principal) -> features.Layers:
-        """The org's layers plus the connections this person has made (their own Zoho)."""
+        """The org's layers plus the person's connections (Zoho) and D-095 owner overrides."""
         layers = self.feature_layers(who.company)
+        user_overrides: dict[str, bool] = {}
+        if self._table_exists("obs_user_overrides"):
+            rows = self._q(
+                "SELECT feature_id, enabled FROM obs_user_overrides"
+                " WHERE company_id = ? AND user_id = ?",
+                (who.company, who.user_id),
+            )
+            user_overrides = {
+                str(r["feature_id"]): bool(r["enabled"])
+                for r in rows
+                if str(r["feature_id"]) in features.PER_USER_OVERRIDE_IDS
+            }
+        connections = layers.connections
         if self.zoho_connected(who):
             mine = {"zoho"}
             # INT-13: the watch needs the Notifications scope on this person's connection
             # (added to the one scope bundle by D-069); until they reconnect, needs_connection.
             if ZOHO_NOTIFY_SCOPE in self.zoho_scopes(who):
                 mine.add("zoho_notifications")
-            return dataclasses.replace(layers, connections=layers.connections | mine)
-        return layers
+            connections = connections | mine
+        return dataclasses.replace(layers, connections=connections, user_overrides=user_overrides)
 
     def feature_state(self, who: Principal, feature: str) -> features.Effective:
         return features.evaluate(feature, who.role, self.person_layers(who))
@@ -1868,6 +1921,8 @@ class CloudStore:
         who.require("admin")
         if not isinstance(enabled, bool):
             raise CloudError("invalid", "enabled must be true or false")
+        if feature in features.PER_USER_OVERRIDE_IDS:
+            raise CloudError("forbidden", "only the platform owner can change this setting")
         if (
             feature not in features.CATALOG
             or feature in self.feature_layers(who.company).not_entitled
@@ -1998,7 +2053,9 @@ class CloudStore:
         p95s = [
             int(r["p95_ms"])
             for r in self._q(
-                "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL", (day0,)
+                "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL"
+                " AND COALESCE(exclude_p95_alarm, 0) = 0",
+                (day0,),
             )
         ]
         p95s.sort()

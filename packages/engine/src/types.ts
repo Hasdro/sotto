@@ -112,6 +112,16 @@ export type PlanState = {
   blocked_reason: string | null;
 };
 
+export type LocalModelBundleConfig = {
+  mode: "cloud" | "local_live" | "slow_jobs_only" | "local_live_slow_optin";
+  base_url: string | null;
+  holding_at_ms: number | null;
+  badge: string | null;
+  exclude_p95_alarm: boolean;
+  allow_cloud_backup: boolean;
+  model?: string | null;
+};
+
 /** GET /api/v1/bundle (sotto_worker/cloud/bundle.py). */
 export type CallBundle = {
   v: 1;
@@ -142,6 +152,8 @@ export type CallBundle = {
   key_status?: Record<string, number>;
   /** R11: the org's active learned instructions (null/absent: feature off or an older server). */
   learned?: { version: number; instructions: string[] } | null;
+  /** L6 / D-096: per-user local model policy & routing decision for live calls. */
+  local_model?: LocalModelBundleConfig | null;
 };
 
 export function newId(): string {

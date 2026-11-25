@@ -185,7 +185,10 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     runtime,
     send: emit,
     tokens: (vendor) =>
-      cloudApi<SttToken>(`/api/v1/stt-token/${encodeURIComponent(vendor)}`, { method: "POST" }),
+      cloudApi<SttToken>(`/api/v1/stt-token/${encodeURIComponent(vendor)}`, {
+        method: "POST",
+        timeoutMs: 2500,
+      }),
     onEscalation: (e) => {
       if (practiceRun()) return; // a practice question never reaches the manager
       void cloudApi("/api/v1/escalations", {

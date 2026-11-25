@@ -39,6 +39,7 @@ type Page = {
 type Group = { id: string; label: StringKey; icon: IconName; pages: readonly Page[] };
 
 const ATTACHMENTS_LABEL: OwnLabel = { en: "Attachments", ar: "المرفقات" };
+const SETUP_LABEL: OwnLabel = { en: "Setup guide", ar: "دليل الإعداد" };
 
 /** UX-29, draft D-051 (backlog): four groups instead of nine tabs in a scrolling row. */
 export const ADMIN_GROUPS: readonly Group[] = [
@@ -72,6 +73,7 @@ export const ADMIN_GROUPS: readonly Group[] = [
     label: "admin.group.company",
     icon: "shield",
     pages: [
+      { href: "/admin/setup", label: SETUP_LABEL, icon: "spark" },
       { href: "/admin/settings", label: "admin.settings", icon: "settings" },
       { href: "/admin/features", label: "admin.features", icon: "shield" },
       // Round 3: the plan, what was paid and the upgrade (billing), and the bug-report

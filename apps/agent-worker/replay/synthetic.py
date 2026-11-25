@@ -315,3 +315,161 @@ def format_report(
         f"Escalations: {report.escalations}",
     ]
     return "\n".join(lines)
+
+
+class _StubLocalLLM:
+    """Deterministic fake local model for D-096 synthetic verification."""
+
+    provider = "openai_compatible"
+
+    def __init__(self, clock: Clock, delay_ms: int, *, fail: bool = False) -> None:
+        self._clock = clock
+        self._delay_ms = delay_ms
+        self._fail = fail
+        self.model = "local-stub"
+        self.capabilities = ModelCapabilities(streaming=True)
+
+    async def warm(self) -> None:
+        return None
+
+    async def stream(self, req: LLMRequest) -> AsyncIterator[LLMChunk]:
+        await self._clock.sleep(self._delay_ms)
+        if self._fail:
+            raise ProvidersDown("local endpoint unavailable")
+        text = "ANSWER: Local response confirmed for this pricing question."
+        for i, word in enumerate(text.split(" ")):
+            if i:
+                await self._clock.sleep(20)
+            yield LLMChunk(text=word if i == 0 else f" {word}")
+
+
+@dataclass
+class LocalStubReport:
+    fast_ok: bool
+    slow_optin_ok: bool
+    backup_fallback_ok: bool
+    holding_fallback_ok: bool
+    details: list[str] = field(default_factory=list)
+
+    @property
+    def passed(self) -> bool:
+        return (
+            self.fast_ok
+            and self.slow_optin_ok
+            and self.backup_fallback_ok
+            and self.holding_fallback_ok
+        )
+
+
+async def replay_local_stub() -> LocalStubReport:
+    """Verify D-096 local routing behaviors: fast local, slow opt-in, and mid-call fallback."""
+    details: list[str] = []
+
+    async def run_one(
+        *,
+        primary_ms: int,
+        primary_down: bool = False,
+        allow_backup: bool = True,
+        holding_at_ms: int = 1400,
+        late_until_ms: int = 5000,
+        local_badge: str | None = None,
+    ) -> tuple[list[CardMessage], list[CardTimingRecord], list[Escalation]]:
+        clock = FakeClock()
+        base = build_demo_runtime(clock, {}, force_fake=True)
+        local_llm = _StubLocalLLM(clock, primary_ms, fail=primary_down)
+        backup_llm = _StubLocalLLM(clock, 220, fail=False)
+        stages: dict[str, StageRoute] = {
+            "suggest": StageRoute(provider="fake", model="local-stub"),
+        }
+        adapters: dict[str, LLMAdapter] = {"local-stub": local_llm}
+        if allow_backup:
+            stages["suggest_backup"] = StageRoute(provider="fake", model="cloud-backup")
+            adapters["cloud-backup"] = backup_llm
+        router = ModelRouter(RoutingConfig(stages=stages), partial(_pick, adapters), clock)
+        cards: list[CardMessage] = []
+        timings: list[CardTimingRecord] = []
+        escalations: list[Escalation] = []
+
+        async def on_card(c: CardMessage) -> None:
+            cards.append(c)
+
+        async def on_esc(e: Escalation) -> None:
+            escalations.append(e)
+
+        session = CallSession(
+            call_id=str(uuid.uuid4()),
+            company=base.company,
+            router=router,
+            prompts=base.prompts,
+            playbook=base.playbook,
+            clock=clock,
+            on_card=on_card,
+            on_escalation=on_esc,
+            on_timing=timings.append,
+            holding_at_ms=holding_at_ms,
+            late_answer_until_ms=late_until_ms,
+            local_badge=local_badge,
+        )
+        t = 1000
+        await clock.advance(t)
+        await session.on_transcript(
+            TranscriptEvent(
+                speaker="customer",
+                text="How much does your enterprise tier cost per seat per month?",
+                final=True,
+                start_ms=500,
+                end_ms=t,
+            ),
+            t0_ms=t,
+        )
+        await clock.advance(max(late_until_ms + 1000, 6000))
+        await session.close()
+        return cards, timings, escalations
+
+    # 1. Fast local (< 1500 ms): direct AI answer, no holding card, p95 <= 1500
+    c_fast, t_fast, _ = await run_one(primary_ms=250)
+    fast_sources = {c.source for c in c_fast if c.seq == 0}
+    fast_ok = fast_sources == {"ai"} and bool(t_fast) and t_fast[0].first_delta_ms <= R1_P95_MS
+    fast_ms = t_fast[0].first_delta_ms if t_fast else None
+    details.append(f"fast local: sources={sorted(fast_sources)} first_delta={fast_ms}ms")
+
+    # 2. Slow opt-in (D-096): holding at 1500 ms, local answer replaces it with badge
+    c_slow, _t_slow, _ = await run_one(
+        primary_ms=2200,
+        allow_backup=True,
+        holding_at_ms=1500,
+        late_until_ms=30_000,
+        local_badge="local model \u2013 slower",
+    )
+    first_slow = [c for c in c_slow if c.seq == 0]
+    turn_ids = {str(c.turn_id.root) for c in first_slow if c.turn_id is not None}
+    slow_sources = [c.source for c in first_slow]
+    slow_badges = [
+        c.label.root if c.label is not None else None for c in first_slow if c.source == "ai"
+    ]
+    slow_optin_ok = (
+        slow_sources == ["holding", "ai"]
+        and len(turn_ids) == 1
+        and slow_badges == ["local model \u2013 slower"]
+    )
+    details.append(f"slow opt-in: sources={slow_sources} badges={slow_badges}")
+
+    # 3. Mid-call failure with allow_cloud_backup=True -> backup card
+    c_bak, _t_bak, _ = await run_one(primary_ms=100, primary_down=True, allow_backup=True)
+    bak_sources = {c.source for c in c_bak if c.seq == 0}
+    backup_fallback_ok = "backup" in bak_sources
+    details.append(f"mid-call backup: sources={sorted(bak_sources)}")
+
+    # 4. Mid-call failure with allow_cloud_backup=False -> holding line
+    c_hold, _t_hold, e_hold = await run_one(primary_ms=100, primary_down=True, allow_backup=False)
+    hold_sources = {c.source for c in c_hold if c.seq == 0}
+    holding_fallback_ok = hold_sources == {"holding"} and len(e_hold) == 1
+    details.append(f"mid-call holding: sources={sorted(hold_sources)} esc={len(e_hold)}")
+
+    return LocalStubReport(
+        fast_ok=fast_ok,
+        slow_optin_ok=slow_optin_ok,
+        backup_fallback_ok=backup_fallback_ok,
+        holding_fallback_ok=holding_fallback_ok,
+        details=details,
+    )

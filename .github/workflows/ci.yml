@@ -104,3 +104,20 @@ jobs:
         run: >
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1
           git --redact --no-banner --verbose /repo
+
+  desktop:
+    name: desktop tests · manifest · perf budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: Desktop unit & packaged-files tests
+        working-directory: apps/desktop
+        run: npm test
+      - name: Downloads manifest tests (Apple chip Mac + Windows, D-097)
+        run: node --test scripts/downloads-manifest.test.mjs
+      - name: Performance budget harness tests (S1)
+        run: node --test scripts/perf/measure-desktop.test.mjs

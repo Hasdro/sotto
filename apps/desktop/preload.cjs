@@ -41,6 +41,11 @@ contextBridge.exposeInMainWorld("sottoDesktop", {
     ipcRenderer.on("notify-open", listener);
     return () => ipcRenderer.removeListener("notify-open", listener);
   },
+  // Safety net & diagnostics (S2, L5): redacted critical log + reload state restore.
+  logCritical: (entry) => ipcRenderer.invoke("obs:log-critical", entry),
+  readDiagnostics: () => ipcRenderer.invoke("obs:read-diagnostics"),
+  saveRecoveryState: (state) => ipcRenderer.invoke("call:save-recovery", state),
+  takeRecoveryState: () => ipcRenderer.invoke("call:take-recovery"),
   // Keychain / Credential Manager through safeStorage (secure-store.cjs); app keys only.
   secureStore: {
     get: (key) => ipcRenderer.invoke("secure-store:get", String(key)),

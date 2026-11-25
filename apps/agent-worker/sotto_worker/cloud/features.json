@@ -30,7 +30,13 @@
       "depends": [],
       "built": true
     },
-    { "id": "ai_knowledge", "roles": ["admin"], "requires": [], "depends": [], "built": true },
+    {
+      "id": "ai_knowledge",
+      "roles": ["admin"],
+      "requires": [],
+      "depends": [],
+      "built": true
+    },
     {
       "id": "integrations",
       "roles": ["admin", "manager", "agent"],
@@ -131,6 +137,37 @@
       "depends": [],
       "built": true,
       "default": "off"
+    },
+    {
+      "id": "call_logs_github",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "local_models_text",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "local_models_voice",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "setup_guide",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
     }
   ]
 }

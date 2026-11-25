@@ -10,6 +10,8 @@ import { type CallBundle, type PrimaryFailure, setFailureReporter } from "@sotto
 import { AppState, Platform } from "react-native";
 import type { FeatureMap } from "../features/flags/catalog";
 import { clearDeviceCalls, setDeviceOwner } from "./deviceHistory";
+import { clearSafetyLog, logEvent } from "./obs";
+import { clearOutbox, flushOutbox, setOutboxOwner } from "./outbox";
 import { clearRecordings } from "./recordings";
 
 export type CloudUser = {
@@ -50,6 +52,28 @@ const DEVICE_KEY = "sotto.device";
 const RENEW_EARLY_MS = 60_000;
 /** The feature map is re-read this often and when the app comes to the front (D-036). */
 export const FEATURES_EVERY_MS = 10 * 60_000;
+export const DEFAULT_TIMEOUT_MS = 15_000;
+export const RETRY_DELAYS_MS: readonly number[] = [300, 900];
+const IDEMPOTENT_METHODS = new Set(["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]);
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+let offlineFlag = false;
+const offlineListeners = new Set<() => void>();
+export function isOffline(): boolean {
+  return offlineFlag;
+}
+export function subscribeOffline(fn: () => void): () => void {
+  offlineListeners.add(fn);
+  return () => offlineListeners.delete(fn);
+}
+export function setOffline(next: boolean): void {
+  if (offlineFlag === next) return;
+  offlineFlag = next;
+  for (const l of offlineListeners) l();
+  if (!next) void flushOutbox();
+}
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 const FOCUS_MIN_GAP_MS = 60_000;
 
 /** The management server, or null when this build has none (local demo, dev). */
@@ -275,7 +299,7 @@ const reads = new Map<string, { at: number; value: Promise<unknown> }>();
 /** JSON request to the management server with this device's token. */
 export async function cloudApi<T>(
   path: string,
-  init: { method?: string; body?: unknown; raw?: Blob } = {},
+  init: RequestInitOpts = {},
   fetcher: typeof fetch = fetch,
 ): Promise<T> {
   if ((init.method ?? "GET") !== "GET") {
@@ -292,16 +316,22 @@ export async function cloudApi<T>(
 
 /** A file from the management server (a call recording), or null if there is none. */
 export async function cloudBlob(path: string, fetcher: typeof fetch = fetch): Promise<Blob | null> {
+  if (!path.startsWith("/")) return null;
   const origin = cloudOrigin();
   await renewIfDue(fetcher);
   if (!origin || !tokens) return null;
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS) : null;
   try {
     const r = await fetcher(`${origin}${path}`, {
       headers: { authorization: `Bearer ${tokens.access}`, "x-sotto-platform": devicePlatform() },
+      signal: controller?.signal,
     });
     return r.ok ? await r.blob() : null;
   } catch {
     return null;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -313,12 +343,22 @@ const AUTH_PATHS = new Set([
   "/api/v1/auth/reset/confirm",
 ]);
 
-async function request<T>(
+export type RequestInitOpts = {
+  method?: string;
+  body?: unknown;
+  raw?: Blob;
+  timeoutMs?: number;
+  idempotent?: boolean;
+  retryDelaysMs?: readonly number[];
+};
+
+export async function request<T>(
   path: string,
-  init: { method?: string; body?: unknown; raw?: Blob },
-  fetcher: typeof fetch,
+  init: RequestInitOpts = {},
+  fetcher: typeof fetch = fetch,
   retried = false,
 ): Promise<T> {
+  if (!path.startsWith("/")) throw new CloudError(0, "invalid", "relative path must start with /");
   const origin = cloudOrigin();
   if (!origin) throw new CloudError(0, "off", "no Sales Shield server configured");
   if (!AUTH_PATHS.has(path)) await renewIfDue(fetcher);
@@ -326,20 +366,71 @@ async function request<T>(
   if (init.body !== undefined) headers["content-type"] = "application/json";
   if (init.raw) headers["content-type"] = init.raw.type || "application/octet-stream";
   if (tokens && !AUTH_PATHS.has(path)) headers.authorization = `Bearer ${tokens.access}`;
-  let response: Response;
-  try {
-    response = await fetcher(`${origin}${path}`, {
-      method: init.method ?? "GET",
-      headers,
-      body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
-    });
-  } catch {
+  const method = (init.method ?? "GET").toUpperCase();
+  const canRetry = init.idempotent ?? IDEMPOTENT_METHODS.has(method);
+  const delays = canRetry ? (init.retryDelaysMs ?? RETRY_DELAYS_MS).slice(0, 2) : [];
+  const timeoutMs = init.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  let response: Response | null = null;
+  let lastTimedOut = false;
+  for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    lastTimedOut = false;
+    const timer =
+      controller && timeoutMs > 0
+        ? setTimeout(() => {
+            lastTimedOut = true;
+            controller.abort();
+          }, timeoutMs)
+        : null;
+    try {
+      response = await fetcher(`${origin}${path}`, {
+        method,
+        headers,
+        body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
+        signal: controller?.signal,
+      });
+      if (timer) clearTimeout(timer);
+      if (!response.ok && attempt < delays.length && RETRYABLE_STATUS.has(response.status)) {
+        logEvent("net.cloud", "retry", {
+          level: "warn",
+          status: response.status,
+          attempt: attempt + 1,
+        });
+        await sleepMs(delays[attempt] ?? 0);
+        continue;
+      }
+      break;
+    } catch {
+      if (timer) clearTimeout(timer);
+      if (attempt < delays.length) {
+        logEvent("net.cloud", "retry_network", {
+          level: "warn",
+          timed_out: lastTimedOut,
+          attempt: attempt + 1,
+        });
+        await sleepMs(delays[attempt] ?? 0);
+        continue;
+      }
+      setOffline(true);
+      throw new CloudError(
+        0,
+        lastTimedOut ? "timeout" : "offline",
+        lastTimedOut
+          ? "The request took too long. Check your connection and try again."
+          : "Cannot reach the Sales Shield server. Check your connection.",
+      );
+    }
+  }
+  if (!response) {
+    setOffline(true);
     throw new CloudError(
       0,
       "offline",
       "Cannot reach the Sales Shield server. Check your connection.",
     );
   }
+  setOffline(false);
   const data = (await response.json().catch(() => ({}))) as {
     error?: string;
     code?: string;
@@ -352,18 +443,21 @@ async function request<T>(
       const renewed = !retried && tokens?.refresh ? await renew(fetcher) : ended;
       if (renewed === "ok") return request<T>(path, init, fetcher, true);
       if (renewed !== "offline") void signedOut({ wipe: renewed === "device_removed" });
-      else
+      else {
+        setOffline(true);
         throw new CloudError(
           0,
           "offline",
           "Cannot reach the Sales Shield server. Check your connection.",
         );
+      }
     }
-    throw new CloudError(
-      response.status,
-      data.code ?? "error",
-      data.error ?? `HTTP ${response.status}`,
-    );
+    const plain =
+      data.error ??
+      (response.status >= 500
+        ? "The server hit a temporary problem. Please try again in a moment."
+        : `HTTP ${response.status}`);
+    throw new CloudError(response.status, data.code ?? "error", plain);
   }
   return data as T;
 }
@@ -400,15 +494,20 @@ async function renewNow(fetcher: typeof fetch): Promise<Renewal> {
     tokens = { ...stored, me: stored.me ?? held.me };
     return "ok";
   }
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 5000) : null;
   let response: Response;
   try {
     response = await fetcher(`${origin}/api/v1/auth/refresh`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-sotto-platform": devicePlatform() },
       body: JSON.stringify({ refresh_token: held.refresh }),
+      signal: controller?.signal,
     });
   } catch {
     return "offline";
+  } finally {
+    if (timer) clearTimeout(timer);
   }
   if (response.status === 401) {
     const body = (await response.json().catch(() => ({}))) as { code?: string };
@@ -439,8 +538,11 @@ async function signedOut({ wipe = false, error }: { wipe?: boolean; error?: stri
   if (wipe) {
     clearDeviceCalls();
     void clearRecordings();
+    clearOutbox();
+    clearSafetyLog();
   }
   setDeviceOwner(null);
+  setOutboxOwner(null, null);
   await saveTokens(null);
   await write(LEGACY_TOKEN_KEY, null);
   set(error ? { status: "signed_out", error } : { status: "signed_out" });
@@ -455,6 +557,8 @@ async function loadSession(): Promise<void> {
   const me = await meRead;
   const bundle = me.company ? await bundleRead : null;
   setDeviceOwner(me.company?.id ?? "none", me.user.id);
+  setOutboxOwner(me.company?.id ?? "none", me.user.id);
+  void flushOutbox();
   // A 0.2.0 token stays under its own key until migration saves a pair (D-029).
   if (tokens?.refresh) await saveTokens({ ...tokens, me });
   else if (tokens) tokens = { ...tokens, me };
@@ -494,6 +598,7 @@ export async function startCloud(): Promise<void> {
     const cached = tokens.me;
     if (cached) {
       setDeviceOwner(cached.company?.id ?? "none", cached.user.id);
+      setOutboxOwner(cached.company?.id ?? "none", cached.user.id);
       set({ status: "signed_in", me: cached, bundle: null, offline: true });
       watchFeatures();
       return;
@@ -624,8 +729,14 @@ function watchFeatures(): void {
     if (Date.now() - lastCheck >= FOCUS_MIN_GAP_MS) void refreshFeatures();
   };
   const win = globalThis as { addEventListener?: (e: string, f: () => void) => void };
-  if (Platform.OS === "web") win.addEventListener?.("focus", onFront);
-  else AppState.addEventListener("change", (s) => s === "active" && onFront());
+  if (Platform.OS === "web") {
+    win.addEventListener?.("focus", onFront);
+    win.addEventListener?.("online", () => {
+      setOffline(false);
+      void refreshFeatures();
+      void flushOutbox();
+    });
+  } else AppState.addEventListener("change", (s) => s === "active" && onFront());
 }
 
 async function device() {

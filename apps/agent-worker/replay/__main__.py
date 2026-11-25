@@ -17,7 +17,7 @@ from pathlib import Path
 import httpx
 
 from replay.live import check_model_ids, format_checks, replay_live
-from replay.synthetic import LatencyProfile, format_report, replay_synthetic
+from replay.synthetic import LatencyProfile, format_report, replay_local_stub, replay_synthetic
 from sotto_worker.adapters.factory import has_credentials, key_env
 from sotto_worker.router import RoutingConfig
 from sotto_worker.runtime import DEMO, SEED
@@ -62,7 +62,12 @@ def main(argv: list[str] | None = None) -> int:
         f"\nR2 drill, all providers down: {outage.cards} cards, p95 {outage.summary.p95_ms} ms, "
         f"holding {holding}: {'PASS' if outage_ok else 'FAIL'}"
     )
-    return 0 if report.passed and outage_ok else 1
+    local_stub = asyncio.run(replay_local_stub())
+    print(
+        f"\nD-096 local stub drill: {'; '.join(local_stub.details)}: "
+        f"{'PASS' if local_stub.passed else 'FAIL'}"
+    )
+    return 0 if report.passed and outage_ok and local_stub.passed else 1
 
 
 LIVE_FINAL_AFTER_T0_MS = 350  # simulated end-of-turn 250 + final STT 100 (ARCHITECTURE §4)

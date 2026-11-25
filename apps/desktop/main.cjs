@@ -30,6 +30,12 @@ const { parseMicUsage } = require("./win-mic.cjs");
 const { createSecureStore, registerSecureStore } = require("./secure-store.cjs");
 const { registerDeepLinks, registerPrivacy } = require("./deep-link.cjs");
 const { registerNotify } = require("./notify.cjs");
+const {
+  createDiskLogger,
+  installProcessHandlers,
+  attachWindowSafety,
+  registerSafetyIpc,
+} = require("./crash-safety.cjs");
 
 const WEB = path.join(__dirname, "web");
 const ORIGIN = "app://sotto";
@@ -42,11 +48,18 @@ app.setName(NAME);
 if (!app.commandLine.hasSwitch("user-data-dir")) {
   app.setPath("userData", path.join(app.getPath("appData"), "sotto-desktop"));
 }
+const safetyLogger = createDiskLogger({ userDataDir: app.getPath("userData") });
+safetyLogger.prune();
+installProcessHandlers({ proc: process, logger: safetyLogger });
+let safetyIpc = { getRecoveryState: () => null };
 // Pages may reach https/wss vendors (calls run on this device); scripts only from the app itself.
 // SOTTO_LOCAL_SERVER (development only) also allows a plain-http server on this machine.
-const LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(process.env.SOTTO_LOCAL_SERVER ?? "")
+const EXTRA_LOCAL = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(
+  process.env.SOTTO_LOCAL_SERVER ?? "",
+)
   ? ` ${process.env.SOTTO_LOCAL_SERVER}`
   : "";
+const LOCAL = ` http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*${EXTRA_LOCAL}`;
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   `img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:${LOCAL}; ` +
@@ -271,6 +284,12 @@ function createWindow() {
     },
   });
   guard(win);
+  attachWindowSafety({
+    win,
+    origin: ORIGIN,
+    logger: safetyLogger,
+    getRecoveryState: () => safetyIpc.getRecoveryState(),
+  });
   mainWin = win;
   win.webContents.on("did-finish-load", () => {
     if (pendingLink) win.webContents.send("deep-link", pendingLink);
@@ -289,6 +308,7 @@ app.whenReady().then(() => {
   const { safeStorage } = require("electron");
   const secure = createSecureStore({ safeStorage, dir: app.getPath("userData") });
   registerSecureStore({ ipcMain, store: secure, origin: ORIGIN });
+  safetyIpc = registerSafetyIpc({ ipcMain, logger: safetyLogger, origin: ORIGIN });
   // UX-21: open the OS privacy pane for the microphone or the computer's sound (fixed list).
   registerPrivacy({ ipcMain, shell, platform: process.platform, origin: ORIGIN });
   // INT-08: due follow-up steps; a click focuses the window and opens the step (never sends).

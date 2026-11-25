@@ -23,6 +23,10 @@ export const FEATURE_IDS = [
   "zoho_watch",
   "email_attachments",
   "playbook_bootstrap",
+  "call_logs_github",
+  "local_models_text",
+  "local_models_voice",
+  "setup_guide",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

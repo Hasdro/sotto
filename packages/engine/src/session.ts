@@ -99,6 +99,12 @@ export type SessionDeps = {
   learned?: readonly string[] | undefined;
   /** The `learned_instructions` prompt; absent in older bundles, then no block is added. */
   learnedPrompt?: PromptRecord | undefined;
+  /** D-096: override holding line deadline (e.g. 1500 ms for opted-in slow local model). */
+  holdingAtMs?: number | undefined;
+  /** D-096: extend window during which a slow local model answer replaces the holding line. */
+  lateAnswerUntilMs?: number | undefined;
+  /** D-096: card notice badge shown when local model wins (e.g. "local model – slower"). */
+  localBadge?: string | undefined;
 };
 
 export function languageFor(company: CompanyProfile, text: string): string {
@@ -201,6 +207,8 @@ export class CallSession {
   private readonly running = new Set<Promise<void>>();
   private readonly aborts = new Set<AbortController>();
   holdingAt = HOLDING_AT_MS;
+  lateAnswerUntilMs = LATE_ANSWER_UNTIL_MS;
+  answerHardLimitMs = ANSWER_HARD_LIMIT_MS;
 
   readonly deps: SessionDeps;
 
@@ -208,6 +216,11 @@ export class CallSession {
     this.deps = deps;
     this.callId = deps.callId;
     this.clock = deps.clock;
+    if (deps.holdingAtMs !== undefined) this.holdingAt = deps.holdingAtMs;
+    if (deps.lateAnswerUntilMs !== undefined) {
+      this.lateAnswerUntilMs = deps.lateAnswerUntilMs;
+      this.answerHardLimitMs = Math.max(ANSWER_HARD_LIMIT_MS, deps.lateAnswerUntilMs + 3000);
+    }
   }
 
   warm(): Promise<void> {
@@ -285,7 +298,8 @@ export class CallSession {
   private aiWriter(turn: Turn, cardType: CardType, result: RouteResult): CardWriter {
     const source: CardSource = result.winner === "backup" ? "backup" : "ai";
     const labels = this.deps.company.escalation_label;
-    const label = labels[turn.language] ?? labels.en ?? null;
+    const baseLabel = labels[turn.language] ?? labels.en ?? null;
+    const label = source !== "backup" && this.deps.localBadge ? this.deps.localBadge : baseLabel;
     return new CardWriter(this, cardType, source, label, turn, result);
   }
 
@@ -350,14 +364,14 @@ export class CallSession {
     try {
       // Statements and buying signals get no holding line: a late card still helps (owner, 21 Oct).
       let done = await until(
-        turn.t0 + (needsAnswer(turn.kind) ? this.holdingAt : LATE_ANSWER_UNTIL_MS),
+        turn.t0 + (needsAnswer(turn.kind) ? this.holdingAt : this.lateAnswerUntilMs),
       );
       if (!done && writer === null && needsAnswer(turn.kind)) {
         this.holding(turn);
         holdingSent = true;
-        done = await until(turn.t0 + LATE_ANSWER_UNTIL_MS);
+        done = await until(turn.t0 + this.lateAnswerUntilMs);
       }
-      if (!done && writer !== null) await until(turn.t0 + ANSWER_HARD_LIMIT_MS);
+      if (!done && writer !== null) await until(turn.t0 + this.answerHardLimitMs);
     } finally {
       ctrl.abort();
       this.aborts.delete(ctrl);

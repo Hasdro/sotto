@@ -86,7 +86,7 @@ def live_metrics(
     5 %, and quality = share of cards that were not the holding line."""
     rows = store._q(
         "SELECT p95_ms, cards, holding_lines FROM usage WHERE company_id = ? AND started_at >= ?"
-        " AND started_at < ? AND p95_ms IS NOT NULL",
+        " AND started_at < ? AND p95_ms IS NOT NULL AND COALESCE(exclude_p95_alarm, 0) = 0",
         (company_id, since, until or 2**62),
     )
     if not rows:

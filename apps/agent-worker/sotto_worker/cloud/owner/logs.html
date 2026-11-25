@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Call Logs to GitHub · AGN Sales Shield Owner</title>
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="/owner/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/owner/tokens.css">
+  <link rel="stylesheet" href="/owner/fonts.css">
+  <link rel="stylesheet" href="/owner/components.css">
+  <link rel="stylesheet" href="/owner/owner.css">
+  <script src="/owner/logs.js" defer></script>
+</head>
+<body>
+<div class="shell ss-shell">
+  <main class="ss-main"><div class="ss-page ss-page--wide">
+    <p><a href="/owner">← Owner console</a></p>
+    <header class="page-head">
+      <h1 class="ss-page-title">Call logs to GitHub</h1>
+      <p class="ss-lead ss-muted">Automatic redacted call diagnostics posted to your private logs repository (default off, audit-logged).</p>
+    </header>
+    <section class="panel narrow" aria-labelledby="repo-heading">
+      <h2 id="repo-heading">Private logs repository</h2>
+      <p class="note">What this does: sets the private GitHub repo and token used for automatic call-log issues. Recommended default: dedicated private repo (e.g. Hasdro/sales-shield-logs).</p>
+      <form id="logs-repo-form">
+        <label for="logsRepoInput">Repository (owner/name)</label>
+        <input id="logsRepoInput" name="repo" placeholder="Hasdro/sales-shield-logs" autocomplete="off" spellcheck="false" required>
+        <label for="logsTokenInput">Personal access token</label>
+        <input id="logsTokenInput" name="token" type="password" placeholder="github_pat_..." autocomplete="new-password" required>
+        <p><button type="submit" class="primary">Save repository</button></p>
+      </form>
+      <p id="logs-repo-status" class="note" role="status"></p>
+    </section>
+    <section class="panel" aria-labelledby="company-heading">
+      <h2 id="company-heading">Per-company switches</h2>
+      <p class="note">Users inherit their company switch unless overridden below. Every change is audit-logged.</p>
+      <div id="logs-company-list"></div>
+    </section>
+    <section class="panel narrow" aria-labelledby="override-heading">
+      <h2 id="override-heading">Per-user override (D-095)</h2>
+      <form id="logs-user-form">
+        <label for="logsUserCompany">Company</label>
+        <select id="logsUserCompany" name="company_id"></select>
+        <label for="logsUserId">User ID</label>
+        <input id="logsUserId" name="user_id" placeholder="user-id" autocomplete="off" spellcheck="false" required>
+        <label for="logsUserMode">Override</label>
+        <select id="logsUserMode" name="mode">
+          <option value="inherit">Inherit company</option>
+          <option value="on">Force on</option>
+          <option value="off">Force off</option>
+        </select>
+        <p><button type="submit" class="primary">Save user override</button></p>
+      </form>
+      <div id="logs-user-list"></div>
+    </section>
+  </div></main>
+</div>
+</body>
+</html>
