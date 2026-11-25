@@ -14,7 +14,6 @@ export function buildManifest(dir, version) {
   const names = readdirSync(dir);
   const patterns = {
     "mac-arm64": (n) => n.endsWith(".dmg") && n.includes("arm64"),
-    "mac-x64": (n) => n.endsWith(".dmg") && !n.includes("arm64"),
     "win-x64": (n) => n.endsWith(".exe"),
   };
   const files = {};

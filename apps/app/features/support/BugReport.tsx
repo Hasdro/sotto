@@ -10,6 +10,7 @@ import { usePathname } from "expo-router";
 import { useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useI18n } from "../../lib/locale";
+import { buildDiagnosticsText } from "../../lib/obs";
 import { submitBugReport, uploadScreenshot } from "./api";
 
 const IMAGE_TYPES = "image/png,image/jpeg,image/webp,image/gif";
@@ -53,6 +54,7 @@ export function BugReportSheet({ open, onClose }: { open: boolean; onClose: () =
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diagCopied, setDiagCopied] = useState(false);
 
   const close = () => {
     setTitle("");
@@ -60,6 +62,7 @@ export function BugReportSheet({ open, onClose }: { open: boolean; onClose: () =
     setScreenshotUrl("");
     setSent(false);
     setError(null);
+    setDiagCopied(false);
     onClose();
   };
 
@@ -72,6 +75,14 @@ export function BugReportSheet({ open, onClose }: { open: boolean; onClose: () =
         .then((url) => setScreenshotUrl(url))
         .catch(() => setError(t("bug.attachFailed")))
         .finally(() => setAttaching(false));
+    });
+  };
+
+  const copyDiagnostics = () => {
+    void buildDiagnosticsText({ route: pathname }).then(async (txt) => {
+      const nav = (globalThis as { navigator?: { clipboard?: { writeText?: (s: string) => Promise<void> } } }).navigator;
+      if (nav?.clipboard?.writeText) await nav.clipboard.writeText(txt).catch(() => {});
+      setDiagCopied(true);
     });
   };
 
@@ -157,6 +168,11 @@ export function BugReportSheet({ open, onClose }: { open: boolean; onClose: () =
             disabled={sending}
             testID="bug-report-submit"
           />
+          <Button
+            variant="ghost"
+            label={diagCopied ? "Diagnostics copied" : "Copy diagnostics"}
+            onPress={copyDiagnostics}
+            testID="copy-diagnostics-button"
         </Stack>
       )}
     </Sheet>

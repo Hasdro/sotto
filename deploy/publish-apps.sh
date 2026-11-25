@@ -8,6 +8,10 @@ ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 echo "==> Desktop (Windows, Mac, Linux)"
 (cd apps/desktop && npm ci --no-audit --no-fund >/dev/null && npm run web >/dev/null && rm -rf release && npm run dist >/dev/null)
+echo "==> Launch smoke test (S3 — blocks publish on failure)"
+if [ "$(uname -s)" = "Darwin" ]; then
+  node apps/desktop/test/launch.mac.mjs
+fi
 echo "==> Chrome extension"
 bash apps/extension/build.sh >/dev/null
 files=(apps/desktop/release/*.dmg apps/desktop/release/*.exe apps/desktop/release/*.AppImage apps/extension/release/*.zip)

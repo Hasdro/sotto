@@ -19,9 +19,7 @@ function fixture() {
 test("lists only mac and windows installers with size and sha256", () => {
   const m = buildManifest(fixture(), "0.2.0");
   assert.equal(m.version, "0.2.0");
-  assert.deepEqual(Object.keys(m.files).sort(), ["mac-arm64", "mac-x64", "win-x64"]);
-  assert.equal(m.files["mac-x64"].file, "Sotto-0.2.0.dmg");
-  assert.equal(m.files["mac-x64"].size, 6);
+  assert.deepEqual(Object.keys(m.files).sort(), ["mac-arm64", "win-x64"]);
   assert.match(m.files["mac-arm64"].sha256, /^[0-9a-f]{64}$/);
 });
 

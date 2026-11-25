@@ -11,6 +11,7 @@ import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, View } from "react-native";
 import { AccessGate } from "../components/AccessGate";
 import { AppShell } from "../components/AppShell";
+import { SafeBoundary } from "../components/SafeBoundary";
 import { CallSessionProvider } from "../features/call/CallSessionProvider";
 import { EscalationStoreProvider } from "../features/escalations/store";
 import { LocaleProvider, useI18n } from "../lib/locale";
@@ -63,15 +64,15 @@ function Themed({ dir }: { dir: "ltr" | "rtl" }) {
     >
       <StatusBar style="auto" />
       {bare ? (
-        <Slot />
+        <SafeBoundary name="screen"><Slot /></SafeBoundary>
       ) : (
-        <AccessGate>
+        <SafeBoundary name="app.root"><AccessGate>
           <CallSessionProvider>
             <AppShell>
-              <Slot />
+              <SafeBoundary name="screen"><Slot /></SafeBoundary>
             </AppShell>
           </CallSessionProvider>
-        </AccessGate>
+        </AccessGate></SafeBoundary>
       )}
     </View>
   );

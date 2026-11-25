@@ -45,6 +45,7 @@ import { useCloud } from "../lib/useCloud";
 import { AppLink } from "./AppLink";
 import { CommandPalette } from "./CommandPalette";
 import { useHealthBanner } from "./HealthBanner";
+import { useOfflineBanner } from "./OfflineBanner";
 import { usePlanBanner } from "./PlanBanner";
 import { ProfilePopup } from "./ProfilePopup";
 import { NoAccess } from "./RoleGate";
@@ -104,6 +105,8 @@ export function ShellBanner() {
   const { role } = useRole();
   const plan = usePlanBanner();
   const health = useHealthBanner(role);
+  const offline = useOfflineBanner();
+  if (offline) return offline;
   if (plan?.kind === "paused") return plan.node;
   return health ?? plan?.node ?? null;
 }

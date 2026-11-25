@@ -40,6 +40,13 @@ export type Desktop = {
   notify?: (notice: FollowupNotice) => Promise<boolean>;
   /** INT-08: the person clicked a follow-up notification; gives the step to open. */
   onNotifyOpen?: (cb: (stepId: string) => void) => () => void;
+  /** S2 / L5: write a redacted critical error to the local safety disk log. */
+  logCritical?: (entry: unknown) => Promise<boolean>;
+  /** L5: read recent redacted diagnostics from disk for Help -> Copy diagnostics. */
+  readDiagnostics?: () => Promise<string>;
+  /** S2: persist/restore active call recovery state across renderer reload. */
+  saveRecoveryState?: (state: { route: string; callId?: string | null } | null) => Promise<boolean>;
+  takeRecoveryState?: () => Promise<{ route: string; callId?: string | null; savedAt: number } | null>;
 };
 
 /** What the page may put in a notification: a step id (16 hex) and two short lines. */

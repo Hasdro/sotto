@@ -11,9 +11,11 @@
     "dist:mac": "npm run watcher && electron-builder --mac --publish never",
     "dist:win": "electron-builder --win --publish never",
     "dist:linux": "electron-builder --linux --publish never",
-    "dist": "npm run watcher && electron-builder --mac --win --linux --publish never",
-    "watcher": "mkdir -p build && swiftc -O -target arm64-apple-macos14.2 native/call-watch.swift -o build/call-watch-arm64 && swiftc -O -target x86_64-apple-macos14.2 native/call-watch.swift -o build/call-watch-x64 && lipo -create build/call-watch-arm64 build/call-watch-x64 -output build/call-watch",
-    "test": "node --test test/*.test.cjs"
+    "dist": "npm run watcher && electron-builder --mac --win --publish never",
+    "watcher": "mkdir -p build && swiftc -O -target arm64-apple-macos14.2 native/call-watch.swift -o build/call-watch",
+    "test": "node --test test/*.test.cjs",
+    "test:launch:mac": "node test/launch.mac.mjs",
+    "test:launch:win": "node test/launch.win.mjs"
   },
   "devDependencies": {
     "electron": "44.5.1",
@@ -33,6 +35,7 @@
       "secure-store.cjs",
       "deep-link.cjs",
       "notify.cjs",
+      "crash-safety.cjs",
       "web/**/*",
       "package.json",
       "build-assets/trayTemplate.png",
@@ -54,8 +57,7 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ],
