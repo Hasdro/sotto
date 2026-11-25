@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass, field
 from functools import partial
 
+from replay.quality import QualityReport, format_quality_report, judge_card_stub
 from sotto_worker.adapters.factory import demo_fake_text
 from sotto_worker.clock import Clock, FakeClock
 from sotto_worker.contracts import (
@@ -112,6 +113,7 @@ class ReplayReport:
     # scripted call time (both tracks stream for the whole call).
     llm_usage: dict[str, list[int]] = field(default_factory=dict)
     call_ms: int = 0
+    quality: QualityReport = field(default_factory=QualityReport)
 
     @property
     def summary(self) -> LatencySummary:
@@ -123,6 +125,7 @@ class ReplayReport:
             self.agent_triggered == 0
             and not self.unmet_expectations
             and self.summary.p95_ms <= R1_P95_MS
+            and self.quality.passed
         )
 
 
@@ -155,6 +158,7 @@ async def replay_synthetic(
             stages={
                 "suggest": StageRoute(provider="fake", model="primary", first_token_ms=700),
                 "suggest_backup": StageRoute(provider="fake", model="backup", first_token_ms=700),
+                "call_state": StageRoute(provider="fake", model="backup", first_token_ms=700),
             }
         )
         adapters: dict[str, LLMAdapter] = {"primary": primary, "backup": backup}
@@ -200,6 +204,19 @@ async def replay_synthetic(
             new_cards = [c for c in cards if c.seq == 0][before:]
             check_line(report, scenario, line, new_cards)
             record_match(report, base.playbook, line, new_cards)
+            if line.speaker == "customer":
+                history_lines = [f"{ln.speaker}: {ln.text}" for ln in scenario.lines]
+                for nc in new_cards:
+                    if nc.source in ("ai", "backup"):
+                        full_text = "".join(c.delta for c in cards if c.card_id == nc.card_id)
+                        report.quality.scores.append(
+                            judge_card_stub(
+                                card_id=nc.card_id,
+                                card_text=full_text,
+                                turn_text=line.text,
+                                history=history_lines,
+                            )
+                        )
         await session.close()
         for stage, model in (("suggest", primary), ("suggest_backup", backup)):
             used = report.llm_usage.setdefault(stage, [0, 0, 0])
@@ -313,6 +330,7 @@ def format_report(
         f"Expectations: {'PASS' if not report.unmet_expectations else 'FAIL'}",
         *[f"  - {u}" for u in report.unmet_expectations],
         f"Escalations: {report.escalations}",
+        format_quality_report(report.quality),
     ]
     return "\n".join(lines)
 

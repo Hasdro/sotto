@@ -20,7 +20,9 @@ from sotto_worker.clock import Clock
 from sotto_worker.company import CompanyProfile
 from sotto_worker.contracts import LLMRequest, Message, TranscriptEvent
 from sotto_worker.pipeline.trigger import TurnKind, classify, needs_answer
-from sotto_worker.pipeline.verdict import VerdictParser
+from sotto_worker.pipeline.call_state import CallStateUpdater
+from sotto_worker.pipeline.stubs import get_game_plan, get_style_memory
+from sotto_worker.pipeline.verdict import DEFAULT_BANNED_OPENERS, VerdictParser
 from sotto_worker.playbook import PlaybookIndex
 from sotto_worker.playbook.index import CONFIDENT, NEAR_ENTRIES, PlaybookHit, match_text
 from sotto_worker.prompts import PromptContext, PromptNotFound, PromptRegistry, render
@@ -181,7 +183,12 @@ class CallSession:
         late_answer_until_ms: int | None = None,
         local_badge: str | None = None,
         learned: Sequence[str] = (),
+        user_id: str | None = None,
+        agent_tone: str = "casual",
+        banned_phrases: tuple[str, ...] | list[str] = DEFAULT_BANNED_OPENERS,
         style_memory: Sequence[str] | None = None,
+        game_plan: str | None = None,
+        on_call_state: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self.call_id = call_id
         self.company = company
@@ -204,9 +211,23 @@ class CallSession:
         self.answer_hard_limit_ms = max(ANSWER_HARD_LIMIT_MS, self.late_answer_until_ms + 3000)
         self._local_badge = local_badge
         self._learned = tuple(learned)
-        self._style_memory = tuple(style_memory) if style_memory is not None else None
         self.echo_gate = EchoGate()
         self.prompts_key = "suggest"
+        self.user_id = user_id or ""
+        self.agent_tone = agent_tone
+        self._banned_phrases = tuple(banned_phrases)
+        self._style_memory = list(style_memory) if style_memory is not None else None
+        self._game_plan = game_plan
+        self.verdict_cuts = 0
+        self.verdict_strips = 0
+        self._call_state = CallStateUpdater(
+            call_id=call_id,
+            company_id=company.company_id,
+            router=router,
+            routing=self._routing,
+            prompts=prompts,
+            on_update=on_call_state,
+        )
 
     async def warm(self) -> None:
         """Call start: open model connections for the live stage and its backup."""
@@ -242,9 +263,19 @@ class CallSession:
         task = asyncio.create_task(self._run_turn(turn))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        # C5: async call-state rewrite after each customer turn, never on the 1.5 s card path.
+        with contextlib.suppress(KeyError):
+            if self._prompts.get("call_state", PromptContext(company_id=self.company.company_id)):
+                self._call_state.schedule_update(self._context(event.end_ms))
         return turn.turn_id
 
+    @property
+    def call_state(self) -> str:
+        """Latest finished running call state (C5, read-only for CallStatePanel)."""
+        return self._call_state.current
+
     async def close(self) -> None:
+        await self._call_state.close()
         for task in list(self._tasks):
             task.cancel()
         for task in list(self._tasks):
@@ -287,7 +318,7 @@ class CallSession:
 
         async def suggest() -> bool:
             nonlocal writer
-            parser = VerdictParser()
+            parser = VerdictParser(banned=self._banned_phrases, call_id=self.call_id)
             request = self._request(turn)
             stream = self._router.stream(
                 "suggest", request, company=self._routing, t0_ms=turn.t0_ms, result=result
@@ -304,6 +335,8 @@ class CallSession:
             if tail:
                 writer = writer or self._ai_writer(turn, card_type, result)
                 await writer.delta(tail)
+            self.verdict_cuts += parser.cuts
+            self.verdict_strips += parser.strips
             if writer is None:
                 return False
             await writer.delta("", done=True)
@@ -397,11 +430,26 @@ class CallSession:
 
     def _request(self, turn: _Turn) -> LLMRequest:
         playbook_text = match_text(turn.nearest)
+        memory_rules = (
+            self._style_memory
+            if self._style_memory is not None
+            else get_style_memory(self.company.company_id, self.user_id)
+        )
+        game_plan = (
+            self._game_plan
+            if self._game_plan is not None
+            else get_game_plan(self.company.company_id, self.call_id)
+        )
         variables = {
             "company.name": self.company.name,
             "company.tone": self.company.tone,
             "company.call_goal": self.company.call_goal,
             "company.context": self.company.context or "(none)",
+            "agent.tone": self.agent_tone,
+            "tone.banned": ", ".join(self._banned_phrases) or "(none)",
+            "agent.style_memory": "\n".join(f"- {r}" for r in memory_rules) or "(none)",
+            "call.game_plan": game_plan or "(none)",
+            "call.state": self._call_state.current or "(none yet)",
             "playbook.match": playbook_text,
             "transcript.last_60s": self._context(turn.event.end_ms),
             "turn.kind": turn.kind,
