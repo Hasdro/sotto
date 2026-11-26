@@ -102,3 +102,19 @@ stages:
     base_url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key_env: GEMINI_API_KEY
     model: gemini-2.5-flash
+  # --- Round 4 Agent 3: Voice coach stages (owner-configured, D-120) ---
+  coach_stt:
+    provider: deepgram
+    model: nova-3
+  coach_llm:
+    provider: openai_compatible
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+    model: openai/gpt-oss-20b
+    settings:
+      max_tokens: 450
+      temperature: 0.4
+      reasoning_effort: low
+  coach_tts:
+    provider: deepgram
+    model: aura-2-thalia-en

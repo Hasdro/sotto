@@ -203,6 +203,28 @@
       "requires": [],
       "depends": [],
       "built": true
+    },
+    {
+      "id": "prep_coach",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": ["prep"],
+      "built": true
+    },
+    {
+      "id": "voice_coach",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true,
+      "default": "off"
+    },
+    {
+      "id": "morning_brief",
+      "roles": ["admin", "manager", "agent"],
+      "requires": [],
+      "depends": [],
+      "built": true
     }
   ]
 }

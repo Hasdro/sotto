@@ -18,6 +18,7 @@ import { useCloud } from "../../lib/useCloud";
 import type { Perform } from "../actions/ActionCard";
 import { AfterCallChecklist, type SaveLog } from "../actions/AfterCallChecklist";
 import type { CardView } from "../cards/reducer";
+import { startReview, VoiceReviewHost } from "../coach";
 import { useAttached } from "../crm/attached";
 import { EmailAction } from "../email";
 import type { Draft as EmailDraft } from "../email/api";
@@ -37,7 +38,6 @@ import {
   type WizardStepNumber,
 } from "./steps";
 import { type PostCallKey, usePostCallText } from "./strings";
-import { startReview } from "./stubs";
 
 export type PostCallWizardProps = {
   callId: string | null;
@@ -91,8 +91,7 @@ export function PostCallWizard({
   const waFlag = useFeature("whatsapp");
   const emailFlag = useFeature("email_send");
   const zohoFlag = useFeature("zoho");
-  // ASSUMPTION: `voice_coach` is registered by Agent 3 in features.json; check presence in cloud map.
-  const voiceCoachFlag = useFeature("voice_coach" as never);
+  const voiceCoachFlag = useFeature("voice_coach");
   const voiceCoachReady =
     voiceCoachFlag.state === "available" &&
     Boolean(callId) &&
@@ -355,6 +354,7 @@ export function PostCallWizard({
           </View>
         </View>
       </Stack>
+      <VoiceReviewHost />
     </Panel>
   );
 }

@@ -244,6 +244,12 @@ export function CallView({
         stage={idle ? "prepare" : "live"}
         lookup={mock ? mockLookup : undefined}
         perform={mock ? mockPerform : undefined}
+        callId={state.callId ?? undefined}
+        onStartListening={
+          idle && !practicing && Platform.OS === "web"
+            ? () => (scripted ? session.start(null) : session.startListening(session.source))
+            : undefined
+        }
       />
     </SafeBoundary>
   );

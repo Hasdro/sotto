@@ -31,13 +31,16 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from sotto_worker.adapters.email.smtp import Outgoing, send_mail
 from sotto_worker.adapters.factory import key_env as route_key_env
-from sotto_worker.adapters.factory import make_llm
+from sotto_worker.adapters.factory import make_coach_tts, make_llm
 from sotto_worker.clock import RealClock
 from sotto_worker.cloud import bugreports
 from sotto_worker.cloud import github as github_mod
 from sotto_worker.cloud.bundle import Seed, build_bundle
 from sotto_worker.cloud.cards.routes import card_tone_routes
 from sotto_worker.cloud.cards.store import CardToneStore
+from sotto_worker.cloud.coach import CoachStore, register_coach_store
+from sotto_worker.cloud.coach import routes as coach_routes
+from sotto_worker.cloud.coach.morning_brief import morning_brief_job, send_review_reminders_job
 from sotto_worker.cloud.coaching import routes as coaching_routes
 from sotto_worker.cloud.coaching.store import CoachingStore
 from sotto_worker.cloud.email import attachments as email_attachments
@@ -57,6 +60,7 @@ from sotto_worker.cloud.memory.store import MemoryStore
 from sotto_worker.cloud.metering.store import Metering
 from sotto_worker.cloud.obs import call_logs as obs_call_logs
 from sotto_worker.cloud.obs import store as obs_store
+from sotto_worker.cloud.owner import coach as owner_coach
 from sotto_worker.cloud.owner import local_models as owner_local_models
 from sotto_worker.cloud.owner import logs as owner_logs
 from sotto_worker.cloud.owner import memory as owner_memory
@@ -70,9 +74,10 @@ from sotto_worker.cloud.scheduler import routes as followup_routes
 from sotto_worker.cloud.scheduler.runner import DAY_MS, Scheduler
 from sotto_worker.cloud.store import EMAIL as EMAIL_SHAPE
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms, plan_state
+from sotto_worker.cloud.zoho import lookup as zoho_lookup
 from sotto_worker.cloud.zoho import routes as zoho_routes
 from sotto_worker.cloud.zoho import webhooks as zoho_webhooks
-from sotto_worker.contracts import LLMRequest, Message
+from sotto_worker.contracts import LLMAdapter, LLMRequest, Message
 from sotto_worker.outbox import EmailMessage, EmailSender
 from sotto_worker.server.catalog import apply_overrides
 
@@ -225,6 +230,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     refresh_limit = RateLimit(per_key=30, total=3000, window_s=600)  # failures only
     zoho_limit = RateLimit(per_key=60, total=6000, window_s=60)  # org's daily Zoho credits
     send_limit = RateLimit(per_key=10, total=600, window_s=60)  # email + WhatsApp sends
+    coach_llm_limit = RateLimit(per_key=30, total=2000, window_s=600)
     # UX-39 (draft D-053 (backlog)): reset requests, per address and per client (counted on every
     # request).
     # No small global cap: it would let anyone switch resets off for everyone (security review).
@@ -253,6 +259,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     card_tone = CardToneStore(store)
     memory = MemoryStore(store)
     memory_api.configure(memory)
+    coach = CoachStore(store, clock=config.clock)
+    register_coach_store(coach)
 
     async def default_merge_runner(stage: str, prompt_text: str) -> str:
         routing = apply_overrides(seed.routing, seed.catalog, platform.platform_routes(store))
@@ -348,6 +356,85 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     scheduler.register("key_rotation_purge", 3600 * 1000, purge_keys_job)
     scheduler.register("zoho_csv_weekly", 7 * DAY_MS, csv_export_job)
 
+    def _coach_llm_factory(company_id: str) -> LLMAdapter:
+        routing = apply_overrides(
+            seed.routing, seed.catalog, platform.effective_routes(store, company_id)
+        )
+        route = routing.stages.get("coach_llm")
+        if route is None:
+            raise CloudError("unavailable", "no model route for coach_llm")
+        req_key = route_key_env(route)
+        env = dict(platform.platform_keys(store))
+        if req_key and req_key not in env:
+            raise CloudError("unavailable", "coach model key is not configured")
+        return make_llm(route, clock=RealClock(), env=env)
+
+    def _coach_tts_factory(company_id: str) -> Any:
+        routing = apply_overrides(
+            seed.routing, seed.catalog, platform.effective_routes(store, company_id)
+        )
+        route = routing.stages.get("coach_tts")
+        if route is None:
+            return None
+        return make_coach_tts(route, env=platform.platform_keys(store))
+
+    async def _coach_fetch_meetings(
+        company_id: str, user_id: str, _day_iso: str
+    ) -> list[dict[str, Any]]:
+        rows = store._q(
+            "SELECT id, company_id, email, name, role FROM users"
+            " WHERE id=? AND company_id=? AND active=1",
+            (user_id, company_id),
+        )
+        if not rows or "zoho_call" not in zoho_exposed:
+            return []
+        u = rows[0]
+        target = Principal(
+            user_id=str(u["id"]),
+            company_id=str(u["company_id"]),
+            role=str(u["role"]),
+            device_id=None,
+            email=str(u["email"]),
+            name=str(u["name"]),
+        )
+        if store.feature_state(target, "zoho").state != "available":
+            return []
+
+        async def _go(rd: Any) -> list[dict[str, Any]]:
+            uid = await zoho_lookup.current_user_id(rd)
+            res = await zoho_lookup.upcoming_meetings(rd, uid, page=1)
+            return list(res.get("meetings") or [])
+
+        try:
+            res = await zoho_exposed["zoho_call"](target, _go)
+            return list(res) if isinstance(res, list) else []
+        except Exception:
+            return []
+
+    async def _coach_send_email(to_addr: str, subject: str, body_text: str) -> None:
+        if config.mailer is None:
+            config.log(f"coach email (no platform mailbox): {subject}")
+            return
+        key = hashlib.sha256(f"{to_addr}:{subject}:{body_text}".encode()).hexdigest()[:16]
+        await config.mailer.send(
+            EmailMessage(to=to_addr, subject=subject, text=body_text),
+            idempotency_key=f"coach-{key}",
+        )
+
+    async def _coach_morning_brief_job(now: int) -> None:
+        await morning_brief_job(
+            coach,
+            fetch_meetings=_coach_fetch_meetings,
+            prompts=seed.prompts,
+            now=now,
+        )
+
+    async def _coach_review_reminders_job(now: int) -> None:
+        await send_review_reminders_job(coach, send_email=_coach_send_email, now=now)
+
+    scheduler.register("coach_morning_brief", 3600 * 1000, _coach_morning_brief_job)
+    scheduler.register("coach_review_reminders", 3600 * 1000, _coach_review_reminders_job)
+
     def ip_of(request: Request) -> str:
         return request.client.host if request.client else "?"
 
@@ -417,6 +504,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         "off_domain": HTTPStatus.UNPROCESSABLE_ENTITY,
         "private_address": HTTPStatus.UNPROCESSABLE_ENTITY,
         "unavailable": HTTPStatus.SERVICE_UNAVAILABLE,
+        "voice_coach_unavailable": HTTPStatus.FORBIDDEN,
     }
 
     def handle(
@@ -1137,6 +1225,12 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     async def usage(request: Request, who: Principal) -> Response:
         data = await body(request)
         call_id = store.report_usage(who, data, platform_of(request))
+        dur = data.get("duration_s")
+        if isinstance(dur, int) and not isinstance(dur, bool) and dur >= 30:
+            try:
+                coach.enqueue_review(who, call_id, dur)
+            except Exception as exc:
+                config.log(f"coach review enqueue skipped for {call_id}: {exc}")
         await metering.check(who.company, notify_owner)  # ZC-12: 80 % / 100 % alerts, once each
         p95 = data.get("p95_ms")
         p50 = data.get("p50_ms")
@@ -1856,6 +1950,8 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             "logs.js",
             "local-models.html",
             "local-models.js",
+            "coach.html",
+            "coach.js",
             "setup.html",
             "setup.js",
             "owner.js",
@@ -2083,6 +2179,27 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         *owner_memory.make_routes(
             memory=memory,
             owner_route=owner_route,
+            owner_host_ok=owner_host_ok,
+            csp=OWNER_CSP,
+        ),
+        *coach_routes.make_routes(
+            coach=coach,
+            app_route=app_route,
+            body=body,
+            ip_of=ip_of,
+            llm_factory=_coach_llm_factory,
+            tts_factory=_coach_tts_factory,
+            prompts=seed.prompts,
+            fetch_meetings=_coach_fetch_meetings,
+            send_email=_coach_send_email,
+            llm_limit=coach_llm_limit.hit,
+        ),
+        *owner_coach.make_owner_coach_routes(
+            store=store,
+            coach=coach,
+            owner_route=owner_route,
+            body=body,
+            ip_of=ip_of,
             owner_host_ok=owner_host_ok,
             csp=OWNER_CSP,
         ),

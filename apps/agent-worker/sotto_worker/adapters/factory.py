@@ -7,6 +7,7 @@ import re
 from collections.abc import Mapping
 from urllib.parse import urlsplit
 
+from sotto_worker.adapters.coach.base import TTSAdapter
 from sotto_worker.adapters.llm.fake import FakeLLM
 from sotto_worker.clock import Clock
 from sotto_worker.contracts import LLMAdapter, LLMRequest, STTAdapter
@@ -198,6 +199,24 @@ def _check_host(name: str, host: str, base_url: str | None) -> None:
         raise ValueError(f"{name} may only be sent to {host}, not {parts.hostname or 'no host'}")
     if parts.scheme != "https":
         raise ValueError(f"{name} may only be sent over https")
+
+
+def make_coach_tts(route: StageRoute, *, env: Mapping[str, str]) -> TTSAdapter | None:
+    """Build a voice-coach TTS adapter for a `coach_tts` route, or None if unconfigured."""
+    if route.provider == "fake":
+        from sotto_worker.adapters.coach.fake import FakeTTSAdapter
+
+        return FakeTTSAdapter(model=route.model)
+    if route.provider == "deepgram":
+        from sotto_worker.adapters.coach.deepgram_tts import DeepgramTTSAdapter
+
+        key = env.get("DEEPGRAM_API_KEY", "")
+        if not key:
+            return None
+        if route.base_url:
+            return DeepgramTTSAdapter(api_key=key, model=route.model, base_url=route.base_url)
+        return DeepgramTTSAdapter(api_key=key, model=route.model)
+    return None
 
 
 def _key(name: str, env: Mapping[str, str]) -> str:

@@ -18,11 +18,11 @@ from typing import Literal
 
 from sotto_worker.clock import Clock
 from sotto_worker.cloud.cards.store import HOW_WE_TALK_MAX, TONE_PRESETS
+from sotto_worker.cloud.coach.api import get_game_plan
 from sotto_worker.cloud.memory import api as memory_api
 from sotto_worker.company import CompanyProfile
 from sotto_worker.contracts import LLMRequest, Message, TranscriptEvent
 from sotto_worker.pipeline.call_state import CallStateUpdater
-from sotto_worker.pipeline.stubs import get_game_plan
 from sotto_worker.pipeline.trigger import TurnKind, classify, needs_answer
 from sotto_worker.pipeline.verdict import DEFAULT_BANNED_OPENERS, VerdictParser
 from sotto_worker.playbook import PlaybookIndex

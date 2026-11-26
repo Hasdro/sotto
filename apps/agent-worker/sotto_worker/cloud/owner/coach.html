@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice Coach — Owner Console</title>
+    <link rel="stylesheet" href="/owner/tokens.css" />
+    <link rel="stylesheet" href="/owner/components.css" />
+    <link rel="stylesheet" href="/owner/owner.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="head">
+        <h1>Voice Coach</h1>
+        <p class="muted">
+          Configure coach models (<code>coach_stt</code>, <code>coach_llm</code>, <code>coach_tts</code>),
+          enable per company, and set monthly USD caps. Companies without a cap do not see the voice coach.
+        </p>
+      </header>
+      <section class="card">
+        <h2>Company caps &amp; enablement</h2>
+        <div id="coach-status" class="muted" role="status">Loading…</div>
+        <table class="table" id="coach-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Stages ready</th>
+              <th>Enabled</th>
+              <th>Monthly cap (USD)</th>
+              <th>Est. minutes</th>
+              <th>Month spend</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="coach-rows"></tbody>
+        </table>
+      </section>
+    </main>
+    <script src="/owner/coach.js" defer></script>
+  </body>
+</html>

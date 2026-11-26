@@ -60,6 +60,7 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
     round4_platform = {"call_logs_github", "local_models_text", "local_models_voice", "setup_guide"}
     round4_wizard_memory = {"postcall_wizard", "style_memory"}
     round4_live_cards = {"card_style_v2", "call_state", "talk_meter"}
+    round4_voice_coach = {"prep_coach", "voice_coach", "morning_brief"}
     assert set(features.CATALOG) == (
         existing
         | learning
@@ -69,6 +70,7 @@ def test_every_existing_capability_and_every_planned_one_is_in_the_catalog() -> 
         | round4_platform
         | round4_wizard_memory
         | round4_live_cards
+        | round4_voice_coach
         | {"zoho"}
     )
     assert "playbook_bootstrap" in features.DEFAULT_OFF
@@ -454,6 +456,7 @@ def test_meeting_reminders_and_whatsapp_status_are_off_until_the_admin_turns_the
         "call_logs_github",
         "local_models_text",
         "local_models_voice",
+        "voice_coach",
     } == features.DEFAULT_OFF
     m = client.get("/api/v1/features", headers=h).json()["features"]
     assert m["meeting_reminders"]["state"] == "off_by_org"

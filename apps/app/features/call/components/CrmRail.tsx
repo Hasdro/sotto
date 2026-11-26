@@ -29,11 +29,13 @@ import {
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../../components/FeatureGate";
+import { SafeBoundary } from "../../../components/SafeBoundary";
 import { CloudError } from "../../../lib/cloud";
 import { formatDay, formatMoney, formatWhen } from "../../../lib/format";
 import type { StringKey } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
 import { ActionCard, type Perform } from "../../actions/ActionCard";
+import { type GamePlan, GamePlanCard, PrepCoachPanel } from "../../coach";
 import { type Brief, type Candidate, zohoBrief, zohoMeetingBrief, zohoSearch } from "../../crm/api";
 import {
   attachBrief,
@@ -49,6 +51,7 @@ import { type MeetingSource, UpcomingMeetings } from "../../crm/UpcomingMeetings
 import { useZoho } from "../../crm/useZoho";
 import { ZohoConnect } from "../../crm/ZohoConnect";
 import { useCallText } from "../strings";
+import { CallStatePanel } from "./CallStatePanel";
 
 export type Lookup = {
   search: typeof zohoSearch;
@@ -70,25 +73,53 @@ export function CrmRail({
   lookup,
   perform,
   stage = "prepare",
+  callId,
+  callState = null,
+  onStartListening,
 }: {
   lookup?: Lookup;
   perform?: Perform;
   stage?: RailStage;
+  callId?: string;
+  callState?: string | null;
+  onStartListening?: () => void;
 }) {
+  const [fallbackId] = useState(
+    () => `prep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+  );
+  const activeCallId = callId || fallbackId;
+  const [gamePlan, setGamePlan] = useState<GamePlan | null>(null);
   return stage === "live" ? (
-    <LiveRail lookup={lookup} />
+    <SafeBoundary name="rail.live">
+      <LiveRail lookup={lookup} gamePlan={gamePlan} callState={callState} />
+    </SafeBoundary>
   ) : (
-    <Stack gap="md">
-      <ZohoPart lookup={lookup} perform={perform} />
-      <PrepPanel />
-    </Stack>
+    <SafeBoundary name="rail.prepare">
+      <Stack gap="md">
+        <ZohoPart lookup={lookup} perform={perform} />
+        <PrepPanel />
+        <PrepCoachPanel
+          callId={activeCallId}
+          onGamePlanChange={setGamePlan}
+          onStartListening={onStartListening}
+        />
+      </Stack>
+    </SafeBoundary>
   );
 }
 
 // ---------------------------------------------------------------------------------------------
 // Live: read-only
 
-function LiveRail({ lookup }: { lookup?: Lookup | undefined }) {
+function LiveRail({
+  lookup,
+  gamePlan,
+  callState,
+}: {
+  lookup?: Lookup | undefined;
+  gamePlan: GamePlan | null;
+  callState: string | null;
+}) {
   const tc = useCallText();
   const zoho = useFeature("zoho");
   const { crm } = useAttachedState();
@@ -110,6 +141,8 @@ function LiveRail({ lookup }: { lookup?: Lookup | undefined }) {
       ) : (
         <LiveBrief onEdit={() => setEditing(true)} />
       )}
+      <CallStatePanel state={callState} />
+      <GamePlanCard plan={gamePlan} />
       {linked ? (
         <Disclosure title={tc("rail.more")} testID="crm-more">
           <BriefView brief={crm.brief} />

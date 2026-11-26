@@ -11,6 +11,8 @@ from starlette.testclient import TestClient
 
 from sotto_worker.cloud.app import CloudConfig, create_cloud_app
 from sotto_worker.cloud.bundle import Seed
+from sotto_worker.cloud.coach import register_coach_store
+from sotto_worker.cloud.memory import api as memory_api
 from sotto_worker.cloud.store import CloudStore
 from sotto_worker.server.vault import Vault
 
@@ -29,8 +31,12 @@ def seed() -> Seed:
 @pytest.fixture
 def store(tmp_path: Path) -> Iterator[CloudStore]:
     s = CloudStore(tmp_path / "cloud.db", Vault(SECRET))
-    yield s
-    s.close()
+    try:
+        yield s
+    finally:
+        memory_api.configure(None)
+        register_coach_store(None)
+        s.close()
 
 
 minted: list[tuple[str, str]] = []

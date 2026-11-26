@@ -20,10 +20,13 @@ Stage = Literal[
     "memory_merge",
     "call_state",
     "quality_judge",
+    "coach_stt",
+    "coach_llm",
+    "coach_tts",
 ]
 STAGES: tuple[Stage, ...] = (
     "stt", "stt_backup", "turn", "trigger", "suggest", "suggest_backup", "summary", "embed",
-    "judge", "memory_merge", "call_state", "quality_judge",
+    "judge", "memory_merge", "call_state", "quality_judge", "coach_stt", "coach_llm", "coach_tts",
 )  # fmt: skip
 LIVE_STAGES: frozenset[Stage] = frozenset({"trigger", "suggest", "suggest_backup"})
 Speaker = Literal["customer", "agent"]

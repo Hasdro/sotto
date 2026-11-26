@@ -32,6 +32,9 @@ export const FEATURE_IDS = [
   "card_style_v2",
   "call_state",
   "talk_meter",
+  "prep_coach",
+  "voice_coach",
+  "morning_brief",
 ] as const;
 export type FeatureId = (typeof FEATURE_IDS)[number];
 

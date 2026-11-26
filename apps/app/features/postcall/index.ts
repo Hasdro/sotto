@@ -1,6 +1,7 @@
 export { SafeBoundary } from "../../components/SafeBoundary";
 export { logEvent } from "../../lib/obs";
 export { enqueue } from "../../lib/outbox";
+export { startReview } from "../coach";
 export type {
   AdminAgentMemory,
   AdminMemoryOverview,
@@ -29,4 +30,3 @@ export {
   shouldOpenWizard,
 } from "./steps";
 export { postCallText, usePostCallText } from "./strings";
-export { startReview } from "./stubs";
