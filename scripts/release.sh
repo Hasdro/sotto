@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates a GitHub Release (private repo = versioned archive, D-030) with the Mac and Windows installers.
+# Creates a GitHub Release (versioned archive, D-030; Apple-chip Mac + Windows per D-097) with the installers.
 #   scripts/release.sh v0.3.0            # DRY RUN: prints the gh command and the notes
 #   scripts/release.sh v0.3.0 --publish  # really creates the release (master/owner only)
 # Notes come from the lines of docs/TRACKER.md that mention the version. Unsigned builds: no auto-update.
@@ -12,10 +12,10 @@ ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 REL=${RELEASE_DIR:-apps/desktop/release}
 FILES=()
-for f in "$REL"/*-"$VER"-arm64.dmg "$REL"/*-"$VER".dmg "$REL"/*" Setup $VER.exe"; do
+for f in "$REL"/*-"$VER"-arm64.dmg "$REL"/*" Setup $VER.exe"; do
   [ -f "$f" ] && FILES+=("$f")
 done
-[ "${#FILES[@]}" -eq 3 ] || { echo "expected 3 installers for $VER in $REL (arm64 dmg, x64 dmg, exe), found ${#FILES[@]}"; exit 1; }
+[ "${#FILES[@]}" -eq 2 ] || { echo "expected 2 installers for $VER in $REL (arm64 dmg, exe), found ${#FILES[@]}"; exit 1; }
 NOTES=$(mktemp)
 {
   echo "AGN Sales Shield $TAG"
