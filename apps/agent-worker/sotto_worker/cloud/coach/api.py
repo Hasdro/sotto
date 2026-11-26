@@ -57,6 +57,8 @@ def get_game_plan(company_id: str, call_id: str) -> str | None:
     """Return the rendered game plan (<= 150 words) for `(company_id, call_id)`, or None."""
     if _DEFAULT_STORE is None:
         return None
+    if not _DEFAULT_STORE.s.org_feature_on(company_id, "prep_coach"):
+        return None
     row: dict[str, Any] | None = _DEFAULT_STORE.get_game_plan_raw(company_id, call_id)
     if not row:
         return None

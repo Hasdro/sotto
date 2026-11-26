@@ -26,7 +26,7 @@ import {
   saveDeviceCall,
   setDeviceReview,
 } from "../../lib/deviceHistory";
-import { attachedBriefText, saveBriefFor } from "../crm/attached";
+import { attachedBriefText, attachedGamePlanText, saveBriefFor } from "../crm/attached";
 import { stateOf } from "../flags/catalog";
 import { learnAfterCall } from "../learning/learn";
 import type { Bridge, BridgeHandlers } from "./bridge";
@@ -198,6 +198,7 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     },
     onEnded: ended,
     crmBrief: attachedBriefText, // R10: the record the agent attached in the context rail
+    gamePlan: attachedGamePlanText, // B2: saved prep game plan for the live suggest prompt
   });
   if (blocked) {
     emit({

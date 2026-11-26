@@ -8,18 +8,20 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
 
 from sotto_worker.adapters.coach.base import AudioChunk, TTSAdapter, TTSOptions
 from sotto_worker.cloud.coach.api import render_game_plan
 from sotto_worker.cloud.coach.store import CapAlertSender, CoachStore
-from sotto_worker.cloud.coach.stubs import add_feedback, log_event
-from sotto_worker.cloud.store import Principal
+from sotto_worker.cloud.memory.api import add_feedback
+from sotto_worker.cloud.obs.log import log_event
+from sotto_worker.cloud.store import CloudError, Principal
 from sotto_worker.contracts import LLMAdapter, LLMRequest, Message
 
 MAX_REVIEW_SECONDS = 180  # V4: <= 3 minutes
+TURN_MARKER = "---turn---"
 DEFAULT_PROMPTS_DIR = Path(__file__).resolve().parents[5] / "seed" / "prompts"
 
 
@@ -40,6 +42,17 @@ def load_prompt_body(key: str, *, prompts: dict[str, dict[str, Any]] | None = No
 
 def render_template(template: str, values: dict[str, str]) -> str:
     return re.sub(r"\{\{\s*([\w.]+)\s*\}\}", lambda m: values.get(m.group(1), ""), template).strip()
+
+
+def _split_turn_prompt(rendered: str) -> tuple[str, str]:
+    if TURN_MARKER in rendered:
+        system, _, turn_part = rendered.partition(TURN_MARKER)
+        return system.strip(), turn_part.strip()
+    return rendered.strip(), ""
+
+
+def _safe_var(val: str, limit: int = 4000) -> str:
+    return val.replace(TURN_MARKER, " ").strip()[:limit]
 
 
 async def _collect_llm(llm: LLMAdapter, req: LLMRequest) -> str:
@@ -73,24 +86,30 @@ class PrepCoachEngine:
         playbook: str = "",
         voice: bool = False,
         tts: TTSAdapter | None = None,
+        send_email: CapAlertSender | None = None,
+        owner_email: str | None = None,
         now: int | None = None,
     ) -> dict[str, Any]:
         if voice:
             self.store.check_voice_cap(who.company, now=now)
         self.store.add_prep_message(who, call_id, "user", user_message, now=now)
         history = self.store.list_prep_messages(who, call_id)
-        system = render_template(
+        rendered = render_template(
             load_prompt_body("coach_prep", prompts=self.prompts),
             {
-                "crm.brief": crm_brief.strip(),
-                "prep.notes": prep_notes.strip(),
-                "company.playbook": playbook.strip(),
+                "crm.brief": _safe_var(crm_brief),
+                "prep.notes": _safe_var(prep_notes),
+                "company.playbook": _safe_var(playbook),
             },
         )
-        messages = [
+        system, turn_context = _split_turn_prompt(rendered)
+        messages: list[Message] = []
+        if turn_context:
+            messages.append(Message(role="user", content=turn_context))
+        messages.extend(
             Message(role="user" if m["role"] == "user" else "assistant", content=m["content"])
             for m in history[-12:]
-        ]
+        )
         answer = await _collect_llm(
             llm,
             LLMRequest(system=system, messages=messages, max_tokens=260, temperature=0.4),
@@ -100,6 +119,18 @@ class PrepCoachEngine:
         if voice and tts is not None and answer:
             async for chunk in tts.synthesize(answer, TTSOptions()):
                 audio_bytes += len(chunk.data)
+            if audio_bytes > 0:
+                est_s = max(1, round(len(answer.split()) / 2.5))
+                await self.store.record_voice_usage(
+                    who.company,
+                    who.user_id,
+                    "prep_voice",
+                    est_s,
+                    call_id=call_id,
+                    send_email=send_email,
+                    owner_email=owner_email,
+                    now=now,
+                )
         log_event("coach_prep", "reply", call_id=call_id, voice=voice, audio_bytes=audio_bytes)
         return {"message": saved, "voice": voice, "audio_bytes": audio_bytes}
 
@@ -115,19 +146,22 @@ class PrepCoachEngine:
     ) -> dict[str, Any]:
         history = self.store.list_prep_messages(who, call_id)
         chat_lines = "\n".join(f"{m['role']}: {m['content']}" for m in history[-16:])
-        system = render_template(
+        rendered_prompt = render_template(
             load_prompt_body("game_plan", prompts=self.prompts),
             {
-                "crm.brief": crm_brief.strip(),
-                "prep.notes": prep_notes.strip(),
-                "prep.chat": chat_lines,
+                "crm.brief": _safe_var(crm_brief),
+                "prep.notes": _safe_var(prep_notes),
+                "prep.chat": _safe_var(chat_lines),
             },
         )
+        system, user_part = _split_turn_prompt(rendered_prompt)
         raw = await _collect_llm(
             llm,
             LLMRequest(
                 system=system,
-                messages=[Message(role="user", content="Generate the game plan JSON.")],
+                messages=[
+                    Message(role="user", content=user_part or "Generate the game plan JSON.")
+                ],
                 max_tokens=420,
                 temperature=0.3,
             ),
@@ -209,19 +243,20 @@ class VoiceReviewEngine:
         review = self.store.get_review(who, review_id, now=now)
         if voice:
             self.store.check_voice_cap(who.company, now=now)
-        system = render_template(
+        rendered_prompt = render_template(
             load_prompt_body("coach_review", prompts=self.prompts),
             {
-                "call.summary": call_summary.strip(),
-                "call.key_moment_quote": key_moment_quote.strip(),
+                "call.summary": _safe_var(call_summary),
+                "call.key_moment_quote": _safe_var(key_moment_quote, 1000),
                 "call.score": str(score) if score is not None else "n/a",
             },
         )
+        system, user_part = _split_turn_prompt(rendered_prompt)
         reply = await _collect_llm(
             llm,
             LLMRequest(
                 system=system,
-                messages=[Message(role="user", content="Start the post-call review.")],
+                messages=[Message(role="user", content=user_part or "Start the post-call review.")],
                 max_tokens=450,
                 temperature=0.4,
             ),
@@ -260,20 +295,34 @@ class VoiceReviewEngine:
         owner_email: str | None = None,
         now: int | None = None,
     ) -> dict[str, Any]:
+        if isinstance(duration_s, bool) or not isinstance(duration_s, int) or duration_s < 0:
+            raise CloudError("invalid", "duration_s must be a non-negative integer")
+        if remember_note is not None and not isinstance(remember_note, str):
+            raise CloudError("invalid", "remember_note must be a string")
+        clean_transcript: list[dict[str, str]] = []
+        for entry in transcript[:100]:
+            if not isinstance(entry, dict):
+                raise CloudError("invalid", "transcript entries must be objects")
+            role = entry.get("role")
+            content = entry.get("content")
+            if role not in ("user", "assistant") or not isinstance(content, str):
+                raise CloudError("invalid", "transcript entries require role and content")
+            clean_transcript.append({"role": role, "content": content[:4000]})
         review = self.store.get_review(who, review_id, now=now)
-        clamped_s = min(max(0, int(duration_s)), MAX_REVIEW_SECONDS)
+        if voice:
+            self.store.check_voice_cap(who.company, now=now)
+        clamped_s = min(max(0, duration_s), MAX_REVIEW_SECONDS)
         clean_note = (remember_note or "").strip() or None
         updated = self.store.transition_review(
             who,
-            review_id,
+            review["id"],
             "done",
-            transcript=transcript,
+            transcript=clean_transcript,
             feedback_note=clean_note,
             now=now,
         )
         feedback_id: str | None = None
         if clean_note:
-            # Feeds Agent 2 style memory via §3.4 contract stub (replaced at merge).
             feedback_id = add_feedback(
                 company_id=who.company,
                 user_id=who.user_id,
@@ -307,6 +356,3 @@ class VoiceReviewEngine:
             "feedback_id": feedback_id,
             "usage": usage_status,
         }
-
-
-from collections.abc import Callable  # noqa: E402

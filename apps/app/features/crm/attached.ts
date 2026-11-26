@@ -38,9 +38,11 @@ const PREP_LABEL: Record<PrepField, string> = {
 };
 const PREP_MAX = 400;
 const TEXT_MAX = 2000;
+const GAME_PLAN_MAX = 1600;
 
 type State = { crm: Attached; prep: Prep };
 let state: State = { crm: { kind: "none" }, prep: EMPTY_PREP };
+let gamePlanText = "";
 const listeners = new Set<() => void>();
 
 function set(next: Partial<State>): void {
@@ -62,8 +64,17 @@ export const clearCrm = () => set({ crm: { kind: "none" } });
 /** A new call: nothing attached, an empty brief. */
 export const resetCall = () => {
   carry = false;
+  gamePlanText = "";
   set({ crm: { kind: "none" }, prep: EMPTY_PREP });
 };
+
+export function setGamePlanText(text: string | null | undefined): void {
+  gamePlanText = (text ?? "").trim().slice(0, GAME_PLAN_MAX);
+}
+
+export function attachedGamePlanText(): string {
+  return gamePlanText;
+}
 
 // Which call the state belongs to. A meeting picked before the call (home screen) is carried
 // into the next call; otherwise a new call id starts clean.

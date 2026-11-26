@@ -93,7 +93,7 @@ export function statusLine(
   return t("home.status.active", seats);
 }
 
-export function HomeScreen() {
+export function HomeScreen({ footer }: { footer?: React.ReactNode } = {}) {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const router = useRouter();
@@ -263,6 +263,7 @@ export function HomeScreen() {
         </View>
         {side}
       </View>
+      {footer}
       <Text variant="label" tone="muted" style={styles.powered}>
         {t("brand.poweredBy")}
       </Text>

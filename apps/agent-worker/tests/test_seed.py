@@ -23,6 +23,9 @@ STAGES = {
     "memory_merge",
     "call_state",
     "quality_judge",
+    "coach_stt",
+    "coach_llm",
+    "coach_tts",
 }
 LIVE_STAGES = {"trigger", "suggest", "suggest_backup"}
 SCOPES = {"platform", "company", "team", "campaign"}
@@ -115,7 +118,11 @@ def test_every_price_cites_a_source_and_a_date() -> None:
         assert p.source.startswith("https://"), p
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.checked), p
         assert p.confidence in ("vendor", "aggregator", "upper_bound"), p
-        assert (p.usd > 0) if p.unit == "per_hour" else (p.in_usd > 0 and p.out_usd > 0), p
+        assert (
+            (p.usd > 0)
+            if p.unit in ("per_hour", "per_1k_chars")
+            else (p.in_usd > 0 and p.out_usd > 0)
+        ), p
 
 
 def test_default_routes_have_a_price() -> None:

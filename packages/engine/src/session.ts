@@ -105,8 +105,8 @@ export type SessionDeps = {
   howWeTalk?: string | undefined;
   /** C3 / D-094: merged banned opener phrases for this call. */
   bannedPhrases?: readonly string[] | undefined;
-  /** Agent 3: optional rendered game plan text for this call. */
-  gamePlan?: string | null | undefined;
+  /** Agent 3: optional rendered game plan text for this call (string or live getter). */
+  gamePlan?: string | (() => string | null | undefined) | null | undefined;
   /** C5: optional live call state reader. */
   callState?: (() => string) | undefined;
   /** The `learned_instructions` prompt; absent in older bundles, then no block is added. */
@@ -436,6 +436,8 @@ export class CallSession {
     const bannedVal = this.deps.bannedPhrases?.length
       ? this.deps.bannedPhrases.slice(0, 50).join(", ")
       : "(none)";
+    const gpRaw =
+      typeof this.deps.gamePlan === "function" ? this.deps.gamePlan() : this.deps.gamePlan;
     const variables: Record<string, string> = {
       "company.name": clean(company.name),
       "company.tone": clean(company.tone),
@@ -444,7 +446,7 @@ export class CallSession {
       "agent.tone": clean(agentToneVal),
       "tone.banned": clean(bannedVal),
       "agent.style_memory": clean(learned.map((l) => `- ${l}`).join("\n") || "(none)"),
-      "call.game_plan": clean(this.deps.gamePlan?.trim() || "(none)"),
+      "call.game_plan": clean(gpRaw?.trim() || "(none)"),
       "call.state": clean(this.deps.callState?.().trim() || "(none yet)"),
       "playbook.match": clean(matchText(turn.nearest)),
       "transcript.last_60s": clean(this.context(turn.event.end_ms)),

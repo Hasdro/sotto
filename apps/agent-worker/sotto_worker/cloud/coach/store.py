@@ -8,13 +8,15 @@ company-isolation tests (R3, 00-master.md §3.6).
 from __future__ import annotations
 
 import json
+import math
 import secrets
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from sotto_worker.cloud.coach.stubs import log_event
+from sotto_worker.cloud.memory.redact import strip_personal_data
 from sotto_worker.cloud.metering.store import month_of, month_start
+from sotto_worker.cloud.obs.log import log_event
 from sotto_worker.cloud.store import CloudError, CloudStore, Principal, now_ms
 
 HOUR_MS = 3_600_000
@@ -22,7 +24,8 @@ DAY_MS = 24 * HOUR_MS
 REVIEW_MIN_CALL_S = 30
 REVIEW_REMINDER_MS = DAY_MS
 REVIEW_EXPIRY_MS = 7 * DAY_MS
-DEFAULT_COST_PER_MIN_USD = 0.04  # ASSUMPTION: blended STT + TTS + LLM per-minute estimate (see seed/models/prices.yaml)
+# ASSUMPTION: blended STT + TTS + LLM per-minute estimate (see seed/models/prices.yaml)
+DEFAULT_COST_PER_MIN_USD = 0.04
 MAX_CAP_USD = 1_000_000.0
 REVIEW_STATES = ("pending", "done", "snoozed", "dismissed", "cancelled", "expired")
 TERMINAL_REVIEW_STATES = frozenset({"done", "dismissed", "cancelled", "expired"})
@@ -128,6 +131,19 @@ CREATE TABLE IF NOT EXISTS coach_morning_briefs (
 """
 
 
+def _require_company(who: Principal) -> str:
+    if not who.company:
+        raise CloudError("forbidden", "no company context")
+    return who.company
+
+
+def _clean_call_id(call_id: str) -> str:
+    clean = call_id.strip() if isinstance(call_id, str) else ""
+    if not clean or len(clean) > 128:
+        raise CloudError("invalid", "call_id must be 1..128 characters")
+    return clean
+
+
 def _tomorrow_morning_ms(now: int, tz_offset_min: int) -> int:
     """Return 08:00 local time tomorrow as UTC epoch milliseconds."""
     offset = timedelta(minutes=tz_offset_min)
@@ -157,8 +173,12 @@ class CoachStore:
         *,
         now: int | None = None,
     ) -> dict[str, Any]:
+        cid = _require_company(who)
+        clean_call = _clean_call_id(call_id)
+        if role not in ("user", "assistant"):
+            raise CloudError("invalid", "role must be user or assistant")
         clean = content.strip()
-        if not call_id or not clean:
+        if not clean:
             raise CloudError("invalid", "call_id and content are required")
         t = self.clock() if now is None else now
         mid = f"pm_{secrets.token_hex(6)}"
@@ -167,21 +187,23 @@ class CoachStore:
                 "INSERT INTO coach_prep_messages"
                 "(id, company_id, call_id, user_id, role, content, created_at)"
                 " VALUES (?,?,?,?,?,?,?)",
-                (mid, who.company, call_id, who.user_id, role, clean[:4000], t),
+                (mid, cid, clean_call, who.user_id, role, clean[:4000], t),
             )
         return {
             "id": mid,
-            "call_id": call_id,
+            "call_id": clean_call,
             "role": role,
             "content": clean[:4000],
             "created_at": t,
         }
 
     def list_prep_messages(self, who: Principal, call_id: str) -> list[dict[str, Any]]:
+        cid = _require_company(who)
+        clean_call = _clean_call_id(call_id)
         rows = self.s._q(
             "SELECT id, role, content, created_at FROM coach_prep_messages"
             " WHERE company_id=? AND call_id=? AND user_id=? ORDER BY created_at ASC, rowid ASC",
-            (who.company, call_id, who.user_id),
+            (cid, clean_call, who.user_id),
         )
         return [
             {
@@ -205,22 +227,32 @@ class CoachStore:
         rendered_text: str,
         now: int | None = None,
     ) -> dict[str, Any]:
-        if not call_id:
-            raise CloudError("invalid", "call_id is required")
+        cid = _require_company(who)
+        clean_call = _clean_call_id(call_id)
         t = self.clock() if now is None else now
-        clean_goals = [str(g).strip() for g in goals if str(g).strip()][:3]
+        clean_goals = [str(g).strip()[:200] for g in goals if isinstance(g, str) and g.strip()][:3]
         clean_obj = [
             {
-                "objection": str(o.get("objection", "")).strip(),
-                "answer": str(o.get("answer", "")).strip(),
+                "objection": str(o.get("objection", "")).strip()[:200],
+                "answer": str(o.get("answer", "")).strip()[:300],
             }
             for o in objections
-            if isinstance(o, dict) and str(o.get("objection", "")).strip()
+            if (
+                isinstance(o, dict)
+                and isinstance(o.get("objection"), str)
+                and o["objection"].strip()
+            )
         ][:3]
-        clean_q = [str(q).strip() for q in questions if str(q).strip()][:3]
-        clean_avoid = [str(a).strip() for a in avoid if str(a).strip()][:3]
+        clean_q = [str(q).strip()[:200] for q in questions if isinstance(q, str) and q.strip()][:3]
+        clean_avoid = [str(a).strip()[:200] for a in avoid if isinstance(a, str) and a.strip()][:3]
         rendered = " ".join(rendered_text.split()[:150])
         with self.s._tx() as db:
+            owner_row = db.execute(
+                "SELECT user_id FROM coach_game_plans WHERE company_id=? AND call_id=?",
+                (cid, clean_call),
+            ).fetchone()
+            if owner_row is not None and str(owner_row["user_id"]) != who.user_id:
+                raise CloudError("taken", "that game plan belongs to someone else")
             db.execute(
                 "INSERT INTO coach_game_plans"
                 "(company_id, call_id, user_id, goals_json, objections_json, questions_json,"
@@ -231,8 +263,8 @@ class CoachStore:
                 " questions_json=excluded.questions_json, avoid_json=excluded.avoid_json,"
                 " rendered_text=excluded.rendered_text, updated_at=excluded.updated_at",
                 (
-                    who.company,
-                    call_id,
+                    cid,
+                    clean_call,
                     who.user_id,
                     json.dumps(clean_goals),
                     json.dumps(clean_obj),
@@ -242,9 +274,9 @@ class CoachStore:
                     t,
                 ),
             )
-        log_event("coach_prep", "game_plan_saved", call_id=call_id, words=len(rendered.split()))
+        log_event("coach_prep", "game_plan_saved", call_id=clean_call, words=len(rendered.split()))
         return {
-            "call_id": call_id,
+            "call_id": clean_call,
             "goals": clean_goals,
             "objections": clean_obj,
             "questions": clean_q,
@@ -290,7 +322,7 @@ class CoachStore:
         company_id: str,
         *,
         cap_usd: float | None = None,
-        cost_per_min_usd: float = DEFAULT_COST_PER_MIN_USD,
+        cost_per_min_usd: float | None = None,
         enabled: bool | None = None,
         stages_configured: bool | None = None,
         clear_cap: bool = False,
@@ -300,11 +332,28 @@ class CoachStore:
         if owner.role != "owner":
             raise CloudError("forbidden", "only the platform owner configures voice coach")
         self.s.company_row(company_id)
-        if not clear_cap and cap_usd is not None:
-            if isinstance(cap_usd, bool) or not 0 < cap_usd <= MAX_CAP_USD:
-                raise CloudError("invalid", "cap_usd must be a positive number")
-        if isinstance(cost_per_min_usd, bool) or cost_per_min_usd <= 0:
+        if (
+            not clear_cap
+            and cap_usd is not None
+            and (
+                isinstance(cap_usd, bool)
+                or not isinstance(cap_usd, int | float)
+                or not math.isfinite(float(cap_usd))
+                or not 0 < float(cap_usd) <= MAX_CAP_USD
+            )
+        ):
+            raise CloudError("invalid", "cap_usd must be a positive number")
+        if cost_per_min_usd is not None and (
+            isinstance(cost_per_min_usd, bool)
+            or not isinstance(cost_per_min_usd, int | float)
+            or not math.isfinite(float(cost_per_min_usd))
+            or float(cost_per_min_usd) <= 0
+        ):
             raise CloudError("invalid", "cost_per_min_usd must be positive")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be a boolean")
+        if stages_configured is not None and not isinstance(stages_configured, bool):
+            raise CloudError("invalid", "stages_configured must be a boolean")
         t = self.clock() if now is None else now
         existing = self.s._q(
             "SELECT cap_usd, cost_per_min_usd, enabled, stages_configured, allow_admin_transcript"
@@ -312,10 +361,19 @@ class CoachStore:
             (company_id,),
         )
         cur = existing[0] if existing else None
-        next_cap = None if clear_cap else (
-            float(cap_usd) if cap_usd is not None else (
-                float(cur["cap_usd"]) if cur and cur["cap_usd"] is not None else None
+        next_cap = (
+            None
+            if clear_cap
+            else (
+                float(cap_usd)
+                if cap_usd is not None
+                else (float(cur["cap_usd"]) if cur and cur["cap_usd"] is not None else None)
             )
+        )
+        next_cpm = (
+            float(cost_per_min_usd)
+            if cost_per_min_usd is not None
+            else (float(cur["cost_per_min_usd"]) if cur else DEFAULT_COST_PER_MIN_USD)
         )
         next_enabled = int(enabled) if enabled is not None else (int(cur["enabled"]) if cur else 0)
         next_stages = (
@@ -337,7 +395,7 @@ class CoachStore:
                 (
                     company_id,
                     next_cap,
-                    float(cost_per_min_usd),
+                    next_cpm,
                     next_enabled,
                     next_stages,
                     next_allow,
@@ -362,7 +420,10 @@ class CoachStore:
         ip: str = "",
         now: int | None = None,
     ) -> dict[str, Any]:
+        cid = _require_company(who)
         who.require("admin")
+        if not isinstance(allow, bool):
+            raise CloudError("invalid", "allow_admin_transcript must be a boolean")
         t = self.clock() if now is None else now
         with self.s._tx() as db:
             db.execute(
@@ -371,13 +432,13 @@ class CoachStore:
                 " ON CONFLICT(company_id) DO UPDATE SET"
                 " allow_admin_transcript=excluded.allow_admin_transcript,"
                 " updated_at=excluded.updated_at",
-                (who.company, int(bool(allow)), t),
+                (cid, int(allow), t),
             )
             self.s.audit(
                 db,
                 "coach.admin_transcript",
-                f"allow={bool(allow)}",
-                company_id=who.company,
+                f"allow={allow}",
+                company_id=cid,
                 actor=who,
                 ip=ip,
             )
@@ -449,7 +510,9 @@ class CoachStore:
         """Must be called before every voice review and prep voice session (V2)."""
         status = self.cap_status(company_id, now=now)
         if not status["available"]:
-            raise CloudError("voice_coach_unavailable", f"voice coach unavailable: {status['reason']}")
+            raise CloudError(
+                "voice_coach_unavailable", f"voice coach unavailable: {status['reason']}"
+            )
         return status
 
     async def record_voice_usage(
@@ -465,8 +528,14 @@ class CoachStore:
         now: int | None = None,
     ) -> dict[str, Any]:
         t = self.clock() if now is None else now
-        if duration_s < 0:
+        if isinstance(duration_s, bool) or duration_s < 0:
             raise CloudError("invalid", "duration_s must be non-negative")
+        member = self.s._q(
+            "SELECT 1 FROM users WHERE id=? AND company_id=?",
+            (user_id, company_id),
+        )
+        if not member:
+            raise CloudError("not_found", "user not found in company")
         st_before = self.cap_status(company_id, now=t)
         cpm = float(st_before["cost_per_min_usd"])
         cost_usd = round((duration_s / 60.0) * cpm, 6)
@@ -509,7 +578,17 @@ class CoachStore:
                         (company_id,),
                     )
                 ]
-                recipients = list(dict.fromkeys([*admins, *([owner_email] if owner_email else [])]))
+                owners = (
+                    [owner_email]
+                    if owner_email
+                    else [
+                        str(r["email"])
+                        for r in self.s._q(
+                            "SELECT email FROM users WHERE role='owner' AND active=1"
+                        )
+                    ]
+                )
+                recipients = list(dict.fromkeys([*admins, *owners]))
                 subject = (
                     f"Voice coach reached {level}% of monthly cap"
                     if level < 100
@@ -519,13 +598,16 @@ class CoachStore:
                     f"Voice coach spend for {month} reached ${spend:.2f} of the ${cap_usd:.2f} "
                     f"monthly cap ({st_after['used_minutes']} of {st_after['cap_minutes']} min). "
                     + (
-                        "Voice coach is paused until the 1st of next month unless the owner raises the cap."
+                        "Voice coach is paused until the 1st of next month unless raised."
                         if level >= 100
-                        else "Voice coach is still active; raise the cap if more minutes are needed."
+                        else "Voice coach remains active; raise the cap if more time is needed."
                     )
                 )
                 for rcpt in recipients:
-                    await send_email(rcpt, subject, body)
+                    try:
+                        await send_email(rcpt, subject, body)
+                    except Exception:  # cap alert row stays recorded even if SMTP fails
+                        log_event("coach_metering", "cap_alert_email_failed", company_id=company_id)
         log_event(
             "coach_metering",
             "voice_usage_recorded",
@@ -545,30 +627,50 @@ class CoachStore:
         now: int | None = None,
     ) -> dict[str, Any] | None:
         """Create a pending review for calls >= 30 s. Calls < 30 s create no review (A1, V3)."""
-        if not call_id:
-            raise CloudError("invalid", "call_id is required")
+        cid = _require_company(who)
+        clean_call = _clean_call_id(call_id)
+        if (
+            isinstance(call_duration_s, bool)
+            or not isinstance(call_duration_s, int)
+            or call_duration_s < 0
+        ):
+            raise CloudError("invalid", "call_duration_s must be a non-negative integer")
         if call_duration_s < REVIEW_MIN_CALL_S:
             return None
         t = self.clock() if now is None else now
+        existing = self.s._q(
+            "SELECT id, user_id FROM coach_reviews WHERE company_id=? AND call_id=?",
+            (cid, clean_call),
+        )
+        if existing:
+            if str(existing[0]["user_id"]) != who.user_id:
+                raise CloudError("taken", "review belongs to another user")
+            return self.get_review(who, str(existing[0]["id"]), now=t)
         rid = f"rev_{secrets.token_hex(6)}"
         expires_at = t + REVIEW_EXPIRY_MS
         with self.s._tx() as db:
-            existing = db.execute(
-                "SELECT id FROM coach_reviews WHERE company_id=? AND call_id=?",
-                (who.company, call_id),
+            again = db.execute(
+                "SELECT id, user_id FROM coach_reviews WHERE company_id=? AND call_id=?",
+                (cid, clean_call),
             ).fetchone()
-            if existing is not None:
-                return self.get_review(who, str(existing["id"]), now=t)
-            db.execute(
-                "INSERT INTO coach_reviews"
-                "(id, company_id, user_id, call_id, call_duration_s, status, snoozed_until,"
-                " reminded_at, expires_at, transcript_json, feedback_note, created_at, updated_at)"
-                " VALUES (?,?,?,?,?,'pending',NULL,NULL,?,'[]',NULL,?,?)",
-                (rid, who.company, who.user_id, call_id, int(call_duration_s), expires_at, t, t),
-            )
+            if again is not None:
+                if str(again["user_id"]) != who.user_id:
+                    raise CloudError("taken", "review belongs to another user")
+                rid = str(again["id"])
+            else:
+                db.execute(
+                    "INSERT INTO coach_reviews"
+                    "(id, company_id, user_id, call_id, call_duration_s, status, snoozed_until,"
+                    " reminded_at, expires_at, transcript_json, feedback_note,"
+                    " created_at, updated_at)"
+                    " VALUES (?,?,?,?,?,'pending',NULL,NULL,?,'[]',NULL,?,?)",
+                    (rid, cid, who.user_id, clean_call, int(call_duration_s), expires_at, t, t),
+                )
         return self.get_review(who, rid, now=t)
 
-    def sweep_reviews(self, *, company_id: str | None = None, now: int | None = None) -> dict[str, int]:
+    def sweep_reviews(
+        self, *, company_id: str | None = None, now: int | None = None
+    ) -> dict[str, int]:
         """Expire items past 7 days and wake snoozed items whose snooze time has arrived."""
         t = self.clock() if now is None else now
         with self.s._tx() as db:
@@ -580,7 +682,8 @@ class CoachStore:
                 ).rowcount
                 woke = db.execute(
                     "UPDATE coach_reviews SET status='pending', snoozed_until=NULL, updated_at=?"
-                    " WHERE company_id=? AND status='snoozed' AND snoozed_until<=? AND expires_at>?",
+                    " WHERE company_id=? AND status='snoozed'"
+                    " AND snoozed_until<=? AND expires_at>?",
                     (t, company_id, t, t),
                 ).rowcount
             else:
@@ -614,17 +717,16 @@ class CoachStore:
     def get_review(
         self, who: Principal, review_id: str, *, now: int | None = None
     ) -> dict[str, Any]:
-        self.sweep_reviews(company_id=who.company, now=now)
+        cid = _require_company(who)
+        self.sweep_reviews(company_id=cid, now=now)
         rows = self.s._q(
-            "SELECT * FROM coach_reviews WHERE company_id=? AND id=?",
-            (who.company, review_id),
+            "SELECT * FROM coach_reviews WHERE company_id=? AND (id=? OR call_id=?)"
+            " ORDER BY CASE WHEN id=? THEN 0 ELSE 1 END LIMIT 1",
+            (cid, review_id, review_id, review_id),
         )
-        if not rows:
+        if not rows or str(rows[0]["user_id"]) != who.user_id:
             raise CloudError("not_found", "review not found")
-        r = rows[0]
-        if who.role == "agent" and str(r["user_id"]) != who.user_id:
-            raise CloudError("not_found", "review not found")
-        return self._review_out(r)
+        return self._review_out(rows[0])
 
     def list_reviews(
         self,
@@ -633,18 +735,19 @@ class CoachStore:
         include_closed: bool = False,
         now: int | None = None,
     ) -> list[dict[str, Any]]:
-        self.sweep_reviews(company_id=who.company, now=now)
+        cid = _require_company(who)
+        self.sweep_reviews(company_id=cid, now=now)
         if include_closed:
             rows = self.s._q(
                 "SELECT * FROM coach_reviews WHERE company_id=? AND user_id=?"
                 " ORDER BY created_at DESC",
-                (who.company, who.user_id),
+                (cid, who.user_id),
             )
         else:
             rows = self.s._q(
                 "SELECT * FROM coach_reviews WHERE company_id=? AND user_id=?"
                 " AND status IN ('pending','snoozed') ORDER BY created_at DESC",
-                (who.company, who.user_id),
+                (cid, who.user_id),
             )
         return [self._review_out(r) for r in rows]
 
@@ -658,6 +761,13 @@ class CoachStore:
         timezone_offset_min: int = 0,
         now: int | None = None,
     ) -> dict[str, Any]:
+        cid = _require_company(who)
+        if (
+            isinstance(timezone_offset_min, bool)
+            or not isinstance(timezone_offset_min, int)
+            or not -720 <= timezone_offset_min <= 840
+        ):
+            raise CloudError("invalid", "timezone_offset_min out of range")
         t = self.clock() if now is None else now
         current = self.get_review(who, review_id, now=t)
         if current["status"] in TERMINAL_REVIEW_STATES:
@@ -667,18 +777,20 @@ class CoachStore:
         elif preset == "tomorrow_morning":
             target = _tomorrow_morning_ms(t, timezone_offset_min)
         elif preset == "custom":
-            if until_ms is None or until_ms <= t:
+            if isinstance(until_ms, bool) or not isinstance(until_ms, int) or until_ms <= t:
                 raise CloudError("invalid", "until_ms must be in the future")
-            target = int(until_ms)
+            target = until_ms
         else:
             raise CloudError("invalid", "unknown snooze preset")
         with self.s._tx() as db:
-            db.execute(
+            cur = db.execute(
                 "UPDATE coach_reviews SET status='snoozed', snoozed_until=?, updated_at=?"
                 " WHERE company_id=? AND id=? AND user_id=?",
-                (target, t, who.company, review_id, who.user_id),
+                (target, t, cid, current["id"], who.user_id),
             )
-        return self.get_review(who, review_id, now=t)
+            if cur.rowcount == 0:
+                raise CloudError("not_found", "review not found")
+        return self.get_review(who, current["id"], now=t)
 
     def transition_review(
         self,
@@ -690,33 +802,37 @@ class CoachStore:
         feedback_note: str | None = None,
         now: int | None = None,
     ) -> dict[str, Any]:
+        cid = _require_company(who)
         t = self.clock() if now is None else now
         current = self.get_review(who, review_id, now=t)
         if current["status"] in TERMINAL_REVIEW_STATES:
             raise CloudError("invalid", f"review already in terminal state {current['status']}")
+        redacted_note = strip_personal_data(feedback_note) if feedback_note else None
         with self.s._tx() as db:
             if transcript is not None:
-                db.execute(
+                cur = db.execute(
                     "UPDATE coach_reviews SET status=?, snoozed_until=NULL, transcript_json=?,"
                     " feedback_note=?, updated_at=?"
                     " WHERE company_id=? AND id=? AND user_id=?",
                     (
                         new_status,
                         json.dumps(transcript),
-                        feedback_note,
+                        redacted_note,
                         t,
-                        who.company,
-                        review_id,
+                        cid,
+                        current["id"],
                         who.user_id,
                     ),
                 )
             else:
-                db.execute(
+                cur = db.execute(
                     "UPDATE coach_reviews SET status=?, snoozed_until=NULL, updated_at=?"
                     " WHERE company_id=? AND id=? AND user_id=?",
-                    (new_status, t, who.company, review_id, who.user_id),
+                    (new_status, t, cid, current["id"], who.user_id),
                 )
-        return self.get_review(who, review_id, now=t)
+            if cur.rowcount == 0:
+                raise CloudError("not_found", "review not found")
+        return self.get_review(who, current["id"], now=t)
 
     def due_reminders(self, *, now: int | None = None) -> list[dict[str, Any]]:
         """Return reviews needing their single 24 h reminder (never twice, never if expired)."""
@@ -728,14 +844,9 @@ class CoachStore:
             " AND created_at<=? AND expires_at>?",
             (t - REVIEW_REMINDER_MS, t),
         )
-        return [
-            {**self._review_out(r), "company_id": str(r["company_id"])}
-            for r in rows
-        ]
+        return [{**self._review_out(r), "company_id": str(r["company_id"])} for r in rows]
 
-    def mark_reminded(
-        self, company_id: str, review_id: str, *, now: int | None = None
-    ) -> bool:
+    def mark_reminded(self, company_id: str, review_id: str, *, now: int | None = None) -> bool:
         t = self.clock() if now is None else now
         with self.s._tx() as db:
             cur = db.execute(
@@ -746,7 +857,7 @@ class CoachStore:
             return cur.rowcount > 0
 
     def get_review_transcript(self, who: Principal, review_id: str) -> list[dict[str, str]]:
-        """Transcript is visible to the agent only, plus company admin if the company allows (V4)."""
+        """Transcript is visible to the agent only, or admin when company allows (V4)."""
         rows = self.s._q(
             "SELECT user_id, transcript_json FROM coach_reviews WHERE company_id=? AND id=?",
             (who.company, review_id),
@@ -755,12 +866,18 @@ class CoachStore:
             raise CloudError("not_found", "review not found")
         r = rows[0]
         owner_id = str(r["user_id"])
+        raw_items = json.loads(str(r["transcript_json"]))
+        items = [
+            {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
+            for m in raw_items
+            if isinstance(m, dict)
+        ]
         if who.user_id == owner_id:
-            return json.loads(str(r["transcript_json"]))
+            return items
         if who.role == "admin":
             st = self.cap_status(who.company)
             if st["allow_admin_transcript"]:
-                return json.loads(str(r["transcript_json"]))
+                return items
             raise CloudError("forbidden", "admin transcript access is disabled for this company")
         raise CloudError("forbidden", "only the agent can view this review transcript")
 
@@ -788,8 +905,16 @@ class CoachStore:
         enabled: bool,
         timezone_offset_min: int | None = None,
     ) -> dict[str, Any]:
+        cid = _require_company(who)
+        if not isinstance(enabled, bool):
+            raise CloudError("invalid", "enabled must be a boolean")
         cur = self.get_morning_brief_prefs(who)
-        tz = cur["timezone_offset_min"] if timezone_offset_min is None else int(timezone_offset_min)
+        if timezone_offset_min is None:
+            tz = cur["timezone_offset_min"]
+        else:
+            if isinstance(timezone_offset_min, bool) or not isinstance(timezone_offset_min, int):
+                raise CloudError("invalid", "timezone_offset_min must be an integer")
+            tz = timezone_offset_min
         if not -720 <= tz <= 840:
             raise CloudError("invalid", "timezone_offset_min out of range")
         with self.s._tx() as db:
@@ -799,7 +924,7 @@ class CoachStore:
                 " VALUES (?,?,?,?,?)"
                 " ON CONFLICT(company_id, user_id) DO UPDATE SET"
                 " enabled=excluded.enabled, timezone_offset_min=excluded.timezone_offset_min",
-                (who.company, who.user_id, int(bool(enabled)), tz, cur["last_sent_day"]),
+                (cid, who.user_id, int(enabled), tz, cur["last_sent_day"]),
             )
         return self.get_morning_brief_prefs(who)
 
@@ -841,12 +966,21 @@ class CoachStore:
             "delivered_at": t,
         }
 
-    def latest_morning_brief(self, who: Principal) -> dict[str, Any] | None:
-        rows = self.s._q(
-            "SELECT id, day, mode, content_json, delivered_at FROM coach_morning_briefs"
-            " WHERE company_id=? AND user_id=? ORDER BY day DESC LIMIT 1",
-            (who.company, who.user_id),
-        )
+    def latest_morning_brief(
+        self, who: Principal, *, day: str | None = None
+    ) -> dict[str, Any] | None:
+        if day is not None:
+            rows = self.s._q(
+                "SELECT id, day, mode, content_json, delivered_at FROM coach_morning_briefs"
+                " WHERE company_id=? AND user_id=? AND day=? LIMIT 1",
+                (who.company, who.user_id, day),
+            )
+        else:
+            rows = self.s._q(
+                "SELECT id, day, mode, content_json, delivered_at FROM coach_morning_briefs"
+                " WHERE company_id=? AND user_id=? ORDER BY day DESC LIMIT 1",
+                (who.company, who.user_id),
+            )
         if not rows:
             return None
         r = rows[0]

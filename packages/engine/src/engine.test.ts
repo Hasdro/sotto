@@ -1014,5 +1014,28 @@ describe("Learned instructions (R11, D-034)", () => {
     expect(r?.system).toContain("Trust me");
     expect(r?.messages[0]?.content).toContain("Goal 1: close demo");
     expect(r?.messages[0]?.content).toContain("Budget approved");
+
+    const sDynamic = new CallSession({
+      callId: "c-tone-fn",
+      company: { ...bundle.company, ai_answers_allowed: true },
+      router: new ModelRouter(
+        { suggest: { provider: "fake", model: "capture" } },
+        () => cap,
+        realClock,
+      ),
+      prompt,
+      playbook: new PlaybookIndex([]),
+      clock: realClock,
+      onCard: () => {},
+      onEscalation: () => {},
+      onTiming: () => {},
+      gamePlan: () => "Dynamic callback goal",
+    });
+    sDynamic.onTranscript(
+      { speaker: "customer", text: "What next?", final: true, start_ms: 0, end_ms: 1000 },
+      1000,
+    );
+    await sDynamic.drain();
+    expect(seen[1]?.messages[0]?.content).toContain("Dynamic callback goal");
   });
 });

@@ -8,17 +8,25 @@ import { Badge, Button, Panel, Stack, space, Text } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
+import { SafeBoundary } from "../../components/SafeBoundary";
 import {
   type CoachSettings,
   getCoachSettings,
   setAdminTranscriptAccess,
 } from "../../features/coach/api";
-import { useCoachText } from "../../features/coach/strings";
-import { SafeBoundary } from "../../features/coach/stubs";
+import { type CoachTextKey, useCoachText } from "../../features/coach/strings";
+
+const REASON_KEY: Record<string, CoachTextKey> = {
+  ok: "admin.reason.ok",
+  not_configured: "admin.reason.not_configured",
+  off_by_platform: "admin.reason.off_by_platform",
+  no_cap: "admin.reason.no_cap",
+  cap_reached: "admin.reason.cap_reached",
+};
 
 export default function AdminCoachScreen() {
   const voiceCoach = useFeature("voice_coach");
-  if (voiceCoach.state === "no_permission") return null;
+  if (voiceCoach.state === "no_permission" || voiceCoach.state === "off_by_platform") return null;
   return (
     <SafeBoundary name="admin.coach">
       <AdminCoachInner featureOff={voiceCoach.state !== "available" ? voiceCoach : null} />
@@ -26,14 +34,11 @@ export default function AdminCoachScreen() {
   );
 }
 
-function AdminCoachInner({
-  featureOff,
-}: {
-  featureOff: ReturnType<typeof useFeature> | null;
-}) {
+function AdminCoachInner({ featureOff }: { featureOff: ReturnType<typeof useFeature> | null }) {
   const tc = useCoachText();
   const [settings, setSettings] = useState<CoachSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -48,17 +53,23 @@ function AdminCoachInner({
   }, [load]);
 
   async function toggleTranscripts() {
-    if (!settings || saving) return;
+    if (!settings || saving || featureOff) return;
     setSaving(true);
+    setErrorMsg(null);
     try {
       const res = await setAdminTranscriptAccess(!settings.allow_admin_transcript);
       setSettings((prev) =>
         prev ? { ...prev, allow_admin_transcript: res.allow_admin_transcript } : prev,
       );
+    } catch {
+      setErrorMsg(tc("admin.error"));
     } finally {
       setSaving(false);
     }
   }
+
+  const statusReason = settings?.reason ?? "not_configured";
+  const reasonLabel = REASON_KEY[statusReason] ? tc(REASON_KEY[statusReason]) : statusReason;
 
   return (
     <Stack gap="md" style={styles.page} testID="admin-coach-screen">
@@ -72,6 +83,16 @@ function AdminCoachInner({
       </Stack>
 
       {featureOff ? <FeatureOff feature="voice_coach" effective={featureOff} /> : null}
+      {errorMsg ? (
+        <Text
+          variant="label"
+          tone="muted"
+          accessibilityLiveRegion="polite"
+          testID="admin-coach-error"
+        >
+          {errorMsg}
+        </Text>
+      ) : null}
 
       <Panel sunken testID="admin-coach-cap">
         <Stack gap="sm">
@@ -79,7 +100,7 @@ function AdminCoachInner({
             <Text variant="label" weight="semibold">
               {tc("admin.status")}
             </Text>
-            <Badge label={settings?.reason ?? "not_configured"} />
+            <Badge label={reasonLabel} />
           </View>
           <View style={styles.row}>
             <Text variant="label" tone="muted">
@@ -128,7 +149,7 @@ function AdminCoachInner({
                   : tc("admin.transcriptOn")
               }
               onPress={toggleTranscripts}
-              disabled={!settings || saving}
+              disabled={!settings || saving || Boolean(featureOff)}
               testID="admin-coach-transcript-toggle"
             />
           </View>
@@ -144,6 +165,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: space.sm,

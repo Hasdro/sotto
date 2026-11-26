@@ -12,9 +12,11 @@ import { Badge, Button, Panel, Sheet, Stack, space, Text, TextField, useTheme } 
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
-import { completeReview } from "./api";
+import { SafeBoundary } from "../../components/SafeBoundary";
+import { logEvent } from "../../lib/obs";
+import { enqueue } from "../../lib/outbox";
+import { completeReview, initCoachOutboxSenders } from "./api";
 import { useCoachText } from "./strings";
-import { enqueue, logEvent, SafeBoundary } from "./stubs";
 
 const MAX_REVIEW_S = 180;
 
@@ -76,17 +78,25 @@ export function VoiceReviewModal({
   const [replyInput, setReplyInput] = useState("");
   const [rememberNote, setRememberNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [transcript, setTranscript] = useState<{ role: "assistant" | "user"; content: string }[]>([
-    {
-      role: "assistant",
-      content:
-        "Quick debrief: strong opening and clear pacing. Next time, ask about timeline before quoting. Anything I should remember for next time?",
-    },
-  ]);
+  const [transcript, setTranscript] = useState<{ role: "assistant" | "user"; content: string }[]>(
+    () => [
+      {
+        role: "assistant",
+        content: tc("review.opening"),
+      },
+    ],
+  );
 
   useEffect(() => {
+    initCoachOutboxSenders();
     const id = setInterval(() => {
-      setElapsed((s) => (s < MAX_REVIEW_S ? s + 1 : MAX_REVIEW_S));
+      setElapsed((s) => {
+        if (s >= MAX_REVIEW_S) {
+          clearInterval(id);
+          return MAX_REVIEW_S;
+        }
+        return s + 1;
+      });
     }, 1000);
     return () => clearInterval(id);
   }, []);
@@ -94,6 +104,13 @@ export function VoiceReviewModal({
   const remaining = Math.max(0, MAX_REVIEW_S - elapsed);
   const mins = Math.floor(remaining / 60);
   const secs = String(remaining % 60).padStart(2, "0");
+  const transcriptSeen = new Map<string, number>();
+  const keyedTranscript = transcript.map((item) => {
+    const base = `${item.role}:${item.content}`;
+    const n = (transcriptSeen.get(base) ?? 0) + 1;
+    transcriptSeen.set(base, n);
+    return { key: `${base}#${n}`, item };
+  });
 
   function handleSendText() {
     const clean = replyInput.trim();
@@ -124,7 +141,13 @@ export function VoiceReviewModal({
   }
 
   return (
-    <Sheet open onClose={onClose} title={tc("review.title")} testID="voice-review-modal">
+    <Sheet
+      open
+      onClose={onClose}
+      title={tc("review.title")}
+      closeLabel={tc("review.cancel")}
+      testID="voice-review-modal"
+    >
       <Stack gap="sm">
         <View style={styles.row}>
           <Text variant="label" tone="muted">
@@ -134,9 +157,9 @@ export function VoiceReviewModal({
         </View>
 
         <Stack gap="xs" testID="voice-review-transcript">
-          {transcript.map((item, idx) => (
+          {keyedTranscript.map(({ key, item }) => (
             <Panel
-              key={`tr-${idx}`}
+              key={key}
               sunken={item.role === "assistant"}
               style={{ borderColor: color.border }}
             >

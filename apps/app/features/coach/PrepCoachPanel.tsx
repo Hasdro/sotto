@@ -9,21 +9,25 @@
  * - Never forces a chat before "Start listening" (B1).
  */
 
-import { Badge, Button, Panel, Stack, space, Text, TextField, useTheme } from "@sotto/ui";
+import { Badge, Button, Panel, radius, Stack, space, Text, TextField, useTheme } from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
-import { useAttachedState } from "../crm/attached";
+import { SafeBoundary } from "../../components/SafeBoundary";
+import { logEvent } from "../../lib/obs";
+import { enqueue } from "../../lib/outbox";
+import { setGamePlanText, useAttachedState } from "../crm/attached";
 import {
   type GamePlan,
   generateGamePlan,
   getGamePlan,
+  initCoachOutboxSenders,
+  listPrepMessages,
   type PrepMessage,
   saveGamePlan,
   sendPrepMessage,
 } from "./api";
 import { useCoachText } from "./strings";
-import { enqueue, logEvent, SafeBoundary } from "./stubs";
 
 type Props = {
   callId: string;
@@ -59,11 +63,12 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
   const [input, setInput] = useState("");
   const [voiceMode, setVoiceMode] = useState(false);
   const [busy, setBusy] = useState<"chat" | "plan" | "save" | null>(null);
-  const [plan, setPlan] = useState<GamePlan | null>(null);
   const [goalsText, setGoalsText] = useState("");
+  const [objectionsText, setObjectionsText] = useState("");
   const [questionsText, setQuestionsText] = useState("");
   const [avoidText, setAvoidText] = useState("");
   const [savedNotice, setSavedNotice] = useState(false);
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
   const zohoBriefText =
     attached.crm.kind === "attached"
@@ -80,14 +85,21 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
     .join(" | ");
 
   useEffect(() => {
+    initCoachOutboxSenders();
     let active = true;
+    void listPrepMessages(callId)
+      .then((msgs) => {
+        if (active && msgs.length > 0) setMessages(msgs);
+      })
+      .catch(() => {});
     getGamePlan(callId)
       .then((existing) => {
         if (!active || !existing) return;
-        setPlan(existing);
         setGoalsText(existing.goals.join("\n"));
+        setObjectionsText(existing.objections.map((o) => `${o.objection}: ${o.answer}`).join("\n"));
         setQuestionsText(existing.questions.join("\n"));
         setAvoidText(existing.avoid.join("\n"));
+        setGamePlanText(existing.rendered_text);
         onGamePlanChange?.(existing);
       })
       .catch(() => {
@@ -130,17 +142,21 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
     if (busy) return;
     setBusy("plan");
     setSavedNotice(false);
+    setErrorNotice(null);
     try {
       const next = await generateGamePlan(callId, {
         crm_brief: zohoBriefText,
         prep_notes: prepNotesText,
       });
-      setPlan(next);
       setGoalsText(next.goals.join("\n"));
+      setObjectionsText(next.objections.map((o) => `${o.objection}: ${o.answer}`).join("\n"));
       setQuestionsText(next.questions.join("\n"));
       setAvoidText(next.avoid.join("\n"));
+      setGamePlanText(next.rendered_text);
       onGamePlanChange?.(next);
       logEvent("coach_prep", "game_plan_generated", { goals: next.goals.length });
+    } catch {
+      setErrorNotice(tc("prep.coach.error"));
     } finally {
       setBusy(null);
     }
@@ -150,11 +166,25 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
     if (busy) return;
     setBusy("save");
     setSavedNotice(false);
+    setErrorNotice(null);
     const goals = goalsText
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean)
       .slice(0, 3);
+    const objections = objectionsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .map((line) => {
+        const idx = line.indexOf(":");
+        if (idx < 0) return { objection: line, answer: "" };
+        return {
+          objection: line.slice(0, idx).trim(),
+          answer: line.slice(idx + 1).trim(),
+        };
+      });
     const questions = questionsText
       .split("\n")
       .map((s) => s.trim())
@@ -168,13 +198,15 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
     try {
       const saved = await saveGamePlan(callId, {
         goals,
-        objections: plan?.objections ?? [],
+        objections,
         questions,
         avoid,
       });
-      setPlan(saved);
+      setGamePlanText(saved.rendered_text);
       onGamePlanChange?.(saved);
       setSavedNotice(true);
+    } catch {
+      setErrorNotice(tc("prep.coach.error"));
     } finally {
       setBusy(null);
     }
@@ -261,8 +293,18 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
             <Text variant="label" weight="semibold" tone="muted">
               {tc("plan.title")}
             </Text>
-            {savedNotice ? <Badge label={tc("plan.saved")} tone="success" /> : null}
+            {savedNotice ? <Badge label={tc("plan.saved")} tone="answer" /> : null}
           </View>
+          {errorNotice ? (
+            <Text
+              variant="label"
+              tone="muted"
+              accessibilityLiveRegion="polite"
+              testID="prep-coach-error"
+            >
+              {errorNotice}
+            </Text>
+          ) : null}
           <TextField
             label={tc("plan.goals")}
             value={goalsText}
@@ -270,6 +312,14 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
             multiline
             height={64}
             testID="plan-goals-input"
+          />
+          <TextField
+            label={tc("plan.objections")}
+            value={objectionsText}
+            onChangeText={setObjectionsText}
+            multiline
+            height={56}
+            testID="plan-objections-input"
           />
           <TextField
             label={tc("plan.questions")}
@@ -315,6 +365,6 @@ const styles = StyleSheet.create({
   bubble: {
     padding: space.sm,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
 });

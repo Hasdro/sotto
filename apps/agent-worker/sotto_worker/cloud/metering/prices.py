@@ -14,7 +14,7 @@ from sotto_worker.runtime import SEED
 from sotto_worker.server.catalog import Catalog
 
 PRICES = SEED / "models" / "prices.yaml"
-UNITS = ("per_hour", "per_mtok")
+UNITS = ("per_hour", "per_mtok", "per_1k_chars")
 
 
 @dataclass(frozen=True)

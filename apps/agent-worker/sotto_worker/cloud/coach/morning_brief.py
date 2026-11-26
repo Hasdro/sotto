@@ -13,10 +13,15 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from sotto_worker.cloud.coach.engine import load_prompt_body, render_template
-from sotto_worker.cloud.coach.store import CoachStore
-from sotto_worker.cloud.coach.stubs import log_event
-from sotto_worker.cloud.store import Principal
+from sotto_worker.cloud.coach.engine import (
+    _safe_var,
+    _split_turn_prompt,
+    load_prompt_body,
+    render_template,
+)
+from sotto_worker.cloud.coach.store import CapAlertSender, CoachStore
+from sotto_worker.cloud.obs.log import log_event
+from sotto_worker.cloud.store import Principal, plan_state
 from sotto_worker.contracts import LLMAdapter, LLMRequest, Message
 
 MeetingsFetcher = Callable[[str, str, str], Awaitable[list[dict[str, Any]]]]
@@ -60,7 +65,8 @@ async def generate_morning_brief(
     tip = _daily_tip(day_iso, who.user_id)
 
     cap = store.cap_status(who.company, now=t)
-    mode: Literal["text", "voice"] = "voice" if cap["available"] else "text"
+    voice_ok = cap["available"] and store.s.feature_state(who, "voice_coach").state == "available"
+    mode: Literal["text", "voice"] = "voice" if voice_ok else "text"
 
     meetings_text = (
         "\n".join(
@@ -74,19 +80,24 @@ async def generate_morning_brief(
     )
 
     if llm is not None:
-        system = render_template(
+        rendered_prompt = render_template(
             load_prompt_body("morning_brief", prompts=prompts),
             {
-                "brief.meetings": meetings_text or "None (Zoho not connected or no meetings today)",
-                "brief.pending_reviews": reviews_text,
-                "brief.recent_tip_context": tip,
+                "brief.meetings": _safe_var(
+                    meetings_text or "None (Zoho not connected or no meetings today)"
+                ),
+                "brief.pending_reviews": _safe_var(reviews_text),
+                "brief.recent_tip_context": _safe_var(tip),
             },
         )
+        system, user_part = _split_turn_prompt(rendered_prompt)
         chunks: list[str] = []
         async for chunk in llm.stream(
             LLMRequest(
                 system=system,
-                messages=[Message(role="user", content="Write today's morning brief.")],
+                messages=[
+                    Message(role="user", content=user_part or "Write today's morning brief.")
+                ],
                 max_tokens=220,
                 temperature=0.4,
             )
@@ -96,9 +107,11 @@ async def generate_morning_brief(
     else:
         parts: list[str] = []
         if meeting_list:
-            parts.append(f"Today's meetings ({len(meeting_list)}): " + ", ".join(
-                str(m.get("title", "Call")) for m in meeting_list[:4]
-            ) + ".")
+            parts.append(
+                f"Today's meetings ({len(meeting_list)}): "
+                + ", ".join(str(m.get("title", "Call")) for m in meeting_list[:4])
+                + "."
+            )
         parts.append(f"Tip for today: {tip}")
         if pending:
             parts.append(f"You have {len(pending)} pending call review(s) in your queue.")
@@ -141,18 +154,25 @@ async def morning_brief_job(
     """
     t = store.clock() if now is None else now
     users = store.s._q(
-        "SELECT id, company_id, email, name, role FROM users WHERE active=1"
+        "SELECT id, company_id, email, name, role FROM users"
+        " WHERE active=1 AND company_id IS NOT NULL AND role != 'owner'"
     )
     delivered = 0
     for u in users:
+        cid = str(u["company_id"])
         who = Principal(
             user_id=str(u["id"]),
-            company_id=str(u["company_id"]),
+            company_id=cid,
             role=str(u["role"]),
             device_id=None,
             email=str(u["email"]),
             name=str(u["name"]),
         )
+        if store.s.feature_state(who, "morning_brief").state != "available":
+            continue
+        company_row = store.s.company_row(cid)
+        if not plan_state(company_row, store.s.minutes_used(cid), t)["can_call"]:
+            continue
         prefs = store.get_morning_brief_prefs(who)
         if not prefs["enabled"]:
             continue
@@ -164,9 +184,41 @@ async def morning_brief_job(
             continue
         meetings: list[dict[str, Any]] = []
         if fetch_meetings is not None:
-            meetings = await fetch_meetings(who.company, who.user_id, day_iso)
-        await generate_morning_brief(
-            store, who, meetings=meetings, prompts=prompts, llm=llm, now=t
-        )
+            try:
+                meetings = await fetch_meetings(cid, who.user_id, day_iso)
+            except Exception:
+                meetings = []
+        await generate_morning_brief(store, who, meetings=meetings, prompts=prompts, llm=llm, now=t)
         delivered += 1
     return delivered
+
+
+async def send_review_reminders_job(
+    store: CoachStore,
+    *,
+    send_email: CapAlertSender | None = None,
+    now: int | None = None,
+) -> int:
+    """Scheduler hook (V3): send the single 24 h pending-review reminder once per item."""
+    t = store.clock() if now is None else now
+    due = store.due_reminders(now=t)
+    sent = 0
+    for item in due:
+        if send_email is not None:
+            rows = store.s._q(
+                "SELECT email FROM users WHERE company_id=? AND id=? AND active=1",
+                (item["company_id"], item["user_id"]),
+            )
+            if rows:
+                try:
+                    await send_email(
+                        str(rows[0]["email"]),
+                        "Pending post-call coach review",
+                        "You have a pending call review waiting in your Sales Shield queue.",
+                    )
+                except Exception:
+                    log_event("coach_review", "reminder_email_failed", call_id=item["call_id"])
+        if store.mark_reminded(item["company_id"], item["id"], now=t):
+            log_event("coach_review", "reminder_sent", call_id=item["call_id"])
+            sent += 1
+    return sent

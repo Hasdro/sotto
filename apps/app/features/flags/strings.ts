@@ -64,6 +64,9 @@ const en: Text = {
     card_style_v2: "Card tone & style",
     call_state: "Running call state",
     talk_meter: "Talk balance bar",
+    prep_coach: "Prep coach & game plan",
+    voice_coach: "Voice coach",
+    morning_brief: "Morning brief",
   },
   about: {
     call_review: "Scores and coaching after each call.",
@@ -96,6 +99,9 @@ const en: Text = {
     card_style_v2: "Lets admins set company card tone, banned openers, and WHY insights.",
     call_state: "Maintains a live summary of the conversation during calls.",
     talk_meter: "Shows agent vs customer talk balance at the top of the live call screen.",
+    prep_coach: "Pre-call brainstorming coach and editable call game plan.",
+    voice_coach: "Interruptible voice coaching in prep and post-call review under a monthly cap.",
+    morning_brief: "Daily 08:00 brief with today's meetings, a tip, and pending call reviews.",
   },
   state: {
     available: "On",
@@ -159,6 +165,9 @@ const ar: Text = {
     card_style_v2: "نبرة البطاقات والأسلوب",
     call_state: "ملخص المكالمة المباشر",
     talk_meter: "شريط توازن الحديث",
+    prep_coach: "مدرب التحضير وخطة المكالمة",
+    voice_coach: "المدرب الصوتي",
+    morning_brief: "موجز الصباح",
   },
   about: {
     call_review: "تقييم وتوجيه بعد كل مكالمة.",
@@ -190,6 +199,9 @@ const ar: Text = {
     card_style_v2: "يتيح للمسؤول ضبط نبرة البطاقات والعبارات الممنوعة وتفسير الإجابات.",
     call_state: "يحفظ ملخصًا مباشرًا لمجريات المكالمة أثناء الحديث.",
     talk_meter: "يعرض نسبة حديث الموظف مقابل العميل أعلى شاشة المكالمة.",
+    prep_coach: "مدرب تحضير للمكالمات مع خطة عمل قابلة للتعديل.",
+    voice_coach: "تدريب صوتي تفاعلي قبل المكالمة وبعدها ضمن حد شهري.",
+    morning_brief: "موجز يومي الساعة 08:00 باجتماعات اليوم ونصيحة ومراجعات معلقة.",
   },
   state: {
     available: "مفعّلة",

@@ -36,7 +36,7 @@ class TTSAdapter(Protocol):
     model: str
 
     def synthesize(self, text: str, opts: TTSOptions | None = None) -> AsyncIterator[AudioChunk]:
-        """Stream synthesized audio chunks for `text`. Cancelling the iterator interrupts playback."""
+        """Stream synthesized audio for `text`. Cancelling the iterator stops playback."""
         ...
 
 

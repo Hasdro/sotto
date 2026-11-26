@@ -1827,6 +1827,26 @@ class CloudStore:
         else:
             org_off.discard("local_models_voice")
 
+        if self._table_exists("coach_caps"):
+            cap_rows = self._q(
+                "SELECT cap_usd, enabled, stages_configured FROM coach_caps WHERE company_id = ?",
+                (company_id,),
+            )
+            cr = cap_rows[0] if cap_rows else None
+            vc_on = bool(
+                cr
+                and cr["stages_configured"]
+                and cr["enabled"]
+                and cr["cap_usd"] is not None
+                and float(cr["cap_usd"]) > 0
+            )
+        else:
+            vc_on = False
+        if not vc_on:
+            not_entitled.add("voice_coach")
+        elif chosen.get("voice_coach") is not False:
+            org_off.discard("voice_coach")
+
         return features.Layers(
             killed=frozenset(killed),
             not_entitled=frozenset(not_entitled),

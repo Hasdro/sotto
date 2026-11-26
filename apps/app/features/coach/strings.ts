@@ -18,6 +18,7 @@ const en = {
   "prep.coach.generating": "Building game plan…",
   "prep.coach.startNow": "Start listening",
   "prep.coach.noZoho": "No Zoho brief linked — coach will work from your notes.",
+  "prep.coach.error": "Could not reach the coach right now. Saved inputs stay intact.",
 
   "plan.title": "Game plan",
   "plan.goals": "3 Goals",
@@ -39,6 +40,8 @@ const en = {
   "review.cancel": "Close",
   "review.done": "Review saved and added to your style memory.",
   "review.timer": "{remaining} left",
+  "review.opening":
+    "Quick debrief: strong opening and clear pacing. Next time, ask about timeline before quoting. Anything I should remember for next time?",
 
   "queue.title": "Pending call reviews",
   "queue.badge": "{count}",
@@ -66,6 +69,12 @@ const en = {
   "admin.transcriptDesc": "Allow company admins to read agent post-call coach transcripts.",
   "admin.transcriptOn": "Visible to admins",
   "admin.transcriptOff": "Private to each agent",
+  "admin.reason.ok": "Active",
+  "admin.reason.not_configured": "Not configured",
+  "admin.reason.off_by_platform": "Off by platform",
+  "admin.reason.no_cap": "No monthly cap set",
+  "admin.reason.cap_reached": "Monthly cap reached",
+  "admin.error": "Could not save coach settings. Try again.",
 } as const;
 
 export type CoachTextKey = keyof typeof en;
@@ -81,6 +90,7 @@ const ar: Record<CoachTextKey, string> = {
   "prep.coach.generating": "جارٍ إعداد خطة المكالمة…",
   "prep.coach.startNow": "بدء الاستماع",
   "prep.coach.noZoho": "لا يوجد ملخص من Zoho — سيعمل المدرب من ملاحظاتك.",
+  "prep.coach.error": "تعذر الاتصال بالمدرب الآن. تم الحفاظ على مدخلاتك.",
 
   "plan.title": "خطة المكالمة",
   "plan.goals": "3 أهداف",
@@ -102,6 +112,8 @@ const ar: Record<CoachTextKey, string> = {
   "review.cancel": "إغلاق",
   "review.done": "تم حفظ المراجعة وإضافتها إلى ذاكرة أسلوبك.",
   "review.timer": "المتبقي {remaining}",
+  "review.opening":
+    "مراجعة سريعة: افتتاحية قوية وإيقاع واضح. في المرة القادمة اسأل عن الجدول الزمني قبل ذكر السعر. هل هناك شيء يجب أن أتذكره للمرة القادمة؟",
 
   "queue.title": "مراجعات المكالمات المعلقة",
   "queue.badge": "{count}",
@@ -129,6 +141,12 @@ const ar: Record<CoachTextKey, string> = {
   "admin.transcriptDesc": "السماح لمديري الشركة بقراءة نصوص مراجعات المدرب للوكلاء.",
   "admin.transcriptOn": "مرئية للمديرين",
   "admin.transcriptOff": "خاصة بكل وكيل",
+  "admin.reason.ok": "نشط",
+  "admin.reason.not_configured": "غير مُعدّ",
+  "admin.reason.off_by_platform": "موقوف من المنصة",
+  "admin.reason.no_cap": "لم يُحدد حد شهري",
+  "admin.reason.cap_reached": "تم بلوغ الحد الشهري",
+  "admin.error": "تعذر حفظ إعدادات المدرب. حاول مرة أخرى.",
 };
 
 const tables: Record<Locale, Record<CoachTextKey, string>> = { en, ar };

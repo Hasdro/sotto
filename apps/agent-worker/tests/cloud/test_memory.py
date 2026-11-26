@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.testclient import TestClient
 
 from sotto_worker.cloud import features as features_mod
+from sotto_worker.cloud.coach import register_coach_store
 from sotto_worker.cloud.learning.store import LearningStore
 from sotto_worker.cloud.memory import api as memory_api
 from sotto_worker.cloud.memory import routes as memory_routes
@@ -189,6 +190,7 @@ def test_contract_api_and_company_priority_over_agent_rules(tmp_path: Path) -> N
         assert effective[3:] == [f"Agent rule {i}" for i in range(1, 10)]
     finally:
         memory_api.configure(None)
+        register_coach_store(None)
         store.close()
 
 
@@ -749,6 +751,7 @@ def test_cloud_app_wiring_bundle_validation_and_owner_csp(tmp_path: Path) -> Non
         assert client.delete("/api/v1/postcall/wizard/cw-1", headers=h_agent).status_code == 200
     finally:
         memory_api.configure(None)
+        register_coach_store(None)
         store.close()
 
 
@@ -820,7 +823,7 @@ def test_memory_edge_cases_and_python_call_session_injection(tmp_path: Path) -> 
                 clock,
             )
             session = CallSession(
-                call_id="c-py",
+                call_id="00000000-0000-4000-8000-000000000001",
                 company=CompanyProfile.load(SEED / "company" / "default.yaml"),
                 router=router,
                 prompts=PromptRegistry.from_seed(SEED / "prompts"),
@@ -849,4 +852,5 @@ def test_memory_edge_cases_and_python_call_session_injection(tmp_path: Path) -> 
         assert "Keep answers under 15 words." in fake_llm.requests[0].system
     finally:
         memory_api.configure(None)
+        register_coach_store(None)
         store.close()

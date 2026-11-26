@@ -6,9 +6,25 @@ import { Disclosure, Panel, Stack, Text } from "@sotto/ui";
 import type { GamePlan } from "./api";
 import { useCoachText } from "./strings";
 
+function keyRows<T>(items: readonly T[], labelOf: (item: T) => string) {
+  const seen = new Map<string, number>();
+  return items.map((item) => {
+    const base = labelOf(item);
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return { key: n === 1 ? base : `${base}#${n}`, item };
+  });
+}
+
 export function GamePlanCard({ plan }: { plan: GamePlan | null }) {
   const tc = useCoachText();
   if (!plan) return null;
+  const hasAny =
+    plan.goals.length > 0 ||
+    plan.objections.length > 0 ||
+    plan.questions.length > 0 ||
+    plan.avoid.length > 0;
+  if (!hasAny) return null;
   return (
     <Disclosure title={tc("plan.title")} testID="live-game-plan">
       <Panel sunken>
@@ -18,9 +34,9 @@ export function GamePlanCard({ plan }: { plan: GamePlan | null }) {
               <Text variant="label" weight="semibold" tone="muted">
                 {tc("plan.goals")}
               </Text>
-              {plan.goals.map((g, i) => (
-                <Text key={`g-${i}`} variant="label">
-                  {`• ${g}`}
+              {keyRows(plan.goals, (g) => `g:${g}`).map(({ key, item }) => (
+                <Text key={key} variant="label">
+                  {`• ${item}`}
                 </Text>
               ))}
             </Stack>
@@ -30,11 +46,13 @@ export function GamePlanCard({ plan }: { plan: GamePlan | null }) {
               <Text variant="label" weight="semibold" tone="muted">
                 {tc("plan.objections")}
               </Text>
-              {plan.objections.map((o, i) => (
-                <Text key={`o-${i}`} variant="label">
-                  {`• ${o.objection}: ${o.answer}`}
-                </Text>
-              ))}
+              {keyRows(plan.objections, (o) => `o:${o.objection}:${o.answer}`).map(
+                ({ key, item }) => (
+                  <Text key={key} variant="label">
+                    {`• ${item.objection}: ${item.answer}`}
+                  </Text>
+                ),
+              )}
             </Stack>
           ) : null}
           {plan.questions.length > 0 ? (
@@ -42,9 +60,9 @@ export function GamePlanCard({ plan }: { plan: GamePlan | null }) {
               <Text variant="label" weight="semibold" tone="muted">
                 {tc("plan.questions")}
               </Text>
-              {plan.questions.map((q, i) => (
-                <Text key={`q-${i}`} variant="label">
-                  {`• ${q}`}
+              {keyRows(plan.questions, (q) => `q:${q}`).map(({ key, item }) => (
+                <Text key={key} variant="label">
+                  {`• ${item}`}
                 </Text>
               ))}
             </Stack>
@@ -54,9 +72,9 @@ export function GamePlanCard({ plan }: { plan: GamePlan | null }) {
               <Text variant="label" weight="semibold" tone="muted">
                 {tc("plan.avoid")}
               </Text>
-              {plan.avoid.map((a, i) => (
-                <Text key={`a-${i}`} variant="label">
-                  {`• ${a}`}
+              {keyRows(plan.avoid, (a) => `a:${a}`).map(({ key, item }) => (
+                <Text key={key} variant="label">
+                  {`• ${item}`}
                 </Text>
               ))}
             </Stack>

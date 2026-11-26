@@ -37,6 +37,7 @@ export const HIDDEN_FEATURES: readonly FeatureId[] = [
   "call_logs_github",
   "local_models_text",
   "local_models_voice",
+  "voice_coach",
 ];
 
 const TONE: Record<FeatureState, BadgeTone> = {

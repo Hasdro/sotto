@@ -4,6 +4,7 @@
  */
 
 import { cloudApi } from "../../lib/cloud";
+import { registerOutboxSender } from "../../lib/outbox";
 
 export type PrepMessage = {
   id: string;
@@ -132,6 +133,17 @@ export async function saveGamePlan(
   return res.game_plan;
 }
 
+export async function enqueueReview(
+  callId: string,
+  callDurationS: number,
+): Promise<CoachReviewItem | null> {
+  const res = await cloudApi<{ review: CoachReviewItem | null }>("/api/v1/coach/reviews/enqueue", {
+    method: "POST",
+    body: { call_id: callId, call_duration_s: callDurationS },
+  });
+  return res.review;
+}
+
 export async function listReviewQueue(): Promise<{
   reviews: CoachReviewItem[];
   pending_count: number;
@@ -202,5 +214,42 @@ export async function setAdminTranscriptAccess(allow: boolean): Promise<{
   return cloudApi("/api/v1/coach/settings", {
     method: "PUT",
     body: { allow_admin_transcript: allow },
+  });
+}
+
+let outboxSendersInstalled = false;
+
+export function initCoachOutboxSenders(): void {
+  if (outboxSendersInstalled) return;
+  outboxSendersInstalled = true;
+  registerOutboxSender("coach_prep_message", async (payload) => {
+    const p = payload as {
+      callId: string;
+      message: string;
+      crm_brief?: string;
+      prep_notes?: string;
+    };
+    await sendPrepMessage(p.callId, {
+      message: p.message,
+      ...(p.crm_brief ? { crm_brief: p.crm_brief } : {}),
+      ...(p.prep_notes ? { prep_notes: p.prep_notes } : {}),
+      voice: false,
+    });
+  });
+  registerOutboxSender("coach_review_complete", async (payload) => {
+    const p = payload as {
+      reviewId?: string;
+      callId: string;
+      transcript: { role: string; content: string }[];
+      remember_note?: string;
+      duration_s: number;
+      voice: boolean;
+    };
+    await completeReview(p.reviewId ?? p.callId, {
+      transcript: p.transcript,
+      ...(p.remember_note ? { remember_note: p.remember_note } : {}),
+      duration_s: p.duration_s,
+      voice: p.voice,
+    });
   });
 }

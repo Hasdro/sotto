@@ -8,7 +8,11 @@ from sotto_worker.adapters.coach.base import (
     TTSOptions,
 )
 from sotto_worker.adapters.coach.deepgram_tts import DeepgramTTSAdapter
-from sotto_worker.adapters.coach.fake import FakeCoachLLMAdapter, FakeCoachSTTAdapter, FakeTTSAdapter
+from sotto_worker.adapters.coach.fake import (
+    FakeCoachLLMAdapter,
+    FakeCoachSTTAdapter,
+    FakeTTSAdapter,
+)
 
 __all__ = [
     "AudioChunk",

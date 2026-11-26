@@ -169,6 +169,8 @@ export type LocalCallDeps = {
   speed?: number;
   /** R10: the brief of the CRM record the agent attached in the context rail ("" = none). */
   crmBrief?: (() => string) | undefined;
+  /** Agent 3: live prep game plan reader ("" = none). */
+  gamePlan?: (() => string | null | undefined) | undefined;
 };
 
 function percentile(sorted: number[], p: number): number | null {
@@ -309,7 +311,7 @@ export class LocalCall {
             ...(deps.runtime.bundle.card_tone.banned_ar ?? []),
           ]
         : undefined,
-      gamePlan: deps.runtime.bundle.game_plan ?? undefined,
+      gamePlan: () => deps.gamePlan?.()?.trim() || deps.runtime.bundle.game_plan?.trim() || null,
       learnedPrompt: deps.runtime.bundle.prompts.learned_instructions,
       holdingAtMs: deps.runtime.holdingAtMs,
       lateAnswerUntilMs: deps.runtime.lateAnswerUntilMs,
