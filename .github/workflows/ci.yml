@@ -114,6 +114,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          package-manager-cache: false # this job never installs, so there is nothing to cache
       - name: Desktop unit & packaged-files tests
         working-directory: apps/desktop
         run: npm test

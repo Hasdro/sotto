@@ -912,6 +912,26 @@ ol.steps li + li {
   margin-block-start: var(--ss-space-xl);
   text-align: center;
 }
+.whats-new {
+  max-inline-size: 880px;
+  margin: var(--ss-space-xl) auto 0;
+  padding: var(--ss-space-lg) var(--ss-space-xl);
+  border-radius: var(--ss-radius-sheet);
+  background: var(--ss-surface);
+  box-shadow:
+    0 0 0 1px var(--ss-glass-ring),
+    var(--ss-glass-shadow);
+}
+.whats-new h3 {
+  margin: 0;
+}
+.new-list {
+  margin: var(--ss-space-sm) 0 0;
+  padding-inline-start: 1.3em;
+  display: grid;
+  gap: var(--ss-space-xs);
+  color: var(--ss-text-muted);
+}
 
 /* ---------- Contact ---------- */
 .contact {

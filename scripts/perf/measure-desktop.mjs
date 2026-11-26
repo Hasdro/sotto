@@ -217,7 +217,7 @@ async function measurePackagedMacApp(appOrBinary) {
                   if (document.readyState === "complete" && (document.body?.innerText?.trim()?.length ?? 0) > 0) {
                     resolve(true);
                   } else {
-                    requestAnimationFrame(check);
+                    setTimeout(check, 25);
                   }
                 };
                 check();

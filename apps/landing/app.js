@@ -126,7 +126,7 @@
         "</p>";
     }
     if (lead) lead.textContent = `${t("dl.lead")} ${ver}.`;
-    mac.innerHTML = file("mac-arm64", t("dl.arm"), false) + file("mac-x64", t("dl.x64"), false);
+    mac.innerHTML = file("mac-arm64", t("dl.arm"), false);
     win.innerHTML = file("win-x64", t("dl.winInstaller"), false);
   }
 

@@ -156,7 +156,9 @@ class FakeClock implements Clock {
   }
   async advance(ms: number): Promise<void> {
     const flush = async () => {
-      for (let i = 0; i < 6; i += 1) await Promise.resolve();
+      for (let i = 0; i < 16; i += 1) await Promise.resolve();
+      await new Promise<void>((r) => setTimeout(r, 0));
+      for (let i = 0; i < 16; i += 1) await Promise.resolve();
     };
     await flush();
     const target = this.nowMs + ms;
