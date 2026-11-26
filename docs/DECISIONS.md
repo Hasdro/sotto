@@ -679,3 +679,99 @@ Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058
 ## D-093 — Dropdowns: contained, searchable, labelled (owner, 19 Nov 2026)
 2026-11-19 · owner (M-003, T-105/T-110)
 - **Decision:** owner console — the Gallabox templates `<details>` picker is replaced with a contained scrollable searchable list; every select gets a visible associated label; empty model lists fall back to a free-text input. Client — a new `@sotto/ui` `Dropdown` (Sheet-based, searchable single-select) for lists over 4 options, first used by the FormatsEditor format picker (replacing the dynamic-length SegmentedControl); 2–3-option SegmentedControls stay.
+
+## D-094 — Card style v2 (Round 4, 25 Nov 2026)
+2026-11-25 · master (Round 4, C1–C3, C6)
+- **Decision:** Replace the 25-word limit in `seed/prompts/suggest.md` v4 with two-part cards (`SAY:` concise 1–2 sentences ≤ 18 words each, optional `TIP:`, optional `WHY:` insight ≤ 12 words), EN/AR banned-opener stripping, and company/agent card tone presets (`direct`, `warm`, `consultative`, `brief`).
+
+## D-095 — Per-user owner overrides (Round 4, 25 Nov 2026)
+2026-11-25 · master (Round 4, R7 exception, D-136)
+- **Decision:** While R7 forbids per-user feature toggles generally, the platform owner (only) may set per-user overrides strictly for `call_logs_github`, `local_models_text`, and `local_models_voice`. Company admins and agents cannot set or view per-user feature overrides.
+
+## D-096 — Slow local model for live cards, R1 exception (Round 4, 25 Nov 2026)
+2026-11-25 · master (Round 4, L6, R1 exception)
+- **Decision:** After running the local model benchmark, a user may opt in to use a slow local text model for live cards after an explicit latency warning. The holding line still appears by 1500 ms (R2), and the local card replaces it when ready with a `"local model – slower"` badge. Those calls are timed and logged but excluded from the R1 1500 ms p95 alarm.
+
+## D-097 — Desktop releases: Apple-chip Mac and Windows only (Round 4, 25 Nov 2026)
+2026-11-25 · master (Round 4, S3, R5a update)
+- **Decision:** Starting with `0.7.0`, published desktop installers are Apple-chip macOS (`arm64` DMG) and Windows (`win-x64` Setup EXE) only. Intel Mac (`x64`) builds stop; CI and `scripts/downloads-manifest.mjs` validate `mac-arm64` and `win-x64`, and both installers must pass launch smoke tests (`launch.mac.mjs`, `launch.win.mjs`) before publishing.
+
+## D-098 — Automatic call-log GitHub issues (Round 4, 25 Nov 2026)
+2026-11-25 · master (Round 4, L3–L5)
+- **Decision:** Call-event telemetry logs (redacted metadata only — zero transcript text, names, phones, emails, keys, or auth tokens) file automatically as GitHub issues to a separate private logs repository without manual approval, alongside a local redacted safety log (≤ 5 MB, 7-day retention). User-written client bug reports continue to go through the owner review queue (`bug_reports`) before submission to GitHub.
+
+## D-099 — Round 4 working rules (Round 4, 25 Nov 2026)
+2026-11-25 · master (Round 4, L1)
+- **Decision:** New features in Round 4 default to ON except `call_logs_github`, `local_models_text`, `local_models_voice`, and `voice_coach` (default OFF). Four parallel workstreams merge in order `4 → 2 → 1 → 3` (`round4/platform` → `round4/wizard-memory` → `round4/live-cards` → `round4/voice-coach`) for release `0.7.0`.
+
+## D-100 — WHY insight transport without breaking CardMessage schema (25 Nov 2026)
+2026-11-25 · Agent 1 (Round 4, R4-A1-1)
+- **Decision:** `VerdictParser.finish()` appends optional `WHY:` insight (≤ 12 words) as `\nWHY: <insight>` to card text; `CardStack.tsx` splits it via `splitCardWhy()` and renders it collapsed by default, keeping the `@sotto/shared` `CardMessage` protocol backwards-compatible across parallel Round 4 branches.
+
+## D-101 — CallStateUpdater coalescing async queue (25 Nov 2026)
+2026-11-25 · Agent 1 (Round 4, R4-A1-4)
+- **Decision:** Background call-state updates coalesce pending transcripts to the latest turn if a previous `call_state` LLM call is still in flight, capping output at 120 words and adding 0 ms to the live card path.
+
+## D-102 — CardToneStore precedence and tenant isolation (25 Nov 2026)
+2026-11-25 · Agent 1 (Round 4, R4-A1-2)
+- **Decision:** Tone resolution strictly follows `agent > company > platform`, with company `allowed_presets` gating agent choices and `company_id` scoping every company and agent row.
+
+## D-110 — Style memory scopes extending cloud/learning (25 Nov 2026)
+2026-11-25 · Agent 2 (Round 4, R4-A3)
+- **Decision:** Style memory extends `cloud/learning/` with per-agent and company scopes. Existing company `learned_versions` migrate once into company-wide `memory_versions`; `get_style_memory()` returns ≤ 12 enabled rules with company rules prioritized ahead of per-agent rules.
+
+## D-111 — Canonical Round 4 feedback reasons with legacy mapping (25 Nov 2026)
+2026-11-25 · Agent 2 (Round 4, R4-A2)
+- **Decision:** Feedback chips use `too_long`, `too_formal`, `wrong`, and `not_relevant` (plus `good_phrasing` for thumbs-up); legacy `not_our_style` maps to `too_formal` on both client and server.
+
+## D-112 — Server-side post-call wizard persistence (25 Nov 2026)
+2026-11-25 · Agent 2 (Round 4, R4-A1)
+- **Decision:** `postcall_wizard_state` persists "Finish later" active step and unsent drafts for 24 h; after 24 h drafts are cleared and Step 5 (Card feedback) stays in the review queue for 7 days.
+
+## D-113 — Feature-local bilingual strings for Post-Call Wizard and Style Memory (25 Nov 2026)
+2026-11-25 · Agent 2 (Round 4, R4-A1..A4)
+- **Decision:** Keeps `apps/app/features/postcall/strings.ts` self-contained (English + Arabic) to avoid `lib/i18n.ts` conflicts across parallel Round 4 agents (following D-058).
+
+## D-120 — Voice coach router stages and default-off rollout (25 Nov 2026)
+2026-11-25 · Agent 3 (Round 4, T-R4-A3-02)
+- **Decision:** Seed defaults configure `coach_stt`, `coach_llm`, and `coach_tts` with Deepgram Nova-3 + Groq + Deepgram Aura-2; `voice_coach` stays `default: "off"` and hidden until the owner configures stages, enables the company, and sets a positive monthly USD cap.
+
+## D-121 — Voice coach vendor pricing and TTS adapter (25 Nov 2026)
+2026-11-25 · Agent 3 (Round 4, T-R4-A3-02)
+- **Decision:** Implemented `DeepgramTTSAdapter` (`/v1/speak`, streaming, interruptible) behind `TTSAdapter` protocol; `DEFAULT_COST_PER_MIN_USD = 0.04` is used to display estimated minutes beside the monthly USD cap (owner-overridable per company).
+
+## D-122 — Game plan pre-rendered contract (25 Nov 2026)
+2026-11-25 · Agent 3 (Round 4, T-R4-A3-01)
+- **Decision:** `get_game_plan(company_id, call_id)` returns pre-rendered text (≤ 150 words) saved at prep time so injecting `{{call.game_plan}}` into live cards adds zero latency to the 1500 ms R1 budget.
+
+## D-123 — Review queue lifecycle and transcript privacy (25 Nov 2026)
+2026-11-25 · Agent 3 (Round 4, T-R4-A3-03)
+- **Decision:** Calls < 30 s create no review; snooze supports 1 h, tomorrow 08:00 local, or custom; 1 reminder after 24 h; 7-day expiry; review transcripts stay private to the agent unless the company admin enables `allow_admin_transcript`.
+
+## D-130 — Local provider seed section (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P6)
+- **Decision:** Store self-hosted HTTP/LAN provider templates (`local_openai`, `local_stt`, `local_tts`) under top-level `local_providers:` in `seed/models/providers.yaml` so cloud `providers:` keeps strict `https://` URL validation.
+
+## D-131 — Obs redaction allowlist (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P4/P5)
+- **Decision:** Allow numeric token-size counters (`tokens_in`, `tokens_out`, `request_bytes`, `response_bytes`) in `obs` logs while stripping auth tokens (`access_token`, `refresh_token`, `auth_token`, `auth_header`, `token`) and PII/transcript keys.
+
+## D-132 — Idempotent-only network retries (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P1)
+- **Decision:** `cloud.ts` `request()` and `server.ts` `api()` apply a 15 s `AbortController` timeout and ≤ 2 retries (`300 ms`, `900 ms`) only for idempotent HTTP methods (`GET`, `HEAD`, `PUT`, `DELETE`, `OPTIONS`) or explicit `idempotent: true`; `POST` is never retried automatically.
+
+## D-133 — Single-flight persistent outbox (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P1)
+- **Decision:** `apps/app/lib/outbox.ts` persists queued items with optional `dedupeKey` and serializes `flushOutbox()` through a single-flight promise so reconnects never send duplicate follow-ups or feedback.
+
+## D-134 — Desktop crash reload loop guard (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P1)
+- **Decision:** `apps/desktop/crash-safety.cjs` caps automatic renderer reloads at 5 per minute to prevent infinite crash loops while preserving active route and call recovery state on transient crashes.
+
+## D-135 — Event-driven pipeline recovery (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P1)
+- **Decision:** Mid-call pipeline drops are coordinated through `PipelineSupervisor` (`apps/app/lib/pipelineSupervisor.ts`) with `[200, 500, 1000] ms` backoff (≤ 3 s total), leaving `pipeline/` decoupled.
+
+## D-136 — Enforcement of D-095 per-user overrides (25 Nov 2026)
+2026-11-25 · Agent 4 (Round 4, R4-P5)
+- **Decision:** `cloud/features.py` restricts `Layers.user_overrides` strictly to `PER_USER_OVERRIDE_IDS = {"call_logs_github", "local_models_text", "local_models_voice"}` and `cloud/obs/store.py` rejects any other feature ID with `CloudError("invalid")`.

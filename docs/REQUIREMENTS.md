@@ -19,6 +19,7 @@ top FAQs from the playbook index, streamed cards.
 - `pnpm replay --all` runs the golden recorded calls; p95 total > 1500 ms fails CI.
 - Cards stream word by word; the first word counts as "shown".
 - If no suggestion is ready by 1500 ms, the card shows the holding line (R2), never nothing.
+- Exception (D-096): a user who opts in to a slow local model after its benchmark warning still receives the holding line at 1500 ms, replaced when the local card completes with a `"local model – slower"` badge; those calls are measured but excluded from the p95 alarm.
 
 ## R2 — Never leave the agent empty-handed
 
@@ -134,21 +135,21 @@ change them without a code release.
 - Grep check in CI: no provider SDK is imported outside `adapters/`; no model name string outside config/seed data.
 - Add a key in the Keys & providers panel, test it, select it for a stage; the next call uses it; the key never appears in any API response.
 
-## R5a — Desktop first: macOS and Windows (supersedes R5, D-027)
+## R5a — Desktop first: macOS and Windows (supersedes R5, D-027, D-097)
 
-One codebase; releases are the macOS and Windows desktop apps. Light and dark, Arabic RTL. Mobile, extension and Linux code stay and keep passing tests, with no release work.
+One codebase; releases are the Apple-chip macOS and Windows desktop apps. Light and dark, Arabic RTL. Mobile, extension and Linux code stay and keep passing tests, with no release work; Intel Mac (`x64`) release builds stop from `0.7.0` (D-097).
 
 **Acceptance tests**
-- Each version ships a macOS DMG (arm64 + x64) and a Windows installer with the same version number.
+- Each version ships an Apple-chip macOS DMG (`arm64`) and a Windows installer (`win-x64`) with the same version number, passing `launch.mac.mjs` / `launch.win.mjs` before publishing.
 - A full test call works on a Mac and on a Windows PC before a release is published.
 
 ---
 
 The requirements below come from the phase 9 brief (`docs/phases/phase-9-product-round.md`), which holds the full detail.
 
-## R7 — Feature flags (D-028, D-036)
+## R7 — Feature flags (D-028, D-036, D-095)
 
-Every capability has one state: available, off_by_platform, off_by_org, needs_connection, no_permission. Platform entitlement and a global kill switch (owner), an org toggle (admin, default on), role rules. No per-user toggle.
+Every capability has one state: available, off_by_platform, off_by_org, needs_connection, no_permission. Platform entitlement and a global kill switch (owner), an org toggle (admin, default on), role rules. No per-user toggle, except owner-only overrides for `call_logs_github`, `local_models_text`, and `local_models_voice` (D-095).
 
 **Acceptance tests**
 - For each non-available state, the server rejects the action with `feature_unavailable` and the state; a test covers every state.

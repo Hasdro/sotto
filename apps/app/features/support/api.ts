@@ -86,21 +86,28 @@ export class OwnerApiError extends Error {
  * owner console is a separate origin with its own cookie); it must never sign the user
  * out, so this is a plain fetch, not cloudApi. */
 async function ownerFetch<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
-  const response = await fetch(`${apiOrigin()}${path}`, {
-    method: init?.method ?? "GET",
-    credentials: "include",
-    headers: init?.body === undefined ? {} : { "content-type": "application/json" },
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-  });
-  const data: unknown = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message =
-      typeof data === "object" && data !== null && "error" in data
-        ? String((data as { error: unknown }).error)
-        : `HTTP ${response.status}`;
-    throw new OwnerApiError(response.status, message);
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 15_000);
+  try {
+    const response = await fetch(`${apiOrigin()}${path}`, {
+      method: init?.method ?? "GET",
+      credentials: "include",
+      signal: stop.signal,
+      headers: init?.body === undefined ? {} : { "content-type": "application/json" },
+      body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+    });
+    const data: unknown = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message =
+        typeof data === "object" && data !== null && "error" in data
+          ? String((data as { error: unknown }).error)
+          : `HTTP ${response.status}`;
+      throw new OwnerApiError(response.status, message);
+    }
+    return data as T;
+  } finally {
+    clearTimeout(timer);
   }
-  return data as T;
 }
 
 /** The review queue, newest first. Throws OwnerApiError(401) outside the owner console. */

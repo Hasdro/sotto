@@ -29,11 +29,17 @@ const PAGES = [
   "/history/c-1042",
   "/playbook",
   "/inbox",
+  "/setup",
+  "/memory",
   "/admin",
   // Round 2 (D-078): /admin/keys, /admin/models and /admin/prompts left the client.
+  "/admin/setup",
   "/admin/settings",
   "/admin/features",
   "/admin/instructions",
+  "/admin/memory",
+  "/admin/tone",
+  "/admin/coach",
   "/admin/integrations",
   "/admin/attachments",
   "/admin/company",
@@ -123,8 +129,74 @@ const OWNER_API = {
   },
   "/api/owner/zoho": { configured: false },
   "/api/owner/smtp": { configured: false },
+  "/api/owner/setup": {
+    steps: [
+      {
+        id: "providers",
+        title: "AI & speech provider keys",
+        what_it_does: "Configures shared platform LLM and STT vendors.",
+        recommended_default: "Primary + backup connected",
+        ok: true,
+        status: "Providers: 2 key(s) configured ✓",
+        fix_href: "/owner#providers",
+      },
+    ],
+  },
+  "/api/owner/logs": {
+    repo: "Hasdro/sales-shield-logs",
+    configured: true,
+    companies: [{ id: "c1", name: "Zylker Trading", enabled: false }],
+    user_overrides: [],
+  },
+  "/api/owner/local-models": {
+    companies: [
+      {
+        id: "c1",
+        name: "Zylker Trading",
+        text_enabled: false,
+        voice_enabled: false,
+        allow_cloud_backup: true,
+      },
+    ],
+    user_overrides: [],
+  },
+  "/api/owner/memory": {
+    companies: [
+      {
+        id: "c1",
+        name: "Zylker Trading",
+        company_rules: [{ text: "Keep answers crisp.", enabled: true }],
+        agents: [],
+      },
+    ],
+  },
+  "/api/owner/coach/companies": {
+    companies: [
+      {
+        id: "c1",
+        name: "Zylker Trading",
+        available: false,
+        enabled: false,
+        stages_configured: false,
+        cap_usd: null,
+        cost_per_min_usd: 0.04,
+        spend_usd: 0,
+        used_minutes: 0,
+        cap_minutes: 0,
+        reason: "owner_setup_required",
+      },
+    ],
+  },
   ...platformStubs(NOW, DAY),
 };
+
+const OWNER_SUBPAGES = [
+  "/owner/setup.html",
+  "/owner/logs.html",
+  "/owner/local-models.html",
+  "/owner/memory",
+  "/owner/coach.html",
+];
 
 const MODES = [
   { scheme: "light", locale: "en" },
@@ -145,7 +217,8 @@ function serve() {
   const server = createServer((req, res) => {
     const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]));
     if (path === "/owner" || path.startsWith("/owner/")) {
-      const name = path === "/owner" || path === "/owner/" ? "index.html" : path.slice(7);
+      const raw = path === "/owner" || path === "/owner/" ? "index.html" : path.slice(7);
+      const name = raw === "memory" ? "memory.html" : raw;
       const file = join(OWNER_DIR, name);
       if (!file.startsWith(OWNER_DIR)) return res.writeHead(404).end();
       try {
@@ -263,6 +336,29 @@ try {
         checked += 1;
         const bad = result.violations.filter((v) => ["serious", "critical"].includes(v.impact));
         const label = `/owner ${view} (${mode.scheme}, ${mode.locale})`;
+        if (bad.length === 0) {
+          console.log(`ok    ${label}`);
+          continue;
+        }
+        failures += bad.length;
+        console.log(`FAIL  ${label}`);
+        for (const v of bad) {
+          console.log(`      ${v.impact}: ${v.id} — ${v.help} (${v.nodes.length} element(s))`);
+          for (const n of v.nodes.slice(0, 3)) console.log(`        ${n.target.join(" ")}`);
+        }
+      }
+      for (const sub of OWNER_SUBPAGES) {
+        await page.goto(`${base}${sub}`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(300);
+        await page.addScriptTag({ content: axeSource });
+        const result = await page.evaluate(async () =>
+          globalThis.axe.run(document, {
+            runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+          }),
+        );
+        checked += 1;
+        const bad = result.violations.filter((v) => ["serious", "critical"].includes(v.impact));
+        const label = `${sub} (${mode.scheme}, ${mode.locale})`;
         if (bad.length === 0) {
           console.log(`ok    ${label}`);
           continue;

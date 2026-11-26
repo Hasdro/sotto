@@ -195,7 +195,11 @@ export function HomeScreen({ footer }: { footer?: React.ReactNode } = {}) {
               : t("home.signedOut")}
           </Text>
         </View>
-        <Button label={t("home.start")} onPress={() => router.push("/call")} testID="home-start" />
+        <Button
+          label={t("home.start")}
+          onPress={() => router.push("/call?prepare=1")}
+          testID="home-start"
+        />
       </View>
 
       <SetupChecklist />

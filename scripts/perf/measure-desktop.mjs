@@ -63,9 +63,18 @@ export function resolveMacBinaryPath(appOrBinary) {
   return candidate;
 }
 
+function parseCpuTimeSec(raw) {
+  if (!raw) return 0;
+  const parts = String(raw).trim().split(":").map(Number);
+  if (parts.some((n) => !Number.isFinite(n))) return 0;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return parts[0] ?? 0;
+}
+
 function execPsTree(rootPid) {
   return new Promise((resolve) => {
-    const ps = spawn("ps", ["-axo", "pid=,ppid=,rss=,%cpu="]);
+    const ps = spawn("ps", ["-axo", "pid=,ppid=,rss=,%cpu=,time="]);
     let buf = "";
     ps.stdout.on("data", (d) => {
       buf += d.toString();
@@ -80,10 +89,12 @@ function execPsTree(rootPid) {
         const ppid = Number(parts[1]);
         const rssKb = Number(parts[2]);
         const cpu = Number(parts[3]);
+        const cpuTimeSec = parseCpuTimeSec(parts[4]);
         if (!Number.isFinite(pid) || !Number.isFinite(ppid)) continue;
         metricsByPid.set(pid, {
           rssKb: Number.isFinite(rssKb) ? rssKb : 0,
           cpu: Number.isFinite(cpu) ? cpu : 0,
+          cpuTimeSec,
         });
         const list = childrenByParent.get(ppid) ?? [];
         list.push(pid);
@@ -93,6 +104,7 @@ function execPsTree(rootPid) {
       const stack = [rootPid];
       let totalRssKb = 0;
       let totalCpu = 0;
+      let totalCpuTimeSec = 0;
       while (stack.length > 0) {
         const pid = stack.pop();
         if (visited.has(pid)) continue;
@@ -101,6 +113,7 @@ function execPsTree(rootPid) {
         if (m) {
           totalRssKb += m.rssKb;
           totalCpu += m.cpu;
+          totalCpuTimeSec += m.cpuTimeSec;
         }
         for (const childPid of childrenByParent.get(pid) ?? []) {
           stack.push(childPid);
@@ -109,9 +122,12 @@ function execPsTree(rootPid) {
       resolve({
         callMemoryMb: Math.round((totalRssKb / 1024) * 10) / 10,
         callCpuPct: Math.round(totalCpu * 10) / 10,
+        cpuTimeSec: totalCpuTimeSec,
       });
     });
-    ps.on("error", () => resolve({ callMemoryMb: Number.NaN, callCpuPct: Number.NaN }));
+    ps.on("error", () =>
+      resolve({ callMemoryMb: Number.NaN, callCpuPct: Number.NaN, cpuTimeSec: Number.NaN }),
+    );
   });
 }
 
@@ -251,13 +267,26 @@ async function measurePackagedMacApp(appOrBinary) {
       throw new Error("CDP probe failed to measure screenSwitchMs / cardRenderMs");
     }
 
-    const { callMemoryMb, callCpuPct } = await execPsTree(child.pid);
+    // Settle post-startup Chromium JIT burst, then sample steady-state CPU delta over 2 s.
+    await new Promise((r) => setTimeout(r, 2500));
+    const tSample0 = performance.now();
+    const startTree = await execPsTree(child.pid);
+    await new Promise((r) => setTimeout(r, 2000));
+    const endTree = await execPsTree(child.pid);
+    const elapsedSec = Math.max(0.5, (performance.now() - tSample0) / 1000);
+    const deltaCpuPct =
+      Number.isFinite(endTree.cpuTimeSec) && Number.isFinite(startTree.cpuTimeSec)
+        ? Math.max(
+            0,
+            Math.round(((endTree.cpuTimeSec - startTree.cpuTimeSec) / elapsedSec) * 100 * 10) / 10,
+          )
+        : endTree.callCpuPct;
     return {
       coldStartMs: readyMs,
       screenSwitchMs: timings.screenSwitchMs,
       cardRenderMs: timings.cardRenderMs,
-      callMemoryMb,
-      callCpuPct,
+      callMemoryMb: endTree.callMemoryMb,
+      callCpuPct: deltaCpuPct,
     };
   } finally {
     child.kill("SIGTERM");
