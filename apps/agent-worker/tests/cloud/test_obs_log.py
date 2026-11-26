@@ -55,7 +55,7 @@ def test_redaction_strips_transcript_pii_and_keys() -> None:
         customer_name="Jane Doe",
         phone="+1-555-234-5678",
         email="jane@acme.example",
-        api_key="sk-secret1234567890abcdef",
+        api_key="sk-" + "secret1234567890abcdef",
         auth_header="ghp_" + "abcdefghijklmnopqrstuv",
         safe_count=4,
         detail="Contact jane@acme.example or +1 555 234 5678 with key sk-abcdef1234567890",

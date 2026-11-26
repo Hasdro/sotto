@@ -1,0 +1,4 @@
+# Verified false positives in unpushed-at-origin test commit 0f926167
+# (synthetic "sk-secret..." unit-test fixtures verifying log redaction).
+0f9261671930483bee24dfb283cfcf5b0c095c0d:apps/agent-worker/tests/cloud/test_obs_log.py:generic-api-key:58
+0f9261671930483bee24dfb283cfcf5b0c095c0d:apps/app/__tests__/network-safety.test.ts:generic-api-key:38
