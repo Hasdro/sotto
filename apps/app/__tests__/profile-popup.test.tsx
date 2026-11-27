@@ -31,16 +31,22 @@ const wrap = (locale: "en" | "ar" = "en") =>
     </LocaleProvider>,
   );
 
-afterEach(() => jest.restoreAllMocks());
+// An own value, not a spy on the getter: jest shares `navigator` between the files of a worker,
+// so `userAgent` may already be a plain value here. Removed again after each test.
+const setUA = (ua: string) =>
+  Object.defineProperty(globalThis.navigator, "userAgent", { value: ua, configurable: true });
+
+afterEach(() => {
+  delete (globalThis.navigator as { userAgent?: string }).userAgent;
+  jest.restoreAllMocks();
+});
 
 beforeEach(() => {
   mockPush.mockReset();
   onClose.mockReset();
   delete (globalThis as { sottoDesktop?: unknown }).sottoDesktop;
   jest.replaceProperty(RN.Platform, "OS", "web");
-  jest
-    .spyOn(globalThis.navigator, "userAgent", "get")
-    .mockReturnValue("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
+  setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
 });
 
 describe("profile popup (UI-002)", () => {

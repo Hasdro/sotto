@@ -70,8 +70,15 @@ const fakeDesktop = (extra: Record<string, unknown>) => {
     ...extra,
   };
 };
+// Jest shares the host's `navigator` object between the test files of one worker: whatever is
+// set on it here is removed again after each test, or a later file sees this user agent.
 const setUA = (ua: string) =>
   Object.defineProperty(globalThis.navigator, "userAgent", { value: ua, configurable: true });
+const restoreNavigator = () => {
+  const nav = globalThis.navigator as { userAgent?: string; clipboard?: unknown };
+  delete nav.userAgent; // own value gone: the host's getter shows through again
+  delete nav.clipboard;
+};
 
 describe("live call actions (PROD-002)", () => {
   const writeText = jest.fn(() => Promise.resolve());
@@ -86,6 +93,7 @@ describe("live call actions (PROD-002)", () => {
   });
   afterEach(() => {
     (globalThis as { sottoDesktop?: unknown }).sottoDesktop = undefined;
+    restoreNavigator();
     jest.restoreAllMocks();
   });
 
