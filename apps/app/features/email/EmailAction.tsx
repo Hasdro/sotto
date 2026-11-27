@@ -19,7 +19,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
-import { useAttached } from "../crm/attached";
+import { useAttachedFor } from "../crm/attached";
 import {
   type Attachment,
   addressList,
@@ -81,7 +81,7 @@ function Composer({
   headerAction,
 }: EmailActionProps) {
   const t = useEmailText();
-  const attached = useAttached();
+  const attached = useAttachedFor(callId); // SAFE-001: never another call's contact
   const person = attached.kind === "attached" ? attached.brief.person : null;
   const [senders, setSenders] = useState<Sender[]>([]);
   const [formats, setFormats] = useState<EmailFormat[]>([]);

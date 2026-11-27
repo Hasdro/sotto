@@ -9,7 +9,7 @@ import { AfterCallChecklist } from "../features/actions/AfterCallChecklist";
 import { buildItems, callScore, taskConfirmation, validDay } from "../features/actions/checklist";
 import { ACTIONS_TEXT, actionsText } from "../features/actions/strings";
 import type { Brief } from "../features/crm/api";
-import { attachBrief, resetCall } from "../features/crm/attached";
+import { attachBrief, bindCall, resetCall } from "../features/crm/attached";
 import { CRM_TEXT } from "../features/crm/strings";
 import type { ConfigHealth } from "../lib/cloud";
 import { LocaleProvider } from "../lib/locale";
@@ -121,6 +121,7 @@ function Banner({ viewAs }: { viewAs: "agent" | "admin" }) {
 
 beforeEach(() => {
   resetCall();
+  bindCall("c1"); // the call the checklist belongs to (SAFE-001)
   mockPush.mockReset();
   mockStatus = { connected: true, features: ALL, scopes_outdated: false };
 });

@@ -3,7 +3,7 @@
 import { UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { ACTIONS_TEXT } from "../features/actions/strings";
-import { attachBrief, resetCall } from "../features/crm/attached";
+import { attachBrief, attachForNextCall, bindCall, resetCall } from "../features/crm/attached";
 import { EmailAction } from "../features/email";
 import { EMAIL_TEXT } from "../features/email/strings";
 import { followUpWarnings } from "../features/email/warnings";
@@ -326,7 +326,19 @@ describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
     notes: [],
     text: "",
   };
-  const call = (id: string) =>
+  const OMAR = {
+    ...BRIEF,
+    person: {
+      ...BRIEF.person,
+      id: "4150868000000224999",
+      name: "Omar Ali",
+      email: "omar@other.test",
+      phone: "+971509999999",
+    },
+  };
+  // A call that ran on this device: the call screen binds it, then it is saved for History.
+  const call = (id: string) => {
+    bindCall(id);
     saveDeviceCall({
       id,
       started_at: 1,
@@ -338,6 +350,22 @@ describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
       p95_ms: null,
       transcript: [{ kind: "line", speaker: "customer", text: "Send me the demo.", at_ms: 1 }],
     });
+  };
+  /** Every customer field of the follow-up, email tab then WhatsApp tab. */
+  const fields = async () => {
+    await waitFor(() => expect(screen.getByTestId("email-action")).toBeTruthy());
+    const email = {
+      to: screen.getByTestId("email-to").props.value,
+      name: screen.getByTestId("email-customer").props.value,
+    };
+    await fireEvent.press(screen.getByTestId("followup-channel-whatsapp"));
+    await waitFor(() => expect(screen.getByTestId("whatsapp-name")).toBeTruthy());
+    return {
+      ...email,
+      waName: screen.getByTestId("whatsapp-name").props.value,
+      waPhone: screen.getByTestId("whatsapp-phone").props.value,
+    };
+  };
   beforeEach(() => {
     resetCall();
     attachBrief(BRIEF);
@@ -372,6 +400,35 @@ describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
     await waitFor(() => expect(screen.getByTestId("whatsapp-name")).toBeTruthy());
     expect(screen.queryByTestId("email-action")).toBeNull();
     expect(sent("/api/v1/email/send")).toEqual([]);
+  });
+
+  it("right after the call, the call's own record fills the customer fields", async () => {
+    call("f7");
+    await wrap(<FollowUp callId="f7" />);
+    expect(await fields()).toEqual({
+      to: "jane@acme.test",
+      name: "Jane Doe",
+      waName: "Jane Doe",
+      waPhone: "+971501234567",
+    });
+  });
+
+  it("an older call never gets the next call's contact (SAFE-001)", async () => {
+    call("f4"); // Jane's call
+    call("f5"); // the next call, with Omar linked
+    attachBrief(OMAR);
+    await wrap(<FollowUp callId="f4" />);
+    expect(screen.getByText("Follow up with the customer")).toBeTruthy();
+    expect(await fields()).toEqual({ to: "", name: "", waName: "", waPhone: "" });
+    expect(screen.queryByText(/Omar|Jane/)).toBeNull();
+  });
+
+  it("a meeting prepared on Home for the next call never fills the last call (SAFE-001)", async () => {
+    call("f6"); // Jane's call
+    attachForNextCall(OMAR);
+    await wrap(<FollowUp callId="f6" />);
+    expect(screen.getByText("Follow up with the customer")).toBeTruthy();
+    expect(await fields()).toEqual({ to: "", name: "", waName: "", waPhone: "" });
   });
 
   it("Draft with AI sits in the email card's header, not above it (UX-011)", async () => {

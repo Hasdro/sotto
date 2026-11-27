@@ -40,9 +40,14 @@ const PREP_MAX = 400;
 const TEXT_MAX = 2000;
 const GAME_PLAN_MAX = 1600;
 
-/** `auto`: brief fields filled from the linked Zoho record, with the value filled in (UX-006). */
-type State = { crm: Attached; prep: Prep; auto: Partial<Prep> };
-let state: State = { crm: { kind: "none" }, prep: EMPTY_PREP, auto: {} };
+/**
+ * `auto`: brief fields filled from the linked Zoho record, with the value filled in (UX-006).
+ * `call`: the call the record and brief belong to; null while they wait for the next call
+ * (picked on Home, or added before the call starts). SAFE-001.
+ */
+type State = { crm: Attached; prep: Prep; auto: Partial<Prep>; call: string | null };
+const NONE: State = { crm: { kind: "none" }, prep: EMPTY_PREP, auto: {}, call: null };
+let state: State = NONE;
 let gamePlanText = "";
 const listeners = new Set<() => void>();
 
@@ -110,9 +115,8 @@ export const clearCrm = () => {
 };
 /** A new call: nothing attached, an empty brief. */
 export const resetCall = () => {
-  carry = false;
   gamePlanText = "";
-  set({ crm: { kind: "none" }, prep: EMPTY_PREP, auto: {} });
+  set(NONE);
 };
 
 export function setGamePlanText(text: string | null | undefined): void {
@@ -123,24 +127,21 @@ export function attachedGamePlanText(): string {
   return gamePlanText;
 }
 
-// Which call the state belongs to. A meeting picked before the call (home screen) is carried
-// into the next call; otherwise a new call id starts clean.
-let boundCall: string | null = null;
-let carry = false;
-
 /** Picked on the home screen: becomes the next call's brief. */
 export function attachForNextCall(brief: Brief): void {
   resetCall();
   attachBrief(brief);
-  carry = true;
 }
 
-/** Called with the call screen's call id; a different id starts a clean brief. */
+/**
+ * Called with the call screen's call id (null before a call). A call keeps what was prepared
+ * for it: a meeting picked on Home, or a record and notes added before it started. A record or
+ * brief that belongs to another call is dropped, so it never carries into this one (SAFE-001).
+ */
 export function bindCall(callId: string | null): void {
-  if (!callId || callId === boundCall) return;
-  if (boundCall !== null && !carry) resetCall();
-  carry = false;
-  boundCall = callId;
+  if (callId === state.call) return;
+  if (state.call !== null) resetCall();
+  if (callId !== null) set({ call: callId });
 }
 export function setPrep(field: PrepField, value: string): void {
   set({ prep: { ...state.prep, [field]: value.slice(0, PREP_MAX) } });
@@ -203,6 +204,16 @@ export function useAttachedState(): State {
   );
 }
 
-export function useAttached(): Attached {
-  return useAttachedState().crm;
+/**
+ * One call's record and brief (SAFE-001). History, the follow-up, the plan and the Zoho rows of
+ * a call never take the record of a later call or of a meeting prepared for the next one:
+ * another call's state reads as nothing attached.
+ */
+export function useAttachedStateFor(callId: string | null): State {
+  const s = useAttachedState();
+  return callId !== null && s.call === callId ? s : NONE;
+}
+
+export function useAttachedFor(callId: string | null): Attached {
+  return useAttachedStateFor(callId).crm;
 }

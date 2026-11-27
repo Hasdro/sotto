@@ -28,7 +28,7 @@ import { useFeature } from "../../components/FeatureGate";
 import { deviceCall, setAfterCallItem } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
-import { useAttached } from "../crm/attached";
+import { useAttachedFor } from "../crm/attached";
 import { EmailAction } from "../email";
 import type { Draft as EmailDraft } from "../email/api";
 import { SendWarnings } from "../email/EmailAction";
@@ -57,7 +57,8 @@ export function FollowUp({
   const ft = useReviewText();
   const { color } = useTheme();
   const cloud = useCloud();
-  const crm = useAttached();
+  // SAFE-001: this call's own record only; an older call in History gets empty fields.
+  const crm = useAttachedFor(callId);
   const email = useFeature("email_send");
   const [channel, setChannel] = useState<Channel>("email");
   const [phase, setPhase] = useState<Phase>("idle");

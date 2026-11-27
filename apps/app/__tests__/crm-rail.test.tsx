@@ -158,6 +158,19 @@ describe("CrmRail", () => {
     expect(attachedBriefText()).toBe("");
   });
 
+  it("a record added before the next call carries into it; a finished call's never does (SAFE-001)", async () => {
+    const { brief } = await mockLookup.meetingBrief(MEETING);
+    bindCall("c1");
+    attachBrief(brief);
+    bindCall(null); // the call screen is back at its start: c1's record is not the next call's
+    expect(attachedBriefText()).toBe("");
+    attachBrief(brief); // linked before the next call starts
+    setPrep("objective", "Close it");
+    bindCall("c2");
+    expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+    expect(attachedBriefText()).toContain("Call objective: Close it");
+  });
+
   it("asks to connect first while the person has not connected Zoho", async () => {
     signedIn({ state: "needs_connection", cause: "zoho" });
     await wrap(<CrmRail lookup={mockLookup} />);

@@ -14,7 +14,13 @@ import {
 import { actionsText } from "../features/actions/strings";
 import { EndedView } from "../features/call/components/EndedView";
 import type { Brief } from "../features/crm/api";
-import { attachBrief, resetCall, setPrep } from "../features/crm/attached";
+import {
+  attachBrief,
+  attachForNextCall,
+  bindCall,
+  resetCall,
+  setPrep,
+} from "../features/crm/attached";
 import { useZoho } from "../features/crm/useZoho";
 import { ZohoConnect } from "../features/crm/ZohoConnect";
 import { saveDeviceCall, setDeviceReview } from "../lib/deviceHistory";
@@ -85,6 +91,7 @@ const BRIEF: Brief = {
 
 beforeEach(() => {
   resetCall();
+  bindCall("c1"); // the call the checklist belongs to (SAFE-001)
   cloud.cloudApi.mockImplementation(() => new Promise(() => {}));
   mockCloud = {
     status: "signed_in",
@@ -338,6 +345,16 @@ describe("AfterCallChecklist (UX-04, draft D-044 (backlog))", () => {
     expect(screen.queryByTestId("after-call_log")).toBeNull(); // nothing to attach the log to
   });
 
+  it("never builds rows from a meeting prepared for the next call (SAFE-001)", async () => {
+    attachBrief(BRIEF);
+    attachForNextCall(BRIEF); // picked on Home after c1 ended: belongs to the next call
+    await wrap(<AfterCallChecklist callId="c1" review={REVIEW} perform={jest.fn()} />);
+    expect(screen.getByTestId("after-lead")).toBeOnTheScreen(); // as with nothing attached
+    for (const id of ["call_log", "contact_update"])
+      expect(screen.queryByTestId(`after-${id}`)).toBeNull();
+    expect(screen.queryByText(/Jane Doe/)).toBeNull();
+  });
+
   it("offers the deal note only with prep notes, headed 'Note on <deal>' in an LTR run (UX-41)", async () => {
     attachBrief(BRIEF);
     setPrep("objective", "Close the renewal");
@@ -365,6 +382,7 @@ describe("EndedView (UX-04, UX-24)", () => {
   it("orders review line → checklist → follow-up → done; 'Start another call' is primary only when all are handled", async () => {
     jest.useFakeTimers();
     try {
+      bindCall("e1");
       attachBrief(BRIEF);
       saveDeviceCall({
         id: "e1",

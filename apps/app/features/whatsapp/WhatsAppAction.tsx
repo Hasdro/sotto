@@ -7,7 +7,7 @@
 import { Button, Panel, SegmentedControl, Stack, Text, TextField } from "@sotto/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
-import { useAttached } from "../crm/attached";
+import { useAttachedFor } from "../crm/attached";
 import { newIdempotencyKey } from "../email/api";
 import {
   allowedTemplates,
@@ -65,7 +65,7 @@ function Composer({
   onChoose,
 }: WhatsAppActionProps) {
   const t = useWhatsAppText();
-  const attached = useAttached();
+  const attached = useAttachedFor(callId); // SAFE-001: never another call's contact
   const person = attached.kind === "attached" ? attached.brief.person : null;
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [picked, setPicked] = useState("");

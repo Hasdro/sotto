@@ -19,7 +19,7 @@ import type { Perform } from "../actions/ActionCard";
 import { AfterCallChecklist, type SaveLog } from "../actions/AfterCallChecklist";
 import type { CardView } from "../cards/reducer";
 import { startReview, VoiceReviewHost } from "../coach";
-import { useAttached } from "../crm/attached";
+import { useAttachedFor } from "../crm/attached";
 import { EmailAction } from "../email";
 import type { Draft as EmailDraft } from "../email/api";
 import { CallReviewPanel } from "../review/CallReviewPanel";
@@ -100,7 +100,7 @@ export function PostCallWizard({
         cloud.me.features && "voice_coach" in (cloud.me.features as Record<string, unknown>),
       ));
   const review = useReview(callId);
-  const crm = useAttached();
+  const crm = useAttachedFor(callId); // SAFE-001: this call's record only
   const person = crm.kind === "attached" ? crm.brief.person : null;
 
   const draftsExpired = initialSaved?.status === "drafts_expired";
