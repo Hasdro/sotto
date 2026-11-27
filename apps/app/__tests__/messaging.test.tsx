@@ -242,9 +242,9 @@ describe("WhatsAppAction", () => {
     await wrap(
       <WhatsAppAction callId="c9" customer={{ name: "Jane Doe", phone: "+971 50 123 4567" }} />,
     );
-    await waitFor(() => expect(screen.getByTestId("whatsapp-param-name")).toBeTruthy());
-    expect(screen.getByTestId("whatsapp-param-name").props.value).toBe("Jane");
-    expect(screen.queryByTestId("whatsapp-param-date")?.props.value).toBe("");
+    await waitFor(() => expect(screen.getByTestId("whatsapp-param-date")).toBeTruthy());
+    expect(screen.queryByTestId("whatsapp-param-name")).toBeNull(); // filled from the name (UX-011)
+    expect(screen.getByTestId("whatsapp-param-date").props.value).toBe("");
     expect(screen.getByTestId("whatsapp-preview").props.accessibilityState?.disabled).toBe(true);
     await fireEvent.changeText(screen.getByTestId("whatsapp-param-date"), "12 Dec");
     await fireEvent.press(screen.getByTestId("whatsapp-preview"));
@@ -262,6 +262,39 @@ describe("WhatsAppAction", () => {
       values: { name: "Jane", date: "12 Dec" },
     });
     expect(String(body.idempotency_key)).toMatch(/^c9-wa-/);
+  });
+
+  it("asks for the customer's name once and shows the message as it will read (UX-011)", async () => {
+    signedIn("agent", { whatsapp: { state: "available" } });
+    mockRoutes = {
+      "GET /api/v1/whatsapp/templates": () => ({ templates: [TEMPLATE], freeform: false }),
+      "POST /api/v1/whatsapp/preview": () => ({
+        template: "meeting_followup",
+        language: "en",
+        to: { name: "Omar Saleh", phone: "+971501234567" },
+        text: "Thanks Omar, see you on 12 Dec.",
+      }),
+    };
+    await wrap(<WhatsAppAction callId="c8" customer={{ name: "Jane Doe", phone: "+9715" }} />);
+    await waitFor(() => expect(screen.getByTestId("whatsapp-filled")).toBeTruthy());
+    expect(screen.getAllByDisplayValue(/Jane/)).toHaveLength(1); // one name field, not two
+    expect(screen.getByTestId("whatsapp-name-fills")).toHaveTextContent(
+      "Also fills {{name}} in the message.",
+    );
+    expect(screen.getByTestId("whatsapp-filled")).toHaveTextContent(
+      "Thanks Jane, see you on {{date}}.",
+    );
+    await fireEvent.changeText(screen.getByTestId("whatsapp-name"), "Omar Saleh");
+    await fireEvent.changeText(screen.getByTestId("whatsapp-param-date"), "12 Dec");
+    expect(screen.getByTestId("whatsapp-filled")).toHaveTextContent(
+      "Thanks Omar, see you on 12 Dec.",
+    );
+    await fireEvent.press(screen.getByTestId("whatsapp-preview"));
+    await waitFor(() => expect(screen.getByTestId("whatsapp-preview-text")).toBeTruthy());
+    expect(sent("/api/v1/whatsapp/preview")[0]?.body).toMatchObject({
+      recipient: { name: "Omar Saleh" },
+      values: { name: "Omar", date: "12 Dec" },
+    });
   });
 
   it("says so when the admin chose no templates", async () => {
@@ -336,9 +369,22 @@ describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
     expect(screen.getAllByTestId("followup")).toHaveLength(1);
     expect(screen.queryByTestId("whatsapp-action")).toBeNull();
     await fireEvent.press(screen.getByTestId("followup-channel-whatsapp"));
-    await waitFor(() => expect(screen.getByTestId("whatsapp-param-name")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("whatsapp-name")).toBeTruthy());
     expect(screen.queryByTestId("email-action")).toBeNull();
     expect(sent("/api/v1/email/send")).toEqual([]);
+  });
+
+  it("Draft with AI sits in the email card's header, not above it (UX-011)", async () => {
+    call("f3");
+    await wrap(<FollowUp callId="f3" />);
+    await waitFor(() => expect(screen.getByTestId("email-action")).toBeTruthy());
+    const head = screen.getByTestId("email-head");
+    expect(head).toHaveTextContent(/Send email.*Draft with AI/);
+    await fireEvent.press(screen.getByTestId("followup-draft"));
+    await waitFor(() =>
+      expect(screen.getByTestId("email-body").props.value).toBe("Thanks for today."),
+    );
+    expect(screen.queryByTestId("followup-draft")).toBeNull(); // drafted: nothing to press again
   });
 
   it("Skip follow-up has a 5 s Undo, then it is kept with the call as skipped", async () => {

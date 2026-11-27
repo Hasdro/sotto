@@ -82,25 +82,39 @@ export default function CallDetailScreen() {
       <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
         {t("history.detail.cards")}
       </Text>
-      {call.cards.map((c) => (
-        <View key={`${c.atMs}-${c.type}`} style={styles.cardRow}>
-          <Text variant="label" tone="muted" style={styles.time}>
-            {clock(c.atMs)}
+      {call.cards.length === 0 ? (
+        <Panel sunken testID="history-no-cards">
+          <Text variant="label" tone="muted">
+            {t("history.detail.noCards")}
           </Text>
-          <View style={[styles.grow, styles.cardCol]}>
-            <SuggestionCard
-              variant="compact"
-              type={c.type}
-              source={c.source}
-              text={c.text}
-              done
-              strings={cardStrings(t, c.type, c.source)}
-            />
-            {/* UX-02h, R11: AI advice cards are rateable here too; playbook and holding never. */}
-            {sample ? null : <RatingControls card={pastCardView(call.id, c)} />}
+        </Panel>
+      ) : null}
+      {call.cards.map((c) => {
+        const view = pastCardView(call.id, c);
+        return (
+          <View key={`${c.atMs}-${c.type}`} style={styles.cardRow}>
+            <Text variant="label" tone="muted" style={styles.time}>
+              {clock(c.atMs)}
+            </Text>
+            <View style={[styles.grow, styles.cardCol]}>
+              {/* UX-010: the whole sentence, and its type in words (the colours have no legend). */}
+              <SuggestionCard
+                variant="compact"
+                type={c.type}
+                source={c.source}
+                text={c.text}
+                done
+                expanded
+                labelled
+                strings={cardStrings(t, c.type, c.source)}
+                testID={`history-card-${view.id}`}
+              />
+              {/* UX-02h, R11: AI advice cards are rateable here too; playbook and holding never. */}
+              {sample ? null : <RatingControls card={view} labelled />}
+            </View>
           </View>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
   return (

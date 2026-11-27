@@ -125,6 +125,56 @@ describe("SuggestionCard", () => {
     );
     expect(screen.getByText("Long text")).toHaveProp("numberOfLines", 2);
   });
+
+  it("compact labelled (History): names the type and the source under the sentence (UX-010)", async () => {
+    await render(
+      <SuggestionCard
+        type="answer"
+        source="playbook"
+        text="x"
+        done
+        variant="compact"
+        labelled
+        strings={strings}
+        testID="c"
+      />,
+    );
+    expect(screen.getByTestId("c-kind")).toHaveTextContent("Answer · From your playbook");
+  });
+
+  it("compact labelled AI card: the type and the R2 notice", async () => {
+    await render(
+      <SuggestionCard
+        type="question"
+        source="ai"
+        text="x"
+        done
+        variant="compact"
+        labelled
+        strings={{ ...strings, type: "Ask next" }}
+        testID="c"
+      />,
+    );
+    expect(screen.getByTestId("c-kind")).toHaveTextContent(
+      "Ask next · Not in playbook — check before promising",
+    );
+  });
+
+  it("compact labelled holding line: the type alone", async () => {
+    await render(
+      <SuggestionCard
+        type="holding"
+        source="holding"
+        text="x"
+        done
+        variant="compact"
+        labelled
+        strings={{ ...strings, type: "Holding line" }}
+        testID="c"
+      />,
+    );
+    expect(screen.getByTestId("c-kind")).toHaveTextContent(/^Holding line$/);
+  });
 });
 
 describe("SuggestionCard reading order (UX-11, UX-12)", () => {

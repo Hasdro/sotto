@@ -83,10 +83,28 @@ export type PrefillContext = {
   company?: string;
 };
 
+const firstOf = (v?: string) => (v ?? "").trim().split(/\s+/)[0] ?? "";
+const NAME_LIKE = /^(name|first_?name|customer_?name)$/i;
+
+/** UX-011: whether the customer-name field fills this parameter ({{name}}), and how. */
+export function nameSource(p: Param): "customer.first_name" | "customer.name" | null {
+  const source = p.source ?? (NAME_LIKE.test(p.name) ? "customer.first_name" : "");
+  return source === "customer.first_name" || source === "customer.name" ? source : null;
+}
+
+/** The value a name-filled parameter takes from the customer's name. */
+export function nameValue(p: Param, name: string): string {
+  return nameSource(p) === "customer.name" ? name.trim() : firstOf(name);
+}
+
+/** UX-011: the template as the customer will read it; a parameter not filled yet stays {{x}}. */
+export function fillBody(body: string, values: Record<string, string>): string {
+  return body.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (raw, key: string) => values[key]?.trim() || raw);
+}
+
 /** Prefills from the call: each parameter's mapped source (ZC-07), else a name-like guess. */
 export function prefill(t: Template, ctx: PrefillContext): Record<string, string> {
   const out: Record<string, string> = {};
-  const firstOf = (v?: string) => (v ?? "").trim().split(/\s+/)[0] ?? "";
   const known: Record<string, string> = {
     "customer.first_name": firstOf(ctx.name),
     "customer.name": (ctx.name ?? "").trim(),
@@ -96,9 +114,7 @@ export function prefill(t: Template, ctx: PrefillContext): Record<string, string
     "company.name": (ctx.company ?? "").trim(),
   };
   for (const p of fieldsOf(t)) {
-    const source =
-      p.source ??
-      (/^(name|first_?name|customer_?name)$/i.test(p.name) ? "customer.first_name" : "");
+    const source = p.source ?? (NAME_LIKE.test(p.name) ? "customer.first_name" : "");
     out[p.name] = known[source] ?? "";
   }
   return out;

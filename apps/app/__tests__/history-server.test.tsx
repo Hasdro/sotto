@@ -98,6 +98,38 @@ describe("history from this server (D-020)", () => {
     expect(screen.queryByText(/Call 10\/21\/2026/)).toBeNull();
   });
 
+  it("shows each card whole, named, with labelled ratings (UX-010)", async () => {
+    const long =
+      "Thanks for sharing. When would be a convenient time for us to schedule the follow-up with your finance lead so we can agree the setup scope?";
+    serve({
+      ...DETAIL,
+      transcript: [
+        ...DETAIL.transcript,
+        { kind: "card", type: "question", source: "ai", text: long, at_ms: 6000, id: "k9" },
+      ],
+    });
+    await renderRouter(routes, { initialUrl: `/history/${CALL.id}` });
+    const text = await screen.findByText(long);
+    expect(text.props.numberOfLines).toBeUndefined(); // the whole sentence, never "…"
+    expect(screen.getByTestId("history-card-k9-kind")).toHaveTextContent(
+      "Ask next · Not in playbook — check before promising",
+    );
+    expect(screen.getByTestId("history-card-h-4700-answer-kind")).toHaveTextContent(
+      "Answer · From your playbook",
+    );
+    expect(screen.getByTestId("rate-up-k9")).toHaveTextContent("Helpful");
+    expect(screen.getByTestId("rate-down-k9")).toHaveTextContent("Not helpful");
+    expect(screen.queryByTestId("history-no-cards")).toBeNull();
+  });
+
+  it("says so when no card was shown (UX-010)", async () => {
+    serve({ ...DETAIL, transcript: [DETAIL.transcript[0]] });
+    await renderRouter(routes, { initialUrl: `/history/${CALL.id}` });
+    expect(await screen.findByTestId("history-no-cards")).toHaveTextContent(
+      "No cards were shown on this call.",
+    );
+  });
+
   it("shows a server call's transcript and cards", async () => {
     serve();
     await renderRouter(routes, { initialUrl: `/history/${CALL.id}` });

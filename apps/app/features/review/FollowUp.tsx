@@ -180,7 +180,7 @@ export function FollowUp({
               {ft("fu.none")}
             </Text>
           ) : null}
-          {phase === "idle" ? (
+          {phase === "idle" && email.state !== "available" ? (
             <Stack direction="row" gap="sm">
               <Button label={t("followup.draft")} onPress={make} testID="followup-draft" />
             </Stack>
@@ -196,6 +196,17 @@ export function FollowUp({
                 sent();
               }}
               onDraft={setEmailDraft}
+              // UX-011: "Draft with AI" in the email card's own title row, not above the card.
+              headerAction={
+                phase === "idle" ? (
+                  <Button
+                    variant="outline"
+                    label={t("followup.draft")}
+                    onPress={make}
+                    testID="followup-draft"
+                  />
+                ) : null
+              }
             />
           ) : phase === "ready" && draft ? (
             <CopyDraft key={version} draft={draft} />

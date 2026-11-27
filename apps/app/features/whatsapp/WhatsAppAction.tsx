@@ -12,8 +12,11 @@ import { newIdempotencyKey } from "../email/api";
 import {
   allowedTemplates,
   fieldsOf,
+  fillBody,
   keyOf,
   type Message,
+  nameSource,
+  nameValue,
   type Preview,
   prefill,
   previewWhatsApp,
@@ -108,7 +111,15 @@ function Composer({
     setValues(next ? prefill(next, { name }) : {});
   };
 
-  const fields = template ? fieldsOf(template) : [];
+  const fields = useMemo(() => (template ? fieldsOf(template) : []), [template]);
+  // UX-011: the customer's name is asked once; it fills {{name}} (or a mapped name parameter).
+  const named = fields.filter((p) => nameSource(p) !== null);
+  const asked = fields.filter((p) => nameSource(p) === null);
+  const filledValues = useMemo(() => {
+    const out = { ...values };
+    for (const p of fields) if (nameSource(p)) out[p.name] = nameValue(p, name);
+    return out;
+  }, [fields, values, name]);
   const message: Message | null = useMemo(
     () =>
       template
@@ -116,12 +127,12 @@ function Composer({
             template: template.name,
             language: template.language,
             recipient: { name: name.trim(), phone },
-            values,
+            values: filledValues,
           }
         : null,
-    [template, name, phone, values],
+    [template, name, phone, filledValues],
   );
-  const filled = fields.every((p) => values[p.name]?.trim());
+  const filled = fields.every((p) => filledValues[p.name]?.trim());
   // The follow-up plan prepares its WhatsApp step from the chosen template (INT-08).
   useEffect(() => {
     onChoose?.(message);
@@ -196,19 +207,21 @@ function Composer({
                   </Stack>
                 )}
               </Stack>
-              {template?.body ? (
-                <Panel sunken>
-                  <Text variant="label" tone="muted" selectable>
-                    {template.body}
+              <Stack gap="xs">
+                <TextField
+                  label={t("whatsapp.name")}
+                  value={name}
+                  onChangeText={setName}
+                  testID="whatsapp-name"
+                />
+                {named.length ? (
+                  <Text variant="label" tone="muted" testID="whatsapp-name-fills">
+                    {t("whatsapp.nameFills", {
+                      fields: named.map((p) => `{{${p.name}}}`).join(", "),
+                    })}
                   </Text>
-                </Panel>
-              ) : null}
-              <TextField
-                label={t("whatsapp.name")}
-                value={name}
-                onChangeText={setName}
-                testID="whatsapp-name"
-              />
+                ) : null}
+              </Stack>
               <TextField
                 label={t("whatsapp.phone")}
                 value={phone}
@@ -217,7 +230,7 @@ function Composer({
                 keyboardType="phone-pad"
                 testID="whatsapp-phone"
               />
-              {fields.map((p) => (
+              {asked.map((p) => (
                 <TextField
                   key={p.name}
                   label={t("whatsapp.param", { name: p.name })}
@@ -229,6 +242,18 @@ function Composer({
                   testID={`whatsapp-param-${p.name}`}
                 />
               ))}
+              {template?.body ? (
+                <Stack gap="xs">
+                  <Text variant="label" weight="medium" tone="muted">
+                    {t("whatsapp.message")}
+                  </Text>
+                  <Panel sunken>
+                    <Text variant="label" selectable testID="whatsapp-filled">
+                      {fillBody(template.body, filledValues)}
+                    </Text>
+                  </Panel>
+                </Stack>
+              ) : null}
               <Stack direction="row" gap="sm" wrap>
                 <Button
                   label={t("whatsapp.preview")}

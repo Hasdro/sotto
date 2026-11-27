@@ -48,6 +48,11 @@ export type SuggestionCardProps = {
   expanded?: boolean;
   /** Compact only: an older card stepping back; the sentence uses the muted text token. */
   quiet?: boolean;
+  /**
+   * Compact only: name the card's type and source in the line under the sentence ("Answer ·
+   * From your playbook"). For History (UX-010), where the edge colours have no legend.
+   */
+  labelled?: boolean;
   testID?: string;
 };
 
@@ -84,6 +89,7 @@ export function SuggestionCard({
   strings,
   expanded = false,
   quiet = false,
+  labelled = false,
   testID,
 }: SuggestionCardProps) {
   const theme = useTheme();
@@ -123,7 +129,14 @@ export function SuggestionCard({
           >
             {text}
           </Text>
-          {shown ? (
+          {labelled ? (
+            <Text variant="label" tone="muted" testID={id("kind")}>
+              <Text variant="label" weight="semibold" tone="muted">
+                {strings.type}
+              </Text>
+              {shown || sourceLine ? ` · ${shown ?? sourceLine}` : ""}
+            </Text>
+          ) : shown ? (
             <Text variant="label" tone="muted" numberOfLines={1}>
               {shown}
             </Text>

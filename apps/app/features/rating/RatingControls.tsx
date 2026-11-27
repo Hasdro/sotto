@@ -6,7 +6,18 @@
  * hero; on collapsed cards on hover or focus; on every AI card after the call) is CardStack's
  * choice (draft D-042 (backlog)).
  */
-import { IconButton, minTouchTarget, radius, space, Text, useTheme } from "@sotto/ui";
+import {
+  Icon,
+  IconButton,
+  type IconName,
+  isHovered,
+  minTouchTarget,
+  radius,
+  space,
+  Text,
+  useFocusRing,
+  useTheme,
+} from "@sotto/ui";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
 import { useI18n } from "../../lib/locale";
@@ -46,10 +57,14 @@ export function useCanRate(card: CardView): boolean {
 
 export function RatingControls({
   card,
+  labelled = false,
   onFocus,
   onBlur,
 }: {
   card: CardView;
+  /** Show "Helpful" / "Not helpful" beside the icons (History, UX-010); the live view stays
+   * icon-only so the card is the one thing to read. */
+  labelled?: boolean;
   /** Focus entering or leaving the buttons (CardStack keeps a collapsed card lit meanwhile). */
   onFocus?: () => void;
   onBlur?: () => void;
@@ -79,26 +94,22 @@ export function RatingControls({
       accessibilityLabel={ct("rating.group")}
     >
       <View style={styles.row}>
-        <IconButton
-          testID={`rate-up-${card.id}`}
-          icon="check"
-          label={t("rating.up")}
-          selected={current?.rating === "up"}
-          outlined
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onPress={() => choose("up")}
-        />
-        <IconButton
-          testID={`rate-down-${card.id}`}
-          icon="close"
-          label={t("rating.down")}
-          selected={current?.rating === "down"}
-          outlined
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onPress={() => choose("down")}
-        />
+        {(["up", "down"] as const).map((r) => {
+          const props = {
+            testID: `rate-${r}-${card.id}`,
+            icon: (r === "up" ? "check" : "close") as IconName,
+            label: t(r === "up" ? "rating.up" : "rating.down"),
+            selected: current?.rating === r,
+            onFocus,
+            onBlur,
+            onPress: () => choose(r),
+          };
+          return labelled ? (
+            <RateToggle key={r} {...props} />
+          ) : (
+            <IconButton key={r} outlined {...props} />
+          );
+        })}
       </View>
       {current?.rating === "down" ? (
         <View style={styles.row} accessibilityLabel={t("rating.reasons")}>
@@ -114,6 +125,55 @@ export function RatingControls({
         </View>
       ) : null}
     </View>
+  );
+}
+
+/** A thumbs button with its word beside the icon (UX-010): a toggle, like IconButton. */
+function RateToggle({
+  icon,
+  label,
+  selected,
+  onPress,
+  onFocus,
+  onBlur,
+  testID,
+}: {
+  icon: IconName;
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  onFocus?: (() => void) | undefined;
+  onBlur?: (() => void) | undefined;
+  testID: string;
+}) {
+  const { color } = useTheme();
+  const focus = useFocusRing({ onFocus, onBlur });
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      onFocus={focus.onFocus}
+      onBlur={focus.onBlur}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected }}
+      aria-pressed={selected}
+      style={(state) => [
+        styles.chip,
+        styles.toggle,
+        {
+          borderColor: selected ? color.primary : color.borderStrong,
+          backgroundColor: selected || isHovered(state) ? color.surfaceSunken : "transparent",
+          opacity: state.pressed ? 0.8 : 1,
+        },
+        focus.ring,
+      ]}
+    >
+      <Icon name={icon} size={16} color={selected ? color.primary : color.text} />
+      <Text variant="label" weight="medium" tone={selected ? "primary" : "default"}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -155,6 +215,7 @@ function Chip({
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   row: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  toggle: { gap: space.xs },
   chip: {
     minHeight: minTouchTarget,
     flexDirection: "row",

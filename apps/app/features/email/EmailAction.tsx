@@ -16,7 +16,7 @@ import {
   ToggleRow,
   useTheme,
 } from "@sotto/ui";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
 import { useAttached } from "../crm/attached";
@@ -49,6 +49,9 @@ export type EmailActionProps = {
   onSent?: (preview: Preview) => void;
   /** Reports the current draft (the follow-up plan prepares its steps from it). */
   onDraft?: (draft: Draft) => void;
+  /** An action at the end of the card's title row, e.g. the follow-up's "Draft with AI"
+   * (UX-011: inside the card it fills, not floating above it). */
+  headerAction?: ReactNode;
 };
 
 type Step =
@@ -75,6 +78,7 @@ function Composer({
   idempotencyKey,
   onSent,
   onDraft,
+  headerAction,
 }: EmailActionProps) {
   const t = useEmailText();
   const attached = useAttached();
@@ -170,9 +174,12 @@ function Composer({
   return (
     <Panel testID="email-action">
       <Stack gap="md">
-        <Text variant="body" weight="semibold" accessibilityRole="header">
-          {t("email.title")}
-        </Text>
+        <View style={styles.head} testID="email-head">
+          <Text variant="body" weight="semibold" accessibilityRole="header" style={styles.grow}>
+            {t("email.title")}
+          </Text>
+          {step.kind === "compose" ? headerAction : null}
+        </View>
         {step.kind === "compose" ? (
           <>
             {senders.length > 1 ? (
@@ -440,6 +447,13 @@ function sizeOf(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
+  head: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: space.sm,
+  },
+  grow: { flex: 1, minWidth: 0 },
   mailRow: {
     flexDirection: "row",
     gap: space.md,
