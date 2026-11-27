@@ -29,8 +29,8 @@ Tags:
 - **Phase:** 9 — AGN Sales Shield product round (`docs/phases/phase-9-product-round.md`), version ladder 0.3.0 → 0.8.0 (D-030).
 - **Version now:** **0.7.0** (Round 4 merged to `main` 26 Nov 2026: `round4/platform` → `round4/wizard-memory` → `round4/live-cards` → `round4/voice-coach`, D-094–D-136).
 - **Round 4 landed:** Platform safety net + local models + auto call logs + setup guide (P1–P7), Post-Call Wizard + Style Memory (A1–A4), Live Cards v2 + Tone + Call State + Talk Meter + Quality Judge (C1–C8), Prep Coach + Editable Game Plan + Voice Review + Review Queue + Morning Brief (B1–B7).
-- **Pre-public / deploy status:** `temp/` git-ignored; S1 Mac perf budgets & S3 `launch.mac.mjs` verified on local Mac build (`0.6.1` pre-bump; `0.7.0` Mac+Windows builds, Windows `launch.win.mjs`, us3 server deploy, and landing `0.7.0` update await owner go). `check_bundle_size.py` web JS bundle is ~610 KB > 450 KB budget (was already 574 KB in `0.6.1`).
-- **Owner items still open:** private call-log GitHub repo + PAT (`/owner/logs.html`); voice coach vendor + API key + per-company stages/caps (`/owner/coach.html`); flip `Hasdro/sotto` public after history scan; Windows launch test (`launch.win.mjs`); spend caps, Zoho multi-DC/webhooks, legal text, `pnpm replay:live` approval, server cleanup of old installers.
+- **Pre-public / deploy status:** `0.7.0` deployed to us3 (`cloud.db.pre-2026-11-26-round4` backup; `200` on `/healthz`, `/owner`, `https://salesshield.agncompu.com/`, `downloads.json` `0.7.0`, Mac `arm64` `.dmg` & Windows `.exe`); old `0.3.0`–`0.6.1` server installers deleted (`2.5G` free); `Hasdro/sales-shield-logs` created; GitHub Release `v0.7.0` live; Mac `0.7.0` installed. Bundle budget raised `450 → 700 KB` (`D-137`, `T-044`).
+- **Owner items still open:** save `Hasdro/sales-shield-logs` PAT (`/owner/logs.html`); voice coach vendor + API key + per-company stages/caps (`/owner/coach.html`); Windows launch test (`launch.win.mjs`); spend caps, Zoho multi-DC/webhooks, legal text, `pnpm replay:live` approval.
 - **Environment:** local Mac (`ssh root@104.168.48.116`). Intel Mac (`x64`) release builds stopped at `0.7.0` (D-097).
 
 ## Phase board
@@ -117,7 +117,7 @@ One item = one task = one commit. `[OWNER]` items wait for the owner's yes.
 - [x] T-041 B5.3 Models screen hidden (duplicate of Keys & providers speed check) — Models tab removed; the route points to Keys & providers, where the real per-stage choice and measured speed live. Evidence (T-040/T-041): screens tests "admin hides the prompt editor…", "admin models points to Keys & providers…"; app jest 202 passed. One commit for both (shared tab list and strings)
 - [x] T-042 B6.1 Engine coverage floor 80% — `@vitest/coverage-v8` 5.0.5 (matches vitest), thresholds 80% statements + branches in `packages/engine/vitest.config.ts`, run by `pnpm test`; 90% at Phase 8; recorded in CONSTRAINTS.md. Branches were 64.7%, so 21 tests were added (adapters, Speechmatics, bridge, ids): now 92.6% statements / 82.0% branches, 50 tests. Probe: 60 uncovered branches → 70.2%, exit 1; removed → exit 0
 - [x] T-043 B6.2 Engine tests on a fake clock (< 2 s) — vitest fake timers (setTimeout, performance, Date) in the six slow tests; one spoken-turn test keeps real timers end to end. Evidence: three runs, 29 passed each, 779 / 632 / 621 ms (was 7.1 s)
-- [ ] T-044 B6.3 Web bundle 476/450 KB `[OWNER]` (raise, cut zod, or lazy-load the call screen) — measured 22 Oct after the 0.2.0 build; over budget, not hidden
+- [x] T-044 B6.3 Web bundle budget adjusted `450 → 700 KB` (`D-137`, `owner`: Hasan, expires `2027-06-30`) — `0.7.0` profiled at `610 KB` gz across 34 chunks (`284.5 KB` framework entry, `62.8 KB` `zod`, `~263 KB` routes/EN+AR/engine/UI); raised with owner approval (`CONSTRAINTS.md`, `scripts/check_bundle_size.py`), future cleanup to trim `zod`.
 
 ### Phase 4
 - [ ] P4.1 Telephony: LiveKit + SIP trunk `local-only` `owner`
@@ -409,6 +409,9 @@ Things only the owner can do, so the agent never waits silently.
 - Zoho brief: read `agent_note` and `risks` fields (wave-2 follow-up, left for later).
 
 ## Session log
+
+### 2026-11-27 · Mac · `main` (0.7.0 live deploy, cleanup, bundle budget D-137)
+- **Done:** Backed up us3 DB (`cloud.db.pre-2026-11-26-round4`, `880K`); deployed backend (`d07e25a`, `sotto-cloud` `active`, `/healthz` + `/owner` + strict CSP `200`); created private `Hasdro/sales-shield-logs`; published `https://github.com/Hasdro/sotto/releases/tag/v0.7.0` (`D-097` fix in `scripts/release.sh`); pulled & SHA-256-verified `AGN Sales Shield-0.7.0-arm64.dmg` + `AGN Sales Shield Setup 0.7.0.exe` on us3; deleted older `0.3.0`–`0.6.1` server installers with owner go (`2.5G` free on `/dev/vda2`); published `apps/landing` (`200` on `https://salesshield.agncompu.com/`, `downloads.json` `0.7.0`, both download links `200`); installed `/Applications/AGN Sales Shield.app` (`0.7.0`, `launch.mac.mjs PASS`); adjusted web bundle budget `450 → 700 KB` with owner go (`D-137`, `T-044`).
 
 ### 2026-11-26 · Mac · `main` (Round 4 merged, version 0.7.0)
 - **Done:** Prepared `main` (`chore/ci-green` merged, `.gitignore` ignores `temp/`, `INBOX.md` + `docs/prompts/round4/` committed, dropped unattributed `test_signup_otp_github_bugs.py` diff). Converted all four agent bundles from isolated snapshot roots into patch series, reviewed each against master §2–§4 with security/tenancy/code-review/(latency) subagents, fixed audit/lint/typing findings, and merged in order `4 → 2 → 1 → 3` (`round4/platform` → `round4/wizard-memory` → `round4/live-cards` → `round4/voice-coach`) with zero remaining `STUB(` markers.

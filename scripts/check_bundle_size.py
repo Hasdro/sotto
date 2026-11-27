@@ -8,7 +8,7 @@ import gzip
 import sys
 from pathlib import Path
 
-BUDGET_KB = 450
+BUDGET_KB = 700
 
 
 def gzipped_js_kb(dist: Path) -> float:

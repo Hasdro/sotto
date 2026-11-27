@@ -775,3 +775,7 @@ Review backlog, November 2026 (`docs/reviews/backlog-2026-11.md`). D-042…D-058
 ## D-136 — Enforcement of D-095 per-user overrides (25 Nov 2026)
 2026-11-25 · Agent 4 (Round 4, R4-P5)
 - **Decision:** `cloud/features.py` restricts `Layers.user_overrides` strictly to `PER_USER_OVERRIDE_IDS = {"call_logs_github", "local_models_text", "local_models_voice"}` and `cloud/obs/store.py` rejects any other feature ID with `CloudError("invalid")`.
+
+## D-137 — Web bundle budget adjusted from 450 KB to 700 KB total (owner, 27 Nov 2026)
+2026-11-27 · owner (T-044)
+- **Decision:** Raise `BUDGET_KB` in `CONSTRAINTS.md` and `scripts/check_bundle_size.py` from `450 KB` to `700 KB` gzipped JS across all exported route chunks (`dist/_expo/static/js/web/*.js`). Source-map profiling on `0.7.0` showed `610.3 KB` total across 34 chunks (`284.5 KB` `expo-router`/`react-native-web`/`react-dom` framework entry alone, `62.8 KB` `zod`, `~263 KB` across 32 code-split routes, EN/AR strings, and workspace engine/UI code), making `≤ 450 KB` across all chunks combined impractical without stripping features or leaving Expo. Owner-approved adjustment (`T-044`, expires `2027-06-30`); future trimming target is decoupling `zod` runtime validation (`~55–63 KB`).
