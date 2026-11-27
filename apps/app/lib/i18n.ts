@@ -909,6 +909,8 @@ const en = {
   "lang.ar": "العربية",
   // Wave 2 · review-home-shell (T-077): first run, Home, shell, admin groups, sign-in.
   "home.next": "Next: {title} at {time}",
+  "home.nextTomorrow": "Next: {title} tomorrow at {time}",
+  "home.nextOn": "Next: {title} on {day} at {time}",
   "home.ready": "Ready for your next call",
   "home.status.trial": "Free trial · {days} days left · {used} of {total} seats",
   "home.status.active": "Active plan · {used} of {total} seats",
@@ -1954,6 +1956,8 @@ const ar: Record<StringKey, string> = {
   "lang.en": "English",
   "lang.ar": "العربية",
   "home.next": "التالي: {title} الساعة {time}",
+  "home.nextTomorrow": "التالي: {title} غدًا الساعة {time}",
+  "home.nextOn": "التالي: {title} يوم {day} الساعة {time}",
   "home.ready": "جاهز لمكالمتك التالية",
   "home.status.trial": "تجربة مجانية · بقي {days} يومًا · {used} من {total} مقاعد",
   "home.status.active": "خطة فعّالة · {used} من {total} مقاعد",

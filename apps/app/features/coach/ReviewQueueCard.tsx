@@ -1,6 +1,6 @@
 /**
  * Home Review Queue card with count badge + Morning Brief card (V3, V5).
- * Mounted from `apps/app/app/home.tsx`.
+ * Mounted from `apps/app/app/home.tsx`; Home places it above Recent calls (UX-003).
  */
 
 import { Badge, Button, Panel, Stack, space, Text } from "@sotto/ui";
@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
 import { SafeBoundary } from "../../components/SafeBoundary";
+import { useI18n } from "../../lib/locale";
 import {
   type CoachReviewItem,
   dismissReview,
@@ -18,6 +19,7 @@ import {
   setMorningBriefPrefs,
   snoozeReview,
 } from "./api";
+import { briefLines } from "./brief";
 import { useCoachText } from "./strings";
 import { startReview, VoiceReviewHost } from "./VoiceReviewModal";
 
@@ -31,6 +33,7 @@ export function ReviewQueueCard() {
 
 function ReviewQueueInner() {
   const tc = useCoachText();
+  const { locale } = useI18n();
   const briefFeature = useFeature("morning_brief");
   const reviewFeature = useFeature("call_review");
   const voiceFeature = useFeature("voice_coach");
@@ -99,7 +102,7 @@ function ReviewQueueInner() {
   }
 
   return (
-    <Stack gap="md" style={styles.container} testID="coach-home-cards">
+    <Stack gap="md" testID="coach-home-cards">
       {briefFeature.state === "available" && briefPrefs ? (
         <Panel sunken testID="morning-brief-card">
           <Stack gap="xs">
@@ -108,15 +111,19 @@ function ReviewQueueInner() {
                 {tc("brief.title")}
               </Text>
               <Button
-                variant="secondary"
+                variant="outline"
                 label={briefPrefs.enabled ? tc("brief.off") : tc("brief.on")}
                 onPress={handleToggleBrief}
                 testID="morning-brief-toggle"
               />
             </View>
-            {briefPrefs.enabled && brief ? (
-              <Text variant="label">{brief.content.summary_text}</Text>
-            ) : null}
+            {briefPrefs.enabled && brief
+              ? briefLines(brief.content, tc, locale).map((line) => (
+                  <Text key={line} variant="label" testID="morning-brief-line">
+                    {line}
+                  </Text>
+                ))
+              : null}
           </Stack>
         </Panel>
       ) : null}
@@ -192,12 +199,10 @@ function ReviewQueueInner() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: space.md,
-    paddingBottom: space.md,
-  },
+  // Wraps instead of squeezing the title when the card is narrow (Home's side column, UX-003).
   headerRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: space.xs,

@@ -59,6 +59,9 @@ const en = {
   "brief.off": "Turn off morning brief",
   "brief.on": "Turn on morning brief",
   "brief.pending": "{count} pending reviews",
+  "brief.today": "Today's meetings ({count}): {titles}.",
+  "brief.noneToday": "No meetings today · Next: {day}",
+  "brief.tip": "Tip for today: {tip}",
 
   "admin.title": "Voice coach",
   "admin.subtitle": "Monthly cap and models are managed by the platform owner.",
@@ -132,6 +135,9 @@ const ar: Record<CoachTextKey, string> = {
   "brief.off": "إيقاف موجز الصباح",
   "brief.on": "تفعيل موجز الصباح",
   "brief.pending": "{count} مراجعات معلقة",
+  "brief.today": "اجتماعات اليوم ({count}): {titles}.",
+  "brief.noneToday": "لا اجتماعات اليوم · التالي: {day}",
+  "brief.tip": "نصيحة اليوم: {tip}",
 
   "admin.title": "المدرب الصوتي",
   "admin.subtitle": "الحد الشهري والنماذج تُدار من قبل مالك المنصة.",
@@ -153,10 +159,17 @@ const ar: Record<CoachTextKey, string> = {
 
 const tables: Record<Locale, Record<CoachTextKey, string>> = { en, ar };
 
-export function useCoachText() {
+export type CoachText = (key: CoachTextKey, vars?: Record<string, string | number>) => string;
+
+export function useCoachText(): CoachText {
   const { locale } = useI18n();
+  return coachText(locale);
+}
+
+/** The same lookup outside React, for pure helpers and their tests. */
+export function coachText(locale: Locale): CoachText {
   const table = tables[locale] ?? en;
-  return (key: CoachTextKey, vars?: Record<string, string | number>): string => {
+  return (key, vars) => {
     let out = table[key] ?? en[key];
     if (vars) {
       for (const [k, v] of Object.entries(vars)) {

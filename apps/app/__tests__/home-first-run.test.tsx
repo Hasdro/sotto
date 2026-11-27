@@ -2,6 +2,7 @@
  * company line for admins and managers, neutral stat tiles and the "Next: … at …" title. */
 import { UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import * as ReactNative from "react-native";
 import type { MeetingCandidate } from "../features/crm/api";
 import { HomeScreen, nextLine } from "../features/home/HomeScreen";
 import { SETUP_STEPS, setupFor } from "../features/home/setup";
@@ -82,12 +83,12 @@ function signedIn(
   };
 }
 
-const wrap = (role: ViewRole, locale: "en" | "ar" = "en") =>
+const wrap = (role: ViewRole, locale: "en" | "ar" = "en", today?: React.ReactNode) =>
   render(
     <LocaleProvider initial={locale}>
       <RoleProvider initial={role}>
         <UIProvider direction={locale === "ar" ? "rtl" : "ltr"}>
-          <HomeScreen />
+          <HomeScreen today={today} />
         </UIProvider>
       </RoleProvider>
     </LocaleProvider>,
@@ -245,6 +246,48 @@ describe("agent and staff Home (UX-25, draft D-050 (backlog))", () => {
   });
 });
 
+/** testIDs in document order. */
+function order(): string[] {
+  const ids: string[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    const n = node as { props?: { testID?: string }; children?: unknown[] | null };
+    if (n.props?.testID) ids.push(n.props.testID);
+    for (const child of n.children ?? []) walk(child);
+  };
+  walk(screen.toJSON());
+  return ids;
+}
+
+describe("today's orientation comes before old calls (UX-003)", () => {
+  const today = <ReactNative.View testID="today-slot" />;
+
+  it("on a narrow window it sits right under the numbers, above meetings and recent calls", async () => {
+    signedIn("admin");
+    await wrap("admin", "en", today);
+    const ids = order();
+    expect(ids.indexOf("today-slot")).toBeGreaterThan(ids.indexOf("home-stat-speed"));
+    expect(ids.indexOf("today-slot")).toBeLessThan(ids.indexOf("home-recent"));
+  });
+
+  it("on a wide window it heads the side column, above the company and playbook cards", async () => {
+    jest
+      .spyOn(ReactNative.Dimensions, "get")
+      .mockReturnValue({ width: 1280, height: 800, scale: 1, fontScale: 1 });
+    signedIn("admin");
+    await wrap("admin", "en", today);
+    const ids = order();
+    expect(ids.indexOf("today-slot")).toBeGreaterThan(ids.indexOf("home-recent"));
+    expect(ids.indexOf("today-slot")).toBeLessThan(ids.indexOf("home-company"));
+    expect(ids.indexOf("home-company")).toBeLessThan(ids.indexOf("home-playbook"));
+    jest.restoreAllMocks();
+  });
+});
+
 describe("Next: … at … (UX-43b)", () => {
   const meeting = {
     id: "m1",
@@ -256,11 +299,37 @@ describe("Next: … at … (UX-43b)", () => {
     (locale: "en" | "ar") => (key: Parameters<typeof t>[0], vars?: Parameters<typeof t>[2]) =>
       t(key, locale, vars);
 
+  const iso = (s: string) => `\u2068${s}\u2069`;
+  // "Today" is a Dubai day, like the time in the same line (lib/format.ts).
+  const sameDay = new Date("2026-11-14T05:00:00Z");
+
   it("names the next meeting with a formatted time in English and Arabic", () => {
-    const iso = (s: string) => `\u2068${s}\u2069`;
-    expect(nextLine(tt("en"), "en", meeting)).toBe(`Next: ${iso("Acme renewal call")} at 13:30`);
-    expect(nextLine(tt("ar"), "ar", meeting)).toBe(
+    expect(nextLine(tt("en"), "en", meeting, sameDay)).toBe(
+      `Next: ${iso("Acme renewal call")} at 13:30`,
+    );
+    expect(nextLine(tt("ar"), "ar", meeting, sameDay)).toBe(
       `التالي: ${iso("Acme renewal call")} الساعة 01:30 م`,
+    );
+  });
+
+  it("says tomorrow or the weekday when the meeting is not today (UX-002)", () => {
+    const friday = new Date("2026-11-27T08:00:00Z");
+    const at = (start: string) => ({ ...meeting, start, end: start }) as MeetingCandidate;
+    const title = iso("Acme renewal call");
+    expect(nextLine(tt("en"), "en", at("2026-11-27T11:00:00Z"), friday)).toBe(
+      `Next: ${title} at 15:00`,
+    );
+    expect(nextLine(tt("en"), "en", at("2026-11-28T07:00:00Z"), friday)).toBe(
+      `Next: ${title} tomorrow at 11:00`,
+    );
+    expect(nextLine(tt("en"), "en", at("2026-11-30T07:00:00Z"), friday)).toBe(
+      `Next: ${title} on Mon 30 Nov at 11:00`,
+    );
+    expect(nextLine(tt("ar"), "ar", at("2026-11-28T07:00:00Z"), friday)).toBe(
+      `التالي: ${title} غدًا الساعة 11:00 ص`,
+    );
+    expect(nextLine(tt("ar"), "ar", at("2026-11-30T07:00:00Z"), friday)).toBe(
+      `التالي: ${title} يوم الاثنين، 30 نوفمبر الساعة 11:00 ص`,
     );
   });
 

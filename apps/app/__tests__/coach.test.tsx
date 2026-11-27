@@ -274,6 +274,45 @@ describe("Coach UI & E2E wiring (Round 4 Agent 3)", () => {
     await waitFor(() => expect(screen.getByTestId("morning-brief-toggle")).toBeTruthy());
   });
 
+  it("the Morning brief never calls a later meeting today's, whatever the server's sentence says (UX-002)", async () => {
+    const inThreeDays = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    mockApi.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/coach/reviews") return { reviews: [], pending_count: 0 };
+      if (path === "/api/v1/coach/morning-brief") {
+        return {
+          brief: {
+            id: "mb_2",
+            day: "2026-11-27",
+            mode: "text",
+            delivered_at: 100,
+            content: {
+              day: "2026-11-27",
+              has_zoho_meetings: true,
+              meetings: [{ title: "Desmond: quote walkthrough", start: inThreeDays }],
+              tip: "Ask timeline early.",
+              pending_reviews_count: 0,
+              summary_text:
+                "Today's meetings (1): Desmond: quote walkthrough. Tip for today: Ask timeline early.",
+            },
+          },
+          prefs: { enabled: true, timezone_offset_min: 240, last_sent_day: "2026-11-27" },
+        };
+      }
+      return {};
+    });
+
+    await render(wrap(<ReviewQueueCard />));
+    await waitFor(() => expect(screen.getAllByTestId("morning-brief-line")).toHaveLength(2));
+    const [meetings, tip] = screen.getAllByTestId("morning-brief-line");
+    expect(meetings).toHaveTextContent(/^No meetings today · Next: /);
+    expect(tip).toHaveTextContent("Tip for today: Ask timeline early.");
+    expect(screen.queryByText(/Today's meetings/)).toBeNull();
+    // The toggle is an outlined button: a sunken panel hides the grey "secondary" fill (UI-006).
+    expect(screen.getByTestId("morning-brief-toggle")).toHaveStyle({
+      borderColor: themes.light.color.borderStrong,
+    });
+  });
+
   it("PostCallWizard Step 1 'Talk it through' opens VoiceReviewModal and completes review via completeReview", async () => {
     mockApi.mockResolvedValue({
       review: { id: "rev_wiz", status: "done" },

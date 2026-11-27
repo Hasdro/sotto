@@ -6,7 +6,7 @@ export default function HomeRoute() {
   return (
     <SafeBoundary name="home.screen">
       <HomeScreen
-        footer={
+        today={
           <SafeBoundary name="home.reviewQueue">
             <ReviewQueueCard />
           </SafeBoundary>

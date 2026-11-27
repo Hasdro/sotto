@@ -100,6 +100,26 @@ const DAY_WORD: Record<Locale, { today: string; tomorrow: string }> = {
   ar: { today: "اليوم", tomorrow: "غداً" },
 };
 
+/** Whole Dubai days from today to `value`: 0 today, 1 tomorrow, -1 yesterday; null when it is
+ * not a date (UX-002). */
+export function daysFromToday(value: string, now: Date = new Date()): number | null {
+  const day = dayOf(value);
+  const today = dayOf(now);
+  if (!day || !today) return null;
+  return Math.round((utc(day) - utc(today)) / 86_400_000);
+}
+
+/** "Mon 30 Nov" / "الاثنين، 30 نوفمبر": a Dubai day with its weekday (UX-002). */
+export function formatWeekday(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(tag(locale), {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    numberingSystem: "latn",
+    timeZone: ZONE,
+  }).format(new Date(iso));
+}
+
 /** "Today", "Tomorrow", "1 Dec", "5 Jan 2027"; the input itself when it is not a date. */
 export function formatDay(value: string, locale: Locale, now: Date = new Date()): string {
   const day = dayOf(value);

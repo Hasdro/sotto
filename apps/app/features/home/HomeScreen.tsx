@@ -4,6 +4,8 @@
  * Prepare / Start, the last call's tip and recent calls. Agents also see the questions they
  * sent to their manager; admins and managers see the company line and the playbook instead.
  * Agents never see model names or company stats (draft D-050 (backlog)).
+ * UX-003: `today` (Morning brief, pending call reviews) sits above Recent calls: at the top of
+ * the side column on wide windows, right under the numbers on narrow ones.
  */
 
 import { Badge, Button, Icon, radius, StatTile, space, Text, useTheme } from "@sotto/ui";
@@ -12,7 +14,7 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { allDeviceCalls, type DeviceCall, deviceCalls } from "../../lib/deviceHistory";
-import { formatTime } from "../../lib/format";
+import { daysFromToday, formatTime, formatWeekday } from "../../lib/format";
 import type { Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 import { useRole } from "../../lib/role";
@@ -61,18 +63,22 @@ export function myQuestions(calls: readonly DeviceCall[], max = 3): string[] {
   return out;
 }
 
-/** UX-43b: the hero line: the next meeting, or a plain ready line. */
+/** UX-43b: the hero line: the next meeting, or a plain ready line. UX-002: a meeting on another
+ * day says "tomorrow" or its weekday, so Monday's 11:00 never reads as today's. */
 export function nextLine(
   t: ReturnType<typeof useI18n>["t"],
   locale: Locale,
   next: MeetingCandidate | null,
+  now: Date = new Date(),
 ): string {
   if (!next || Number.isNaN(new Date(next.start).getTime())) return t("home.ready");
   // The title is often Latin inside an Arabic line: isolate its direction (FSI … PDI, UX-41).
-  return t("home.next", {
-    title: `\u2068${next.title || t("meetings.untitled")}\u2069`,
-    time: formatTime(next.start, locale),
-  });
+  const title = `\u2068${next.title || t("meetings.untitled")}\u2069`;
+  const time = formatTime(next.start, locale);
+  const days = daysFromToday(next.start, now);
+  if (days === 0) return t("home.next", { title, time });
+  if (days === 1) return t("home.nextTomorrow", { title, time });
+  return t("home.nextOn", { title, day: formatWeekday(next.start, locale), time });
 }
 
 /** UX-25 / ZC A14: plan and seats as one status line (admins and managers only). */
@@ -93,7 +99,7 @@ export function statusLine(
   return t("home.status.active", seats);
 }
 
-export function HomeScreen({ footer }: { footer?: React.ReactNode } = {}) {
+export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const router = useRouter();
@@ -131,6 +137,7 @@ export function HomeScreen({ footer }: { footer?: React.ReactNode } = {}) {
 
   const side = (
     <View style={[styles.side, wide ? styles.sideWide : null]}>
+      {wide ? today : null}
       {agent ? (
         <Section title={t("home.myQuestions")} testID="home-my-questions">
           {questions.length === 0 ? (
@@ -218,6 +225,7 @@ export function HomeScreen({ footer }: { footer?: React.ReactNode } = {}) {
       </View>
 
       <View style={[styles.columns, wide ? styles.columnsWide : null]}>
+        {wide ? null : today}
         <View style={styles.main}>
           {/* Owner request (14 Nov 2026): upcoming Zoho meetings first when connected. */}
           <HomeMeetings onLoaded={(m) => setNext(m[0] ?? null)} />
@@ -267,7 +275,6 @@ export function HomeScreen({ footer }: { footer?: React.ReactNode } = {}) {
         </View>
         {side}
       </View>
-      {footer}
       <Text variant="label" tone="muted" style={styles.powered}>
         {t("brand.poweredBy")}
       </Text>
