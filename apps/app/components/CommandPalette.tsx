@@ -17,6 +17,7 @@ import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { ADMIN_GROUPS, adminPageLabel } from "../features/admin/pages";
+import { scrollToAnchor } from "../lib/anchor";
 import { deviceCalls } from "../lib/deviceHistory";
 import { type Locale, type StringKey, t as translate } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
@@ -115,17 +116,6 @@ const openers = new Set<() => void>();
 /** Opens the quick search; the sidebar's Search button uses it (UX-001). */
 export function openPalette(): void {
   for (const open of openers) open();
-}
-
-/** `/settings#zoho`: bring the section into view, also when that page is already open. */
-function scrollToAnchor(href: Href): void {
-  const id = String(href).split("#")[1];
-  if (!id || Platform.OS !== "web") return;
-  setTimeout(() => {
-    (globalThis as { document?: Document }).document
-      ?.getElementById(id)
-      ?.scrollIntoView?.({ block: "start" });
-  }, 350);
 }
 
 export function CommandPalette({
