@@ -77,6 +77,27 @@ function skillMeans(rows: UsageRow[]): { skill: Skill; score: number }[] {
   }));
 }
 
+/** Round numbers a chart scale may end on, in tenths of each power of ten (no float maths). */
+const NICE_TENTHS = [10, 12, 15, 20, 25, 30, 40, 50, 60, 80, 100];
+
+/** UI-009: the Calls per day scale: the smallest round number at or above the busiest day, its
+ * half when that is a whole number, and zero ("8, 4, 0"; "3, 0"). */
+export function dayAxis(max: number): { top: number; ticks: number[] } {
+  const want = Math.max(1, Math.ceil(max));
+  let top = want;
+  for (let mag = 1; mag <= 1e9; mag *= 10) {
+    const hit = NICE_TENTHS.map((f) => (f * mag) / 10).find(
+      (v) => Number.isInteger(v) && v >= want,
+    );
+    if (hit !== undefined) {
+      top = hit;
+      break;
+    }
+  }
+  const half = top / 2;
+  return { top, ticks: top > 1 && Number.isInteger(half) ? [top, half, 0] : [top, 0] };
+}
+
 export function buildReport(rows: UsageRow[], spanDays: number, now = Date.now()): Report {
   const days: { day: string; calls: number }[] = [];
   for (let i = spanDays - 1; i >= 0; i--)

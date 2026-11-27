@@ -1,4 +1,4 @@
-import { buildReport, type UsageRow } from "./data";
+import { buildReport, dayAxis, type UsageRow } from "./data";
 
 const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 9, 22, 12);
@@ -82,5 +82,20 @@ describe("reports", () => {
       0,
     ]);
     expect(r.days).toHaveLength(30);
+  });
+});
+
+describe("Calls per day scale (UI-009)", () => {
+  it.each([
+    [0, 1, [1, 0]],
+    [1, 1, [1, 0]],
+    [2, 2, [2, 1, 0]],
+    [3, 3, [3, 0]],
+    [7, 8, [8, 4, 0]],
+    [11, 12, [12, 6, 0]],
+    [57, 60, [60, 30, 0]],
+    [130, 150, [150, 75, 0]],
+  ])("busiest day %i: top %i, ticks %j", (max, top, ticks) => {
+    expect(dayAxis(max)).toEqual({ top, ticks });
   });
 });

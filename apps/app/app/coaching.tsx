@@ -11,11 +11,13 @@ import {
   EmptyState,
   layout,
   Panel,
+  radius,
   Screen,
   Stack,
   space,
   Text,
   ToggleRow,
+  useTheme,
 } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -29,7 +31,7 @@ import {
   SKILLS,
   type Skill,
 } from "../features/coaching/api";
-import type { StringKey } from "../lib/i18n";
+import { countKey, type StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useCloud } from "../lib/useCloud";
 
@@ -152,12 +154,17 @@ function PersonCard({ person: p }: { person: CoachPerson }) {
           </Text>
           {p.me ? <Badge label={t("coaching.you")} tone="primary" /> : null}
         </View>
-        <Text variant="label" tone="muted">
-          {t("coaching.counts", { calls: p.calls, rated: p.rated, down: p.not_helpful })}
+        {/* UI-010: "1 call · 1 card rated", never "1 cards rated". */}
+        <Text variant="label" tone="muted" testID={`coach-counts-${p.user_id}`}>
+          {[
+            t(countKey("coaching.calls", p.calls), { n: p.calls }),
+            t(countKey("coaching.rated", p.rated), { n: p.rated }),
+            t("coaching.notHelpful", { n: p.not_helpful }),
+          ].join(" · ")}
         </Text>
         {p.weakest ? (
           <Text weight="medium" testID={`coach-weakest-${p.user_id}`}>
-            {t("coaching.practise", {
+            {t("coaching.practice", {
               skill: t(SKILL_KEY[p.weakest]),
               score: p.skills[p.weakest] ?? 0,
             })}
@@ -165,13 +172,7 @@ function PersonCard({ person: p }: { person: CoachPerson }) {
         ) : (
           <Text tone="muted">{t("coaching.noReviews")}</Text>
         )}
-        {Object.keys(p.skills).length > 0 ? (
-          <Text variant="label" tone="muted">
-            {SKILLS.filter((s) => p.skills[s] !== undefined)
-              .map((s) => `${t(SKILL_KEY[s])} ${p.skills[s]}`)
-              .join(" · ")}
-          </Text>
-        ) : null}
+        <SkillBars person={p} />
         {rejected.length > 0 ? (
           <Text variant="label" tone="muted">
             {`${t("coaching.rejected")}: ${rejected
@@ -188,6 +189,57 @@ function PersonCard({ person: p }: { person: CoachPerson }) {
         ) : null}
       </Stack>
     </Panel>
+  );
+}
+
+/** UI-010: the six review skills as short bars (0–10) instead of one line of six numbers; the
+ * skill to practise is marked "Focus". Colours follow the call review (green ≥ 7, amber ≥ 4). */
+function SkillBars({ person: p }: { person: CoachPerson }) {
+  const { t } = useI18n();
+  const { color, card } = useTheme();
+  const shown = SKILLS.filter((s) => p.skills[s] !== undefined);
+  if (shown.length === 0) return null;
+  return (
+    <View style={styles.skills} testID={`coach-skills-${p.user_id}`}>
+      {shown.map((s) => {
+        const v = p.skills[s] ?? 0;
+        const focus = s === p.weakest;
+        const fill =
+          v >= 7 ? card.answer.accent : v >= 4 ? card.objection.accent : card.warning.accent;
+        return (
+          <View key={s} style={styles.skill} testID={`coach-skill-${p.user_id}-${s}`}>
+            <View style={styles.head}>
+              <Text
+                variant="label"
+                weight={focus ? "semibold" : "medium"}
+                numberOfLines={1}
+                style={styles.grow}
+              >
+                {t(SKILL_KEY[s])}
+              </Text>
+              {focus ? <Badge label={t("coaching.focus")} tone="objection" /> : null}
+              <Text variant="label" weight="semibold" style={styles.num}>
+                {`${Math.round(v * 10) / 10}/10`}
+              </Text>
+            </View>
+            <View
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityLabel={t(SKILL_KEY[s])}
+              accessibilityValue={{ min: 0, max: 10, now: v }}
+              style={[styles.track, { backgroundColor: color.surfaceSunken }]}
+            >
+              <View
+                style={[
+                  styles.fill,
+                  { width: `${Math.min(100, Math.max(0, v * 10))}%`, backgroundColor: fill },
+                ]}
+              />
+            </View>
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -253,5 +305,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const styles = StyleSheet.create({
   page: { paddingTop: space.xl },
   head: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.sm },
+  grow: { flex: 1, minWidth: 0 },
+  num: { fontVariant: ["tabular-nums"] },
+  skills: { flexDirection: "row", flexWrap: "wrap", columnGap: space.xl, rowGap: space.md },
+  skill: { flexGrow: 1, flexBasis: 240, gap: space.xs },
+  track: { height: 6, borderRadius: radius.pill, overflow: "hidden" },
+  fill: { height: 6, borderRadius: radius.pill },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.xs },
 });

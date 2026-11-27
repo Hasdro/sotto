@@ -1,6 +1,6 @@
 /** Reports (owner, 22 Oct): tiles, charts and, for admins and managers, the agents table. */
 import { UIProvider } from "@sotto/ui";
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import ReportsScreen from "../app/reports";
 import { cloudApi } from "../lib/cloud";
 import { LocaleProvider } from "../lib/locale";
@@ -68,5 +68,32 @@ describe("Reports", () => {
     await wrap();
     await screen.findByText("72%");
     expect(screen.queryByTestId("reports-agents")).toBeNull();
+  });
+
+  it("shows a loading state instead of a blank page (UI-009)", async () => {
+    mockRole = "admin";
+    jest.mocked(cloudApi).mockReturnValue(new Promise(() => {}));
+    await wrap();
+    expect(screen.getByTestId("reports-loading")).toHaveTextContent("Loading reports…");
+    expect(screen.queryByTestId("reports-days")).toBeNull();
+  });
+
+  it("gives Calls per day a scale, readable days and the count on busy days (UI-009)", async () => {
+    mockRole = "admin";
+    await wrap();
+    await screen.findByTestId("reports-days");
+    expect(screen.getByTestId("reports-days-axis")).toHaveTextContent(/^10$/);
+    expect(screen.getByTestId("reports-days-first")).not.toHaveTextContent(/^\d\d-\d\d$/);
+    expect(screen.getByTestId("reports-days-last")).toHaveTextContent(
+      /Today|\d{1,2} [A-Z][a-z]{2}/,
+    );
+    expect(screen.getByLabelText(/: 1 call$/)).toBeOnTheScreen();
+    expect(screen.queryByTestId(/^reports-day-value-/)).toBeNull(); // width unknown yet
+    await fireEvent(screen.getByTestId("reports-days-bars"), "layout", {
+      nativeEvent: { layout: { width: 900, height: 140, x: 0, y: 0 } },
+    });
+    const values = screen.getAllByTestId(/^reports-day-value-/);
+    expect(values).toHaveLength(1);
+    expect(values[0]).toHaveTextContent("1");
   });
 });

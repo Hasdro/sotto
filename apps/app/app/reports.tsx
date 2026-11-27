@@ -14,6 +14,7 @@ import {
   radius,
   Screen,
   SegmentedControl,
+  Spinner,
   space,
   Text,
   useTheme,
@@ -22,11 +23,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { FeatureGate } from "../components/FeatureGate";
 import { PageHeader } from "../components/PageHeader";
-import { buildReport, type Report, type UsageRow } from "../features/reports/data";
+import { buildReport, dayAxis, type Report, type UsageRow } from "../features/reports/data";
 import { topObjections } from "../features/reports/objections";
 import { SOURCE_META } from "../lib/callSource";
 import { cloudActive, cloudApi } from "../lib/cloud";
 import { allDeviceCalls } from "../lib/deviceHistory";
+import { formatDay } from "../lib/format";
+import { countKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useCloud } from "../lib/useCloud";
 
@@ -73,6 +76,7 @@ function ReportsScreen() {
             accessibilityLabel={t("reports.span")}
             value={span}
             onChange={setSpan}
+            testID="reports-span"
             options={[
               { value: "7", label: t("reports.days", { n: 7 }) },
               { value: "30", label: t("reports.days", { n: 30 }) },
@@ -91,8 +95,49 @@ function ReportsScreen() {
         <EmptyState title={t("reports.none.title")} body={t("reports.none.body")} />
       ) : report ? (
         <ReportView report={report} team={team} />
-      ) : null}
+      ) : (
+        <ReportsLoading />
+      )}
     </Screen>
+  );
+}
+
+/** UI-009: while the numbers load, the page keeps its shape (tiles and the chart) and says so,
+ * instead of a blank space under the period picker. */
+function ReportsLoading() {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const block = { backgroundColor: color.surfaceSunken };
+  return (
+    <View
+      style={styles.body}
+      testID="reports-loading"
+      accessible
+      accessibilityRole="progressbar"
+      aria-busy
+      accessibilityLabel={t("reports.loading")}
+    >
+      <View style={styles.tiles}>
+        {[0, 1, 2, 3].map((i) => (
+          <View
+            key={i}
+            style={[styles.tile, { backgroundColor: color.surface, borderColor: color.border }]}
+          >
+            <View style={[styles.skelLine, block]} />
+            <View style={[styles.skelValue, block]} />
+          </View>
+        ))}
+      </View>
+      <Panel style={styles.panel}>
+        <View style={styles.heading}>
+          <Spinner />
+          <Text variant="label" tone="muted">
+            {t("reports.loading")}
+          </Text>
+        </View>
+        <View style={[styles.skelChart, block]} />
+      </Panel>
+    </View>
   );
 }
 
@@ -223,48 +268,98 @@ function Heading({ icon, text }: { icon: IconName; text: string }) {
   );
 }
 
-/** Calls per day: one bar per day, the value on hover (or in the bar's accessible label). */
+/** Pixels a bar needs to carry its count above it (two digits at label size). */
+const VALUE_MIN_WIDTH = 22;
+
+/**
+ * Calls per day: one bar per day on a labelled scale (UI-009): round ticks with light grid
+ * lines, days written as "29 Oct" / "Today", the count above each busy day when the bars are
+ * wide enough, and the day and count on hover or tap (and in each bar's accessible label).
+ */
 function DayBars({ days }: { days: { day: string; calls: number }[] }) {
   const { color } = useTheme();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...days.map((d) => d.calls));
+  const [width, setWidth] = useState(0);
+  const { top, ticks } = dayAxis(Math.max(0, ...days.map((d) => d.calls)));
   const h = 140;
+  const y = (v: number) => (v / top) * (h - 8);
   const shown = hover === null ? null : days[hover];
+  const dayName = (day: string) => formatDay(day, locale);
+  const valueText = (d: { day: string; calls: number }) =>
+    t(countKey("reports.dayValue", d.calls), { day: dayName(d.day), n: d.calls });
+  const values = days.length > 0 && width / days.length >= VALUE_MIN_WIDTH;
+  const first = days[0];
+  const last = days.at(-1);
   return (
     <View>
       <Text variant="label" tone="muted" style={styles.readout}>
-        {shown ? t("reports.dayValue", { day: shown.day.slice(5), n: shown.calls }) : " "}
+        {shown ? valueText(shown) : t("reports.dayHint")}
       </Text>
-      <View style={[styles.daysRow, { height: h, borderBottomColor: color.border }]}>
-        {days.map((d, i) => (
-          <Pressable
-            key={d.day}
-            accessibilityLabel={t("reports.dayValue", { day: d.day, n: d.calls })}
-            onHoverIn={() => setHover(i)}
-            onHoverOut={() => setHover(null)}
-            onPress={() => setHover(i)}
-            style={styles.dayHit}
+      <View style={styles.chart}>
+        <View style={[styles.axisY, { height: h }]} testID="reports-days-axis">
+          {ticks.map((v) => (
+            <Text key={v} variant="label" tone="muted" style={[styles.tick, { bottom: y(v) - 9 }]}>
+              {String(v)}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.plot}>
+          <View
+            testID="reports-days-bars"
+            onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+            style={[styles.daysRow, { height: h, borderBottomColor: color.border }]}
           >
-            <View
-              style={{
-                height: d.calls ? Math.max(4, (d.calls / max) * (h - 8)) : 0,
-                borderTopLeftRadius: 4,
-                borderTopRightRadius: 4,
-                backgroundColor: color.primary,
-                opacity: hover === null || hover === i ? 1 : 0.45,
-              }}
-            />
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.axis}>
-        <Text variant="label" tone="muted">
-          {days[0]?.day.slice(5)}
-        </Text>
-        <Text variant="label" tone="muted">
-          {days.at(-1)?.day.slice(5)}
-        </Text>
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              {ticks
+                .filter((v) => v > 0)
+                .map((v) => (
+                  <View
+                    key={v}
+                    style={[styles.gridLine, { bottom: y(v), backgroundColor: color.border }]}
+                  />
+                ))}
+            </View>
+            {days.map((d, i) => (
+              <Pressable
+                key={d.day}
+                accessibilityLabel={valueText(d)}
+                onHoverIn={() => setHover(i)}
+                onHoverOut={() => setHover(null)}
+                onPress={() => setHover(i)}
+                style={styles.dayHit}
+              >
+                {values && d.calls > 0 ? (
+                  <Text
+                    variant="label"
+                    tone="muted"
+                    style={styles.value}
+                    testID={`reports-day-value-${d.day}`}
+                  >
+                    {String(d.calls)}
+                  </Text>
+                ) : null}
+                <View
+                  style={{
+                    height: d.calls ? Math.max(4, y(d.calls)) : 0,
+                    borderTopLeftRadius: 4,
+                    borderTopRightRadius: 4,
+                    backgroundColor: color.primary,
+                    opacity: hover === null || hover === i ? 1 : 0.45,
+                  }}
+                />
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.axis}>
+            <Text variant="label" tone="muted" testID="reports-days-first">
+              {first ? dayName(first.day) : ""}
+            </Text>
+            <Text variant="label" tone="muted" testID="reports-days-last">
+              {last ? dayName(last.day) : ""}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -374,6 +469,15 @@ const styles = StyleSheet.create({
   two: { flexDirection: "row", flexWrap: "wrap", gap: space.lg },
   half: { flexGrow: 1, flexBasis: 320 },
   readout: { minHeight: 18 },
+  chart: { flexDirection: "row", gap: space.xs },
+  axisY: { minWidth: 28, position: "relative" },
+  tick: { position: "absolute", end: 0, fontVariant: ["tabular-nums"] },
+  plot: { flex: 1, minWidth: 0 },
+  gridLine: { position: "absolute", start: 0, end: 0, height: 1, opacity: 0.7 },
+  value: { textAlign: "center", fontVariant: ["tabular-nums"] },
+  skelLine: { height: 12, width: "45%", borderRadius: radius.pill },
+  skelValue: { height: 26, width: "30%", borderRadius: radius.md },
+  skelChart: { height: 140, borderRadius: radius.lg },
   daysRow: { flexDirection: "row", alignItems: "flex-end", gap: 2, borderBottomWidth: 1 },
   dayHit: { flex: 1, height: "100%", justifyContent: "flex-end" },
   axis: { flexDirection: "row", justifyContent: "space-between", marginTop: space.xs },

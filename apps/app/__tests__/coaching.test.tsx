@@ -1,7 +1,7 @@
 /** INT-05: Coaching — an agent sees only themselves, a manager the team, nobody is ranked; the
  * weekly email is opt-in with a preview (managers and admins only). */
 import { UIProvider } from "@sotto/ui";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import CoachingScreen from "../app/coaching";
 import { LocaleProvider } from "../lib/locale";
 
@@ -55,7 +55,7 @@ describe("Coaching", () => {
     });
     await wrap();
     expect(await screen.findByText("Your own calls, last 30 days.")).toBeOnTheScreen();
-    expect(screen.getByText("Practise: Discovery (3.5/10 on average)")).toBeOnTheScreen();
+    expect(screen.getByText("Practice: Discovery (3.5/10 on average)")).toBeOnTheScreen();
     expect(screen.getByText("You")).toBeOnTheScreen();
     expect(screen.queryByTestId("coaching-weekly")).toBeNull();
     expect(screen.queryByTestId("coaching-objections")).toBeNull();
@@ -95,6 +95,48 @@ describe("Coaching", () => {
     );
     await fireEvent.press(screen.getByTestId("coaching-preview"));
     expect(await screen.findByText("Sent. Check your inbox.")).toBeOnTheScreen();
+  });
+
+  it("reads cleanly: singular counts, Practice, one bar per skill, the focus marked (UI-010)", async () => {
+    mockRole = "agent";
+    mockApi.mockResolvedValue({
+      scope: "self",
+      days: 30,
+      ranking: false,
+      people: [{ ...person("u1", "Omar", true), calls: 1, rated: 1, not_helpful: 0 }],
+      objections: {},
+      learned: [],
+    });
+    await wrap();
+    expect(await screen.findByTestId("coach-counts-u1")).toHaveTextContent(
+      "1 call · 1 card rated · 0 not helpful",
+    );
+    expect(screen.getByTestId("coach-weakest-u1")).toHaveTextContent(
+      "Practice: Discovery (3.5/10 on average)",
+    );
+    const skills = screen.getByTestId("coach-skills-u1");
+    expect(within(skills).getAllByRole("progressbar")).toHaveLength(2);
+    expect(screen.getByTestId("coach-skill-u1-discovery")).toHaveTextContent(
+      /^Discovery.*Focus.*3\.5\/10$/,
+    );
+    expect(screen.getByTestId("coach-skill-u1-opening")).toHaveTextContent(/^Opening7\/10$/);
+    expect(screen.queryByText(/Opening 7 · Discovery 3\.5/)).toBeNull();
+  });
+
+  it("says calls and cards in the plural when there are several", async () => {
+    mockRole = "agent";
+    mockApi.mockResolvedValue({
+      scope: "self",
+      days: 30,
+      ranking: false,
+      people: [person("u1", "Omar", true)],
+      objections: {},
+      learned: [],
+    });
+    await wrap();
+    expect(await screen.findByTestId("coach-counts-u1")).toHaveTextContent(
+      "4 calls · 6 cards rated · 2 not helpful",
+    );
   });
 
   it("works in Arabic", async () => {
