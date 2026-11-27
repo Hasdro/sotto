@@ -40,8 +40,9 @@ const PREP_MAX = 400;
 const TEXT_MAX = 2000;
 const GAME_PLAN_MAX = 1600;
 
-type State = { crm: Attached; prep: Prep };
-let state: State = { crm: { kind: "none" }, prep: EMPTY_PREP };
+/** `auto`: brief fields filled from the linked Zoho record, with the value filled in (UX-006). */
+type State = { crm: Attached; prep: Prep; auto: Partial<Prep> };
+let state: State = { crm: { kind: "none" }, prep: EMPTY_PREP, auto: {} };
 let gamePlanText = "";
 const listeners = new Set<() => void>();
 
@@ -50,22 +51,68 @@ function set(next: Partial<State>): void {
   for (const fn of listeners) fn();
 }
 
+/**
+ * What a linked record fills in before the agent types (UX-006): the meeting title as the
+ * objective, its agenda and the open deal as the TLDR, the people as attendees. Zoho's own
+ * data only, no added words, so it reads the same in English and Arabic. Pure.
+ */
+export function prefillFrom(brief: Brief): Partial<Prep> {
+  const m = brief.meeting;
+  const deal = brief.deals.find((d) => d.name.trim());
+  const dealLine = deal ? [deal.name, deal.stage].map((x) => x.trim()).filter(Boolean) : [];
+  const fill: Partial<Prep> = {
+    objective: m?.title.trim() ?? "",
+    tldr: [m?.agenda.trim() ?? "", dealLine.join(" · ")].filter(Boolean).join("\n"),
+    attendees: m?.participants.length ? m.participants.join(", ") : (brief.person?.name ?? ""),
+  };
+  return Object.fromEntries(
+    Object.entries(fill)
+      .map(([f, v]) => [f, (v ?? "").slice(0, PREP_MAX)])
+      .filter(([, v]) => v),
+  ) as Partial<Prep>;
+}
+
+/** True while a brief field still holds what Zoho filled in (the agent has not changed it). */
+export function isPrefilled(s: State, field: PrepField): boolean {
+  const auto = s.auto[field];
+  return auto !== undefined && s.prep[field] === auto;
+}
+
+/**
+ * The brief as the agent wrote it: a field still holding Zoho's prefill counts as empty. That
+ * data already travels as the Zoho record, so the AI, the coach and the after-call note never
+ * get it twice, and Zoho never gets its own data written back as a note (UX-006).
+ */
+export function agentPrep(s: State): Prep {
+  const out = { ...s.prep };
+  for (const f of PREP_FIELDS) if (isPrefilled(s, f)) out[f] = "";
+  return out;
+}
+
 export function attachBrief(brief: Brief): void {
-  // Attendees start from the meeting or the contact; the agent can edit them.
-  const attendees =
-    state.prep.attendees ||
-    (brief.meeting?.participants.length
-      ? brief.meeting.participants.join(", ")
-      : (brief.person?.name ?? ""));
-  set({ crm: { kind: "attached", brief }, prep: { ...state.prep, attendees } });
+  // Empty fields start from the record; a field the agent already wrote is never replaced.
+  const prep = { ...state.prep };
+  const auto: Partial<Prep> = {};
+  for (const [f, v] of Object.entries(prefillFrom(brief)) as [PrepField, string][]) {
+    if (prep[f].trim()) continue;
+    prep[f] = v;
+    auto[f] = v;
+  }
+  set({ crm: { kind: "attached", brief }, prep, auto });
 }
 export const skipCrm = () => set({ crm: { kind: "skipped" } });
-export const clearCrm = () => set({ crm: { kind: "none" } });
+/** "Change": unlinks the record and empties the fields it filled that the agent left as they
+ * were, so the next record never inherits the last one's attendees (UX-006). */
+export const clearCrm = () => {
+  const prep = { ...state.prep };
+  for (const f of PREP_FIELDS) if (isPrefilled(state, f)) prep[f] = "";
+  set({ crm: { kind: "none" }, prep, auto: {} });
+};
 /** A new call: nothing attached, an empty brief. */
 export const resetCall = () => {
   carry = false;
   gamePlanText = "";
-  set({ crm: { kind: "none" }, prep: EMPTY_PREP });
+  set({ crm: { kind: "none" }, prep: EMPTY_PREP, auto: {} });
 };
 
 export function setGamePlanText(text: string | null | undefined): void {
@@ -102,8 +149,9 @@ export function setPrep(field: PrepField, value: string): void {
 export function attachedBriefText(): string {
   const parts: string[] = [];
   if (state.crm.kind === "attached") parts.push(state.crm.brief.text);
+  const prep = agentPrep(state); // an untouched prefill is already in the Zoho text above
   for (const f of PREP_FIELDS) {
-    const v = state.prep[f].trim().replace(/\s+/g, " ");
+    const v = prep[f].trim().replace(/\s+/g, " ");
     if (v) parts.push(`${PREP_LABEL[f]}: ${v}`);
   }
   return parts.join("\n").slice(0, TEXT_MAX);

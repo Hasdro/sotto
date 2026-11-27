@@ -16,7 +16,7 @@ import { FeatureOff, useFeature } from "../../components/FeatureGate";
 import { SafeBoundary } from "../../components/SafeBoundary";
 import { logEvent } from "../../lib/obs";
 import { enqueue } from "../../lib/outbox";
-import { setGamePlanText, useAttachedState } from "../crm/attached";
+import { agentPrep, setGamePlanText, useAttachedState } from "../crm/attached";
 import {
   type GamePlan,
   generateGamePlan,
@@ -80,7 +80,8 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
           .filter(Boolean)
           .join(" · ")
       : "";
-  const prepNotesText = [attached.prep.tldr, attached.prep.objective, attached.prep.pains]
+  const written = agentPrep(attached); // the agent's own notes; Zoho's prefill is in the brief
+  const prepNotesText = [written.tldr, written.objective, written.pains]
     .filter(Boolean)
     .join(" | ");
 

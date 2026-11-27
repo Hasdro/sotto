@@ -24,7 +24,7 @@ import { CloudError, saveCallLog } from "../../lib/cloud";
 import { deviceCall, setAfterCallItem } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
 import { type ActionKind, type TaskOwner, zohoAction, zohoOwners } from "../crm/api";
-import { PREP_FIELDS, useAttachedState } from "../crm/attached";
+import { agentPrep, PREP_FIELDS, useAttachedState } from "../crm/attached";
 import { useZoho } from "../crm/useZoho";
 import { newKey, type Perform } from "./ActionCard";
 import {
@@ -75,7 +75,9 @@ export function AfterCallChecklist({
 }) {
   const { t } = useI18n();
   const at = useActionsText();
-  const { crm, prep } = useAttachedState();
+  const attached = useAttachedState();
+  const { crm } = attached;
+  const prep = agentPrep(attached); // Zoho's own prefill is never written back as a note
   const conn = useZoho();
   const brief = crm.kind === "attached" ? crm.brief : null;
   const prepNotes = PREP_FIELDS.filter((f) => f !== "attendees" && prep[f].trim())

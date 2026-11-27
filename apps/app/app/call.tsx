@@ -27,6 +27,7 @@ import { EndedView } from "../features/call/components/EndedView";
 import { ListenBar } from "../features/call/components/ListenBar";
 import { ListenStart, PhoneCallsLater } from "../features/call/components/ListenStart";
 import { PracticeStart } from "../features/call/components/PracticeStart";
+import { PreparedNote } from "../features/call/components/PreparedNote";
 import { ScenarioPicker } from "../features/call/components/ScenarioPicker";
 import { TalkMeter } from "../features/call/components/TalkMeter";
 import { TranscriptPane } from "../features/call/components/TranscriptPane";
@@ -142,8 +143,10 @@ export function CallView({
     return { agentMs, customerMs };
   }, [state.transcript]);
   // Density rule (T-050): the live call shows the card, the status and one collapsed rail toggle.
-  // Before the call the same toggle opens the brief editor (UX-01); Home's Prepare opens it.
-  const [railOpen, setRailOpen] = useState(prepare);
+  // Before the call the same toggle opens the brief editor (UX-01); Home's Prepare opens it on a
+  // wide window. On a narrow one the rail is a sheet over everything, so it stays one tap away
+  // (UX-008).
+  const [railOpen, setRailOpen] = useState(prepare && wide);
   const [checking, setChecking] = useState(check);
   useEffect(() => {
     if (check) setChecking(true);
@@ -157,8 +160,8 @@ export function CallView({
     if (askPractice) setPracticing(true);
   }, [askPractice]);
   useEffect(() => {
-    if (prepare) setRailOpen(true);
-  }, [prepare]);
+    if (prepare && wide) setRailOpen(true);
+  }, [prepare, wide]);
   const live = state.phase === "live";
   const idle = state.phase === "idle";
   // A new call starts with a clean brief, unless a meeting was picked for it on Home.
@@ -292,6 +295,9 @@ export function CallView({
           onStart={startPractice}
           onReal={() => setPracticing(false)}
         />
+      ) : null}
+      {state.phase === "idle" && prepare && !wide && !railOpen && !practicing ? (
+        <PreparedNote onOpen={() => setRailOpen(true)} />
       ) : null}
       {state.phase === "idle" && !scripted && !practicing ? (
         Platform.OS === "web" ? (

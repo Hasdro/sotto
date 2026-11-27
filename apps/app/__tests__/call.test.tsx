@@ -473,6 +473,20 @@ describe("in-call screen", () => {
       expect(screen.queryByText("Transcript")).toBeNull(); // nothing heard yet
     });
 
+    it("narrow `prepare=1` keeps the context one tap away instead of a blocking sheet (UX-008)", async () => {
+      jest.replaceProperty(RN.Platform, "OS", "web");
+      jest.mocked(useIsWide).mockReturnValue(false);
+      await render(<CallView session={session(stateFrom([real]))} mock={false} prepare />);
+      expect(screen.queryByTestId("call-rail-sheet")).toBeNull();
+      expect(screen.getByTestId("listen-start")).toBeOnTheScreen();
+      expect(screen.getByTestId("prepare-ready")).toHaveTextContent(/Your call brief is ready/);
+      await fireEvent.press(screen.getByTestId("prepare-open"));
+      expect(screen.getByTestId("call-rail-sheet")).toBeOnTheScreen();
+      expect(screen.getByTestId("prep-objective")).toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId("call-rail-sheet-close"));
+      expect(screen.queryByTestId("call-rail-sheet")).toBeNull();
+    });
+
     it("without `prepare` the rail stays collapsed before the call; the toggle opens the editor", async () => {
       jest.replaceProperty(RN.Platform, "OS", "web");
       jest.mocked(useIsWide).mockReturnValue(true);

@@ -116,6 +116,12 @@ const en = {
   "card.whyHide": "Hide insight",
   "mini.button": "Mini window",
   "mini.buttonHint": "Keeps the newest card on top of your other apps. Shortcut: {keys}",
+  /** UX-006: a brief field filled in from the linked Zoho record. */
+  "prep.prefilled": "From Zoho · edit freely",
+  /** UX-008: narrow windows keep the context one tap away instead of opening it over the call. */
+  "prep.ready": "Your call brief is ready.",
+  "prep.readyLinked": "Your call brief is ready: {title}.",
+  "prep.open": "View call context",
 } as const;
 
 export type CallTextKey = keyof typeof en;
@@ -217,6 +223,10 @@ const ar: Record<CallTextKey, string> = {
   "card.whyHide": "إخفاء الفكرة",
   "mini.button": "النافذة الصغيرة",
   "mini.buttonHint": "تُبقي أحدث بطاقة فوق تطبيقاتك الأخرى. الاختصار: {keys}",
+  "prep.prefilled": "من Zoho · يمكنك تعديله",
+  "prep.ready": "ملخص مكالمتك جاهز.",
+  "prep.readyLinked": "ملخص مكالمتك جاهز: {title}.",
+  "prep.open": "اعرض سياق المكالمة",
 };
 
 export const CALL_TEXT: Record<Locale, Record<CallTextKey, string>> = { en, ar };

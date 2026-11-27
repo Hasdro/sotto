@@ -40,6 +40,7 @@ import { type Brief, type Candidate, zohoBrief, zohoMeetingBrief, zohoSearch } f
 import {
   attachBrief,
   clearCrm,
+  isPrefilled,
   PREP_FIELDS,
   setPrep,
   skipCrm,
@@ -540,7 +541,8 @@ function PrepPanel({ onDone }: { onDone?: () => void }) {
   const { t } = useI18n();
   const tc = useCallText();
   const prep = useFeature("prep");
-  const { prep: values } = useAttachedState();
+  const attached = useAttachedState();
+  const values = attached.prep;
   if (prep.state === "no_permission") return null;
   if (prep.state !== "available") return <FeatureOff feature="prep" effective={prep} />;
   return (
@@ -552,17 +554,28 @@ function PrepPanel({ onDone }: { onDone?: () => void }) {
         <Text variant="label" tone="muted" testID="prep-help">
           {tc("prep.help")}
         </Text>
-        {PREP_FIELDS.map((f) => (
-          <TextField
-            key={f}
-            label={t(`prep.${f}`)}
-            value={values[f]}
-            onChangeText={(v) => setPrep(f, v)}
-            multiline={f === "tldr" || f === "pains"}
-            height={f === "tldr" || f === "pains" ? 56 : undefined}
-            testID={`prep-${f}`}
-          />
-        ))}
+        {PREP_FIELDS.map((f) => {
+          // UX-006: a field Zoho filled in says so until the agent changes it.
+          const prefilled = isPrefilled(attached, f);
+          return (
+            <View key={f} style={styles.field}>
+              <TextField
+                label={t(`prep.${f}`)}
+                value={values[f]}
+                onChangeText={(v) => setPrep(f, v)}
+                multiline={f === "tldr" || f === "pains"}
+                height={f === "tldr" || f === "pains" ? 56 : undefined}
+                {...(prefilled ? { accessibilityHint: tc("prep.prefilled") } : {})}
+                testID={`prep-${f}`}
+              />
+              {prefilled ? (
+                <Text variant="label" tone="muted" testID={`prep-${f}-prefilled`}>
+                  {tc("prep.prefilled")}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
         {onDone ? (
           <Button variant="secondary" label={tc("rail.done")} onPress={onDone} testID="prep-done" />
         ) : null}
@@ -689,6 +702,7 @@ export function BriefView({ brief }: { brief: Brief }) {
 
 const styles = StyleSheet.create({
   candidate: { gap: space.xs, paddingTop: space.sm },
+  field: { gap: space.xs },
   inline: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   headRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
 });

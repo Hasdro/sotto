@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react-nativ
 import { CrmRail, dealLine, leadFromQuery } from "../features/call/components/CrmRail";
 import type { Candidate } from "../features/crm/api";
 import {
+  attachBrief,
   attachedBriefText,
   attachForNextCall,
   bindCall,
@@ -329,5 +330,68 @@ describe("CrmRail stages (UX-01, UX-03r, UX-16, UX-17, UX-19)", () => {
     await wrap(<CrmRail lookup={mockLookup} stage="live" />, "ar");
     expect(screen.getByText("اربط")).toBeOnTheScreen();
     expect(screen.getByText("الملخص")).toBeOnTheScreen();
+  });
+});
+
+describe("brief prefill from Zoho (UX-006)", () => {
+  const value = (f: string) => screen.getByTestId(`prep-${f}`).props.value as string;
+
+  it("a linked meeting fills objective, TLDR and attendees, each marked as from Zoho", async () => {
+    signedIn({ state: "available" });
+    attachForNextCall((await mockLookup.meetingBrief(MEETING)).brief);
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />);
+    expect(value("objective")).toBe("Acme renewal call");
+    expect(value("tldr")).toBe(
+      "Go through volume pricing and the start date.\nAcme renewal 2027 · Negotiation",
+    );
+    expect(value("attendees")).toBe("Jane Doe, Ada Admin");
+    expect(value("pains")).toBe("");
+    expect(screen.getAllByText("From Zoho · edit freely")).toHaveLength(3);
+    // The AI already reads these lines in the Zoho text, so they are not sent twice.
+    const text = attachedBriefText();
+    expect(text).toContain("Meeting: Acme renewal call");
+    expect(text).not.toContain("Call objective:");
+    expect(text).not.toContain("TLDR:");
+  });
+
+  it("never overwrites what the agent typed; an edited prefill reaches the prompt", async () => {
+    signedIn({ state: "available" });
+    setPrep("objective", "Agree the start date");
+    attachBrief((await mockLookup.meetingBrief(MEETING)).brief);
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />);
+    expect(value("objective")).toBe("Agree the start date");
+    await fireEvent.changeText(screen.getByTestId("prep-tldr"), "Renewal, wants volume pricing");
+    expect(screen.getAllByText("From Zoho · edit freely")).toHaveLength(1); // attendees only
+    expect(attachedBriefText()).toContain("TLDR: Renewal, wants volume pricing");
+    expect(attachedBriefText()).toContain("Call objective: Agree the start date");
+  });
+
+  it("Change clears the prefills the agent did not edit, so no stale attendee stays", async () => {
+    signedIn({ state: "available" });
+    attachForNextCall((await mockLookup.meetingBrief(MEETING)).brief);
+    setPrep("objective", "Close the renewal");
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />);
+    await fireEvent.press(screen.getByTestId("crm-change"));
+    expect(value("attendees")).toBe("");
+    expect(value("tldr")).toBe("");
+    expect(value("objective")).toBe("Close the renewal");
+    expect(screen.queryByText("From Zoho · edit freely")).toBeNull();
+    expect(attachedBriefText()).toBe("Call objective: Close the renewal");
+  });
+
+  it("a contact without a meeting fills attendees and the open deal", async () => {
+    signedIn({ state: "available" });
+    attachBrief((await mockLookup.brief({ module: "Contacts", id: "x" })).brief);
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />);
+    expect(value("attendees")).toBe("Jane Doe");
+    expect(value("tldr")).toBe("Acme renewal 2027 · Negotiation");
+    expect(value("objective")).toBe("");
+  });
+
+  it("speaks Arabic", async () => {
+    signedIn({ state: "available" });
+    attachForNextCall((await mockLookup.meetingBrief(MEETING)).brief);
+    await wrap(<CrmRail lookup={mockLookup} stage="prepare" />, "ar");
+    expect(screen.getAllByText("من Zoho · يمكنك تعديله")).toHaveLength(3);
   });
 });
