@@ -160,6 +160,7 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
             <Button variant="ghost" label={t("history.detail.back")} />
             <Button variant="danger" label={t("call.end")} />
             <Button label={t("call.composer.send")} disabled />
+            <Button variant="secondary" label={t("meetings.opening")} busy />
           </Stack>
           {/* UX-44a: icon-only buttons (44 pt, focus ring) and helper text on a disabled button. */}
           <Stack direction="row" gap="sm" wrap>

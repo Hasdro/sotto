@@ -274,6 +274,11 @@ describe("StatTile", () => {
     await ui(<StatTile label="Calls" value="12" testID="st" />);
     expect(screen.queryByRole("button")).toBeNull();
   });
+
+  it("takes a layout override from its row, keeping its own look (UI-003)", async () => {
+    await ui(<StatTile label="Calls" value="12" testID="st" style={{ flexBasis: "40%" }} />);
+    expect(screen.getByTestId("st")).toHaveStyle({ flexBasis: "40%", borderWidth: 1 });
+  });
 });
 
 describe("LtrRun", () => {

@@ -14,6 +14,7 @@ export * from "./components/layout.tsx";
 export * from "./components/Mascot.tsx";
 export * from "./components/SegmentedControl.tsx";
 export * from "./components/Sheet.tsx";
+export * from "./components/Spinner.tsx";
 export * from "./components/StatTile.tsx";
 export * from "./components/SuggestionCard.tsx";
 export * from "./components/Table.tsx";

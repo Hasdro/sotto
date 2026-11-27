@@ -1,11 +1,11 @@
 /**
  * The connected user's upcoming Zoho meetings (owner request, 14 Nov 2026): the main way to get
- * call context. Soonest first, 20 a page ("Show more"); each opens a view-only detail (time,
- * participants, related To, description, place/link). The action button is the caller's:
- * on the home screen "Use for my next call", in the call rail "Use this meeting".
- * Nothing is attached until that button is pressed.
+ * call context. Soonest first, 20 a page ("Show more"); each opens a view-only detail
+ * (participants, contact, description, place/link; the row itself already shows the time and the
+ * related record, UX-004). The action button is the caller's: on the home screen "Use for my
+ * next call", in the call rail "Use this meeting". Nothing is attached until it is pressed.
  */
-import { Badge, Button, radius, Stack, space, Text, useTheme } from "@sotto/ui";
+import { Badge, Button, radius, Spinner, Stack, space, Text, useTheme } from "@sotto/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, View } from "react-native";
 import { CloudError } from "../../lib/cloud";
@@ -25,7 +25,10 @@ export type MeetingAction = {
   id: string;
   label: string;
   onPress: (m: MeetingCandidate) => void;
+  /** Some action is under way: the buttons wait. */
   busy?: boolean;
+  /** UX-004: this button's own work for meeting `m` is under way: spinner and "Opening…". */
+  working?: (m: MeetingCandidate) => boolean;
   variant?: "primary" | "secondary";
 };
 
@@ -218,17 +221,21 @@ function MeetingRow({
       ) : null}
       {actions?.length ? (
         <View style={styles.actions}>
-          {actions.map((a) => (
-            <Button
-              key={a.id}
-              variant={a.variant ?? "secondary"}
-              label={a.label}
-              accessibilityHint={m.title || t("meetings.untitled")}
-              onPress={() => a.onPress(m)}
-              disabled={a.busy}
-              testID={`meeting-${m.id}-${a.id}`}
-            />
-          ))}
+          {actions.map((a) => {
+            const working = a.working?.(m) ?? false;
+            return (
+              <Button
+                key={a.id}
+                variant={a.variant ?? "secondary"}
+                label={working ? t("meetings.opening") : a.label}
+                accessibilityHint={m.title || t("meetings.untitled")}
+                onPress={() => a.onPress(m)}
+                busy={working}
+                disabled={a.busy && !working}
+                testID={`meeting-${m.id}-${a.id}`}
+              />
+            );
+          })}
         </View>
       ) : null}
     </View>
@@ -236,7 +243,7 @@ function MeetingRow({
 }
 
 function Detail({ id, source }: { id: string; source: MeetingSource }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [d, setD] = useState<MeetingDetail | null>(null);
   const [problem, setProblem] = useState<StringKey | null>(null);
   useEffect(() => {
@@ -253,19 +260,16 @@ function Detail({ id, source }: { id: string; source: MeetingSource }) {
     );
   if (!d)
     return (
-      <Text variant="label" tone="muted" aria-live="polite" accessibilityLiveRegion="polite">
-        {t("meetings.loading")}
-      </Text>
+      <Stack direction="row" gap="xs" align="center">
+        <Spinner />
+        <Text variant="label" tone="muted" aria-live="polite" accessibilityLiveRegion="polite">
+          {t("meetings.detailLoading")}
+        </Text>
+      </Stack>
     );
+  // UX-004: the time and the related record are already in the row's header.
   return (
     <Stack gap="xs" testID={`meeting-${id}-detail`}>
-      <Fact label={t("meetings.when")} value={whenText(d.start, d.end, locale)} />
-      {d.related?.name ? (
-        <Fact
-          label={t(`meetings.related.${d.related.module}` as StringKey)}
-          value={d.related.name}
-        />
-      ) : null}
       {d.contact?.name && d.contact.name !== d.related?.name ? (
         <Fact label={t("meetings.related.Contacts")} value={d.contact.name} />
       ) : null}

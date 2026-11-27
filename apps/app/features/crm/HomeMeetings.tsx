@@ -36,23 +36,27 @@ export function HomeMeetings({
     __DEV__ &&
     typeof globalThis.location?.search === "string" &&
     globalThis.location.search.includes("mock=1");
-  const [busy, setBusy] = useState(false);
+  // UX-004: which button is working, so it alone says "Opening…".
+  const [busy, setBusy] = useState<{ id: string; action: "prepare" | "start" } | null>(null);
   const [problem, setProblem] = useState(false);
   if (!mock && (cloud.status !== "signed_in" || zoho.state !== "available")) return null;
   const from = source ?? (mock ? mockMeetings : undefined);
   const pull = mock ? mockLookup.meetingBrief : brief;
-  /** Binds the meeting's brief to the next call, then opens the call screen at `href`. */
-  const bindCall = (m: MeetingCandidate, href: "/call" | "/call?prepare=1") => {
-    setBusy(true);
+  /** Binds the meeting's brief to the next call, then opens the call screen (Prepare: on the
+   * brief editor). */
+  const bindCall = (m: MeetingCandidate, action: "prepare" | "start") => {
+    setBusy({ id: m.id, action });
     setProblem(false);
     pull(m.id)
       .then((r) => {
         attachForNextCall(r.brief);
-        router.push(href);
+        router.push(action === "prepare" ? "/call?prepare=1" : "/call");
       })
       .catch(() => setProblem(true))
-      .finally(() => setBusy(false));
+      .finally(() => setBusy(null));
   };
+  const working = (action: "prepare" | "start") => (m: MeetingCandidate) =>
+    busy?.id === m.id && busy.action === action;
   return (
     <Panel testID="home-meetings">
       <Stack gap="md">
@@ -73,15 +77,17 @@ export function HomeMeetings({
               id: "prepare",
               label: t("meetings.prepare"),
               variant: "secondary",
-              busy,
-              onPress: (m) => bindCall(m, "/call?prepare=1"),
+              busy: busy !== null,
+              working: working("prepare"),
+              onPress: (m) => bindCall(m, "prepare"),
             },
             {
               id: "start",
               label: t("meetings.startWith"),
               variant: "primary",
-              busy,
-              onPress: (m) => bindCall(m, "/call"),
+              busy: busy !== null,
+              working: working("start"),
+              onPress: (m) => bindCall(m, "start"),
             },
           ]}
         />

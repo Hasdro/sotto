@@ -9,6 +9,7 @@ import { ICON_NAMES, Icon } from "./Icon.tsx";
 import { Panel, Screen, Stack } from "./layout.tsx";
 import { Mascot, type MascotMood, moodFor } from "./Mascot.tsx";
 import { SegmentedControl } from "./SegmentedControl.tsx";
+import { Spinner } from "./Spinner.tsx";
 import { Table } from "./Table.tsx";
 import { Text } from "./Text.tsx";
 import { TextField } from "./TextField.tsx";
@@ -45,12 +46,32 @@ describe("Button", () => {
     expect(screen.getByTestId("b")).toHaveStyle({ backgroundColor: themes.light.color.danger });
   });
 
+  it("busy shows a spinner, ignores presses and says it is busy, without the disabled dimming (UX-004)", async () => {
+    const onPress = jest.fn();
+    await render(<Button label="Opening…" onPress={onPress} busy testID="b" />);
+    await fireEvent.press(screen.getByTestId("b"));
+    expect(onPress).not.toHaveBeenCalled();
+    expect(screen.getByTestId("b")).toBeBusy();
+    // Decorative: the button itself is announced as busy.
+    expect(screen.getByTestId("b-spinner", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(StyleSheet.flatten(screen.getByTestId("b").props.style).opacity).toBeUndefined();
+  });
+
   it("outline stays a visible button on a sunken panel: surface fill, strong edge (UI-006)", async () => {
     await render(<Button label="Test audio" variant="outline" testID="b" />);
     expect(screen.getByTestId("b")).toHaveStyle({
       backgroundColor: themes.light.color.surface,
       borderColor: themes.light.color.borderStrong,
     });
+  });
+});
+
+describe("Spinner", () => {
+  it("is decorative and uses the muted text colour unless told otherwise", async () => {
+    await render(<Spinner testID="s" />);
+    const s = screen.getByTestId("s", { includeHiddenElements: true });
+    expect(s.props.color).toBe(themes.light.color.textMuted);
+    expect(s).not.toBeVisible();
   });
 });
 

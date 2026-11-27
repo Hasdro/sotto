@@ -8,7 +8,18 @@
  * the side column on wide windows, right under the numbers on narrow ones.
  */
 
-import { Badge, Button, Icon, radius, StatTile, space, Text, useTheme } from "@sotto/ui";
+import {
+  Badge,
+  Button,
+  Icon,
+  radius,
+  StatTile,
+  space,
+  Text,
+  useDirection,
+  useTheme,
+} from "@sotto/ui";
+import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
@@ -163,17 +174,20 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
       ) : null}
       {agent ? null : (
         <Section title={t("home.playbook")} testID="home-playbook">
-          <AppLink href="/playbook" accessibilityRole="link">
-            <Row label={t("home.entries")} value={String(bundle?.playbook.length ?? 0)} />
-          </AppLink>
-          <AppLink href="/inbox" accessibilityRole="link">
-            <Row
-              label={t("home.openQuestions")}
-              value={
-                <Badge label={String(openCount)} tone={openCount > 0 ? "objection" : "neutral"} />
-              }
-            />
-          </AppLink>
+          <LinkRow
+            href="/playbook"
+            label={t("home.entries")}
+            value={String(bundle?.playbook.length ?? 0)}
+            testID="home-playbook-entries"
+          />
+          <LinkRow
+            href="/inbox"
+            label={t("home.openQuestions")}
+            value={
+              <Badge label={String(openCount)} tone={openCount > 0 ? "objection" : "neutral"} />
+            }
+            testID="home-playbook-questions"
+          />
         </Section>
       )}
     </View>
@@ -220,6 +234,8 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
             label={tile.label}
             value={tile.value}
             testID={`home-stat-${tile.id}`}
+            // UI-003: four equal tiles in one row when wide, an even 2×2 grid below (never 3 + 1).
+            style={wide ? styles.tileQuarter : styles.tileHalf}
           />
         ))}
       </View>
@@ -305,6 +321,45 @@ function Section({
   );
 }
 
+/** UI-004: a summary row that opens a page: a chevron at the reading end and a hover fill, so it
+ * does not read like the static rows of the Company card. */
+function LinkRow({
+  href,
+  label,
+  value,
+  testID,
+}: {
+  href: Href;
+  label: string;
+  value: React.ReactNode;
+  testID: string;
+}) {
+  const { color } = useTheme();
+  const rtl = useDirection() === "rtl";
+  return (
+    <AppLink
+      href={href}
+      accessibilityRole="link"
+      testID={testID}
+      style={(state) => [
+        styles.linkRow,
+        (state as { hovered?: boolean }).hovered ? { backgroundColor: color.surfaceSunken } : null,
+      ]}
+    >
+      <View style={styles.flex}>
+        <Row label={label} value={value} />
+      </View>
+      {/* The chevron glyph points down: turn it toward the end of the line. */}
+      <View
+        testID={`${testID}-chevron`}
+        style={{ transform: [{ rotate: rtl ? "90deg" : "-90deg" }] }}
+      >
+        <Icon name="chevron" size={16} color={color.textMuted} />
+      </View>
+    </AppLink>
+  );
+}
+
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <View style={styles.row}>
@@ -341,6 +396,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: space.md },
+  tileQuarter: { flexBasis: 0 },
+  tileHalf: { flexBasis: "40%" },
   num: { fontVariant: ["tabular-nums"] },
   columns: { gap: space.lg },
   columnsWide: { flexDirection: "row", alignItems: "flex-start" },
@@ -355,6 +412,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   row: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 28 },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.sm,
+    marginHorizontal: -space.sm,
+    borderRadius: radius.lg,
+  },
   callRow: {
     flexDirection: "row",
     alignItems: "center",

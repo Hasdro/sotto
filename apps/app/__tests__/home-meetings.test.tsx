@@ -1,10 +1,12 @@
 /** Home: the connected user's upcoming Zoho meetings with a view-only detail (owner request,
  * 14 Nov 2026); hidden when Zoho is not connected. */
 import { UIProvider } from "@sotto/ui";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import type { MeetingDetail } from "../features/crm/api";
 import { attachedBriefText, resetCall } from "../features/crm/attached";
 import { HomeMeetings } from "../features/crm/HomeMeetings";
 import { mockLookup, mockMeetings } from "../features/crm/mock";
+import { whenText } from "../features/crm/UpcomingMeetings";
 import { LocaleProvider } from "../lib/locale";
 
 let mockCloud: unknown = { status: "off" };
@@ -71,6 +73,52 @@ describe("HomeMeetings", () => {
     await fireEvent.press(screen.getByTestId(`meeting-${ID}-start`));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/call"));
     expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+  });
+
+  it("an opened meeting says it is loading its details and never repeats the header's time and deal (UX-004)", async () => {
+    signedIn({ state: "available" });
+    let finish: (r: { meeting: MeetingDetail }) => void = () => {};
+    const slow = {
+      meetings: mockMeetings.meetings,
+      detail: () => new Promise<{ meeting: MeetingDetail }>((r) => (finish = r)),
+    };
+    await wrap(<HomeMeetings source={slow} brief={mockLookup.meetingBrief} />);
+    await waitFor(() => screen.getByTestId(`meeting-${ID}-toggle`));
+    await fireEvent.press(screen.getByTestId(`meeting-${ID}-toggle`));
+    expect(screen.getByText("Loading meeting details…")).toBeOnTheScreen();
+    expect(screen.queryByText("Loading your meetings…")).toBeNull();
+    const detail = await mockMeetings.detail(ID);
+    await act(async () => finish(detail));
+    await waitFor(() => expect(screen.getByTestId(`meeting-${ID}-detail`)).toBeOnTheScreen());
+    const m = detail.meeting;
+    expect(screen.getAllByText(whenText(m.start, m.end, "en"))).toHaveLength(1);
+    expect(screen.queryByText("When")).toBeNull();
+    expect(screen.queryByText("Deal")).toBeNull();
+    expect(screen.getByText("Contact")).toBeOnTheScreen(); // the contact still shows
+    expect(screen.getByText("jane@acme.test")).toBeOnTheScreen(); // and the participants
+  });
+
+  it("Prepare says Opening… on the pressed button only and holds the others until it is done (UX-004)", async () => {
+    signedIn({ state: "available" });
+    mockPush.mockReset();
+    let finish: () => void = () => {};
+    const slowBrief = (id: string) =>
+      new Promise<Awaited<ReturnType<typeof mockLookup.meetingBrief>>>((resolve) => {
+        finish = () => void mockLookup.meetingBrief(id).then(resolve);
+      });
+    await wrap(<HomeMeetings source={mockMeetings} brief={slowBrief} />);
+    await waitFor(() => screen.getByTestId(`meeting-${ID}-prepare`));
+    await fireEvent.press(screen.getByTestId(`meeting-${ID}-prepare`));
+    const prepare = screen.getByTestId(`meeting-${ID}-prepare`);
+    expect(prepare).toBeBusy();
+    expect(prepare).toHaveTextContent("Opening…");
+    const start = screen.getByTestId(`meeting-${ID}-start`);
+    expect(start).toBeDisabled();
+    expect(start).not.toBeBusy();
+    expect(start).toHaveTextContent("Start call with this meeting");
+    await act(async () => finish());
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/call?prepare=1"));
+    await waitFor(() => expect(screen.getByTestId(`meeting-${ID}-prepare`)).not.toBeBusy());
   });
 
   it("lists three before Show more and reports the first page (Next: … at …)", async () => {

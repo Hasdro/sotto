@@ -3,7 +3,7 @@
  * status colour, so a row of tiles never competes with the one loud thing on an agent screen.
  * Read as one sentence by screen readers; not focusable.
  */
-import { StyleSheet, View } from "react-native";
+import { type StyleProp, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../theme.tsx";
 import { radius, space } from "../tokens.ts";
 import { Text } from "./Text.tsx";
@@ -14,16 +14,18 @@ export type StatTileProps = {
   /** One quiet line under the value, e.g. "3 more than last week". */
   hint?: string | undefined;
   testID?: string | undefined;
+  /** Layout override from the row, e.g. a 2×2 grid's `flexBasis` (UI-003). */
+  style?: StyleProp<ViewStyle>;
 };
 
-export function StatTile({ label, value, hint, testID }: StatTileProps) {
+export function StatTile({ label, value, hint, testID, style }: StatTileProps) {
   const { color } = useTheme();
   return (
     <View
       testID={testID}
       accessible
       accessibilityLabel={`${label}: ${value}${hint ? `. ${hint}` : ""}`}
-      style={[styles.tile, { backgroundColor: color.surface, borderColor: color.border }]}
+      style={[styles.tile, { backgroundColor: color.surface, borderColor: color.border }, style]}
     >
       <Text variant="label" weight="medium" tone="muted" numberOfLines={1}>
         {label}

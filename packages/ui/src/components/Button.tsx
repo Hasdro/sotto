@@ -3,6 +3,7 @@ import { Pressable, type StyleProp, StyleSheet, View, type ViewStyle } from "rea
 import { useTheme } from "../theme.tsx";
 import { type Hex, minTouchTarget, radius, size, space } from "../tokens.ts";
 import { useFocusRing } from "./focus.ts";
+import { Spinner } from "./Spinner.tsx";
 import { Text } from "./Text.tsx";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
@@ -17,6 +18,11 @@ export type ButtonProps = {
    */
   size?: "md" | "lg";
   disabled?: boolean;
+  /**
+   * Working on it (UX-004): a spinner takes the leading slot, presses are ignored and assistive
+   * tech hears "busy". Not dimmed like `disabled`, so the label ("Opening…") stays readable.
+   */
+  busy?: boolean;
   /** Leading visual, e.g. a dot or glyph. Decorative: hidden from screen readers. */
   leading?: ReactNode;
   accessibilityLabel?: string;
@@ -33,6 +39,7 @@ export function Button({
   variant = "primary",
   size = "md",
   disabled = false,
+  busy = false,
   leading,
   accessibilityLabel,
   accessibilityHint,
@@ -43,6 +50,7 @@ export function Button({
   const { color } = useTheme();
   const focus = useFocusRing();
   const why = disabled && helper ? helper : undefined;
+  const inactive = disabled || busy;
   const palette: Record<
     ButtonVariant,
     { fill: Hex | "transparent"; text: Hex; border: Hex | "transparent" }
@@ -62,8 +70,9 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={why ?? accessibilityHint}
-      aria-disabled={disabled}
-      disabled={disabled}
+      aria-disabled={inactive}
+      aria-busy={busy}
+      disabled={inactive}
       onPress={onPress}
       testID={testID}
       onFocus={focus.onFocus}
@@ -72,7 +81,7 @@ export function Button({
         styles.base,
         size === "lg" ? styles.lg : null,
         { backgroundColor: p.fill, borderColor: p.border },
-        isHovered(state) && !disabled
+        isHovered(state) && !inactive
           ? variant === "secondary" || variant === "ghost"
             ? { backgroundColor: color.bubble, borderColor: color.bubble }
             : variant === "outline"
@@ -85,7 +94,9 @@ export function Button({
         style,
       ]}
     >
-      {leading ? (
+      {busy ? (
+        <Spinner color={p.text} {...(testID ? { testID: `${testID}-spinner` } : {})} />
+      ) : leading ? (
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {leading}
         </View>

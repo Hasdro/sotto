@@ -288,6 +288,48 @@ describe("today's orientation comes before old calls (UX-003)", () => {
   });
 });
 
+describe("numbers and summary links", () => {
+  const STATS = ["calls", "minutes", "cards", "speed"];
+
+  it("the four numbers form an even 2×2 grid below the wide layout, never 3 + 1 (UI-003)", async () => {
+    signedIn("admin");
+    await wrap("admin");
+    for (const id of STATS)
+      expect(screen.getByTestId(`home-stat-${id}`)).toHaveStyle({ flexBasis: "40%" });
+  });
+
+  it("and one even row of four on a wide window (UI-003)", async () => {
+    jest
+      .spyOn(ReactNative.Dimensions, "get")
+      .mockReturnValue({ width: 1280, height: 800, scale: 1, fontScale: 1 });
+    signedIn("admin");
+    await wrap("admin");
+    for (const id of STATS)
+      expect(screen.getByTestId(`home-stat-${id}`)).toHaveStyle({ flexBasis: 0 });
+    jest.restoreAllMocks();
+  });
+
+  it("the Playbook card's rows are links with a chevron that points the reading way (UI-004)", async () => {
+    signedIn("admin", { playbook: 9 });
+    await wrap("admin");
+    for (const id of ["home-playbook-entries", "home-playbook-questions"]) {
+      expect(screen.getByTestId(id)).toHaveProp("accessibilityRole", "link");
+      expect(screen.getByTestId(`${id}-chevron`, { includeHiddenElements: true })).toHaveStyle({
+        transform: [{ rotate: "-90deg" }],
+      });
+    }
+    expect(screen.getByTestId("home-playbook-entries")).toHaveTextContent(/9/);
+  });
+
+  it("in Arabic the chevron points left (UI-004)", async () => {
+    signedIn("admin");
+    await wrap("admin", "ar");
+    expect(
+      screen.getByTestId("home-playbook-entries-chevron", { includeHiddenElements: true }),
+    ).toHaveStyle({ transform: [{ rotate: "90deg" }] });
+  });
+});
+
 describe("Next: … at … (UX-43b)", () => {
   const meeting = {
     id: "m1",
