@@ -1,5 +1,5 @@
 /** ZC-14c: one banner from the server's config health, with a fix link; never more than one. */
-import { UIProvider } from "@sotto/ui";
+import { themes, UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { ShellBanner } from "../components/AppShell";
 import { healthReasonFor } from "../components/HealthBanner";
@@ -85,6 +85,24 @@ describe("config health banner", () => {
     expect(healthReasonFor({ status: "needs_attention", reasons: [smtp, zoho] }, "agent")).toEqual(
       zoho,
     );
+  });
+
+  it("sits in an opaque strip with a hairline, so scrolled content never cuts through the pill (UI-001)", async () => {
+    mockHealth = { status: "ok", reasons: [] };
+    await wrap("admin");
+    const strip = screen.getByTestId("shell-banner");
+    expect(strip).toHaveStyle({
+      backgroundColor: themes.light.color.background,
+      borderBottomWidth: 1,
+      borderBottomColor: themes.light.color.border,
+    });
+    expect(strip).toContainElement(screen.getByTestId("plan-banner"));
+  });
+
+  it("draws no strip when there is nothing to say", async () => {
+    mockHealth = { status: "ok", reasons: [] };
+    await wrap("agent");
+    expect(screen.queryByTestId("shell-banner")).toBeNull();
   });
 
   it("calls paused outranks the health line", async () => {

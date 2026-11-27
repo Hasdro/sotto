@@ -13,3 +13,9 @@ export function isWindows(): boolean {
 export function shortcutKeys(): typeof DEFAULT {
   return isWindows() ? WINDOWS : DEFAULT;
 }
+
+/** The quick-search keys as this computer writes them (UX-001): ⌘K on Apple, Ctrl K elsewhere. */
+export function paletteKeys(): string {
+  const ua = (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent ?? "";
+  return /Mac|iPhone|iPad/i.test(ua) ? "⌘K" : "Ctrl K";
+}

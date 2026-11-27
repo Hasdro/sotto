@@ -50,6 +50,16 @@ describe("mock screens", () => {
     );
   });
 
+  it("the menu's Search button opens the quick search, which finds Admin pages (UX-001)", async () => {
+    await open("/history");
+    await openMenu();
+    await fireEvent.press(screen.getByTestId("palette-open"));
+    await drawerClosed();
+    expect(screen.getByTestId("palette")).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId("palette-input"), "tone");
+    expect(screen.getByTestId("palette-admin-tone")).toHaveTextContent(/Card tone/);
+  });
+
   it("history lists past calls", async () => {
     await open("/history");
     expect(screen.getByText("Layla Haddad")).toBeOnTheScreen();

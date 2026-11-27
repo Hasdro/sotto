@@ -8,9 +8,11 @@
 import {
   Icon,
   type IconName,
+  LRI,
   layout,
   minTouchTarget,
   motion,
+  PDI,
   radius,
   scrimOpacity,
   space,
@@ -39,11 +41,12 @@ import { useFollowupNotices } from "../features/followup";
 import { cloudOrigin } from "../lib/cloud";
 import type { StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
+import { paletteKeys } from "../lib/platform";
 import { useIsWide } from "../lib/responsive";
 import { canOpen, personaFor, ROLE_AREAS, useRole } from "../lib/role";
 import { useCloud } from "../lib/useCloud";
 import { AppLink } from "./AppLink";
-import { CommandPalette } from "./CommandPalette";
+import { CommandPalette, openPalette } from "./CommandPalette";
 import { useHealthBanner } from "./HealthBanner";
 import { useOfflineBanner } from "./OfflineBanner";
 import { usePlanBanner } from "./PlanBanner";
@@ -103,12 +106,25 @@ function useNav(): readonly NavItem[] {
  */
 export function ShellBanner() {
   const { role } = useRole();
+  const { color } = useTheme();
   const plan = usePlanBanner();
   const health = useHealthBanner(role);
   const offline = useOfflineBanner();
-  if (offline) return offline;
-  if (plan?.kind === "paused") return plan.node;
-  return health ?? plan?.node ?? null;
+  const node = offline ?? (plan?.kind === "paused" ? plan.node : (health ?? plan?.node ?? null));
+  if (!node) return null;
+  // UI-001: an opaque strip with one hairline, so a scrolled page is cut at the line and never
+  // runs into the pill's edge.
+  return (
+    <View
+      testID="shell-banner"
+      style={[
+        styles.bannerStrip,
+        { backgroundColor: color.background, borderBottomColor: color.border },
+      ]}
+    >
+      {node}
+    </View>
+  );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -171,6 +187,12 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
         <Wordmark name={t("app.name")} />
         {onClose ? <CloseButton label={t("nav.close")} onPress={onClose} /> : null}
       </View>
+      <SearchButton
+        onPress={() => {
+          onClose?.();
+          openPalette();
+        }}
+      />
       <View role="navigation" accessibilityLabel={t("nav.label")} style={styles.sideNav}>
         {nav.map((item) => {
           const active = isActive(pathname, item.href);
@@ -246,6 +268,42 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
       </Pressable>
       <ProfilePopup open={profile} onClose={() => setProfile(false)} />
     </>
+  );
+}
+
+/** UX-001: ⌘K had no visible way in; this opens the quick search and names its keys. */
+function SearchButton({ onPress }: { onPress: () => void }) {
+  const { color } = useTheme();
+  const { t } = useI18n();
+  // Native phones have no ⌘K; the button alone opens the search there.
+  const keys = Platform.OS === "web" ? paletteKeys() : null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t("palette.open")}
+      onPress={onPress}
+      testID="palette-open"
+      style={(state) => [
+        styles.search,
+        {
+          borderColor: color.border,
+          backgroundColor:
+            state.pressed || (state as { hovered?: boolean }).hovered
+              ? color.surfaceSunken
+              : color.surface,
+        },
+      ]}
+    >
+      <Icon name="search" size={16} color={color.textMuted} />
+      <Text variant="secondary" tone="muted" style={styles.grow} numberOfLines={1}>
+        {t("palette.open")}
+      </Text>
+      {keys ? (
+        <View style={[styles.keycap, { borderColor: color.border }]}>
+          <Text variant="label" tone="muted">{`${LRI}${keys}${PDI}`}</Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -470,6 +528,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   main: { flex: 1, minWidth: 0 },
   hidden: { display: "none" },
+  bannerStrip: { borderBottomWidth: 1, paddingBottom: space.md },
   grow: { flex: 1 },
   pressed: { opacity: 0.8 },
   sidebar: {
@@ -484,9 +543,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     minHeight: minTouchTarget,
     paddingHorizontal: space.md,
-    marginBottom: space.xl,
+    marginBottom: space.lg,
   },
   sideNav: { gap: space.xs },
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    minHeight: minTouchTarget,
+    paddingHorizontal: space.md,
+    marginBottom: space.lg,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+  },
+  keycap: {
+    paddingHorizontal: space.xs + 2,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+  },
   sideItem: {
     flexDirection: "row",
     alignItems: "center",

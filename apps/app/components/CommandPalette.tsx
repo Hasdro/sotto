@@ -1,6 +1,7 @@
 /**
  * ⌘K / Ctrl+K quick search (owner, 22 Oct: in the spirit of the Claude desktop app): type to jump
- * to any section, a common action or a recent call; Enter opens the first match. Web and desktop.
+ * to any section, Admin page, Settings section, common action or recent call; Enter opens the
+ * first match. Web and desktop; the sidebar's Search button opens it too (UX-001).
  */
 import {
   Icon,
@@ -15,17 +16,116 @@ import {
 import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
+import { ADMIN_GROUPS, adminPageLabel } from "../features/admin/pages";
 import { deviceCalls } from "../lib/deviceHistory";
-import type { StringKey } from "../lib/i18n";
+import { type Locale, type StringKey, t as translate } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { setPrefs } from "../lib/prefs";
+import { canOpen, useRole, type ViewRole } from "../lib/role";
 
-export type Command = { id: string; icon: IconName; label: string; href: Href; run?: () => void };
+export type Command = {
+  id: string;
+  icon: IconName;
+  label: string;
+  href: Href;
+  /** Where it lives ("Admin · AI"); shown after the label and searched too. */
+  hint?: string;
+  /** Other words it answers to, in both languages; searched, never shown. */
+  terms?: string;
+  run?: () => void;
+};
 
-/** Commands whose label contains every word typed, in any order. Pure; exported for tests. */
+/** Commands whose label, place or search words contain every word typed, in any order. Pure;
+ * exported for tests. */
 export function filterCommands(all: readonly Command[], query: string): Command[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return all.filter((c) => words.every((w) => c.label.toLowerCase().includes(w)));
+  return all.filter((c) => {
+    const text = `${c.label} ${c.hint ?? ""} ${c.terms ?? ""}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+}
+
+/** Settings sections with an anchor on the page (`/settings#id`). */
+const SETTINGS_SECTIONS: readonly {
+  id: string;
+  label: StringKey;
+  icon: IconName;
+  terms: string;
+}[] = [
+  {
+    id: "appearance",
+    label: "settings.appearance",
+    icon: "palette",
+    terms: "theme dark light language arabic english المظهر اللغة الداكن الفاتح",
+  },
+  {
+    id: "audio",
+    label: "settings.audio",
+    icon: "mic",
+    terms: "microphone mic sound input speaker الميكروفون",
+  },
+  { id: "zoho", label: "settings.zoho", icon: "globe", terms: "zoho crm connect زوهو ربط" },
+];
+
+/**
+ * UX-001: the Admin pages this role may open (R3 areas, so agents and managers never see one) and
+ * the Settings sections, so "tone", "billing", "zoho" or "devices" lands on its page. The playbook
+ * link in Admin is skipped: it is a section of its own. In Arabic the English name also matches,
+ * since bilingual teams type either. Pure; exported for tests.
+ */
+export function deepCommands(
+  role: ViewRole,
+  t: (key: StringKey) => string,
+  locale: Locale,
+): Command[] {
+  const admin = t("admin.title");
+  const toEnglish = (key: StringKey) => translate(key, "en");
+  const alsoEnglish = (name: string) => (locale === "en" ? "" : name);
+  const pages = ADMIN_GROUPS.flatMap((group) =>
+    group.pages
+      .filter((page) => page.href.startsWith("/admin") && canOpen(role, page.href))
+      .map(
+        (page): Command => ({
+          id: page.href === "/admin" ? "admin-team" : `admin-${page.href.slice("/admin/".length)}`,
+          icon: page.icon,
+          label: adminPageLabel(page, t, locale),
+          hint: `${admin} · ${t(group.label)}`,
+          terms: `${alsoEnglish(adminPageLabel(page, toEnglish, "en"))} ${page.terms ?? ""}`,
+          href: page.href as Href,
+        }),
+      ),
+  );
+  const settings = t("nav.settings");
+  const sections = SETTINGS_SECTIONS.map(
+    (s): Command => ({
+      id: `settings-${s.id}`,
+      icon: s.icon,
+      label: t(s.label),
+      hint: settings,
+      terms: `${alsoEnglish(toEnglish(s.label))} ${s.terms}`,
+      href: `/settings#${s.id}` as Href,
+    }),
+  );
+  return [...pages, ...sections];
+}
+
+/** The mounted palette's opener (one palette per app). */
+const openers = new Set<() => void>();
+
+/** Opens the quick search; the sidebar's Search button uses it (UX-001). */
+export function openPalette(): void {
+  for (const open of openers) open();
+}
+
+/** `/settings#zoho`: bring the section into view, also when that page is already open. */
+function scrollToAnchor(href: Href): void {
+  const id = String(href).split("#")[1];
+  if (!id || Platform.OS !== "web") return;
+  setTimeout(() => {
+    (globalThis as { document?: Document }).document
+      ?.getElementById(id)
+      ?.scrollIntoView?.({ block: "start" });
+  }, 350);
 }
 
 export function CommandPalette({
@@ -33,7 +133,8 @@ export function CommandPalette({
 }: {
   sections: readonly { href: Href; icon: IconName; label: StringKey }[];
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const { role } = useRole();
   const { color } = useTheme();
   const glass = useGlassStyle({ elevated: true });
   const router = useRouter();
@@ -52,6 +153,17 @@ export function CommandPalette({
     const doc = (globalThis as { document?: Document }).document;
     doc?.addEventListener("keydown", onKey);
     return () => doc?.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    const opener = () => {
+      setQuery("");
+      setOpen(true);
+    };
+    openers.add(opener);
+    return () => {
+      openers.delete(opener);
+    };
   }, []);
 
   const all = useMemo<Command[]>(() => {
@@ -83,6 +195,7 @@ export function CommandPalette({
         href: "/settings",
         run: () => setPrefs({ bugReportRequested: true }),
       },
+      ...deepCommands(role, t, locale),
       ...deviceCalls()
         .slice(0, 8)
         .map(
@@ -94,13 +207,14 @@ export function CommandPalette({
           }),
         ),
     ];
-  }, [open, sections, t]);
+  }, [open, sections, t, role, locale]);
   const shown = filterCommands(all, query).slice(0, 12);
   const go = (c: Command | undefined) => {
     if (!c) return;
     setOpen(false);
     c.run?.();
     router.navigate(c.href);
+    scrollToAnchor(c.href);
   };
   if (!open) return null;
   return (
@@ -138,6 +252,11 @@ export function CommandPalette({
               <Text numberOfLines={1} style={styles.grow}>
                 {c.label}
               </Text>
+              {c.hint ? (
+                <Text variant="label" tone="muted" numberOfLines={1} style={styles.hint}>
+                  {c.hint}
+                </Text>
+              ) : null}
               {i === 0 ? (
                 <Text variant="label" tone="muted">
                   ↵
@@ -178,5 +297,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   grow: { flex: 1, minWidth: 0 },
+  hint: { flexShrink: 1, maxWidth: "45%" },
   none: { padding: space.md },
 });

@@ -96,7 +96,7 @@ export default function SettingsScreen() {
     >
       <PageHeader icon="settings" title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
-      <Group icon="palette" title={t("settings.appearance")}>
+      <Group icon="palette" title={t("settings.appearance")} nativeID="appearance">
         <Text variant="label" tone="muted">
           {t("settings.theme")}
         </Text>
@@ -125,7 +125,7 @@ export default function SettingsScreen() {
         />
       </Group>
 
-      <Group icon="mic" title={t("settings.audio")} testID="settings-audio">
+      <Group icon="mic" title={t("settings.audio")} testID="settings-audio" nativeID="audio">
         <Row label={t("settings.audio")} body={t("settings.audio.body")}>
           <Button
             variant="secondary"
@@ -412,7 +412,8 @@ function LocalModelsPanel({ showText, showVoice }: { showText: boolean; showVoic
   );
 }
 
-/** `/settings#zoho` (health fix, first-run step): bring that group into view on the web. */
+/** `/settings#zoho` (health fix, first-run step, ⌘K search): bring that group into view on the
+ * web. `#appearance` and `#audio` work the same way. */
 function useScrollToHash() {
   useEffect(() => {
     if (Platform.OS !== "web") return;

@@ -8,7 +8,6 @@
 import {
   Badge,
   Icon,
-  type IconName,
   layout,
   minTouchTarget,
   PageHeader,
@@ -23,81 +22,14 @@ import { AdminTour } from "../../components/AdminTour";
 import { AppLink } from "../../components/AppLink";
 import { useFeature } from "../../components/FeatureGate";
 import { RoleGate } from "../../components/RoleGate";
+import { ADMIN_GROUPS, type AdminPage, adminPageLabel } from "../../features/admin/pages";
 import { useLearningBadge } from "../../features/learning/badge";
-import type { Locale, StringKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
-
-/** A page label added in a wave whose i18n.ts belongs to another stream (D-058): both texts. */
-type OwnLabel = Record<Locale, string>;
-type Page = {
-  href: string;
-  label: StringKey | OwnLabel;
-  icon: IconName;
-  /** Older routes that belong to this page (deep links keep working, UX-29). */
-  also?: readonly string[];
-};
-type Group = { id: string; label: StringKey; icon: IconName; pages: readonly Page[] };
-
-const ATTACHMENTS_LABEL: OwnLabel = { en: "Attachments", ar: "المرفقات" };
-const SETUP_LABEL: OwnLabel = { en: "Setup guide", ar: "دليل الإعداد" };
-const TONE_LABEL: OwnLabel = { en: "Card tone", ar: "نبرة البطاقات" };
-
-/** UX-29, draft D-051 (backlog): four groups instead of nine tabs in a scrolling row. */
-export const ADMIN_GROUPS: readonly Group[] = [
-  {
-    id: "people",
-    label: "admin.group.people",
-    icon: "users",
-    pages: [{ href: "/admin", label: "admin.team", icon: "users" }],
-  },
-  {
-    id: "connections",
-    label: "admin.group.connections",
-    icon: "globe",
-    pages: [
-      { href: "/admin/integrations", label: "admin.integrations", icon: "globe" },
-      // INT-14b: the files agents may attach to follow-up emails.
-      { href: "/admin/attachments", label: ATTACHMENTS_LABEL, icon: "mail" },
-    ],
-  },
-  {
-    id: "ai",
-    label: "admin.group.ai",
-    icon: "spark",
-    pages: [
-      { href: "/admin/instructions", label: "learning.tab", icon: "spark" },
-      { href: "/admin/memory", label: { en: "Style memory", ar: "ذاكرة الأسلوب" }, icon: "spark" },
-      { href: "/admin/tone", label: TONE_LABEL, icon: "message" },
-      { href: "/playbook", label: "admin.playbookLink", icon: "playbook" },
-      { href: "/admin/coach", label: { en: "Coach", ar: "المدرب" }, icon: "spark" },
-    ],
-  },
-  {
-    id: "company",
-    label: "admin.group.company",
-    icon: "shield",
-    pages: [
-      { href: "/admin/setup", label: SETUP_LABEL, icon: "spark" },
-      { href: "/admin/settings", label: "admin.settings", icon: "settings" },
-      { href: "/admin/features", label: "admin.features", icon: "shield" },
-      // Round 3: the plan, what was paid and the upgrade (billing), and the bug-report
-      // review queue (reports) live in the Company group.
-      { href: "/admin/billing", label: "admin.billing", icon: "cards" },
-      { href: "/admin/reports", label: "bug.queue.title", icon: "message" },
-      {
-        href: "/admin/company",
-        label: "admin.company",
-        icon: "list",
-        also: ["/admin/recordings", "/admin/devices", "/admin/activity"],
-      },
-    ],
-  },
-];
 
 const under = (pathname: string, href: string) =>
   href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
-function pageActive(pathname: string, page: Page): boolean {
+function pageActive(pathname: string, page: AdminPage): boolean {
   return under(pathname, page.href) || (page.also ?? []).some((h) => under(pathname, h));
 }
 
@@ -183,7 +115,7 @@ function AdminLayout() {
                   ])}
                 >
                   <Text variant="label" weight={active ? "medium" : "regular"}>
-                    {typeof p.label === "string" ? t(p.label) : p.label[locale]}
+                    {adminPageLabel(p, t, locale)}
                   </Text>
                 </AppLink>
               );
