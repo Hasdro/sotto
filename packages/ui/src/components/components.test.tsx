@@ -64,6 +64,12 @@ describe("Button", () => {
       borderColor: themes.light.color.borderStrong,
     });
   });
+
+  it("dangerGhost is a quiet red text button for a destructive first step (UI-012)", async () => {
+    await render(<Button label="Remove" variant="dangerGhost" testID="b" />);
+    expect(screen.getByTestId("b")).toHaveStyle({ backgroundColor: "transparent" });
+    expect(screen.getByText("Remove")).toHaveStyle({ color: themes.light.color.danger });
+  });
 });
 
 describe("Spinner", () => {

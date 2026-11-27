@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react-native";
 import { renderRouter } from "expo-router/testing-library";
 import RootLayout from "../app/_layout";
 import InboxScreen from "../app/inbox";
@@ -68,5 +68,55 @@ describe("inbox on this server (D-020, R2 steps 4-5)", () => {
       /We have a cat\.[\s\S]*Do you allow pets/,
     );
     expect(screen.getByText(/Sara Ali/)).toBeOnTheScreen();
+  });
+
+  it("is named like the menu, shows the last three turns and explains the buttons (UI-011)", async () => {
+    const item = {
+      ...ITEM,
+      transcript_excerpt: [
+        "Agent: Thanks for joining.",
+        "Customer: Sure, thanks.",
+        "Customer: Sure, thanks.",
+        "Agent: How do you track orders?",
+        "Customer: In a spreadsheet.",
+        "Agent: Which one?",
+        "Customer: Do you allow pets in the building?",
+      ].join("\n"),
+    };
+    globalThis.fetch = jest.fn(async (url: string) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        url.endsWith("/api/escalations") ? { escalations: [item] } : { entries: [] },
+    })) as unknown as typeof fetch;
+    await renderRouter({ _layout: RootLayout, inbox: InboxScreen }, { initialUrl: "/inbox" });
+    const excerpt = await screen.findByTestId(`excerpt-${ITEM.id}`);
+    expect(screen.queryByText("Unanswered questions")).toBeNull();
+    expect(
+      screen.getByText(/^Questions Sales Shield could not answer on calls\./),
+    ).toBeOnTheScreen();
+    expect(excerpt).toHaveTextContent(
+      /Customer: In a spreadsheet\.Agent: Which one\?Customer: Do you allow pets/,
+    );
+    expect(excerpt).not.toHaveTextContent(/Thanks for joining/);
+    const toggle = screen.getByTestId(`excerpt-toggle-${ITEM.id}`);
+    expect(toggle).toHaveTextContent("Show all 6 lines");
+    await fireEvent.press(toggle);
+    expect(excerpt).toHaveTextContent(
+      /Agent: Thanks for joining\.Customer: Sure, thanks\.Agent: How/,
+    );
+    expect(screen.getByTestId(`excerpt-toggle-${ITEM.id}`)).toHaveTextContent("Show less");
+    expect(screen.getByTestId(`answer-cap-${ITEM.id}`)).toHaveTextContent(
+      "Agents read this on a live card, so keep it to 25 words.",
+    );
+    const buttons = within(screen.getByTestId(`answer-actions-${ITEM.id}`)).getAllByRole("button");
+    expect(buttons.map((b) => b.props.testID)).toEqual([`add-${ITEM.id}`, `save-${ITEM.id}`]);
+    expect(buttons.map((b) => b.props.accessibilityLabel)).toEqual([
+      "Add to playbook",
+      "Save answer only",
+    ]);
+    expect(screen.getByTestId(`answer-why-${ITEM.id}`)).toHaveTextContent(
+      "Added answers reach every agent from their next call. A saved answer waits under Answered and is not used on calls.",
+    );
   });
 });

@@ -159,6 +159,7 @@ function Variant({ scheme, locale }: { scheme: ThemeName; locale: Locale }) {
             <Button variant="outline" label={t("call.offline.retry")} />
             <Button variant="ghost" label={t("history.detail.back")} />
             <Button variant="danger" label={t("call.end")} />
+            <Button variant="dangerGhost" label={t("playbook.remove")} />
             <Button label={t("call.composer.send")} disabled />
             <Button variant="secondary" label={t("meetings.opening")} busy />
           </Stack>

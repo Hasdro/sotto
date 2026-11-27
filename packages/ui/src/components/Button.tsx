@@ -6,7 +6,13 @@ import { useFocusRing } from "./focus.ts";
 import { Spinner } from "./Spinner.tsx";
 import { Text } from "./Text.tsx";
 
-export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger"
+  | "dangerGhost";
 
 export type ButtonProps = {
   label: string;
@@ -63,6 +69,9 @@ export function Button({
     outline: { fill: color.surface, text: color.text, border: color.borderStrong },
     ghost: { fill: "transparent", text: color.primary, border: "transparent" },
     danger: { fill: color.danger, text: color.onDanger, border: color.danger },
+    // UI-012: the first step of a destructive action beside a ghost link (e.g. Remove next to
+    // Edit): red text, no fill; the filled `danger` button is for the confirmation.
+    dangerGhost: { fill: "transparent", text: color.danger, border: "transparent" },
   };
   const p = palette[variant];
   const button = (
@@ -86,7 +95,9 @@ export function Button({
             ? { backgroundColor: color.bubble, borderColor: color.bubble }
             : variant === "outline"
               ? { backgroundColor: color.bubble }
-              : styles.hovered
+              : variant === "dangerGhost"
+                ? { backgroundColor: color.surfaceSunken, borderColor: color.surfaceSunken }
+                : styles.hovered
           : null,
         state.pressed ? styles.pressed : null,
         disabled ? styles.disabled : null,

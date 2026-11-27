@@ -20,6 +20,7 @@ import { PageHeader } from "../components/PageHeader";
 import { RoleGate } from "../components/RoleGate";
 import { type FlowError, MAX_ANSWER_WORDS, wordCount } from "../features/escalations/flow";
 import { useEscalations } from "../features/escalations/store";
+import { EXCERPT_SHOWN, excerptTurns } from "../features/inbox/excerpt";
 import { byStatus, countByStatus, type InboxItem, type InboxStatus } from "../features/inbox/mock";
 import { formatDateTime } from "../lib/format";
 import { useI18n } from "../lib/locale";
@@ -98,21 +99,7 @@ function InboxScreen() {
               <Text variant="label" tone="muted">
                 {formatDateTime(item.askedAt, locale)}
               </Text>
-              {item.excerpt ? (
-                <View
-                  testID={`excerpt-${item.id}`}
-                  accessibilityLabel={t("inbox.excerpt")}
-                  style={[
-                    styles.answer,
-                    { backgroundColor: color.surfaceSunken, borderStartColor: color.border },
-                  ]}
-                >
-                  <Text variant="label" weight="medium" tone="muted">
-                    {t("inbox.excerpt")}
-                  </Text>
-                  <Text variant="label">{item.excerpt}</Text>
-                </View>
-              ) : null}
+              {item.excerpt ? <Excerpt id={item.id} text={item.excerpt} /> : null}
               {item.status !== "added" ? (
                 <AnswerEditor item={item} onAdded={() => setAdded(item.question)} />
               ) : item.answer ? (
@@ -136,6 +123,50 @@ function InboxScreen() {
   );
 }
 
+/** UI-011: the last turns before the question, with the rest one tap away (raw transcripts ran
+ * to 25+ lines and pushed the answer field off screen). Speakers are named per line. */
+function Excerpt({ id, text }: { id: string; text: string }) {
+  const { t } = useI18n();
+  const { color } = useTheme();
+  const [all, setAll] = useState(false);
+  const turns = excerptTurns(text);
+  const shown = all ? turns : turns.slice(-EXCERPT_SHOWN);
+  return (
+    <View
+      testID={`excerpt-${id}`}
+      accessibilityLabel={t("inbox.excerpt")}
+      style={[
+        styles.answer,
+        { backgroundColor: color.surfaceSunken, borderStartColor: color.border },
+      ]}
+    >
+      <Text variant="label" weight="medium" tone="muted">
+        {t("inbox.excerpt")}
+      </Text>
+      {shown.map((turn) => (
+        <Text key={turn.at} variant="label">
+          {turn.speaker ? (
+            <Text variant="label" weight="semibold">
+              {`${t(turn.speaker === "customer" ? "inbox.speaker.customer" : "inbox.speaker.agent")}: `}
+            </Text>
+          ) : null}
+          {turn.text}
+        </Text>
+      ))}
+      {turns.length > EXCERPT_SHOWN ? (
+        <View style={styles.toggle}>
+          <Button
+            variant="ghost"
+            label={all ? t("inbox.excerpt.less") : t("inbox.excerpt.more", { n: turns.length })}
+            onPress={() => setAll((v) => !v)}
+            testID={`excerpt-toggle-${id}`}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** Answer a question, then add it to the playbook (the manager's approval, R2 step 5). */
 function AnswerEditor({ item, onAdded }: { item: InboxItem; onAdded: () => void }) {
   const { t } = useI18n();
@@ -156,21 +187,22 @@ function AnswerEditor({ item, onAdded }: { item: InboxItem; onAdded: () => void 
         multiline
         testID={`answer-${item.id}`}
       />
-      <Text variant="label" tone={words > MAX_ANSWER_WORDS ? "negative" : "muted"}>
-        {t("inbox.answer.words", { n: words, max: MAX_ANSWER_WORDS })}
-      </Text>
+      {/* UI-011: the cap says why: the answer is read from a live card. */}
+      <View style={styles.counter}>
+        <Text variant="label" tone={words > MAX_ANSWER_WORDS ? "negative" : "muted"}>
+          {t("inbox.answer.words", { n: words, max: MAX_ANSWER_WORDS })}
+        </Text>
+        <Text variant="label" tone="muted" testID={`answer-cap-${item.id}`}>
+          {t("inbox.answer.cap", { max: MAX_ANSWER_WORDS })}
+        </Text>
+      </View>
       {error ? (
         <Text variant="label" tone="negative" accessibilityLiveRegion="polite">
           {message(error)}
         </Text>
       ) : null}
-      <View style={styles.actions}>
-        <Button
-          label={t("inbox.answer.save")}
-          variant="secondary"
-          onPress={() => setError(save(item.id, draft))}
-          testID={`save-${item.id}`}
-        />
+      {/* UI-011: adding to the playbook is the main step; saving only keeps the answer here. */}
+      <View style={styles.actions} testID={`answer-actions-${item.id}`}>
         <Button
           label={t("inbox.answer.add")}
           onPress={() => {
@@ -180,7 +212,16 @@ function AnswerEditor({ item, onAdded }: { item: InboxItem; onAdded: () => void 
           }}
           testID={`add-${item.id}`}
         />
+        <Button
+          label={t("inbox.answer.save")}
+          variant="outline"
+          onPress={() => setError(save(item.id, draft))}
+          testID={`save-${item.id}`}
+        />
       </View>
+      <Text variant="label" tone="muted" testID={`answer-why-${item.id}`}>
+        {t("inbox.answer.why")}
+      </Text>
     </View>
   );
 }
@@ -189,6 +230,8 @@ const styles = StyleSheet.create({
   added: { marginBottom: space.md },
   editor: { marginTop: space.sm, gap: space.xs },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm, marginTop: space.xs },
+  counter: { flexDirection: "row", flexWrap: "wrap", columnGap: space.sm, rowGap: 2 },
+  toggle: { alignItems: "flex-start", marginStart: -space.lg, marginTop: -space.xs },
   page: { paddingTop: space.xl },
   filterWrap: { marginBottom: space.lg },
   row: { padding: space.lg, gap: space.xs },

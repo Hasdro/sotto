@@ -106,10 +106,10 @@ export default function PlaybookScreen() {
           <Text variant="label" tone="muted" accessibilityLiveRegion="polite">
             {t("playbook.count", { count: results.length })}
           </Text>
+          {/* UI-012: adding an answer is this page's main action. */}
           {canEdit && editing === null ? (
             <Button
               label={t("playbook.add")}
-              variant="secondary"
               onPress={() => setEditing("new")}
               testID="playbook-add"
             />
@@ -160,7 +160,10 @@ export default function PlaybookScreen() {
                   </Text>
                   <Text variant="body">{e.answer}</Text>
                   <View style={styles.tags}>
-                    {e.source ? <Badge label={t(SOURCE_LABEL[e.source])} tone="primary" /> : null}
+                    {/* UI-012: where the answer came from, quietly; the answer is the point. */}
+                    {e.source ? (
+                      <Badge label={t(SOURCE_LABEL[e.source])} testID={`source-${e.id}`} />
+                    ) : null}
                     {e.tags.map((tag) => (
                       <Badge key={tag} label={tag} />
                     ))}
@@ -171,15 +174,11 @@ export default function PlaybookScreen() {
                     ) : null}
                   </View>
                   {canEdit && editing === null && e.source && e.source !== "file" ? (
-                    <View style={styles.actions}>
-                      <Button
-                        label={t("playbook.edit")}
-                        variant="ghost"
-                        onPress={() => setEditing(e.id)}
-                        testID={`edit-${e.id}`}
-                      />
-                      <RemoveButton onRemove={() => server.remove(e.id)} id={e.id} />
-                    </View>
+                    <RowActions
+                      id={e.id}
+                      onEdit={() => setEditing(e.id)}
+                      onRemove={() => server.remove(e.id)}
+                    />
                   ) : null}
                 </>
               )}
@@ -191,16 +190,52 @@ export default function PlaybookScreen() {
   );
 }
 
-function RemoveButton({ id, onRemove }: { id: string; onRemove: () => Promise<void> }) {
+/** Edit, and a quiet red Remove that asks before anything is deleted (UI-012): the question
+ * says what removing does, then a filled Remove confirms and Cancel keeps the answer. */
+function RowActions({
+  id,
+  onEdit,
+  onRemove,
+}: {
+  id: string;
+  onEdit: () => void;
+  onRemove: () => Promise<void>;
+}) {
   const { t } = useI18n();
-  const [armed, setArmed] = useState(false);
+  const [asking, setAsking] = useState(false);
+  if (asking) {
+    return (
+      <View style={styles.ask}>
+        <Text variant="label" weight="medium" testID={`remove-ask-${id}`}>
+          {t("playbook.removeAsk")}
+        </Text>
+        <View style={styles.actions}>
+          <Button
+            label={t("playbook.remove")}
+            variant="danger"
+            onPress={() => void onRemove()}
+            testID={`remove-confirm-${id}`}
+          />
+          <Button
+            label={t("playbook.cancel")}
+            variant="ghost"
+            onPress={() => setAsking(false)}
+            testID={`remove-cancel-${id}`}
+          />
+        </View>
+      </View>
+    );
+  }
   return (
-    <Button
-      label={t(armed ? "playbook.removeConfirm" : "playbook.remove")}
-      variant={armed ? "danger" : "ghost"}
-      onPress={() => (armed ? void onRemove() : setArmed(true))}
-      testID={`remove-${id}`}
-    />
+    <View style={styles.actions}>
+      <Button label={t("playbook.edit")} variant="ghost" onPress={onEdit} testID={`edit-${id}`} />
+      <Button
+        label={t("playbook.remove")}
+        variant="dangerGhost"
+        onPress={() => setAsking(true)}
+        testID={`remove-${id}`}
+      />
+    </View>
   );
 }
 
@@ -249,9 +284,14 @@ function EntryForm({
         multiline
         testID="form-answer"
       />
-      <Text variant="label" tone={words > MAX_ANSWER_WORDS ? "danger" : "muted"}>
-        {t("inbox.answer.words", { n: words, max: MAX_ANSWER_WORDS })}
-      </Text>
+      <View style={styles.counter}>
+        <Text variant="label" tone={words > MAX_ANSWER_WORDS ? "danger" : "muted"}>
+          {t("inbox.answer.words", { n: words, max: MAX_ANSWER_WORDS })}
+        </Text>
+        <Text variant="label" tone="muted" testID="form-answer-cap">
+          {t("inbox.answer.cap", { max: MAX_ANSWER_WORDS })}
+        </Text>
+      </View>
       <TextField
         label={t("playbook.form.tags")}
         value={tags}
@@ -259,6 +299,10 @@ function EntryForm({
         autoCapitalize="none"
         testID="form-tags"
       />
+      {/* UI-012: tags are matched on calls (packages/engine playbook.ts), so say what they do. */}
+      <Text variant="label" tone="muted" testID="form-tags-hint">
+        {t("playbook.form.tagsHint")}
+      </Text>
       {error ? (
         <Text variant="label" tone="danger" accessibilityLiveRegion="polite">
           {error}
@@ -293,4 +337,6 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
   },
   actions: { flexDirection: "row", gap: space.sm, flexWrap: "wrap", marginTop: space.xs },
+  ask: { gap: space.xs, marginTop: space.xs },
+  counter: { flexDirection: "row", flexWrap: "wrap", columnGap: space.sm, rowGap: 2 },
 });

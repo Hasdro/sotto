@@ -21,6 +21,7 @@ const TEXT_PAIRS: [fg: ColorKey, bg: ColorKey][] = [
   ["onDanger", "danger"],
   ["danger", "background"],
   ["danger", "surface"],
+  ["danger", "surfaceSunken"],
   ["positive", "surface"],
   ["negative", "surface"],
   ["positive", "background"],
