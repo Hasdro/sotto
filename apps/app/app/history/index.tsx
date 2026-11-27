@@ -20,14 +20,17 @@ import { Platform, StyleSheet, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { CallPeek } from "../../components/CallPeek";
 import { PageHeader } from "../../components/PageHeader";
+import { ChanceMeter } from "../../features/history/ChanceMeter";
 import { PAST_CALLS, type PastCall } from "../../features/history/mock";
 import { OUTCOME_TONE } from "../../features/history/outcome";
 import { useServerCalls } from "../../features/history/server";
+import { callTitle } from "../../features/history/title";
 import { searchCalls } from "../../features/reports/objections";
-import { SOURCE_META } from "../../lib/callSource";
+import { SOURCE_META, sourceName } from "../../lib/callSource";
 import { sampleDataAllowed } from "../../lib/cloud";
 import { allDeviceCalls } from "../../lib/deviceHistory";
 import { formatDate, formatTime } from "../../lib/format";
+import { countKey } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
 export default function HistoryScreen() {
@@ -103,7 +106,7 @@ function CallList({
   snippets?: ReadonlyMap<string, string> | undefined;
 }) {
   const { t, locale } = useI18n();
-  const { color, card } = useTheme();
+  const { color } = useTheme();
   const [peek, setPeek] = useState<{ id: string; above: boolean } | null>(null);
   const canHover = Platform.OS === "web";
   return (
@@ -111,14 +114,6 @@ function CallList({
       {calls.map((call, i) => {
         const meta = SOURCE_META[call.source ?? "computer"];
         const cards = call.cardCount ?? call.cards.length;
-        const tone =
-          call.success === undefined
-            ? null
-            : call.success >= 70
-              ? card.answer.accent
-              : call.success >= 40
-                ? card.objection.accent
-                : card.warning.accent;
         return (
           <AppLink
             key={call.id}
@@ -152,15 +147,18 @@ function CallList({
             </View>
             <View style={styles.main}>
               <Text variant="body" weight="semibold" numberOfLines={1}>
-                {call.customer}
+                {callTitle(call.customer, call.startedAt, t)}
               </Text>
               <View style={styles.facts}>
                 {call.company ? <Fact icon="home" text={call.company} /> : null}
                 <Fact icon="calendar" text={formatDate(call.startedAt, locale)} />
                 <Fact icon="clock" text={formatTime(call.startedAt, locale)} />
                 <Fact icon="timer" text={t("history.minutes", { count: call.minutes })} />
-                <Fact icon="cards" text={String(cards)} />
-                <Fact icon={meta.icon} text={meta.name} />
+                <Fact icon="cards" text={t(countKey("home.cardsN", cards), { n: cards })} />
+                <Fact icon={meta.icon} text={sourceName(call.source ?? "computer", locale)} />
+                {call.success !== undefined ? (
+                  <ChanceMeter success={call.success} testID={`history-chance-${call.id}`} />
+                ) : null}
               </View>
               {snippets?.get(call.id) ? (
                 <Text
@@ -178,21 +176,6 @@ function CallList({
                 tone={OUTCOME_TONE[call.outcome]}
                 label={t(`history.outcome.${call.outcome}`)}
               />
-              {tone && call.success !== undefined ? (
-                <View
-                  style={styles.chance}
-                  accessibilityLabel={t("history.chance", { n: call.success })}
-                >
-                  <View style={[styles.track, { backgroundColor: color.surfaceSunken }]}>
-                    <View
-                      style={[styles.fill, { width: `${call.success}%`, backgroundColor: tone }]}
-                    />
-                  </View>
-                  <Text variant="label" weight="semibold" color={tone}>
-                    {`${call.success}%`}
-                  </Text>
-                </View>
-              ) : null}
             </View>
             {peek?.id === call.id ? (
               <View
@@ -246,7 +229,4 @@ const styles = StyleSheet.create({
   facts: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
   fact: { flexDirection: "row", alignItems: "center", gap: 4 },
   meta: { alignItems: "flex-end", gap: space.xs },
-  chance: { flexDirection: "row", alignItems: "center", gap: space.xs },
-  track: { width: 64, height: 6, borderRadius: 3, overflow: "hidden" },
-  fill: { height: 6, borderRadius: 3 },
 });

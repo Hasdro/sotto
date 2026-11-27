@@ -32,7 +32,7 @@ describe("CallPeek", () => {
     const find = (text: string | RegExp) => screen.getByText(text, { includeHiddenElements: true });
     expect(find("Palm Homes")).toBeOnTheScreen();
     expect(find("Zoom")).toBeOnTheScreen();
-    expect(find("72%")).toBeOnTheScreen();
+    expect(find("72% to close")).toBeOnTheScreen();
     expect(find("The handover is Q1 next year.")).toBeOnTheScreen();
     expect(find(/Call back Sunday/)).toBeOnTheScreen();
   });

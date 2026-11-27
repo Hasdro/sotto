@@ -213,9 +213,6 @@ const en = {
   "admin.later.prompts.title": "Prompt editing comes in a later version",
   "admin.later.prompts.body":
     "Calls use Sales Shield's tested default prompts. Editing them here returns once edits are saved and reach your calls.",
-  "admin.later.models.title": "Models are chosen in Keys & providers",
-  "admin.later.models.body":
-    "Pick each job's vendor and model, and measure its speed, in Admin → Keys & providers.",
   "admin.modelsMoved.title": "Model configuration moved",
   "admin.modelsMoved.body":
     "Keys, providers, models and prompts are now configured per organisation on the vendor panel.",
@@ -457,7 +454,6 @@ const en = {
   "account.role.admin": "Admin",
   "account.role.manager": "Manager",
   "account.role.agent": "Agent",
-  "account.sample": "Sample answers: add an AI key in Admin → Keys & providers for real AI.",
   "nav.account": "Account",
   "nav.open": "Open menu",
   "nav.close": "Close menu",
@@ -477,8 +473,6 @@ const en = {
   "followup.draft": "Draft it",
   "followup.drafting": "Writing…",
   "followup.again": "Write again",
-  "followup.none":
-    "Could not write a draft. It needs an AI model connected in Admin → Keys & providers.",
   "followup.subject": "Subject",
   "followup.body": "Email",
   "followup.check":
@@ -580,6 +574,11 @@ const en = {
   "reports.error.title": "Reports are not available",
   "reports.error.body": "Check your connection and try again.",
   "history.chance": "Chance to close: {n}%",
+  "history.chanceShort": "{n}% to close",
+  "history.unnamed.morning": "Morning call",
+  "history.unnamed.afternoon": "Afternoon call",
+  "history.unnamed.evening": "Evening call",
+  "history.unnamed.night": "Night call",
   "settings.knowledge": "AI knowledge",
   "settings.knowledge.body":
     "What should the AI always know about your company? Products, who you sell to, prices you are happy to quote, rules and words to avoid. Every card and every call review uses it from the next call.",
@@ -593,8 +592,13 @@ const en = {
   "history.detail.recording": "Recording",
   "review.pending.title": "Reviewing your call…",
   "review.pending.body": "Scores and a tip appear here in a few seconds.",
-  "review.none":
-    "No review for this call. Reviews need an AI model connected in Admin → Keys & providers.",
+  "review.none.unheard":
+    "No review: the customer was not heard on this call, so there was nothing to score.",
+  "review.none.failed":
+    "The AI could not review this call. New calls are reviewed as usual. If reviews keep failing, report it.",
+  "review.none.notRun":
+    "This call was not reviewed. Calls are reviewed right after they end while Call review is on.",
+  "review.none.report": "Report a problem",
   "review.title": "Call review",
   "review.success": "Chance to close",
   "review.mood.positive": "Customer positive",
@@ -762,7 +766,6 @@ const en = {
   "settings.local": "this computer only",
   "nav.home": "Home",
   "nav.settings": "Settings",
-  "home.today": "Today",
   "home.stat.calls": "Calls today",
   "home.stat.minutes": "Minutes on calls",
   "home.stat.cards": "Cards shown",
@@ -783,6 +786,7 @@ const en = {
   "home.noCalls": "Your calls will appear here after the first one.",
   "home.lastCall": "Last call",
   "home.cardsN": "{n} cards",
+  "home.cardsN.one": "1 card",
   "brand.poweredBy": "Powered by AGN IT Services",
   "nav.openWithCount": "Open menu, {count} open questions",
   "account.apps": "Get AGN Sales Shield for Windows, Mac, Linux or Chrome",
@@ -1276,9 +1280,6 @@ const ar: Record<StringKey, string> = {
   "admin.later.prompts.title": "تعديل التعليمات يأتي في مرحلة لاحقة",
   "admin.later.prompts.body":
     "تستخدم المكالمات تعليمات Sales Shield الافتراضية المختبرة. يعود تعديلها هنا عندما تُحفظ التعديلات وتصل إلى مكالماتك.",
-  "admin.later.models.title": "تُختار النماذج من المفاتيح والمزوّدين",
-  "admin.later.models.body":
-    "اختر مزوّد كل مهمة ونموذجها، وقِس سرعته، من الإدارة ← المفاتيح والمزوّدون.",
   "admin.modelsMoved.title": "نُقل إعداد النماذج",
   "admin.modelsMoved.body":
     "تُضبط المفاتيح والمزوّدون والنماذج والموجّهات الآن لكل منظمة من لوحة البائع.",
@@ -1519,7 +1520,6 @@ const ar: Record<StringKey, string> = {
   "account.role.admin": "مدير النظام",
   "account.role.manager": "مدير مبيعات",
   "account.role.agent": "موظف مبيعات",
-  "account.sample": "إجابات تجريبية: أضف مفتاح ذكاء اصطناعي في الإدارة ← المفاتيح والمزوّدون.",
   "nav.account": "الحساب",
   "nav.open": "فتح القائمة",
   "nav.close": "إغلاق القائمة",
@@ -1539,8 +1539,6 @@ const ar: Record<StringKey, string> = {
   "followup.draft": "اكتبه",
   "followup.drafting": "جارٍ الكتابة…",
   "followup.again": "اكتب من جديد",
-  "followup.none":
-    "تعذّرت كتابة مسودة. يلزم ربط نموذج ذكاء اصطناعي في الإدارة ← المفاتيح والمزوّدون.",
   "followup.subject": "الموضوع",
   "followup.body": "البريد",
   "followup.check":
@@ -1638,6 +1636,11 @@ const ar: Record<StringKey, string> = {
   "reports.error.title": "التقارير غير متاحة",
   "reports.error.body": "تحقق من الاتصال وحاول مجددًا.",
   "history.chance": "فرصة الإغلاق: {n}٪",
+  "history.chanceShort": "فرصة الإغلاق {n}٪",
+  "history.unnamed.morning": "مكالمة صباحية",
+  "history.unnamed.afternoon": "مكالمة بعد الظهر",
+  "history.unnamed.evening": "مكالمة مسائية",
+  "history.unnamed.night": "مكالمة ليلية",
   "settings.knowledge": "معرفة الذكاء الاصطناعي",
   "settings.knowledge.body":
     "ما الذي يجب أن يعرفه الذكاء الاصطناعي دائمًا عن شركتك؟ المنتجات، والعملاء المستهدفون، والأسعار التي يمكن ذكرها، والقواعد والكلمات التي يجب تجنبها. تستخدمها كل بطاقة وكل مراجعة مكالمة بدءًا من المكالمة التالية.",
@@ -1651,8 +1654,12 @@ const ar: Record<StringKey, string> = {
   "history.detail.recording": "التسجيل",
   "review.pending.title": "جارٍ تقييم مكالمتك…",
   "review.pending.body": "ستظهر الدرجات ونصيحة هنا خلال ثوانٍ.",
-  "review.none":
-    "لا يوجد تقييم لهذه المكالمة. يحتاج التقييم إلى نموذج ذكاء اصطناعي متصل في الإدارة ← المفاتيح والمزوّدون.",
+  "review.none.unheard": "لا يوجد تقييم: لم يُسمع صوت العميل في هذه المكالمة، فلا شيء لتقييمه.",
+  "review.none.failed":
+    "تعذّر على الذكاء الاصطناعي تقييم هذه المكالمة. تُقيَّم المكالمات الجديدة كالمعتاد. إذا تكرر ذلك، أبلغ عنه.",
+  "review.none.notRun":
+    "لم تُقيَّم هذه المكالمة. تُقيَّم المكالمات بعد انتهائها مباشرة ما دام تقييم المكالمات مفعّلًا.",
+  "review.none.report": "الإبلاغ عن مشكلة",
   "review.title": "تقييم المكالمة",
   "review.success": "فرصة إتمام البيع",
   "review.mood.positive": "العميل إيجابي",
@@ -1815,7 +1822,6 @@ const ar: Record<StringKey, string> = {
   "settings.local": "هذا الجهاز فقط",
   "nav.home": "الرئيسية",
   "nav.settings": "الإعدادات",
-  "home.today": "اليوم",
   "home.stat.calls": "مكالمات اليوم",
   "home.stat.minutes": "دقائق المكالمات",
   "home.stat.cards": "البطاقات المعروضة",
@@ -1836,6 +1842,7 @@ const ar: Record<StringKey, string> = {
   "home.noCalls": "ستظهر مكالماتك هنا بعد أول مكالمة.",
   "home.lastCall": "آخر مكالمة",
   "home.cardsN": "{n} بطاقات",
+  "home.cardsN.one": "بطاقة واحدة",
   "brand.poweredBy": "بدعم من AGN IT Services",
   "nav.openWithCount": "فتح القائمة، {count} أسئلة مفتوحة",
   "account.apps": "نزّل AGN Sales Shield لويندوز أو ماك أو لينكس أو كروم",
@@ -2125,6 +2132,13 @@ export function t(key: StringKey, locale: Locale = "en", vars?: Vars): string {
   return raw.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in vars ? String(vars[name]) : match,
   );
+}
+
+/** The `.one` form of a count string for exactly one ("1 card", "بطاقة واحدة"), where the table
+ * has one; otherwise the key itself ("{n} cards"). */
+export function countKey(key: StringKey, n: number): StringKey {
+  const one = `${key}.one`;
+  return n === 1 && one in en ? (one as StringKey) : key;
 }
 
 export function directionOf(locale: Locale): "ltr" | "rtl" {

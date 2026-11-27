@@ -157,6 +157,15 @@ export function attachedBriefText(): string {
   return parts.join("\n").slice(0, TEXT_MAX);
 }
 
+/** UX-009: the name the call is saved under: the linked person, else the meeting or the deal,
+ * with the person's company. Null when nothing is linked (History names the call itself). */
+export function attachedCallName(): { title: string; company: string } | null {
+  if (state.crm.kind !== "attached") return null;
+  const b = state.crm.brief;
+  const title = (b.person?.name || b.meeting?.title || b.deals[0]?.name || "").trim();
+  return title ? { title, company: (b.account?.name ?? "").trim() } : null;
+}
+
 /** Saves the brief with the call (server, company-scoped). Nothing to save: nothing sent. */
 export function saveBriefFor(callId: string): Promise<void> {
   const crm = state.crm.kind === "attached" ? state.crm.brief : null;

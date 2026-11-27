@@ -33,6 +33,8 @@ jest.mock("../../lib/deviceHistory", () => ({
   setDeviceReview: jest.fn(),
 }));
 
+import type { Brief } from "../crm/api";
+import { attachBrief, resetCall } from "../crm/attached";
 import { connectLocal } from "./local";
 
 const SUMMARY = { call_id: "c1", started_at: Date.now(), cards: 1, p50_ms: 1, p95_ms: 1 };
@@ -94,5 +96,54 @@ describe("device history card ids", () => {
     mockOnEnded?.({ ...SUMMARY, call_id: callId });
     const saved = mockSave.mock.calls[0]?.[0] as { transcript: { kind: string; id?: string }[] };
     expect(saved.transcript.find((e) => e.kind === "card")?.id).toBe(cardId);
+  });
+});
+
+/** UX-009: a call is saved under the linked Zoho name, never "Call 11/14/2026, 9:46:45 AM". */
+describe("the saved call's name (UX-009)", () => {
+  const brief = (over: Partial<Brief> = {}): Brief => ({
+    person: { module: "Contacts", id: "p1", name: "Desmond Lee", title: "", email: "", phone: "" },
+    account: { name: "Acme Trading", industry: "" },
+    deals: [],
+    notes: [],
+    text: "Desmond Lee, Acme Trading",
+    ...over,
+  });
+  const saved = () => mockSave.mock.calls[0]?.[0] as { title: string; company?: string };
+  beforeEach(() => {
+    mockFeatures = { call_review: { state: "off_by_org" } };
+    mockSave.mockClear();
+    resetCall();
+  });
+
+  it("is the linked Zoho person, with their company", () => {
+    attachBrief(brief());
+    endCall();
+    expect(saved()).toMatchObject({ title: "Desmond Lee", company: "Acme Trading" });
+  });
+
+  it("is the meeting's title when the record names no person", () => {
+    attachBrief(
+      brief({
+        person: null,
+        account: null,
+        meeting: {
+          id: "m1",
+          title: "Zoho quote walkthrough",
+          start: "",
+          end: "",
+          agenda: "",
+          participants: [],
+        },
+      }),
+    );
+    endCall();
+    expect(saved()).toMatchObject({ title: "Zoho quote walkthrough" });
+    expect(saved()).not.toHaveProperty("company");
+  });
+
+  it("is empty without a linked record (History names it), never a timestamp", () => {
+    endCall();
+    expect(saved().title).toBe("");
   });
 });

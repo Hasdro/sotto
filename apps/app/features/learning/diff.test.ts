@@ -27,4 +27,9 @@ describe("call name (UX-06c)", () => {
     expect(sourceName({ source_call: "c3" }, titleOf)).toBe("");
     expect(sourceName({ source_call: null }, titleOf)).toBeNull();
   });
+
+  it("treats the old timestamp title as no name (UX-009)", () => {
+    const old = { source_call: "c4", source_label: "Call 11/14/2026, 9:46:45 AM" };
+    expect(sourceName(old, titleOf)).toBe("");
+  });
 });

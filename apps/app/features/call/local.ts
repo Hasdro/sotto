@@ -26,7 +26,12 @@ import {
   saveDeviceCall,
   setDeviceReview,
 } from "../../lib/deviceHistory";
-import { attachedBriefText, attachedGamePlanText, saveBriefFor } from "../crm/attached";
+import {
+  attachedBriefText,
+  attachedCallName,
+  attachedGamePlanText,
+  saveBriefFor,
+} from "../crm/attached";
 import { stateOf } from "../flags/catalog";
 import { learnAfterCall } from "../learning/learn";
 import type { Bridge, BridgeHandlers } from "./bridge";
@@ -122,11 +127,14 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
     // Practice (D-073): no History, no brief, no review, no learning, no usage report.
     if (practiceRun()) return;
     void saveBriefFor(s.call_id); // T-056: the brief is kept with the call (server, org-scoped)
+    // UX-009: the linked Zoho name; "" lets History name it in the reader's language and clock.
+    const named = attachedCallName();
     saveDeviceCall({
       id: s.call_id,
       started_at: s.started_at,
       ended_at: Date.now(),
-      title: `Call ${new Date(s.started_at).toLocaleString()}`,
+      title: named?.title ?? "",
+      ...(named?.company ? { company: named.company } : {}),
       mode: runtime.mode,
       cards: s.cards,
       p50_ms: s.p50_ms,

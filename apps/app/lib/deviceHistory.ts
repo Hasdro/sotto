@@ -35,6 +35,8 @@ export type DeviceCall = {
   p50_ms: number | null;
   p95_ms: number | null;
   transcript: DeviceEntry[];
+  /** The linked Zoho person's company (UX-009); the title names the person. */
+  company?: string;
   /** Where the call came from: Zoom, Teams, the microphone… (owner, 22 Oct). */
   source?: CallSource;
   /** What the agent typed during the call (owner, 22 Oct). */

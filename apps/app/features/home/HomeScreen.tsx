@@ -25,8 +25,8 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { allDeviceCalls, type DeviceCall, deviceCalls } from "../../lib/deviceHistory";
-import { daysFromToday, formatTime, formatWeekday } from "../../lib/format";
-import type { Locale } from "../../lib/i18n";
+import { daysFromToday, formatTime, formatWeekday, formatWhen } from "../../lib/format";
+import { countKey, type Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 import { useRole } from "../../lib/role";
 import { useCloud } from "../../lib/useCloud";
@@ -34,9 +34,8 @@ import type { MeetingCandidate } from "../crm/api";
 import { HomeMeetings } from "../crm/HomeMeetings";
 import { useOpenCount } from "../escalations/store";
 import { DueSteps } from "../followup";
+import { callTitle } from "../history/title";
 import { SetupChecklist } from "./SetupChecklist";
-
-const DAY_MS = 86_400_000;
 
 export function startOfToday(now = Date.now()): number {
   const d = new Date(now);
@@ -125,12 +124,6 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
   const bundle = cloud.status === "signed_in" ? cloud.bundle : null;
   const company = me?.company ?? null;
   const agent = role === "agent";
-  const fmtTime = (ms: number) =>
-    new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(new Date(ms));
-  const fmtDay = (ms: number) =>
-    Date.now() - ms < DAY_MS && ms >= startOfToday()
-      ? t("home.today")
-      : new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(new Date(ms));
 
   // UX-26: one neutral style for numbers; card colours stay on cards.
   const tiles: { id: string; label: string; value: string }[] = [
@@ -272,10 +265,16 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
                   </View>
                   <View style={styles.flex}>
                     <Text weight="medium" numberOfLines={1}>
-                      {i === 0 ? `${t("home.lastCall")} · ${c.title}` : c.title}
+                      {i === 0
+                        ? `${t("home.lastCall")} · ${callTitle(c.title, c.started_at, t)}`
+                        : callTitle(c.title, c.started_at, t)}
                     </Text>
+                    {/* UX-009: History's 24-hour Dubai clock, not the computer's 12-hour one. */}
                     <Text variant="label" tone="muted">
-                      {`${fmtDay(c.started_at)} ${fmtTime(c.started_at)} · ${t("home.cardsN", { n: c.cards })}`}
+                      {`${formatWhen(new Date(c.started_at).toISOString(), locale)} · ${t(
+                        countKey("home.cardsN", c.cards),
+                        { n: c.cards },
+                      )}`}
                     </Text>
                   </View>
                   {c.p95_ms !== null ? (

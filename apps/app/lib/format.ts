@@ -109,6 +109,18 @@ export function daysFromToday(value: string, now: Date = new Date()): number | n
   return Math.round((utc(day) - utc(today)) / 86_400_000);
 }
 
+/** The hour (0–23) on the Dubai clock, the one every time in the app is shown in (UX-009). */
+export function dubaiHour(at: number | string | Date): number {
+  const hour = new Intl.DateTimeFormat("en-GB", {
+    hour: "numeric",
+    hourCycle: "h23",
+    timeZone: ZONE,
+  })
+    .formatToParts(new Date(at))
+    .find((p) => p.type === "hour")?.value;
+  return Number(hour) % 24;
+}
+
 /** "Mon 30 Nov" / "الاثنين، 30 نوفمبر": a Dubai day with its weekday (UX-002). */
 export function formatWeekday(iso: string, locale: Locale): string {
   return new Intl.DateTimeFormat(tag(locale), {

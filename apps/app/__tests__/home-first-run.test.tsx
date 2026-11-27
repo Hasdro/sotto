@@ -225,6 +225,26 @@ describe("agent and staff Home (UX-25, draft D-050 (backlog))", () => {
     expect(screen.getByText("Ask about the budget earlier.")).toBeOnTheScreen();
   });
 
+  it("lists recent calls by name, with the History date and time format (UX-009)", async () => {
+    signedIn("agent");
+    mockCalls = [
+      {
+        id: "c-old",
+        started_at: Date.parse("2026-11-14T05:46:45Z"), // 09:46 in Dubai
+        ended_at: Date.parse("2026-11-14T05:48:00Z"),
+        title: "Call 11/14/2026, 9:46:45 AM",
+        cards: 1,
+        p95_ms: 900,
+        transcript: [],
+      },
+    ];
+    await wrap("agent");
+    const row = screen.getByTestId("home-last-call");
+    expect(row).toHaveTextContent(/Last call · Morning call/);
+    expect(row).toHaveTextContent(/14 Nov, 09:46 · 1 card(?!s)/);
+    expect(row).not.toHaveTextContent(/AM|PM|11\/14/);
+  });
+
   it.each(["admin", "manager"] as const)(
     "%s sees the company block with trial and seats on one line",
     async (role) => {

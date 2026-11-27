@@ -55,6 +55,7 @@ jest.mock("../learning/learn", () => ({
 const mockBrief = jest.fn(async () => {});
 jest.mock("../crm/attached", () => ({
   attachedBriefText: () => "",
+  attachedCallName: () => null,
   saveBriefFor: (...a: unknown[]) => mockBrief(...(a as [])),
 }));
 

@@ -17,8 +17,10 @@ import { type Href, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View } from "react-native";
 import { ADMIN_GROUPS, adminPageLabel } from "../features/admin/pages";
+import { callTitle } from "../features/history/title";
 import { scrollToAnchor } from "../lib/anchor";
 import { deviceCalls } from "../lib/deviceHistory";
+import { formatWhen } from "../lib/format";
 import { type Locale, type StringKey, t as translate } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { setPrefs } from "../lib/prefs";
@@ -192,7 +194,11 @@ export function CommandPalette({
           (c): Command => ({
             id: `call-${c.id}`,
             icon: "history",
-            label: c.title,
+            // UX-009: the call's name and when, as History shows them.
+            label: `${callTitle(c.title, c.started_at, t)} · ${formatWhen(
+              new Date(c.started_at).toISOString(),
+              locale,
+            )}`,
             href: `/history/${c.id}` as Href,
           }),
         ),

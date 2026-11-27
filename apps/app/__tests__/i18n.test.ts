@@ -25,6 +25,14 @@ describe("string table", () => {
     }
   });
 
+  it("never sends anyone to the removed Admin → Keys & providers page (FUNC-002, D-078)", () => {
+    const removed = /Admin → Keys & providers|الإدارة ← المفاتيح والمزوّدون/;
+    const hits = LOCALES.flatMap((locale) =>
+      STRING_KEYS.filter((key) => removed.test(t(key, locale))).map((key) => `${locale} ${key}`),
+    );
+    expect(hits).toEqual([]);
+  });
+
   it("Arabic is right-to-left, English left-to-right", () => {
     expect(directionOf("ar")).toBe("rtl");
     expect(directionOf("en")).toBe("ltr");

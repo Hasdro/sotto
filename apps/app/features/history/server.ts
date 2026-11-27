@@ -20,6 +20,8 @@ export type ServerCallSummary = {
   source?: string;
   review?: { success?: number } | null;
   notes?: string;
+  /** The linked Zoho person's company (UX-009). */
+  company?: string;
 };
 
 type Entry =
@@ -58,8 +60,8 @@ export function toPastCall(call: ServerCallSummary | ServerCallDetail): PastCall
   }
   return {
     id: call.id,
-    customer: call.title,
-    company: "",
+    customer: call.title, // shown through callTitle(): "" or an old timestamp title is unnamed
+    company: call.company ?? "",
     startedAt: new Date(call.started_at).toISOString(),
     minutes: Math.max(1, Math.round((end - call.started_at) / 60000)),
     outcome: call.mode === "live" ? "live" : "practice",

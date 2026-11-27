@@ -25,6 +25,7 @@ import { OUTCOME_TONE } from "../../features/history/outcome";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
 import { pastCardView } from "../../features/history/rating";
 import { useServerCall } from "../../features/history/server";
+import { callTitle } from "../../features/history/title";
 import { RatingControls } from "../../features/rating/RatingControls";
 import { CallReviewPanel } from "../../features/review/CallReviewPanel";
 import { FollowUp } from "../../features/review/FollowUp";
@@ -107,7 +108,7 @@ export default function CallDetailScreen() {
       <View style={styles.backRow}>{back}</View>
       <View style={styles.head}>
         <Text variant="title" weight="semibold" accessibilityRole="header">
-          {call.customer}
+          {callTitle(call.customer, call.startedAt, t)}
         </Text>
         <View style={styles.metaRow}>
           <Badge tone={OUTCOME_TONE[call.outcome]} label={t(`history.outcome.${call.outcome}`)} />

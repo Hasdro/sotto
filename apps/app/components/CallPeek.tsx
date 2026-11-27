@@ -15,26 +15,21 @@ import {
   useTheme,
 } from "@sotto/ui";
 import { StyleSheet, View } from "react-native";
+import { ChanceMeter } from "../features/history/ChanceMeter";
 import type { PastCall } from "../features/history/mock";
 import { OUTCOME_TONE } from "../features/history/outcome";
-import { SOURCE_META } from "../lib/callSource";
+import { callTitle } from "../features/history/title";
+import { SOURCE_META, sourceName } from "../lib/callSource";
 import { formatDate, formatTime } from "../lib/format";
+import { countKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 
 export function CallPeek({ call }: { call: PastCall }) {
   const { t, locale } = useI18n();
-  const { color, card } = useTheme();
+  const { color } = useTheme();
   const glass = useGlassStyle({ elevated: true });
   const meta = SOURCE_META[call.source ?? "computer"];
   const cards = call.cardCount ?? call.cards.length;
-  const tone =
-    call.success === undefined
-      ? null
-      : call.success >= 70
-        ? card.answer.accent
-        : call.success >= 40
-          ? card.objection.accent
-          : card.warning.accent;
   const said = call.cards[0];
   return (
     <View
@@ -47,7 +42,7 @@ export function CallPeek({ call }: { call: PastCall }) {
       <View style={styles.head}>
         <View style={styles.grow}>
           <Text variant="body" weight="semibold" numberOfLines={1}>
-            {call.customer}
+            {callTitle(call.customer, call.startedAt, t)}
           </Text>
           {call.company ? (
             <Text variant="label" tone="muted" numberOfLines={1}>
@@ -62,20 +57,11 @@ export function CallPeek({ call }: { call: PastCall }) {
         <Fact icon="calendar" text={formatDate(call.startedAt, locale)} />
         <Fact icon="clock" text={formatTime(call.startedAt, locale)} />
         <Fact icon="timer" text={t("history.minutes", { count: call.minutes })} />
-        <Fact icon="cards" text={String(cards)} />
-        <Fact icon={meta.icon} text={meta.name} />
+        <Fact icon="cards" text={t(countKey("home.cardsN", cards), { n: cards })} />
+        <Fact icon={meta.icon} text={sourceName(call.source ?? "computer", locale)} />
       </View>
 
-      {tone && call.success !== undefined ? (
-        <View style={styles.chance}>
-          <View style={[styles.track, { backgroundColor: color.surfaceSunken }]}>
-            <View style={[styles.fill, { width: `${call.success}%`, backgroundColor: tone }]} />
-          </View>
-          <Text variant="label" weight="semibold" color={tone}>
-            {`${call.success}%`}
-          </Text>
-        </View>
-      ) : null}
+      {call.success !== undefined ? <ChanceMeter success={call.success} /> : null}
 
       {said ? (
         <View style={styles.said}>
@@ -124,9 +110,6 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   facts: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 4 },
   fact: { flexDirection: "row", alignItems: "center", gap: 4 },
-  chance: { flexDirection: "row", alignItems: "center", gap: space.xs },
-  track: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
-  fill: { height: 6, borderRadius: 3 },
   said: {
     flexDirection: "row",
     alignItems: "flex-start",

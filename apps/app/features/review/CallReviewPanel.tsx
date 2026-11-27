@@ -6,12 +6,25 @@
  */
 import type { CallReview, ReviewDimension } from "@sotto/engine";
 import { chanceBand, REVIEW_DIMENSIONS } from "@sotto/engine";
-import { Disclosure, type Hex, Mascot, moodFor, radius, space, Text, useTheme } from "@sotto/ui";
+import {
+  Button,
+  Disclosure,
+  type Hex,
+  Mascot,
+  moodFor,
+  radius,
+  space,
+  Text,
+  useTheme,
+} from "@sotto/ui";
+import { router } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { deviceCall, useReview } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
+import { setPrefs } from "../../lib/prefs";
 import { TalkMeter } from "../call/components/TalkMeter";
+import { noReviewReason } from "./noReview";
 import { useReviewText } from "./strings";
 
 export function CallReviewPanel({ callId }: { callId: string | null }) {
@@ -40,12 +53,24 @@ export function CallReviewPanel({ callId }: { callId: string | null }) {
     );
   }
   if (state.status === "none") {
+    const reason = noReviewReason(callId ? deviceCall(callId) : null);
     return shell(
       <View style={styles.row}>
         <Mascot mood="noResult" size={44} label={t("review.mood.noResult")} />
-        <Text variant="label" tone="muted" style={styles.flex}>
-          {t("review.none")}
+        <Text variant="label" tone="muted" style={styles.flex} testID={`review-none-${reason}`}>
+          {t(`review.none.${reason}`)}
         </Text>
+        {reason === "failed" ? (
+          <Button
+            variant="outline"
+            label={t("review.none.report")}
+            onPress={() => {
+              setPrefs({ bugReportRequested: true }); // Settings opens the report form
+              router.push("/settings");
+            }}
+            testID="review-none-report"
+          />
+        ) : null}
       </View>,
     );
   }
