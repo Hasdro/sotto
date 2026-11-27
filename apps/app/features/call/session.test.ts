@@ -216,3 +216,41 @@ describe("spoken customer track (D-020)", () => {
     expect(next.notice).toMatchObject({ kind: "info", text: "switching to the backup vendor" });
   });
 });
+
+describe("ending a call (UX-007)", () => {
+  const ended: DemoServerMessage = { type: "call_ended", call_id: CALL };
+
+  it("the call's length stops when the agent ends it, not when the engine finishes", () => {
+    const s = run([
+      server(hello),
+      server(started, 1000),
+      { type: "end_requested", now: 23_000 },
+      server(ended, 31_000), // the engine drains for up to 9 s before it says so
+    ]);
+    expect(s.phase).toBe("ended");
+    expect(s.endedAt).toBe(23_000);
+  });
+
+  it("only a live call can be asked to end, and only the first request counts", () => {
+    expect(run([server(hello), { type: "end_requested", now: 5 }]).endRequestedAt).toBeNull();
+    const s = run([
+      server(hello),
+      server(started, 1000),
+      { type: "end_requested", now: 2000 },
+      { type: "end_requested", now: 3000 },
+    ]);
+    expect(s.endRequestedAt).toBe(2000);
+    expect(s.phase).toBe("live");
+  });
+
+  it("a call that ends by itself keeps the engine's time, and the next call starts clean", () => {
+    const s = run([server(hello), server(started, 1000), server(ended, 9000)]);
+    expect(s.endedAt).toBe(9000);
+    const next = run(
+      [{ type: "end_requested", now: 9500 }, server(started, 10_000)],
+      run([server(hello), server(started, 1000), { type: "end_requested", now: 4000 }]),
+    );
+    expect(next.endRequestedAt).toBeNull();
+    expect(next.endedAt).toBeNull();
+  });
+});

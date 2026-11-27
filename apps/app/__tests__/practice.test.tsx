@@ -116,7 +116,9 @@ describe("practice call (D-073)", () => {
     await act(async () => setPracticeRun(true));
     const s = session(stateFrom([hello, { type: "call_started", call_id: CALL }, card]));
     await render(<CallView session={s} mock={false} />);
-    expect(screen.getByTestId("practice-label")).toHaveTextContent("Practice");
+    // UI-005: "Practice call" is the title, said once (no second "Practice" by the clock).
+    expect(screen.getByTestId("call-title")).toHaveTextContent("Practice call");
+    expect(screen.queryAllByText("Practice")).toHaveLength(0);
     expect(screen.queryByTestId("composer-input")).toBeNull();
     expect(screen.queryByTestId("mic-toggle")).toBeNull();
     expect(screen.getByTestId("hero-card")).toBeOnTheScreen();
@@ -146,6 +148,30 @@ describe("practice call (D-073)", () => {
     await act(async () => setPracticeRun(false));
     const s = session(stateFrom([hello, { type: "call_started", call_id: CALL }]));
     await render(<CallView session={s} mock={false} />);
-    expect(screen.queryByTestId("practice-label")).toBeNull();
+    expect(screen.getByTestId("call-title")).toHaveTextContent(/^Call$/);
+  });
+  it("End practice ends at once: no dialog about saving to History (UX-007)", async () => {
+    await act(async () => setPracticeRun(true));
+    const s = session(stateFrom([hello, { type: "call_started", call_id: CALL }, card]));
+    await render(<CallView session={s} mock={false} />);
+    const end = screen.getByTestId("end-call");
+    expect(end).toHaveTextContent("End practice");
+    await fireEvent.press(end);
+    expect(s.end).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("confirm-end")).toBeNull();
+    expect(screen.queryByText(/saves the call to your history/)).toBeNull();
+  });
+
+  it("the ended practice shows how long it really ran (UX-007)", async () => {
+    await act(async () => setPracticeRun(true));
+    let st = stateFrom([hello, { type: "call_started", call_id: CALL }]); // started at 1100
+    st = sessionReducer(st, { type: "end_requested", now: 23_100 });
+    st = sessionReducer(st, {
+      type: "server",
+      msg: { type: "call_ended", call_id: CALL },
+      now: 183_100,
+    });
+    await render(<CallView session={session(st)} mock={false} />);
+    expect(screen.getByText("00:22")).toBeOnTheScreen();
   });
 });

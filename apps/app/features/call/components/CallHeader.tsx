@@ -26,6 +26,9 @@ import { useCallText } from "../strings";
 import { clock } from "./strings";
 
 type Props = {
+  /** UI-005: what this call is — "Practice call", the linked meeting or contact, else "Call". */
+  title: string;
+  /** The company, quiet beside the status (UI-005). */
   company: string;
   phase: Phase;
   /** Shown only in the live dot's tooltip (UX-06a). */
@@ -41,15 +44,21 @@ type Props = {
   rail?: { open: boolean; onToggle: () => void } | null;
   /** Desktop app only (PROD-002): shows the floating mini window. */
   onMini?: (() => void) | null;
+  /** UX-007: End was pressed and the call is finishing: no second End, the clock has stopped. */
+  ending?: boolean;
+  /** The End button's words ("End practice" on a practice call). */
+  endLabel?: string;
 };
 
 /**
- * The context-rail toggle with its visible label on the start side, then company, status with a
- * running clock, and End call alone on the end side (UX-15). The status is plain text with one
- * warm dot (T-050); the AI mode lives in that dot's tooltip, and "Practice" is the only mode word
- * shown, on practice calls (UX-06a). The mock badge needs the dev gate as well as `mock`.
+ * The context-rail toggle with its visible label on the start side, then the call's title with
+ * the company, status and a running clock under it, and End call alone on the end side (UX-15,
+ * UI-005). The status is plain text with one warm dot (T-050); the AI mode lives in that dot's
+ * tooltip, and a practice call says so once, in its title (UX-06a, UI-005). The mock badge needs
+ * the dev gate as well as `mock`.
  */
 export function CallHeader({
+  title,
   company,
   phase,
   mode,
@@ -61,6 +70,8 @@ export function CallHeader({
   wide,
   rail = null,
   onMini = null,
+  ending = false,
+  endLabel,
 }: Props) {
   const { color } = useTheme();
   const { t } = useI18n();
@@ -76,11 +87,22 @@ export function CallHeader({
           weight="semibold"
           numberOfLines={2}
           accessibilityRole="header"
+          testID="call-title"
         >
-          {company}
+          {title}
         </Text>
         <View style={styles.badges}>
-          {phase === "live" ? (
+          {company && company !== title ? (
+            <Text variant="label" tone="muted" numberOfLines={1} testID="call-company">
+              {company}
+            </Text>
+          ) : null}
+          {phase === "live" && ending ? (
+            <Text variant="label" weight="semibold" tone="muted" testID="status-ending">
+              {ct("call.ending")}
+            </Text>
+          ) : null}
+          {phase === "live" && !ending ? (
             <LiveStatus
               tip={`${t(mode === "live" ? "call.mode.live" : "call.mode.fake")} · ${t(
                 mode === "live" ? "call.mode.liveHint" : "call.mode.fakeHint",
@@ -92,14 +114,12 @@ export function CallHeader({
               {t("call.status.ended")}
             </Text>
           ) : null}
-          {phase !== "idle" && source ? <SourceChip source={source} /> : null}
+          {/* A practice call's title already says so (UI-005): no "Practice" chip as well. */}
+          {phase !== "idle" && source && !(practice && source === "practice") ? (
+            <SourceChip source={source} />
+          ) : null}
           {phase !== "idle" && startedAt !== null ? (
             <CallClock startedAt={startedAt} endedAt={endedAt} />
-          ) : null}
-          {practice ? (
-            <Text variant="label" weight="medium" tone="muted" testID="practice-label">
-              {ct("call.practice")}
-            </Text>
           ) : null}
           {mock && demoEnabled() ? (
             <Badge tone="notice" label={t("call.mockBadge")} testID="mock-badge" />
@@ -126,8 +146,13 @@ export function CallHeader({
           />
         )
       ) : null}
-      {phase === "live" ? (
-        <Button label={t("call.end")} variant="danger" onPress={onEnd} testID="end-call" />
+      {phase === "live" && !ending ? (
+        <Button
+          label={endLabel ?? t("call.end")}
+          variant="danger"
+          onPress={onEnd}
+          testID="end-call"
+        />
       ) : null}
     </View>
   );

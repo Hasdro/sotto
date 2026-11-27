@@ -91,3 +91,51 @@ describe("useCallSession", () => {
     expect(result.current.state.hello).toBeNull();
   });
 });
+
+describe("useCallSession end (UX-007)", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it("marks the end the moment it is sent, so the clock stops there", async () => {
+    let sock: {
+      readyState: number;
+      onopen: null;
+      onclose: null;
+      onerror: null;
+      onmessage: ((ev: { data: unknown }) => void) | null;
+      send: jest.Mock;
+      close: () => void;
+    } | null = null;
+    const factory: SocketFactory = () => {
+      sock = {
+        readyState: 1,
+        onopen: null,
+        onclose: null,
+        onerror: null,
+        onmessage: null,
+        send: jest.fn(),
+        close: () => {},
+      };
+      return sock;
+    };
+    const say = (msg: object) => sock?.onmessage?.({ data: JSON.stringify(msg) });
+    const CALL = "0b8f3c1e-7a2d-4e6f-8c9b-1d2e3f4a5b6c";
+    jest.setSystemTime(1_000);
+    const { result } = await renderHook(() =>
+      useCallSession({ mock: false, locale: "en", socketFactory: factory }),
+    );
+    await act(async () => {
+      say({ type: "hello", v: 1, company_name: "Demo", mode: "fake", scenarios: [] });
+      say({ type: "call_started", call_id: CALL });
+    });
+    jest.setSystemTime(23_000);
+    await act(async () => {
+      result.current.end();
+    });
+    expect(result.current.state.endRequestedAt).toBe(23_000);
+    expect(result.current.state.phase).toBe("live");
+    jest.setSystemTime(31_000);
+    await act(async () => say({ type: "call_ended", call_id: CALL }));
+    expect(result.current.state.endedAt).toBe(23_000);
+  });
+});

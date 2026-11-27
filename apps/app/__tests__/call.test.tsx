@@ -6,6 +6,8 @@ import CallScreen, { CallView } from "../app/call";
 import { demoEnabled } from "../features/call/devGate";
 import { initialSessionState, type SessionState, sessionReducer } from "../features/call/session";
 import type { CallSession } from "../features/call/useCallSession";
+import { attachBrief, resetCall } from "../features/crm/attached";
+import { mockLookup } from "../features/crm/mock";
 import { useIsWide } from "../lib/responsive";
 
 jest.mock("../lib/responsive", () => ({ useIsWide: jest.fn(() => false) }));
@@ -200,7 +202,7 @@ describe("in-call screen", () => {
         mock
       />,
     );
-    expect(screen.getByText("Practice")).toBeOnTheScreen();
+    expect(screen.getByTestId("call-title")).toHaveTextContent("Practice call");
     expect(screen.queryByText("Fake AI")).toBeNull();
     expect(screen.getByText("Sample call")).toBeOnTheScreen();
   });
@@ -244,6 +246,30 @@ describe("in-call screen", () => {
     const ids = bar.children.map((c) => c.props?.testID);
     expect(ids[0]).toBe("rail-toggle");
     expect(ids.at(-1)).toBe("end-call");
+  });
+
+  it("header: the title names the call, with the company quiet beside the status (UI-005)", async () => {
+    const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
+    const st = stateFrom([real, { type: "call_started", call_id: CALL }]);
+    await render(<CallView session={session(st)} mock={false} />);
+    expect(screen.getByTestId("call-title")).toHaveTextContent(/^Call$/);
+    expect(screen.getByTestId("call-company")).toHaveTextContent("Zylker");
+    await act(async () => attachBrief((await mockLookup.meetingBrief("m")).brief));
+    expect(screen.getByTestId("call-title")).toHaveTextContent("Acme renewal call");
+    await act(async () =>
+      attachBrief((await mockLookup.brief({ module: "Contacts", id: "x" })).brief),
+    );
+    expect(screen.getByTestId("call-title")).toHaveTextContent("Jane Doe");
+    await act(async () => resetCall());
+  });
+
+  it("while the call ends: the clock stops and End call gives way to 'Ending…' (UX-007)", async () => {
+    let st = stateFrom([hello, { type: "call_started", call_id: CALL }]); // started at 1100
+    st = sessionReducer(st, { type: "end_requested", now: 23_100 });
+    await render(<CallView session={session(st)} mock={false} />);
+    expect(screen.queryByTestId("end-call")).toBeNull();
+    expect(screen.getByText("Ending…")).toBeOnTheScreen();
+    expect(screen.getByText("00:22")).toBeOnTheScreen();
   });
 
   it("live with no card yet: a listening placeholder holds the hero slot", async () => {

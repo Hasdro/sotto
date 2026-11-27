@@ -37,7 +37,7 @@ import { practiceScenario, usePracticeRun } from "../features/call/practice";
 import { useCallText } from "../features/call/strings";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
-import { bindCall } from "../features/crm/attached";
+import { bindCall, useAttachedState } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
 import { useEscalations } from "../features/escalations/store";
 import { desktop } from "../lib/desktop";
@@ -153,6 +153,7 @@ export function CallView({
   }, [check]);
   const callApp = useCallApp();
   const cloud = useCloud();
+  const { crm: linked } = useAttachedState();
   const script = practiceScenario(cloud.status === "signed_in" ? cloud.bundle : null);
   const practiceRun = usePracticeRun();
   const [practicing, setPracticing] = useState(askPractice);
@@ -227,17 +228,28 @@ export function CallView({
   );
   // PROD-002: the desktop app's floating card, one click from the call (also ⌃⌥M from any app).
   const showMini = desktop()?.showMini;
+  // UI-005: the header names the call — the practice, the linked meeting or contact — not the
+  // company, which stays beside the status.
+  const linkedTitle =
+    linked.kind === "attached"
+      ? linked.brief.meeting?.title.trim() || linked.brief.person?.name.trim() || ""
+      : "";
   const header = (
     <CallHeader
       onMini={showMini ? () => showMini(true) : null}
+      title={practice ? tc("call.practiceTitle") : linkedTitle || tc("call.title")}
       company={state.hello.company_name}
       phase={state.phase}
       mode={state.hello.mode}
       practice={practice}
       startedAt={state.startedAt}
-      endedAt={state.endedAt}
+      // UX-007: the clock stops when the agent ends the call, while the engine finishes.
+      endedAt={state.endedAt ?? state.endRequestedAt}
+      ending={state.endRequestedAt !== null}
+      endLabel={realPractice ? tc("call.endPractice") : undefined}
       mock={mock}
-      onEnd={() => setConfirming(true)}
+      // A practice run keeps nothing (D-073), so it ends at once; a real call asks first (T-025).
+      onEnd={() => (realPractice ? session.end() : setConfirming(true))}
       wide={wide}
       rail={{ open: railOpen, onToggle: () => setRailOpen((o) => !o) }}
     />

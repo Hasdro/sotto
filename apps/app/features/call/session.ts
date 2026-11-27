@@ -38,6 +38,9 @@ export type SessionState = {
   /** Client clock when the call started. */
   startedAt: number | null;
   endedAt: number | null;
+  /** Client clock when the agent pressed End (UX-007): the call's length stops here, though the
+   * engine can take a few seconds more to finish and say `call_ended`. */
+  endRequestedAt: number | null;
   transcript: readonly TranscriptEntry[];
   cards: CardsState;
   escalations: readonly { question: string; at: number }[];
@@ -52,7 +55,9 @@ export type SessionState = {
 export type SessionAction =
   | { type: "connection"; status: Connection }
   | { type: "server"; msg: DemoServerMessage; now: number }
-  | { type: "dismiss_notice"; id: number };
+  | { type: "dismiss_notice"; id: number }
+  /** The agent ended the call; sent with the `end` message (useCallSession). */
+  | { type: "end_requested"; now: number };
 
 /** Transcript lines kept in memory per call. */
 export const MAX_TRANSCRIPT = 200;
@@ -64,6 +69,7 @@ export const initialSessionState: SessionState = {
   callId: null,
   startedAt: null,
   endedAt: null,
+  endRequestedAt: null,
   transcript: [],
   cards: initialCardsState,
   escalations: [],
@@ -87,6 +93,9 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, connection: action.status };
     case "dismiss_notice":
       return state.notice?.id === action.id ? { ...state, notice: null } : state;
+    case "end_requested":
+      if (state.phase !== "live" || state.endRequestedAt !== null) return state;
+      return { ...state, endRequestedAt: action.now };
     case "server":
       return applyServer(state, action.msg, action.now);
   }
@@ -103,7 +112,7 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
       return {
         ...appendLine(greeted, { speaker: "system", system: "connection_lost", text: "", atMs }),
         phase: "ended",
-        endedAt: now,
+        endedAt: state.endRequestedAt ?? now,
       };
     }
     case "call_started":
@@ -113,6 +122,7 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
         callId: msg.call_id,
         startedAt: now,
         endedAt: null,
+        endRequestedAt: null,
         transcript: [],
         cards: cardsReducer(state.cards, { type: "reset" }),
         escalations: [],
@@ -163,7 +173,7 @@ function applyServer(state: SessionState, msg: DemoServerMessage, now: number): 
     }
     case "call_ended":
       if (state.callId !== null && msg.call_id !== state.callId) return state;
-      return { ...state, phase: "ended", endedAt: now, partial: null };
+      return { ...state, phase: "ended", endedAt: state.endRequestedAt ?? now, partial: null };
     case "error":
       return {
         ...state,

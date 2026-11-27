@@ -265,7 +265,12 @@ export function useCallSession(opts: {
       [send],
     ),
     say: useCallback((speaker, text) => send({ type: "say", speaker, text }), [send]),
-    end: useCallback(() => send({ type: "end" }), [send]),
+    // The clock stops when the agent ends the call (UX-007), not when the engine finishes.
+    end: useCallback(() => {
+      const sent = send({ type: "end" });
+      if (sent) dispatch({ type: "end_requested", now: Date.now() });
+      return sent;
+    }, [send]),
     retry: useCallback(() => setAttempt((n) => n + 1), []),
     dismissNotice: useCallback((id) => dispatch({ type: "dismiss_notice", id }), []),
     mic,

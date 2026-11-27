@@ -122,6 +122,12 @@ const en = {
   "prep.ready": "Your call brief is ready.",
   "prep.readyLinked": "Your call brief is ready: {title}.",
   "prep.open": "View call context",
+  /** UI-005: the header names the call. */
+  "call.title": "Call",
+  "call.practiceTitle": "Practice call",
+  /** UX-007: a practice run ends at once; the clock stops while the call finishes. */
+  "call.endPractice": "End practice",
+  "call.ending": "Ending…",
 } as const;
 
 export type CallTextKey = keyof typeof en;
@@ -227,6 +233,10 @@ const ar: Record<CallTextKey, string> = {
   "prep.ready": "ملخص مكالمتك جاهز.",
   "prep.readyLinked": "ملخص مكالمتك جاهز: {title}.",
   "prep.open": "اعرض سياق المكالمة",
+  "call.title": "مكالمة",
+  "call.practiceTitle": "مكالمة تدريبية",
+  "call.endPractice": "إنهاء التدريب",
+  "call.ending": "جارٍ الإنهاء…",
 };
 
 export const CALL_TEXT: Record<Locale, Record<CallTextKey, string>> = { en, ar };
