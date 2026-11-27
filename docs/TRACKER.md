@@ -410,6 +410,11 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Session log
 
+### 2026-11-27 · Mac · `fix/client-ux-round1` (client UX audit, Stream 1, Slice 1A)
+- **Done:** Slice 1A of the Sales Shield client UX audit (plan and checklist kept locally in `SalesShield_Audit/FIX_PROGRESS.md`, untracked because the audit files hold personal data): `ef95b55` UX-005 + PROD-002 (mini window shows the whole card and clears after a call; Copy, `Why?` pill and Mini window button on `/call`), `5b2c84a` UX-006 + UX-008 (call brief prefilled from the linked Zoho meeting, untouched prefills cleared on Change and never sent twice to the AI; no blocking context sheet on narrow windows), `a7e407c` UX-007 + UI-005 (practice ends without the "saved to history" dialog; clock stops at End via `end_requested`; header names the call), `64e7d99` UI-006 + UI-007 (new `outline` Button variant; one Start listening; labelled prep coach input with Text/Voice choice).
+- **Evidence:** `pnpm typecheck` clean; biome + `check-boundaries` clean; `@sotto/app` 97 suites / 616 tests, `@sotto/ui` 191 + 101 tests; `pnpm replay --all` (synthetic) ALL p50 576 ms, p95 978 ms PASS; screenshots light/dark × EN/AR at 1280/680/390 (and the 520×260 mini window) checked.
+- **Next:** Slice 1B (`UI-001` plan banner first). No owner action needed; the owner merges the branch when Stream 1 is done.
+
 ### 2026-11-27 · Mac · `main` (0.7.0 live deploy, cleanup, bundle budget D-137)
 - **Done:** Backed up us3 DB (`cloud.db.pre-2026-11-26-round4`, `880K`); deployed backend (`d07e25a`, `sotto-cloud` `active`, `/healthz` + `/owner` + strict CSP `200`); created private `Hasdro/sales-shield-logs`; published `https://github.com/Hasdro/sotto/releases/tag/v0.7.0` (`D-097` fix in `scripts/release.sh`); pulled & SHA-256-verified `AGN Sales Shield-0.7.0-arm64.dmg` + `AGN Sales Shield Setup 0.7.0.exe` on us3; deleted older `0.3.0`–`0.6.1` server installers with owner go (`2.5G` free on `/dev/vda2`); published `apps/landing` (`200` on `https://salesshield.agncompu.com/`, `downloads.json` `0.7.0`, both download links `200`); installed `/Applications/AGN Sales Shield.app` (`0.7.0`, `launch.mac.mjs PASS`); adjusted web bundle budget `450 → 700 KB` with owner go (`D-137`, `T-044`).
 
