@@ -39,6 +39,7 @@ import { selectCards } from "../features/cards/reducer";
 import { bindCall } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
 import { useEscalations } from "../features/escalations/store";
+import { desktop } from "../lib/desktop";
 import { useI18n } from "../lib/locale";
 import { prefs, setPrefs } from "../lib/prefs";
 import { useIsWide } from "../lib/responsive";
@@ -221,8 +222,11 @@ export function CallView({
       onToggle={() => session.toggleMic()}
     />
   );
+  // PROD-002: the desktop app's floating card, one click from the call (also ⌃⌥M from any app).
+  const showMini = desktop()?.showMini;
   const header = (
     <CallHeader
+      onMini={showMini ? () => showMini(true) : null}
       company={state.hello.company_name}
       phase={state.phase}
       mode={state.hello.mode}

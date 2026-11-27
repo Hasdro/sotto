@@ -1,23 +1,29 @@
 import type { CardSource, CardType } from "@sotto/shared";
 import {
   Button,
+  Icon,
+  LRI,
   layout,
   minTouchTarget,
   noticeFor,
+  PDI,
   radius,
   SuggestionCard,
   type SuggestionCardStrings,
   size,
   space,
   Text,
+  useFocusRing,
   useReduceMotion,
   useTheme,
 } from "@sotto/ui";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useFeature } from "../../../components/FeatureGate";
+import { desktop } from "../../../lib/desktop";
 import { formatNumber } from "../../../lib/i18n";
 import { useI18n } from "../../../lib/locale";
+import { shortcutKeys } from "../../../lib/platform";
 import type { CardView } from "../../cards/reducer";
 import { RatingControls, useCanRate } from "../../rating/RatingControls";
 import { useCallText } from "../strings";
@@ -34,11 +40,6 @@ export function splitCardWhy(text: string): { main: string; why: string | null }
   const why = text.slice(match.index + match[0].length).trim();
   return { main, why: why || null };
 }
-
-const WHY_COPY = {
-  en: { show: "Why?", hide: "Hide insight" },
-  ar: { show: "لماذا؟", hide: "إخفاء الفكرة" },
-} as const;
 
 /** Older cards shown under the hero by default (UX-13); "Show earlier (n)" opens the rest. */
 export const EARLIER_LIMIT = 2;
@@ -117,14 +118,14 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
             wide={wide}
             strings={strings(hero.type, hero.source)}
           />
-          {showWhy && heroParts.why ? (
-            <WhyInsight
-              cardId={hero.id}
-              why={heroParts.why}
-              open={heroWhyOpen}
-              onToggle={() => setWhyOpenId((id) => (id === hero.id ? null : hero.id))}
-            />
-          ) : null}
+          <HeroActions
+            key={`actions-${hero.id}`}
+            cardId={hero.id}
+            text={heroParts.main}
+            why={showWhy ? heroParts.why : null}
+            whyOpen={heroWhyOpen}
+            onToggleWhy={() => setWhyOpenId((id) => (id === hero.id ? null : hero.id))}
+          />
         </View>
       ) : listening ? (
         <Listening speaking={speaking} />
@@ -376,35 +377,76 @@ function Listening({ speaking }: { speaking: boolean }) {
   );
 }
 
-function WhyInsight({
+/** How long "Copied" shows after a copy before the button reads "Copy" again. */
+const COPIED_MS = 1200;
+
+/** The browser and the desktop app can write to the clipboard; phones have no clipboard API here. */
+function canCopy(): boolean {
+  return Platform.OS === "web" && typeof globalThis.navigator?.clipboard?.writeText === "function";
+}
+
+/**
+ * The row under the newest card (PROD-002, UI-005): "Why?" opens the insight in place, Copy puts
+ * the sentence on the clipboard in one click, and the desktop app names the shortcut that does
+ * the same from any app. Keyed by the card, so "Copied" never carries over to the next card.
+ */
+function HeroActions({
   cardId,
+  text,
   why,
-  open,
-  onToggle,
+  whyOpen,
+  onToggleWhy,
 }: {
   cardId: string;
-  why: string;
-  open: boolean;
-  onToggle: () => void;
+  text: string;
+  why: string | null;
+  whyOpen: boolean;
+  onToggleWhy: () => void;
 }) {
-  const { locale } = useI18n();
   const { color } = useTheme();
-  const copy = WHY_COPY[locale];
+  const ct = useCallText();
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const copyable = canCopy();
+  const keys = desktop() ? `${LRI}${shortcutKeys().copy}${PDI}` : null;
+  if (!why && !copyable) return null;
+  const copy = () => {
+    void globalThis.navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => setCopied(false), COPIED_MS);
+      })
+      .catch(() => {});
+  };
   return (
     <View style={styles.whyWrap}>
-      <Pressable
-        testID={`hero-why-toggle-${cardId}`}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        aria-expanded={open}
-        onPress={onToggle}
-        style={styles.whyToggle}
-      >
-        <Text variant="label" weight="medium" tone="muted">
-          {open ? copy.hide : copy.show}
-        </Text>
-      </Pressable>
-      {open ? (
+      <View style={styles.heroActions}>
+        {why ? <WhyToggle cardId={cardId} open={whyOpen} onToggle={onToggleWhy} /> : null}
+        {copyable ? (
+          <Button
+            variant="secondary"
+            label={ct(copied ? "card.copied" : "card.copy")}
+            leading={<Icon name={copied ? "check" : "copy"} size={16} color={color.text} />}
+            onPress={copy}
+            {...(keys ? { accessibilityHint: ct("card.copyHint", { keys }) } : {})}
+            testID="hero-copy"
+          />
+        ) : null}
+        {copyable && keys ? (
+          <Text variant="label" tone="muted" testID="hero-copy-shortcut">
+            {ct("card.copyShortcut", { keys })}
+          </Text>
+        ) : null}
+      </View>
+      {why && whyOpen ? (
         <View
           testID={`hero-why-body-${cardId}`}
           style={[
@@ -421,15 +463,62 @@ function WhyInsight({
   );
 }
 
+/** "Why? ⌄" as a pill (UI-005): it reads as a control, and the chevron turns when it is open. */
+function WhyToggle({
+  cardId,
+  open,
+  onToggle,
+}: {
+  cardId: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { color } = useTheme();
+  const ct = useCallText();
+  const focus = useFocusRing();
+  const label = ct(open ? "card.whyHide" : "card.why");
+  return (
+    <Pressable
+      testID={`hero-why-toggle-${cardId}`}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ expanded: open }}
+      aria-expanded={open}
+      onPress={onToggle}
+      onFocus={focus.onFocus}
+      onBlur={focus.onBlur}
+      style={({ pressed }) => [
+        styles.whyPill,
+        { backgroundColor: open ? color.bubble : color.surfaceSunken },
+        pressed ? styles.pressed : null,
+        focus.ring,
+      ]}
+    >
+      <Text variant="label" weight="medium">
+        {label}
+      </Text>
+      <View style={open ? styles.chevronOpen : null}>
+        <Icon name="chevron" size={16} color={color.text} />
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  heroWrap: { gap: space.xs },
+  heroWrap: { gap: space.sm },
   whyWrap: { gap: space.xs },
-  whyToggle: {
-    alignSelf: "flex-start",
+  heroActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
+  whyPill: {
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    gap: space.xs,
     minHeight: minTouchTarget,
-    paddingVertical: space.xs,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.pill,
   },
+  chevronOpen: { transform: [{ rotate: "180deg" }] },
+  pressed: { opacity: 0.85 },
   whyBox: { padding: space.sm, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   stack: { gap: space.xl },
   activity: { flexDirection: "row", alignItems: "center", gap: space.sm, marginBottom: -space.md },

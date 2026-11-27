@@ -1,12 +1,13 @@
 /**
  * The floating mini window (desktop, owner 22 Oct): the newest card, big enough to read at a
  * glance beside Zoom or the softphone. It shows what the main window sends and runs no call of
- * its own.
+ * its own. The whole sentence shows (UX-005): a long card scrolls inside the small window
+ * instead of being cut after two lines.
  */
 import type { CardSource, CardType } from "@sotto/shared";
 import { Button, Icon, Mascot, SuggestionCard, space, Text, useTheme } from "@sotto/ui";
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { SourceChip } from "../components/SourceChip";
 import { cardStrings } from "../features/call/components/strings";
 import { isCallSource } from "../lib/callSource";
@@ -48,15 +49,22 @@ export default function MiniWindow() {
         />
       </View>
       {card ? (
-        <SuggestionCard
-          variant="compact"
-          type={card.type as CardType}
-          source={card.source as CardSource}
-          label={card.label}
-          text={card.text}
-          done={card.done}
-          strings={cardStrings(t, card.type as CardType, card.source as CardSource)}
-        />
+        <ScrollView
+          testID="mini-card-scroll"
+          style={styles.cardScroll}
+          contentContainerStyle={styles.cardScrollBody}
+        >
+          <SuggestionCard
+            variant="compact"
+            expanded
+            type={card.type as CardType}
+            source={card.source as CardSource}
+            label={card.label}
+            text={card.text}
+            done={card.done}
+            strings={cardStrings(t, card.type as CardType, card.source as CardSource)}
+          />
+        </ScrollView>
       ) : (
         <Text tone="muted">{t(s.live ? "mini.waiting" : "mini.idle")}</Text>
       )}
@@ -76,6 +84,8 @@ const styles = StyleSheet.create({
   page: { flex: 1, padding: space.md, gap: space.sm },
   top: { flexDirection: "row", alignItems: "center", gap: space.sm },
   grow: { flex: 1 },
+  cardScroll: { flexGrow: 0, flexShrink: 1 },
+  cardScrollBody: { flexGrow: 0 },
   partial: { flexDirection: "row", alignItems: "flex-start", gap: space.xs },
   partialText: { flex: 1, minWidth: 0 },
 });

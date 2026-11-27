@@ -10,18 +10,31 @@ import { useCallSource } from "../../lib/callSource";
 import { desktop, type MiniState, type Shortcut } from "../../lib/desktop";
 import { usePrefs } from "../../lib/prefs";
 import { selectCards } from "../cards/reducer";
+import { splitCardWhy } from "./components/CardStack";
 import type { CallSession } from "./useCallSession";
 
+/** The newest card's sentence as the agent says it: without the "WHY:" insight (C1). */
+export function newestCardText(session: CallSession): string | null {
+  const hero = selectCards(session.state.cards)[0];
+  return hero ? splitCardWhy(hero.text).main : null;
+}
+
+/**
+ * What the mini window shows. Only a live call fills it (UX-005): once a call ends, real or
+ * practice, it goes back to idle instead of keeping the last card next to the next meeting.
+ */
 export function miniStateOf(session: CallSession, source: string | null): MiniState {
+  if (session.state.phase !== "live")
+    return { live: false, card: null, partial: null, source: null };
   const hero = selectCards(session.state.cards)[0];
   return {
-    live: session.state.phase === "live",
+    live: true,
     card: hero
       ? {
           type: hero.type,
           source: hero.source,
           label: hero.label,
-          text: hero.text,
+          text: splitCardWhy(hero.text).main,
           done: hero.done,
         }
       : null,
@@ -80,7 +93,7 @@ export function DesktopBridge({
           }
         }
       } else if (s === "copy") {
-        const text = selectCards(now.state.cards)[0]?.text;
+        const text = newestCardText(now);
         if (text) void globalThis.navigator?.clipboard?.writeText(text).catch(() => {});
       } else if (s === "mini") {
         d.showMini?.(true);

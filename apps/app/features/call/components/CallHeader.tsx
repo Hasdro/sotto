@@ -2,7 +2,10 @@ import {
   Badge,
   Button,
   Icon,
+  IconButton,
+  LRI,
   minTouchTarget,
+  PDI,
   radius,
   size,
   space,
@@ -16,6 +19,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { SourceChip } from "../../../components/SourceChip";
 import { useCallSource } from "../../../lib/callSource";
 import { useI18n } from "../../../lib/locale";
+import { shortcutKeys } from "../../../lib/platform";
 import { demoEnabled } from "../devGate";
 import type { Phase } from "../session";
 import { useCallText } from "../strings";
@@ -35,6 +39,8 @@ type Props = {
   wide: boolean;
   /** The context rail (transcript, notes; later prep and CRM): collapsed by default (T-050). */
   rail?: { open: boolean; onToggle: () => void } | null;
+  /** Desktop app only (PROD-002): shows the floating mini window. */
+  onMini?: (() => void) | null;
 };
 
 /**
@@ -54,11 +60,13 @@ export function CallHeader({
   onEnd,
   wide,
   rail = null,
+  onMini = null,
 }: Props) {
   const { color } = useTheme();
   const { t } = useI18n();
   const ct = useCallText();
   const source = useCallSource();
+  const miniHint = ct("mini.buttonHint", { keys: `${LRI}${shortcutKeys().mini}${PDI}` });
   return (
     <View style={[styles.bar, { backgroundColor: color.background }, wide ? styles.barWide : null]}>
       {rail ? <RailToggle open={rail.open} onToggle={rail.onToggle} /> : null}
@@ -98,6 +106,26 @@ export function CallHeader({
           ) : null}
         </View>
       </View>
+      {onMini ? (
+        wide ? (
+          <Button
+            variant="secondary"
+            label={ct("mini.button")}
+            leading={<Icon name="screen" size={16} color={color.text} />}
+            onPress={onMini}
+            accessibilityHint={miniHint}
+            testID="mini-window-open"
+          />
+        ) : (
+          <IconButton
+            icon="screen"
+            label={ct("mini.button")}
+            onPress={onMini}
+            accessibilityHint={miniHint}
+            testID="mini-window-open"
+          />
+        )
+      ) : null}
       {phase === "live" ? (
         <Button label={t("call.end")} variant="danger" onPress={onEnd} testID="end-call" />
       ) : null}

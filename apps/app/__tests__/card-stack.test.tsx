@@ -148,3 +148,25 @@ describe("earlier list (UX-13, UX-14)", () => {
     expect(screen.getByTestId("earlier-h-card")).toHaveStyle({ borderStyle: "dashed" });
   });
 });
+
+describe("hero slot (PROD-002 regression)", () => {
+  it("holds exactly one hero card while new cards keep arriving", async () => {
+    const ids = ["a", "b", "c", "d", "e"];
+    const cardsUpTo = (n: number) =>
+      ids
+        .slice(0, n)
+        .reverse()
+        .map((id) => card(id, `Card ${id}.`));
+    const tree = (n: number) => (
+      <LocaleProvider>
+        <UIProvider direction="ltr">
+          <CardStack cards={cardsUpTo(n)} wide listening />
+        </UIProvider>
+      </LocaleProvider>
+    );
+    const view = await render(tree(1));
+    for (let n = 2; n <= ids.length; n++) await view.rerender(tree(n));
+    expect(screen.getAllByTestId("hero-card")).toHaveLength(1);
+    expect(screen.getByTestId("hero-card")).toHaveTextContent(/Card e\./);
+  });
+});

@@ -106,6 +106,16 @@ const en = {
   "practice.real": "Start a real call instead",
   "practice.missing": "Practice calls arrive with the next server update.",
   "practice.ended": "Practice over. Nothing was saved to History or Reports.",
+  /** PROD-002: one-click actions under the newest card, and the mini window in the header. */
+  "card.copy": "Copy",
+  "card.copied": "Copied",
+  "card.copyShortcut": "{keys} from any app",
+  "card.copyHint": "Copies the suggestion. Shortcut from any app: {keys}",
+  /** UI-005: the insight toggle under the newest card. */
+  "card.why": "Why?",
+  "card.whyHide": "Hide insight",
+  "mini.button": "Mini window",
+  "mini.buttonHint": "Keeps the newest card on top of your other apps. Shortcut: {keys}",
 } as const;
 
 export type CallTextKey = keyof typeof en;
@@ -199,6 +209,14 @@ const ar: Record<CallTextKey, string> = {
   "practice.real": "ابدأ مكالمة حقيقية بدلًا من ذلك",
   "practice.missing": "المكالمات التدريبية تصل مع تحديث الخادم القادم.",
   "practice.ended": "انتهى التدريب. لم يُحفظ شيء في السجل أو التقارير.",
+  "card.copy": "نسخ",
+  "card.copied": "تم النسخ",
+  "card.copyShortcut": "{keys} من أي تطبيق",
+  "card.copyHint": "ينسخ الاقتراح. الاختصار من أي تطبيق: {keys}",
+  "card.why": "لماذا؟",
+  "card.whyHide": "إخفاء الفكرة",
+  "mini.button": "النافذة الصغيرة",
+  "mini.buttonHint": "تُبقي أحدث بطاقة فوق تطبيقاتك الأخرى. الاختصار: {keys}",
 };
 
 export const CALL_TEXT: Record<Locale, Record<CallTextKey, string>> = { en, ar };
