@@ -6,7 +6,7 @@
  * - PostCallWizard Step 1 "Talk it through" -> real startReview(callId) -> VoiceReviewModal -> completeReview
  * - AdminCoachScreen (hidden when off_by_platform, localized cap/spend status, transcript toggle)
  */
-import { UIProvider } from "@sotto/ui";
+import { themes, UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 
@@ -152,6 +152,29 @@ describe("Coach UI & E2E wiring (Round 4 Agent 3)", () => {
     mockApi.mockRejectedValueOnce(new Error("network down"));
     await fireEvent.press(screen.getByTestId("plan-save-btn"));
     await waitFor(() => expect(screen.getByTestId("prep-coach-error")).toBeTruthy());
+  });
+
+  it("PrepCoachPanel: a labelled question field that wraps, a Text/Voice choice, outline actions (UI-006, UI-007)", async () => {
+    mockApi.mockImplementation(async (path: string) =>
+      path.endsWith("/messages") ? { messages: [] } : { game_plan: null },
+    );
+    await render(wrap(<PrepCoachPanel callId="prep-2" />));
+    await waitFor(() => expect(screen.getByTestId("prep-coach-panel")).toBeTruthy());
+    const input = screen.getByTestId("prep-coach-input");
+    expect(input.props.multiline).toBe(true); // the hint wraps instead of being cut off
+    expect(screen.getByLabelText("Ask the coach")).toBeTruthy();
+    expect(screen.getAllByText("Prep coach")).toHaveLength(1); // the title is not repeated
+    // Replies come as text or voice: a labelled two-way choice, not a bare "Text" button.
+    const replies = screen.getByTestId("prep-coach-voice-toggle");
+    expect(replies.props.accessibilityLabel).toBe("Coach replies");
+    await fireEvent.press(screen.getByRole("radio", { name: "Voice" }));
+    expect(screen.getByRole("radio", { name: "Voice" }).props.accessibilityState).toMatchObject({
+      checked: true,
+    });
+    for (const id of ["prep-coach-send", "prep-coach-generate", "plan-save-btn"]) {
+      expect(screen.getByTestId(id)).toHaveStyle({ borderColor: themes.light.color.borderStrong });
+    }
+    expect(screen.queryByTestId("prep-coach-start-now")).toBeNull();
   });
 
   it("GamePlanCard hides when empty and displays all populated sections", async () => {

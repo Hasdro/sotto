@@ -16,7 +16,8 @@ const en = {
   "prep.coach.voiceOff": "Text",
   "prep.coach.generate": "Build game plan",
   "prep.coach.generating": "Building game plan…",
-  "prep.coach.startNow": "Start listening",
+  "prep.coach.ask": "Ask the coach",
+  "prep.coach.replies": "Coach replies",
   "prep.coach.noZoho": "No Zoho brief linked — coach will work from your notes.",
   "prep.coach.error": "Could not reach the coach right now. Saved inputs stay intact.",
 
@@ -88,7 +89,8 @@ const ar: Record<CoachTextKey, string> = {
   "prep.coach.voiceOff": "نص",
   "prep.coach.generate": "إنشاء خطة المكالمة",
   "prep.coach.generating": "جارٍ إعداد خطة المكالمة…",
-  "prep.coach.startNow": "بدء الاستماع",
+  "prep.coach.ask": "اسأل المدرب",
+  "prep.coach.replies": "ردود المدرب",
   "prep.coach.noZoho": "لا يوجد ملخص من Zoho — سيعمل المدرب من ملاحظاتك.",
   "prep.coach.error": "تعذر الاتصال بالمدرب الآن. تم الحفاظ على مدخلاتك.",
 

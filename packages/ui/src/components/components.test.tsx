@@ -44,6 +44,14 @@ describe("Button", () => {
     await render(<Button label="End call" variant="danger" testID="b" />);
     expect(screen.getByTestId("b")).toHaveStyle({ backgroundColor: themes.light.color.danger });
   });
+
+  it("outline stays a visible button on a sunken panel: surface fill, strong edge (UI-006)", async () => {
+    await render(<Button label="Test audio" variant="outline" testID="b" />);
+    expect(screen.getByTestId("b")).toHaveStyle({
+      backgroundColor: themes.light.color.surface,
+      borderColor: themes.light.color.borderStrong,
+    });
+  });
 });
 
 describe("Badge", () => {

@@ -1,5 +1,5 @@
 /** UX-20 one start screen, UX-21 desktop permission help, ZC-08 audio check screen. */
-import { UIProvider } from "@sotto/ui";
+import { themes, UIProvider } from "@sotto/ui";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { LocaleProvider } from "../../lib/locale";
 import { prefs } from "../../lib/prefs";
@@ -69,6 +69,31 @@ describe("start screen (UX-20)", () => {
     expect(screen.queryByText("Start now")).toBeNull();
     // Practice stays off this screen for real accounts until owner Q15 (D-024, T-038).
     expect(screen.queryByText(/Practice/)).toBeNull();
+  });
+
+  it("one primary start; the other source, Test audio and practice are outline buttons (UI-006)", async () => {
+    await wrap(
+      <ListenStart
+        computer
+        callApp={null}
+        onStart={() => {}}
+        onCheck={() => {}}
+        onPractice={() => {}}
+      />,
+    );
+    for (const id of ["source-computer", "check-audio-open", "practice-open"]) {
+      expect(screen.getByTestId(id)).toHaveStyle({ borderColor: themes.light.color.borderStrong });
+    }
+    expect(screen.getByTestId("start-call")).toHaveStyle({
+      backgroundColor: themes.light.color.primary,
+    });
+    // The tools sit in their own row under the starts.
+    expect(screen.getByTestId("start-tools")).toContainElement(
+      screen.getByTestId("check-audio-open"),
+    );
+    expect(screen.getByTestId("start-tools")).not.toContainElement(
+      screen.getByTestId("start-call"),
+    );
   });
 
   it("speaks Arabic", async () => {

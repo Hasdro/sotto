@@ -497,6 +497,8 @@ describe("in-call screen", () => {
       expect(screen.getByTestId("prep-objective")).toBeOnTheScreen();
       expect(screen.getByTestId("listen-start")).toBeOnTheScreen();
       expect(screen.queryByText("Transcript")).toBeNull(); // nothing heard yet
+      // UI-006: one Start listening on the screen; the prep coach does not repeat it.
+      expect(screen.getAllByRole("button", { name: "Start listening" })).toHaveLength(1);
     });
 
     it("narrow `prepare=1` keeps the context one tap away instead of a blocking sheet (UX-008)", async () => {

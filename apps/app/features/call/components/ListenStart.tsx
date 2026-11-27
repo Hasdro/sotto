@@ -1,5 +1,5 @@
 import { Button, Mascot, Panel, radius, space, Text, useTheme } from "@sotto/ui";
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { Linking, StyleSheet, View } from "react-native";
 import { cloudOrigin } from "../../../lib/cloud";
 import { useI18n } from "../../../lib/locale";
 import { usePrefs } from "../../../lib/prefs";
@@ -43,7 +43,7 @@ export function startPlan(
  */
 export function ListenStart({ computer, callApp = null, onStart, onCheck, onPractice }: Props) {
   const tc = useCallText();
-  const { color, card } = useTheme();
+  const { card } = useTheme();
   const wide = useIsWide();
   const { autoPickup } = usePrefs();
   const plan = startPlan(computer, callApp);
@@ -59,12 +59,10 @@ export function ListenStart({ computer, callApp = null, onStart, onCheck, onPrac
     : computer
       ? tc("start.micBody")
       : tc("start.webBody");
-  const link = (label: string, onPress: () => void, testID: string) => (
-    <Pressable accessibilityRole="button" onPress={onPress} testID={testID} style={styles.link}>
-      <Text variant="label" weight="medium" color={color.primary}>
-        {label}
-      </Text>
-    </Pressable>
+  // UI-006: one primary start; everything else is an outline button, so nothing reads as a
+  // run of blue words beside it.
+  const other = (label: string, onPress: () => void, testID: string) => (
+    <Button variant="outline" label={label} onPress={onPress} testID={testID} />
   );
   return (
     <Panel style={[styles.panel, wide ? null : styles.panelNarrow]} testID="listen-start">
@@ -95,14 +93,18 @@ export function ListenStart({ computer, callApp = null, onStart, onCheck, onPrac
           testID="start-call"
         />
         {plan.secondary === "mic"
-          ? link(tc("start.useMic"), () => onStart("mic"), "source-mic")
+          ? other(tc("start.useMic"), () => onStart("mic"), "source-mic")
           : null}
         {plan.secondary === "computer"
-          ? link(tc("start.useComputer"), () => onStart("computer"), "source-computer")
+          ? other(tc("start.useComputer"), () => onStart("computer"), "source-computer")
           : null}
-        {onCheck ? link(tc("check.open"), onCheck, "check-audio-open") : null}
-        {onPractice ? link(tc("practice.open"), onPractice, "practice-open") : null}
       </View>
+      {onCheck || onPractice ? (
+        <View testID="start-tools" style={[styles.actions, wide ? null : styles.actionsNarrow]}>
+          {onCheck ? other(tc("check.open"), onCheck, "check-audio-open") : null}
+          {onPractice ? other(tc("practice.open"), onPractice, "practice-open") : null}
+        </View>
+      ) : null}
     </Panel>
   );
 }
@@ -122,9 +124,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
-  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.lg },
+  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
   actionsNarrow: { flexDirection: "column", flexWrap: "nowrap", alignItems: "stretch" },
-  link: { paddingVertical: space.sm },
 });
 
 /** Phones (T-036): the phone app cannot hear another app's call yet (no native capture until

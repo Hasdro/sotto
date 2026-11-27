@@ -9,7 +9,18 @@
  * - Never forces a chat before "Start listening" (B1).
  */
 
-import { Badge, Button, Panel, radius, Stack, space, Text, TextField, useTheme } from "@sotto/ui";
+import {
+  Badge,
+  Button,
+  Panel,
+  radius,
+  SegmentedControl,
+  Stack,
+  space,
+  Text,
+  TextField,
+  useTheme,
+} from "@sotto/ui";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
@@ -32,10 +43,9 @@ import { useCoachText } from "./strings";
 type Props = {
   callId: string;
   onGamePlanChange?: (plan: GamePlan | null) => void;
-  onStartListening?: () => void;
 };
 
-export function PrepCoachPanel({ callId, onGamePlanChange, onStartListening }: Props) {
+export function PrepCoachPanel({ callId, onGamePlanChange }: Props) {
   const prepCoach = useFeature("prep_coach");
   if (prepCoach.state === "no_permission") return null;
   if (prepCoach.state !== "available") {
@@ -43,16 +53,12 @@ export function PrepCoachPanel({ callId, onGamePlanChange, onStartListening }: P
   }
   return (
     <SafeBoundary name="coach.prep">
-      <PrepCoachInner
-        callId={callId}
-        onGamePlanChange={onGamePlanChange}
-        onStartListening={onStartListening}
-      />
+      <PrepCoachInner callId={callId} onGamePlanChange={onGamePlanChange} />
     </SafeBoundary>
   );
 }
 
-function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
+function PrepCoachInner({ callId, onGamePlanChange }: Props) {
   const tc = useCoachText();
   const { color } = useTheme();
   const voiceFeature = useFeature("voice_coach");
@@ -220,11 +226,16 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
           <Text variant="label" weight="semibold" tone="muted" accessibilityRole="header">
             {tc("prep.coach.title")}
           </Text>
+          {/* UI-007: how the coach answers, as a labelled choice (it read as a bare "Text"). */}
           {voiceAllowed ? (
-            <Button
-              variant="secondary"
-              label={voiceMode ? tc("prep.coach.voiceOn") : tc("prep.coach.voiceOff")}
-              onPress={() => setVoiceMode((v) => !v)}
+            <SegmentedControl
+              accessibilityLabel={tc("prep.coach.replies")}
+              options={[
+                { value: "text", label: tc("prep.coach.voiceOff") },
+                { value: "voice", label: tc("prep.coach.voiceOn") },
+              ]}
+              value={voiceMode ? "voice" : "text"}
+              onChange={(v) => setVoiceMode(v === "voice")}
               testID="prep-coach-voice-toggle"
             />
           ) : null}
@@ -257,36 +268,32 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
           </Stack>
         ) : null}
 
+        {/* UI-007: its own label (not the panel title again) and room for the hint to wrap. */}
         <TextField
-          label={tc("prep.coach.title")}
+          label={tc("prep.coach.ask")}
           placeholder={tc("prep.coach.placeholder")}
           value={input}
           onChangeText={setInput}
+          multiline
+          height={56}
           testID="prep-coach-input"
         />
+        {/* UI-006: outline actions on the sunken panel; Start listening lives on the start screen. */}
         <View style={styles.actionRow}>
           <Button
-            variant="secondary"
+            variant="outline"
             label={tc("prep.coach.send")}
             onPress={handleSend}
             disabled={!input.trim() || busy !== null}
             testID="prep-coach-send"
           />
           <Button
-            variant="secondary"
+            variant="outline"
             label={busy === "plan" ? tc("prep.coach.generating") : tc("prep.coach.generate")}
             onPress={handleGeneratePlan}
             disabled={busy !== null}
             testID="prep-coach-generate"
           />
-          {onStartListening ? (
-            <Button
-              variant="primary"
-              label={tc("prep.coach.startNow")}
-              onPress={onStartListening}
-              testID="prep-coach-start-now"
-            />
-          ) : null}
         </View>
 
         <Stack gap="xs" testID="prep-game-plan-editor">
@@ -339,7 +346,7 @@ function PrepCoachInner({ callId, onGamePlanChange, onStartListening }: Props) {
             testID="plan-avoid-input"
           />
           <Button
-            variant="secondary"
+            variant="outline"
             label={tc("plan.save")}
             onPress={handleSavePlan}
             disabled={busy !== null}

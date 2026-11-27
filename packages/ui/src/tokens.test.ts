@@ -44,6 +44,8 @@ const NON_TEXT_PAIRS: [fg: ColorKey, bg: ColorKey][] = [
   ["noticeBorder", "noticeFill"],
   ["focus", "surfaceRaised"],
   ["borderStrong", "surfaceRaised"],
+  // UI-006: the outline button's edge on a sunken panel (the context rail, the prep coach).
+  ["borderStrong", "surfaceSunken"],
 ];
 
 describe("design tokens", () => {

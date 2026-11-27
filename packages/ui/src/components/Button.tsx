@@ -5,7 +5,7 @@ import { type Hex, minTouchTarget, radius, size, space } from "../tokens.ts";
 import { useFocusRing } from "./focus.ts";
 import { Text } from "./Text.tsx";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 
 export type ButtonProps = {
   label: string;
@@ -50,6 +50,9 @@ export function Button({
     // One primary per view (D-041). Secondary is the reference's neutral chip: flat gray, no border.
     primary: { fill: color.primary, text: color.onPrimary, border: color.primary },
     secondary: { fill: color.surfaceSunken, text: color.text, border: color.surfaceSunken },
+    // UI-006: the gray chip vanishes on a sunken (gray) panel; there the second-level action is
+    // a surface pill with the strong edge (≥ 3:1 on sunken, tokens.test.ts).
+    outline: { fill: color.surface, text: color.text, border: color.borderStrong },
     ghost: { fill: "transparent", text: color.primary, border: "transparent" },
     danger: { fill: color.danger, text: color.onDanger, border: color.danger },
   };
@@ -72,7 +75,9 @@ export function Button({
         isHovered(state) && !disabled
           ? variant === "secondary" || variant === "ghost"
             ? { backgroundColor: color.bubble, borderColor: color.bubble }
-            : styles.hovered
+            : variant === "outline"
+              ? { backgroundColor: color.bubble }
+              : styles.hovered
           : null,
         state.pressed ? styles.pressed : null,
         disabled ? styles.disabled : null,

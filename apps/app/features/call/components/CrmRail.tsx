@@ -76,14 +76,12 @@ export function CrmRail({
   stage = "prepare",
   callId,
   callState = null,
-  onStartListening,
 }: {
   lookup?: Lookup;
   perform?: Perform;
   stage?: RailStage;
   callId?: string;
   callState?: string | null;
-  onStartListening?: () => void;
 }) {
   const [fallbackId] = useState(
     () => `prep_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
@@ -99,11 +97,7 @@ export function CrmRail({
       <Stack gap="md">
         <ZohoPart lookup={lookup} perform={perform} />
         <PrepPanel />
-        <PrepCoachPanel
-          callId={activeCallId}
-          onGamePlanChange={setGamePlan}
-          onStartListening={onStartListening}
-        />
+        <PrepCoachPanel callId={activeCallId} onGamePlanChange={setGamePlan} />
       </Stack>
     </SafeBoundary>
   );
@@ -321,7 +315,7 @@ function Finder({
       <Text variant="label" tone="muted">
         {t("crm.reconnect.body")}
       </Text>
-      <Button variant="secondary" label={t("crm.reconnect.button")} onPress={zoho.connect} />
+      <Button variant="outline" label={t("crm.reconnect.button")} onPress={zoho.connect} />
       {zoho.waiting ? (
         <Text variant="label" tone="muted" aria-live="polite" accessibilityLiveRegion="polite">
           {t("crm.connect.waiting")}
@@ -408,7 +402,7 @@ function Finder({
         />
         <Stack direction="row" gap="sm" wrap>
           <Button
-            variant="secondary"
+            variant="outline"
             label={t("crm.find")}
             onPress={find}
             disabled={working || !query.trim()}
@@ -468,7 +462,7 @@ function Finder({
               })}
             </Text>
             <Button
-              variant="secondary"
+              variant="outline"
               label={t("crm.pickNamed", { name: c.name })}
               onPress={() => attach(fetchBrief(c))}
               disabled={working}
@@ -577,7 +571,7 @@ function PrepPanel({ onDone }: { onDone?: () => void }) {
           );
         })}
         {onDone ? (
-          <Button variant="secondary" label={tc("rail.done")} onPress={onDone} testID="prep-done" />
+          <Button variant="outline" label={tc("rail.done")} onPress={onDone} testID="prep-done" />
         ) : null}
       </Stack>
     </Panel>
