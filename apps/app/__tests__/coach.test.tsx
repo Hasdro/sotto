@@ -371,12 +371,21 @@ describe("Coach UI & E2E wiring (Round 4 Agent 3)", () => {
     await waitFor(() => expect(screen.getByTestId("admin-coach-screen")).toBeTruthy());
     expect(screen.getByText("Active")).toBeTruthy();
 
-    await fireEvent.press(screen.getByTestId("admin-coach-transcript-toggle"));
+    // UI-015: both choices are named and the current one is selected.
+    await waitFor(() => expect(screen.getByTestId("admin-coach-transcript-private")).toBeChecked());
+    expect(screen.getByTestId("admin-coach-transcript-admins")).not.toBeChecked();
+    expect(screen.getByText("Private to each agent")).toBeTruthy();
+    expect(screen.getByText("Visible to admins")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("admin-coach-transcript-private"));
+    expect(mockApi).not.toHaveBeenCalledWith("/api/v1/coach/settings", expect.anything());
+
+    await fireEvent.press(screen.getByTestId("admin-coach-transcript-admins"));
     await waitFor(() =>
       expect(mockApi).toHaveBeenCalledWith("/api/v1/coach/settings", {
         method: "PUT",
         body: { allow_admin_transcript: true },
       }),
     );
+    await waitFor(() => expect(screen.getByTestId("admin-coach-transcript-admins")).toBeChecked());
   });
 });

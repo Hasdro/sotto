@@ -1,10 +1,11 @@
 /**
  * Admin screen for Voice Coach (V2, V4):
  * - Displays owner-configured status, monthly USD cap with estimated minutes, and current spend.
- * - Lets company admins toggle whether admins may view agent post-call review transcripts.
+ * - Lets company admins choose whether admins may view agent post-call review transcripts
+ *   (UI-015: one control naming both choices, the current one selected).
  */
 
-import { Badge, Button, Panel, Stack, space, Text } from "@sotto/ui";
+import { Badge, Panel, SegmentedControl, Stack, space, Text } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureOff, useFeature } from "../../components/FeatureGate";
@@ -15,6 +16,8 @@ import {
   setAdminTranscriptAccess,
 } from "../../features/coach/api";
 import { type CoachTextKey, useCoachText } from "../../features/coach/strings";
+
+type Access = "private" | "admins";
 
 const REASON_KEY: Record<string, CoachTextKey> = {
   ok: "admin.reason.ok",
@@ -52,12 +55,13 @@ function AdminCoachInner({ featureOff }: { featureOff: ReturnType<typeof useFeat
     void load();
   }, [load]);
 
-  async function toggleTranscripts() {
-    if (!settings || saving || featureOff) return;
+  async function chooseAccess(next: Access) {
+    const allow = next === "admins";
+    if (!settings || saving || featureOff || allow === settings.allow_admin_transcript) return;
     setSaving(true);
     setErrorMsg(null);
     try {
-      const res = await setAdminTranscriptAccess(!settings.allow_admin_transcript);
+      const res = await setAdminTranscriptAccess(allow);
       setSettings((prev) =>
         prev ? { ...prev, allow_admin_transcript: res.allow_admin_transcript } : prev,
       );
@@ -133,26 +137,17 @@ function AdminCoachInner({ featureOff }: { featureOff: ReturnType<typeof useFeat
           <Text variant="label" tone="muted">
             {tc("admin.transcriptDesc")}
           </Text>
-          <View style={styles.row}>
-            <Badge
-              label={
-                settings?.allow_admin_transcript
-                  ? tc("admin.transcriptOn")
-                  : tc("admin.transcriptOff")
-              }
-            />
-            <Button
-              variant="secondary"
-              label={
-                settings?.allow_admin_transcript
-                  ? tc("admin.transcriptOff")
-                  : tc("admin.transcriptOn")
-              }
-              onPress={toggleTranscripts}
-              disabled={!settings || saving || Boolean(featureOff)}
-              testID="admin-coach-transcript-toggle"
-            />
-          </View>
+          <SegmentedControl<Access>
+            options={[
+              { value: "private", label: tc("admin.transcriptOff") },
+              { value: "admins", label: tc("admin.transcriptOn") },
+            ]}
+            value={settings?.allow_admin_transcript ? "admins" : "private"}
+            onChange={(v) => void chooseAccess(v)}
+            disabled={!settings || saving || Boolean(featureOff)}
+            accessibilityLabel={tc("admin.transcriptTitle")}
+            testID="admin-coach-transcript"
+          />
         </Stack>
       </Panel>
     </Stack>

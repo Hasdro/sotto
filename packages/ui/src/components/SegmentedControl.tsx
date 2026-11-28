@@ -11,6 +11,8 @@ export type SegmentedControlProps<V extends string> = {
   onChange: (value: V) => void;
   /** Accessible name of the group. */
   accessibilityLabel: string;
+  /** Dimmed and not pressable (e.g. while a change is saving); the choice stays readable. */
+  disabled?: boolean;
   testID?: string;
 };
 
@@ -20,6 +22,7 @@ export function SegmentedControl<V extends string>({
   value,
   onChange,
   accessibilityLabel,
+  disabled = false,
   testID,
 }: SegmentedControlProps<V>) {
   const { color } = useTheme();
@@ -28,7 +31,12 @@ export function SegmentedControl<V extends string>({
       testID={testID}
       accessibilityRole="radiogroup"
       accessibilityLabel={accessibilityLabel}
-      style={[styles.track, { backgroundColor: color.surfaceSunken, borderColor: color.border }]}
+      aria-disabled={disabled}
+      style={[
+        styles.track,
+        { backgroundColor: color.surfaceSunken, borderColor: color.border },
+        disabled ? styles.disabled : null,
+      ]}
     >
       {options.map((o) => {
         const selected = o.value === value;
@@ -37,6 +45,8 @@ export function SegmentedControl<V extends string>({
             key={o.value}
             accessibilityRole="radio"
             aria-checked={selected}
+            aria-disabled={disabled}
+            disabled={disabled}
             accessibilityLabel={o.label}
             onPress={() => onChange(o.value)}
             testID={testID ? `${testID}-${o.value}` : undefined}
@@ -84,4 +94,5 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   label: { textAlign: "center" },
+  disabled: { opacity: 0.45 },
 });

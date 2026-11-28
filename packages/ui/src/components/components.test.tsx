@@ -156,6 +156,27 @@ describe("SegmentedControl", () => {
     await fireEvent.press(screen.getByTestId("s-agent"));
     expect(onChange).toHaveBeenCalledWith("agent");
   });
+
+  it("can be disabled: options stay readable but do nothing", async () => {
+    const onChange = jest.fn();
+    await render(
+      <SegmentedControl
+        accessibilityLabel="Who"
+        options={[
+          { value: "customer", label: "Customer" },
+          { value: "agent", label: "You" },
+        ]}
+        value="customer"
+        onChange={onChange}
+        disabled
+        testID="s"
+      />,
+    );
+    expect(screen.getByTestId("s-agent")).toBeDisabled();
+    expect(screen.getByTestId("s-customer")).toBeChecked();
+    await fireEvent.press(screen.getByTestId("s-agent"));
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
 
 describe("ToggleRow", () => {

@@ -7,6 +7,7 @@
 import { Badge, Button, Divider, Stack, space, Text, ToggleRow } from "@sotto/ui";
 import { type ReactNode, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { formatWhen } from "../../lib/format";
 import { useI18n } from "../../lib/locale";
 import {
   CONSENT_IS_DRAFT,
@@ -99,11 +100,12 @@ export function ConsentPanel({
       />
       <Text variant="label">{consentText("agree", locale)}</Text>
       {record ? (
+        // FUNC-005: the text version is for the audit log, not for the admin to read.
         <Text variant="label" tone="muted" testID="consent-record">
           {t("admin.consent.recorded", {
-            date: new Date(record.accepted_at).toLocaleString(locale),
-            version: record.text_version,
+            date: formatWhen(new Date(record.accepted_at).toISOString(), locale),
           })}
+          {record.text_version !== CONSENT_TEXT_VERSION ? ` ${t("admin.consent.changed")}` : ""}
         </Text>
       ) : null}
       {state.error ? (

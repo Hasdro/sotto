@@ -5,7 +5,7 @@
  * and StyleMemoryScreen (agent personal/pending view + admin review toggle/promote).
  */
 import { UIProvider } from "@sotto/ui";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import type { CardView } from "../features/cards/reducer";
 
@@ -243,6 +243,71 @@ describe("Round 4 Wizard, FeedbackStep & StyleMemoryScreen", () => {
     await render(wrap(<StyleMemoryScreen />));
     await waitFor(() => expect(screen.getByTestId("memory-personal-readonly")).toBeTruthy());
     expect(screen.getByTestId("memory-my-pending")).toBeTruthy();
+  });
+
+  const ME = {
+    user_id: "u1",
+    company_rules: [],
+    agent_rules: [],
+    effective: [],
+    pending: [],
+    review_before_apply: false,
+    limits: { rules: 12, words: 25 },
+  };
+  const OMAR = {
+    user_id: "u2",
+    name: "Omar Haddad",
+    email: "omar@example.test",
+    role: "agent",
+    active_version: 1,
+    items: [{ id: "r1", text: "Open with the customer's goal.", enabled: true }],
+    versions: [],
+    pending: [],
+    effective: ["Open with the customer's goal."],
+  };
+  const adminWith = (agents: unknown[]) => ({
+    review_before_apply: false,
+    company: { active_version: 1, items: [], versions: [], pending: [] },
+    agents,
+    limits: { rules: 12, words: 25 },
+  });
+
+  it("Team agents: one card per teammate; Save changes only after an edit (FUNC-008, UI-016)", async () => {
+    mockRole = "admin";
+    mockApi.mockImplementation(async (path: string) =>
+      path === "/api/v1/memory/me" ? ME : path === "/api/v1/memory/admin" ? adminWith([OMAR]) : {},
+    );
+    await render(wrap(<StyleMemoryScreen />));
+    await waitFor(() => expect(screen.getByTestId("memory-tabs-agents")).toBeTruthy());
+    await fireEvent.press(screen.getByTestId("memory-tabs-agents"));
+    const card = await screen.findByTestId("agent-memory-u2");
+    expect(screen.getAllByText("Omar Haddad")).toHaveLength(1); // the name is not repeated
+    expect(card).toHaveTextContent(/Active rules: 1\/12/);
+    expect(card).not.toHaveTextContent(/your next call/);
+    const save = screen.getByTestId("agent-editor-u2-save");
+    expect(save).toBeDisabled();
+    await fireEvent.changeText(
+      screen.getByDisplayValue("Open with the customer's goal."),
+      "Ask about timing.",
+    );
+    expect(screen.getByTestId("agent-editor-u2-save")).not.toBeDisabled();
+  });
+
+  it("Style memory shows loading, then a clear empty state (UI-013)", async () => {
+    mockRole = "admin";
+    let release: (v: unknown) => void = () => {};
+    mockApi.mockImplementation((path: string) =>
+      path === "/api/v1/memory/admin"
+        ? new Promise((r) => {
+            release = r;
+          })
+        : Promise.resolve(ME),
+    );
+    await render(wrap(<StyleMemoryScreen />));
+    expect(screen.getByTestId("memory-loading")).toBeTruthy();
+    await act(async () => release(adminWith([])));
+    await fireEvent.press(screen.getByTestId("memory-tabs-agents"));
+    expect(screen.getByTestId("memory-agents-empty")).toBeTruthy();
   });
 
   it("StyleMemoryScreen toggles review_before_apply for admin", async () => {

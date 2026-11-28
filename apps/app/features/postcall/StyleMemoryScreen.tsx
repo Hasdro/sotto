@@ -19,6 +19,7 @@ import {
 } from "@sotto/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Switch, View } from "react-native";
+import { LoadingLine } from "../../components/LoadingLine";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 import { wordCount } from "../learning/api";
@@ -37,6 +38,13 @@ type Tab = "my" | "company" | "agents";
 const toDrafts = (items: readonly StyleRule[]): RuleDraft[] =>
   items.map(({ id, text, enabled }) => ({ id, text, enabled, _key: id }));
 
+/** UI-016: Save is offered only when the rules differ from what is saved. */
+const changed = (drafts: readonly RuleDraft[], saved: readonly StyleRule[]): boolean =>
+  drafts.length !== saved.length ||
+  drafts.some(
+    (d, i) => d.id !== saved[i]?.id || d.text !== saved[i]?.text || d.enabled !== saved[i]?.enabled,
+  );
+
 export function StyleMemoryScreen() {
   const ft = usePostCallText();
   const ftRef = useRef(ft);
@@ -51,6 +59,7 @@ export function StyleMemoryScreen() {
   const [agentDrafts, setAgentDrafts] = useState<Record<string, RuleDraft[]>>({});
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const syncAdmin = useCallback((ov: AdminMemoryOverview) => {
     setAdminView(ov);
@@ -64,10 +73,12 @@ export function StyleMemoryScreen() {
 
   useEffect(() => {
     if (cloud.status !== "signed_in") return;
-    memoryApi.myMemory().then(setMyView, () => setNote(ftRef.current("memory.error")));
-    if (isAdmin) {
-      memoryApi.adminOverview().then(syncAdmin, () => setNote(ftRef.current("memory.error")));
-    }
+    const failed = () => {
+      setLoadFailed(true);
+      setNote(ftRef.current("memory.loadError"));
+    };
+    memoryApi.myMemory().then(setMyView, failed);
+    if (isAdmin) memoryApi.adminOverview().then(syncAdmin, failed);
   }, [cloud.status, isAdmin, syncAdmin]);
 
   const runAdmin = useCallback(
@@ -103,6 +114,8 @@ export function StyleMemoryScreen() {
       const n = wordCount(d.text);
       return n > 0 && n <= limits.words;
     });
+  // UI-013: a tab whose data is on its way says so instead of leaving a blank page.
+  const loading = !loadFailed && (tab === "my" ? myView === null : adminView === null);
 
   return (
     <Stack gap="lg" testID="style-memory-screen">
@@ -141,7 +154,8 @@ export function StyleMemoryScreen() {
         </Text>
       ) : null}
 
-      {tab === "my" ? (
+      {loading ? <LoadingLine label={ft("memory.loading")} testID="memory-loading" /> : null}
+      {tab === "my" && myView ? (
         <Stack gap="md" testID="memory-my-view">
           <Panel>
             <Stack gap="sm">
@@ -228,6 +242,7 @@ export function StyleMemoryScreen() {
             limits={limits}
             busy={busy}
             valid={draftsValid(companyDrafts)}
+            dirty={changed(companyDrafts, adminView.company.items)}
             onSave={() => runAdmin(memoryApi.editRules("company", null, companyDrafts))}
             versions={adminView.company.versions}
             dateOf={dateOf}
@@ -236,7 +251,14 @@ export function StyleMemoryScreen() {
         </Stack>
       ) : null}
 
-      {isAdmin && tab === "agents" && adminView ? (
+      {isAdmin && tab === "agents" && adminView?.agents.length === 0 ? (
+        <EmptyState
+          testID="memory-agents-empty"
+          title={ft("memory.agentsEmpty")}
+          body={ft("memory.agentsEmptyBody")}
+        />
+      ) : null}
+      {isAdmin && tab === "agents" && adminView?.agents.length ? (
         <Stack gap="md" testID="memory-admin-agents">
           {adminView.agents.map((agent: AdminAgentMemory) => {
             const drafts = agentDrafts[agent.user_id] ?? [];
@@ -254,13 +276,17 @@ export function StyleMemoryScreen() {
                       </Text>
                     </View>
                     <Badge
-                      label={ft("memory.effective", { count: agent.effective.length })}
+                      label={ft("memory.agentActive", { count: agent.effective.length })}
                       tone="neutral"
                     />
                   </View>
 
                   {pendingVersions.map((pv) => (
-                    <Panel key={pv.version} testID={`agent-pending-${agent.user_id}-${pv.version}`}>
+                    <Panel
+                      sunken
+                      key={pv.version}
+                      testID={`agent-pending-${agent.user_id}-${pv.version}`}
+                    >
                       <Stack gap="sm">
                         <Text weight="semibold">
                           {ft("memory.pendingTitle", { version: pv.version })}
@@ -293,7 +319,9 @@ export function StyleMemoryScreen() {
                     </Panel>
                   ))}
 
+                  {/* FUNC-008: the rules sit in the teammate's card, not in a second card. */}
                   <RuleEditorPanel
+                    bare
                     testID={`agent-editor-${agent.user_id}`}
                     title={agent.name}
                     drafts={drafts}
@@ -303,6 +331,7 @@ export function StyleMemoryScreen() {
                     limits={limits}
                     busy={busy}
                     valid={draftsValid(drafts)}
+                    dirty={changed(drafts, agent.items)}
                     onSave={() => runAdmin(memoryApi.editRules("agent", agent.user_id, drafts))}
                     onPromote={(ruleId) =>
                       runAdmin(memoryApi.promote(agent.user_id, ruleId), "memory.promoted")
@@ -324,11 +353,13 @@ export function StyleMemoryScreen() {
 function RuleEditorPanel({
   testID,
   title,
+  bare = false,
   drafts,
   onChange,
   limits,
   busy,
   valid,
+  dirty,
   onSave,
   onPromote,
   versions,
@@ -337,11 +368,15 @@ function RuleEditorPanel({
 }: {
   testID: string;
   title: string;
+  /** Inside a card that already names whose rules these are: no card or title of its own. */
+  bare?: boolean;
   drafts: RuleDraft[];
   onChange: (next: RuleDraft[]) => void;
   limits: { rules: number; words: number };
   busy: boolean;
   valid: boolean;
+  /** The rules differ from the saved ones (UI-016: nothing to save, Save is off). */
+  dirty: boolean;
   onSave: () => void;
   onPromote?: (ruleId: string) => void;
   versions: AdminMemoryOverview["company"]["versions"];
@@ -352,127 +387,132 @@ function RuleEditorPanel({
   const { color } = useTheme();
   const nextLocalId = useRef(1);
   const anyOver = drafts.some((d) => wordCount(d.text) > limits.words);
-  return (
-    <Panel testID={testID}>
-      <Stack gap="md">
+  const count = (
+    <Text variant="label" tone="muted" testID={`${testID}-count`}>
+      {`${drafts.length}/${limits.rules}`}
+    </Text>
+  );
+  const body = (
+    <Stack gap="md" testID={bare ? testID : undefined}>
+      {bare ? null : (
         <View style={styles.rowBetween}>
           <Text weight="semibold">{title}</Text>
-          <Text variant="label" tone="muted">
-            {`${drafts.length}/${limits.rules}`}
-          </Text>
+          {count}
         </View>
+      )}
 
-        {drafts.length === 0 ? (
-          <Text variant="label" tone="muted">
-            {ft("memory.empty")}
-          </Text>
-        ) : null}
+      {drafts.length === 0 ? (
+        <Text variant="label" tone="muted">
+          {ft("memory.empty")}
+        </Text>
+      ) : null}
 
-        {drafts.map((rule, idx) => {
-          const rid = rule.id;
-          const words = wordCount(rule.text);
-          const over = words > limits.words;
-          const rowKey = rule._key ?? rid ?? `draft-${idx}`;
-          return (
-            <View key={rowKey} style={styles.ruleRow}>
-              <View style={styles.grow}>
-                <TextField
-                  label={`${idx + 1}.`}
-                  placeholder={ft("memory.rulePlaceholder")}
-                  value={rule.text}
-                  onChangeText={(text) =>
-                    onChange(drafts.map((d, j) => (j === idx ? { ...d, text } : d)))
-                  }
-                />
-                {words > Math.floor(limits.words * 0.7) ? (
-                  <Text variant="label" tone={over ? "danger" : "muted"}>
-                    {ft("memory.words", { count: words, max: limits.words })}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={styles.ruleActions}>
-                <Switch
-                  accessibilityLabel={rule.enabled ? ft("memory.enabled") : ft("memory.disabled")}
-                  value={rule.enabled}
-                  disabled={busy}
-                  trackColor={{ false: color.borderStrong, true: color.primary }}
-                  thumbColor={color.surface}
-                  onValueChange={(enabled) =>
-                    onChange(drafts.map((d, j) => (j === idx ? { ...d, enabled } : d)))
-                  }
-                />
-                {onPromote && rid ? (
-                  <Button
-                    testID={`promote-${rid}`}
-                    variant="ghost"
-                    label={ft("memory.promote")}
-                    disabled={busy}
-                    onPress={() => onPromote(rid)}
-                  />
-                ) : null}
-                <Button
-                  variant="ghost"
-                  label={ft("memory.remove")}
-                  disabled={busy}
-                  onPress={() => onChange(drafts.filter((_, j) => j !== idx))}
-                />
-              </View>
-            </View>
-          );
-        })}
-
-        {anyOver ? (
-          <Text variant="label" tone="danger" testID={`${testID}-words-over`}>
-            {ft("memory.wordsOver", { max: limits.words })}
-          </Text>
-        ) : null}
-
-        <View style={styles.row}>
-          {drafts.length < limits.rules ? (
-            <Button
-              variant="secondary"
-              label={ft("memory.addRule")}
-              disabled={busy}
-              onPress={() => {
-                const k = `new-${nextLocalId.current++}`;
-                onChange([...drafts, { text: "", enabled: true, _key: k }]);
-              }}
-            />
-          ) : null}
-          <Button
-            testID={`${testID}-save`}
-            label={ft("memory.edit")}
-            disabled={busy || !valid}
-            onPress={onSave}
-          />
-        </View>
-
-        {versions.length > 0 ? (
-          <Stack gap="xs">
-            <Text variant="label" weight="semibold" tone="muted">
-              {ft("memory.versions")}
-            </Text>
-            {versions.slice(0, 5).map((v) => (
-              <View key={v.version} style={styles.rowBetween}>
-                <Text variant="label" tone="muted">
-                  {`v${v.version} · ${v.origin} · ${v.status} · ${dateOf(v.created_at)}`}
+      {drafts.map((rule, idx) => {
+        const rid = rule.id;
+        const words = wordCount(rule.text);
+        const over = words > limits.words;
+        const rowKey = rule._key ?? rid ?? `draft-${idx}`;
+        return (
+          <View key={rowKey} style={styles.ruleRow}>
+            <View style={styles.grow}>
+              <TextField
+                label={`${idx + 1}.`}
+                placeholder={ft("memory.rulePlaceholder")}
+                value={rule.text}
+                onChangeText={(text) =>
+                  onChange(drafts.map((d, j) => (j === idx ? { ...d, text } : d)))
+                }
+              />
+              {words > Math.floor(limits.words * 0.7) ? (
+                <Text variant="label" tone={over ? "danger" : "muted"}>
+                  {ft("memory.words", { count: words, max: limits.words })}
                 </Text>
-                {!v.active && v.status === "applied" ? (
-                  <Button
-                    testID={`revert-${testID}-${v.version}`}
-                    variant="ghost"
-                    label={ft("memory.revert", { version: v.version })}
-                    disabled={busy}
-                    onPress={() => onRevert(v.version)}
-                  />
-                ) : null}
-              </View>
-            ))}
-          </Stack>
+              ) : null}
+            </View>
+            <View style={styles.ruleActions}>
+              <Switch
+                accessibilityLabel={rule.enabled ? ft("memory.enabled") : ft("memory.disabled")}
+                value={rule.enabled}
+                disabled={busy}
+                trackColor={{ false: color.borderStrong, true: color.primary }}
+                thumbColor={color.surface}
+                onValueChange={(enabled) =>
+                  onChange(drafts.map((d, j) => (j === idx ? { ...d, enabled } : d)))
+                }
+              />
+              {onPromote && rid ? (
+                <Button
+                  testID={`promote-${rid}`}
+                  variant="ghost"
+                  label={ft("memory.promote")}
+                  disabled={busy}
+                  onPress={() => onPromote(rid)}
+                />
+              ) : null}
+              <Button
+                variant="ghost"
+                label={ft("memory.remove")}
+                disabled={busy}
+                onPress={() => onChange(drafts.filter((_, j) => j !== idx))}
+              />
+            </View>
+          </View>
+        );
+      })}
+
+      {anyOver ? (
+        <Text variant="label" tone="danger" testID={`${testID}-words-over`}>
+          {ft("memory.wordsOver", { max: limits.words })}
+        </Text>
+      ) : null}
+
+      <View style={styles.row}>
+        {drafts.length < limits.rules ? (
+          <Button
+            variant="outline"
+            label={ft("memory.addRule")}
+            disabled={busy}
+            onPress={() => {
+              const k = `new-${nextLocalId.current++}`;
+              onChange([...drafts, { text: "", enabled: true, _key: k }]);
+            }}
+          />
         ) : null}
-      </Stack>
-    </Panel>
+        <Button
+          testID={`${testID}-save`}
+          label={ft("memory.edit")}
+          disabled={busy || !valid || !dirty}
+          onPress={onSave}
+        />
+        {bare ? count : null}
+      </View>
+
+      {versions.length > 0 ? (
+        <Stack gap="xs">
+          <Text variant="label" weight="semibold" tone="muted">
+            {ft("memory.versions")}
+          </Text>
+          {versions.slice(0, 5).map((v) => (
+            <View key={v.version} style={styles.rowBetween}>
+              <Text variant="label" tone="muted">
+                {`v${v.version} · ${v.origin} · ${v.status} · ${dateOf(v.created_at)}`}
+              </Text>
+              {!v.active && v.status === "applied" ? (
+                <Button
+                  testID={`revert-${testID}-${v.version}`}
+                  variant="ghost"
+                  label={ft("memory.revert", { version: v.version })}
+                  disabled={busy}
+                  onPress={() => onRevert(v.version)}
+                />
+              ) : null}
+            </View>
+          ))}
+        </Stack>
+      ) : null}
+    </Stack>
   );
+  return bare ? body : <Panel testID={testID}>{body}</Panel>;
 }
 
 const styles = StyleSheet.create({

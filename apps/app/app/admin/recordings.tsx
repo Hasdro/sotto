@@ -12,9 +12,10 @@ import {
   Text,
   useTheme,
 } from "@sotto/ui";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { FeatureGate } from "../../components/FeatureGate";
+import { LoadingLine } from "../../components/LoadingLine";
 import { RecordingPlayer } from "../../features/history/RecordingPlayer";
 import type { UsageRow } from "../../features/reports/data";
 import { isCallSource, SOURCE_META } from "../../lib/callSource";
@@ -33,13 +34,34 @@ function RecordingsScreen() {
   const { t, locale } = useI18n();
   const { color } = useTheme();
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  useEffect(() => {
+  const load = useCallback(() => {
+    setFailed(false);
     cloudApi<{ calls: Row[] }>("/api/v1/company/usage?days=30&for=recordings")
       .then((r) => setRows(r.calls.filter((c) => (c.recording_bytes ?? 0) > 0)))
-      .catch(() => setRows([]));
+      .catch(() => setFailed(true));
   }, []);
-  if (rows === null) return null;
+  useEffect(load, [load]);
+  // FUNC-008: say it is loading (a direct link was a blank page) and never call a failure "none".
+  if (failed) {
+    return (
+      <Stack gap="sm" align="flex-start" testID="admin-recordings-error">
+        <Text variant="body" tone="muted">
+          {t("admin.rec.error")}
+        </Text>
+        <Button
+          variant="outline"
+          label={t("admin.rec.retry")}
+          onPress={load}
+          testID="admin-recordings-retry"
+        />
+      </Stack>
+    );
+  }
+  if (rows === null) {
+    return <LoadingLine label={t("admin.rec.loading")} testID="admin-recordings-loading" />;
+  }
   if (!rows.length) {
     return <EmptyState title={t("admin.rec.none.title")} body={t("admin.rec.none.body")} />;
   }

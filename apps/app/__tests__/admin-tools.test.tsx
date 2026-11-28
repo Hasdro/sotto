@@ -1,6 +1,6 @@
 /** Admin tools (owner, 22 Oct): the team's recordings, devices and activity log. */
 import { UIProvider } from "@sotto/ui";
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import ActivityScreen from "../app/admin/activity";
 import DevicesScreen from "../app/admin/devices";
 import RecordingsScreen from "../app/admin/recordings";
@@ -31,6 +31,25 @@ describe("admin tools", () => {
     expect(await screen.findByText("Rania")).toBeOnTheScreen();
     expect(screen.queryByText("Omar")).toBeNull();
     expect(screen.getByTestId("listen-a")).toBeOnTheScreen();
+  });
+
+  it("shows that recordings are loading instead of a blank page (FUNC-008)", async () => {
+    jest.mocked(cloudApi).mockReturnValue(new Promise(() => {}));
+    await wrap(<RecordingsScreen />);
+    expect(screen.getByTestId("admin-recordings-loading")).toHaveTextContent("Loading recordings…");
+  });
+
+  it("says when recordings could not load, and tries again", async () => {
+    const base = { user_id: "u", started_at: Date.now(), duration_s: 120, source: "teams" };
+    jest
+      .mocked(cloudApi)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ calls: [{ ...base, id: "co:a", name: "Rania", recording_bytes: 9 }] });
+    await wrap(<RecordingsScreen />);
+    expect(await screen.findByTestId("admin-recordings-error")).toBeOnTheScreen();
+    expect(screen.queryByText("No recordings yet")).toBeNull(); // a failure is not "none"
+    await fireEvent.press(screen.getByTestId("admin-recordings-retry"));
+    expect(await screen.findByText("Rania")).toBeOnTheScreen();
   });
 
   it("lists every signed-in device with its person", async () => {

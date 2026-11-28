@@ -54,6 +54,12 @@ const STRINGS = {
     "memory.companyTab": "Company rules",
     "memory.agentsTab": "Team agents",
     "memory.effective": "Active on your next call ({count}/12)",
+    "memory.agentActive": "Active rules: {count}/12",
+    "memory.loading": "Loading style memory…",
+    "memory.loadError": "Could not load style memory. Please try again.",
+    "memory.agentsEmpty": "No agents yet",
+    "memory.agentsEmptyBody":
+      "Invite agents in Admin › People. Their style rules show here after they rate cards on calls.",
     "memory.empty":
       "No style rules yet. Rate cards or leave a note after a call to start learning.",
     "memory.agentRules": "Personal style rules",
@@ -125,6 +131,12 @@ const STRINGS = {
     "memory.companyTab": "قواعد الشركة",
     "memory.agentsTab": "فريق المبيعات",
     "memory.effective": "مفعّلة في مكالمتك القادمة ({count}/12)",
+    "memory.agentActive": "القواعد المفعّلة: {count}/12",
+    "memory.loading": "جارٍ تحميل ذاكرة الأسلوب…",
+    "memory.loadError": "تعذّر تحميل ذاكرة الأسلوب. حاول مرة أخرى.",
+    "memory.agentsEmpty": "لا يوجد وكلاء بعد",
+    "memory.agentsEmptyBody":
+      "ادعُ الوكلاء من الإدارة › الأشخاص. تظهر قواعد أسلوبهم هنا بعد أن يقيّموا البطاقات في المكالمات.",
     "memory.empty":
       "لا توجد قواعد أسلوب بعد. قيّم البطاقات أو اترك ملاحظة بعد المكالمة لبدء التعلّم.",
     "memory.agentRules": "قواعد الأسلوب الشخصية",

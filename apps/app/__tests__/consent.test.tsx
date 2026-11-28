@@ -3,6 +3,7 @@
  * from the allow-list and turns backups off; the DRAFT marker shows in English and Arabic. */
 import { UIProvider } from "@sotto/ui";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { ConsentPanel } from "../features/admin/Consent";
 import { ConsentStep, resetConsentStep } from "../features/admin/ConsentStep";
 import {
   CONSENT_TEXT_VERSION,
@@ -125,6 +126,36 @@ describe("AI-vendor consent step", () => {
     await wrap();
     await waitFor(() => expect(mockApi).toHaveBeenCalled());
     expect(screen.queryByTestId("consent-step")).toBeNull();
+  });
+
+  it("says when the choice was saved, without the internal text version (FUNC-005)", async () => {
+    const panel = (text_version: string) =>
+      render(
+        <LocaleProvider initial="en">
+          <UIProvider>
+            <ConsentPanel
+              state={{
+                defaults: {
+                  ...NONE,
+                  consent: { choice: "all", accepted_by: "u1", accepted_at: 1, text_version },
+                } as never,
+                saved: "server",
+                error: null,
+                save: jest.fn(async () => true),
+              }}
+            />
+          </UIProvider>
+        </LocaleProvider>,
+      );
+    await panel(CONSENT_TEXT_VERSION);
+    const line = screen.getByTestId("consent-record");
+    expect(line).toHaveTextContent(/^Your choice was saved on .+\.$/);
+    expect(line).not.toHaveTextContent(/draft|text /);
+    screen.unmount();
+    await panel("old-0");
+    expect(screen.getByTestId("consent-record")).toHaveTextContent(
+      /The wording has changed since then\. Read it and save again\.$/,
+    );
   });
 
   it("is never shown to managers or agents", async () => {
