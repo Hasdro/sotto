@@ -1509,6 +1509,7 @@ def health(store: CloudStore, catalog: Catalog) -> dict[str, Any]:
             "min_companies": FAIL_MIN_COMPANIES,
             "window_min": FAIL_WINDOW_MS // 60_000,
             "demote_min": DEMOTE_MS // 60_000,
+            "manual_demote_min": 30,
         },
     }
 

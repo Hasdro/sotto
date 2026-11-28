@@ -493,7 +493,7 @@ function renderPlan() {
   const plan = h(
     "select",
     { id: "fPlan" },
-    ["trial", "starter", "growth", "scale", "team", "custom"].map((p) =>
+    ["trial", "starter", "growth", "team", "custom", "scale"].map((p) =>
       h("option", { value: p, selected: p === c.plan }, p),
     ),
   );

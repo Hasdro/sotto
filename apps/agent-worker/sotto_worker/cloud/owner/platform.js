@@ -449,7 +449,7 @@ async function loadHealth() {
 function renderHealth(data) {
   const r = data.rule;
   $("#healthRule").textContent =
-    `Rule: ${r.threshold} failures from at least ${r.min_companies} companies within ${r.window_min} min demote a vendor for ${r.demote_min} min.`;
+    `Auto-demotion: ${r.threshold} failures from at least ${r.min_companies} companies within ${r.window_min} min demote a vendor for ${r.demote_min} min. Manual demotion lasts ${r.manual_demote_min || 30} min.`;
   $("#health tbody").replaceChildren(
     ...data.providers.map((p) =>
       h(

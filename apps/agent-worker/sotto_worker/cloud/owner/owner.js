@@ -17,6 +17,14 @@ function h(tag, attrs = {}, ...kids) {
   return el;
 }
 const fmtNum = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString());
+const fmtDateTime = (ms) => {
+  if (!ms) return "—";
+  try {
+    return `${new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dubai", year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms))} GST`;
+  } catch {
+    return new Date(ms).toLocaleString();
+  }
+};
 const fmtDate = (t) =>
   t
     ? new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
@@ -872,7 +880,7 @@ async function loadAudit(resetOffset = true) {
           h(
             "tr",
             {},
-            h("td", {}, new Date(a.at).toLocaleString()),
+            h("td", {}, fmtDateTime(a.at)),
             h("td", {}, a.company || "—"),
             h("td", {}, a.actor || "—"),
             h("td", {}, a.action),
@@ -1381,7 +1389,7 @@ const TOUR_STEPS = [
   {
     view: "companies",
     title: "Companies",
-    body: "Every company, its plan, seats and minutes. Click a row to open its page as tiles.",
+    body: "Every company, its plan, seats and minutes. Click a row to open its details page.",
   },
   {
     view: "providers",
@@ -1408,7 +1416,7 @@ let tourStep = 0;
 function renderTourStep() {
   const step = TOUR_STEPS[tourStep];
   show(step.view);
-  $("#tourTitle").textContent = `Take the tour · ${step.title}`;
+  $("#tourTitle").textContent = `Step ${tourStep + 1} of ${TOUR_STEPS.length} · ${step.title}`;
   $("#tourBody").textContent = step.body;
   $("#tourDots").replaceChildren(
     ...TOUR_STEPS.map((_, i) => h("span", { class: `tour-dot${i === tourStep ? " on" : ""}` })),
