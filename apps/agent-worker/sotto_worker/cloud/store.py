@@ -527,6 +527,8 @@ ADDED_COLUMNS = (
     ("zoho_connections", "failed_at", "INTEGER"),  # ZC-14: last refresh Zoho refused
     ("companies", "billing_plan_code", "TEXT"),  # Round 3 (D-087): the Zoho Billing plan code
     ("usage", "exclude_p95_alarm", "INTEGER"),  # Round 4 (D-096): slow local model excluded
+    ("usage", "contact_json", "TEXT"),  # Slice 3B (PROD-004/SAFE-001): per-call Zoho contact
+    ("usage", "call_title", "TEXT"),  # Slice 3B: editable call title
 )
 OTP_TTL_MS = 10 * 60_000  # a sign-in code works for 10 minutes
 OTP_MAX_ATTEMPTS = 5  # then the code is spent; ask for a new one
@@ -1549,6 +1551,29 @@ class CloudStore:
                 ip=ip,
             )
 
+    def dismiss_escalation(self, who: Principal, item_id: str, *, ip: str = "") -> None:
+        """UX-012-server: dismiss noise or irrelevant questions without adding to the playbook."""
+        who.require("admin", "manager")
+        rows = self._q(
+            "SELECT * FROM escalations WHERE id = ? AND company_id = ?", (item_id, who.company)
+        )
+        if not rows:
+            raise CloudError("not_found", "question not found")
+        with self._tx() as db:
+            db.execute(
+                "UPDATE escalations SET status = 'dismissed', updated_at = ?"
+                " WHERE id = ? AND company_id = ?",
+                (now_ms(), item_id, who.company),
+            )
+            self.audit(
+                db,
+                "escalation.dismissed",
+                str(rows[0]["question"]),
+                company_id=who.company,
+                actor=who,
+                ip=ip,
+            )
+
     # --- team ------------------------------------------------------------------------------------
     def team(self, who: Principal) -> list[dict[str, Any]]:
         who.require("admin", "manager")
@@ -1652,6 +1677,27 @@ class CloudStore:
                 (f"{who.company}:{call_id}", who.company, who.user_id, now_ms()),
             )
 
+    @staticmethod
+    def _clean_contact(raw: object) -> dict[str, str] | None:
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise CloudError("invalid", "contact must be an object")
+        allowed = {
+            "name": 160,
+            "email": 254,
+            "phone": 60,
+            "company": 160,
+            "zoho_module": 40,
+            "zoho_id": 80,
+        }
+        clean: dict[str, str] = {}
+        for k, limit in allowed.items():
+            val = _clean(raw.get(k), k, limit, required=False)
+            if val:
+                clean[k] = val
+        return clean or None
+
     def report_usage(self, who: Principal, data: dict[str, Any], platform: str) -> str:
         def num(key: str, hi: int, *, optional: bool = False) -> int | None:
             v = data.get(key)
@@ -1673,6 +1719,8 @@ class CloudStore:
         if began:
             started = int(began[0]["started_at"])
             duration = min(duration, max(0, (t - started) // 1000) + 30)
+        contact = self._clean_contact(data.get("contact"))
+        call_title = _clean(data.get("title"), "title", 200, required=False) or None
         row = (
             usage_id,
             who.company,
@@ -1693,16 +1741,77 @@ class CloudStore:
             t,
             source if source in CALL_SOURCES else "computer",
             1 if data.get("exclude_p95_alarm") is True else 0,
+            json.dumps(contact, ensure_ascii=False) if contact else None,
+            call_title,
         )
         with self._tx() as db:
             db.execute(
                 "INSERT OR IGNORE INTO usage(id, company_id, user_id, device_id, started_at,"
                 " duration_s, cards, playbook_cards, ai_cards, holding_lines, escalations, p50_ms,"
-                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source, exclude_p95_alarm)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source, exclude_p95_alarm,"
+                " contact_json, call_title)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 row,
             )
         return call_id
+
+    def call_contact(self, who: Principal, call_id: str) -> dict[str, str] | None:
+        """PROD-004 / SAFE-001: per-call Zoho contact; strictly company-scoped."""
+        self.recording_call(who, call_id, upload=False)
+        rows = self._q(
+            "SELECT contact_json FROM usage WHERE id = ? AND company_id = ?",
+            (f"{who.company}:{call_id}", who.company),
+        )
+        if not rows or not rows[0]["contact_json"]:
+            return None
+        return cast(dict[str, str], json.loads(rows[0]["contact_json"]))
+
+    def set_call_contact(
+        self, who: Principal, call_id: str, data: dict[str, Any]
+    ) -> dict[str, str] | None:
+        """PROD-004 / SAFE-001: attach or replace a single call's Zoho contact."""
+        self.recording_call(who, call_id, upload=True)
+        clean = self._clean_contact(data)
+        with self._tx() as db:
+            db.execute(
+                "UPDATE usage SET contact_json = ? WHERE id = ? AND company_id = ?",
+                (
+                    json.dumps(clean, ensure_ascii=False) if clean else None,
+                    f"{who.company}:{call_id}",
+                    who.company,
+                ),
+            )
+        return clean
+
+    def update_call_meta(
+        self, who: Principal, call_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update a call's title and/or contact metadata."""
+        self.recording_call(who, call_id, upload=True)
+        fields: dict[str, Any] = {}
+        if "title" in data:
+            fields["call_title"] = _clean(data.get("title"), "title", 200, required=False) or None
+        if "contact" in data:
+            clean = self._clean_contact(data.get("contact"))
+            fields["contact_json"] = json.dumps(clean, ensure_ascii=False) if clean else None
+        if not fields:
+            raise CloudError("invalid", "nothing to change")
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        with self._tx() as db:
+            db.execute(
+                f"UPDATE usage SET {sets} WHERE id = ? AND company_id = ?",  # noqa: S608
+                (*fields.values(), f"{who.company}:{call_id}", who.company),
+            )
+        rows = self._q(
+            "SELECT call_title, contact_json FROM usage WHERE id = ? AND company_id = ?",
+            (f"{who.company}:{call_id}", who.company),
+        )
+        raw = rows[0]["contact_json"] if rows else None
+        return {
+            "call_id": call_id,
+            "title": rows[0]["call_title"] if rows else None,
+            "contact": json.loads(raw) if raw else None,
+        }
 
     def require_own_call(self, who: Principal, call_id: str) -> None:
         """The call was started or reported by this person in this company; anything else is
@@ -1780,6 +1889,9 @@ class CloudStore:
             row = dict(r)
             raw = row.pop("review_json", None)
             row["review"] = json.loads(raw) if raw else None
+            raw_contact = row.pop("contact_json", None)
+            row["contact"] = json.loads(raw_contact) if raw_contact else None
+            row["title"] = row.pop("call_title", None)
             out.append(row)
         return out
 

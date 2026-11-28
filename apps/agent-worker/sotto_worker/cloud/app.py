@@ -1527,6 +1527,28 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse({"ok": True})
 
     @app_route
+    async def escalation_dismiss(request: Request, who: Principal) -> Response:
+        store.dismiss_escalation(who, request.path_params["id"], ip=ip_of(request))
+        return JSONResponse({"ok": True})
+
+    @app_route
+    async def call_contact_get(request: Request, who: Principal) -> Response:
+        return JSONResponse(
+            {"contact": store.call_contact(who, request.path_params["call_id"])},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app_route
+    async def call_contact_put(request: Request, who: Principal) -> Response:
+        saved = store.set_call_contact(who, request.path_params["call_id"], await body(request))
+        return JSONResponse({"ok": True, "contact": saved}, headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def call_meta_patch(request: Request, who: Principal) -> Response:
+        out = store.update_call_meta(who, request.path_params["call_id"], await body(request))
+        return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+    @app_route
     async def team_get(_request: Request, who: Principal) -> Response:
         return JSONResponse({"users": store.team(who)})
 
@@ -2146,6 +2168,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route(f"{api}/escalations", escalations_get),
         Route(f"{api}/escalations", escalation_post, methods=["POST"]),
         Route(f"{api}/escalations/{{id}}/answer", escalation_answer, methods=["POST"]),
+        Route(f"{api}/escalations/{{id}}/dismiss", escalation_dismiss, methods=["POST"]),
+        Route(f"{api}/calls/{{call_id}}/contact", call_contact_get),
+        Route(f"{api}/calls/{{call_id}}/contact", call_contact_put, methods=["PUT"]),
+        Route(f"{api}/calls/{{call_id}}", call_meta_patch, methods=["PATCH"]),
         Route(f"{api}/team", team_get),
         Route(f"{api}/team", team_post, methods=["POST"]),
         Route(f"{api}/team/{{id}}", team_patch, methods=["PATCH"]),
