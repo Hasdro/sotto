@@ -11,10 +11,12 @@ export type BadgeProps = {
   tone?: BadgeTone;
   /** A leading dot, e.g. the live indicator. */
   dot?: boolean;
+  /** Allow long labels (e.g. Setup guide test results) to wrap inside narrow cards. */
+  wrap?: boolean;
   testID?: string;
 };
 
-export function Badge({ label, tone = "neutral", dot = false, testID }: BadgeProps) {
+export function Badge({ label, tone = "neutral", dot = false, wrap = false, testID }: BadgeProps) {
   const theme = useTheme();
   const tones: Record<BadgeTone, { fill: Hex; text: Hex; dot: Hex }> = {
     neutral: {
@@ -37,9 +39,18 @@ export function Badge({ label, tone = "neutral", dot = false, testID }: BadgePro
   };
   const t = tones[tone];
   return (
-    <View testID={testID} style={[styles.badge, { backgroundColor: t.fill }]}>
+    <View
+      testID={testID}
+      style={[styles.badge, wrap ? styles.wrapBadge : null, { backgroundColor: t.fill }]}
+    >
       {dot ? <View style={[styles.dot, { backgroundColor: t.dot }]} /> : null}
-      <Text variant="label" weight="medium" color={t.text} numberOfLines={1}>
+      <Text
+        variant="label"
+        weight="medium"
+        color={t.text}
+        numberOfLines={wrap ? undefined : 1}
+        style={styles.label}
+      >
         {label}
       </Text>
     </View>
@@ -55,10 +66,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
+    maxWidth: "100%",
+    flexShrink: 1,
     gap: space.xs + 2,
     paddingHorizontal: space.sm + 2,
     paddingVertical: space.xs - 1,
     borderRadius: radius.pill,
+  },
+  wrapBadge: {
+    borderRadius: radius.md,
+  },
+  label: {
+    flexShrink: 1,
   },
   dot: { width: size.dot, height: size.dot, borderRadius: radius.pill },
 });

@@ -132,6 +132,57 @@ describe("SetupGuideView (L2)", () => {
     );
     expect(english).toEqual([]);
   });
+
+  it("keeps status line and Test it badge in sync when a live check overrides initial facts", async () => {
+    const tester = jest.fn(async (step: { id: string }) => {
+      if (step.id === "audio") return { ok: true }; // initial audioChecked was false
+      if (step.id === "zoho") return { ok: false }; // initial zohoConnected was true
+      return { ok: false };
+    });
+
+    await render(
+      <UIProvider direction="ltr" scheme="light">
+        <SetupGuideView facts={admin} tester={tester} onNavigate={() => {}} />
+      </UIProvider>,
+    );
+
+    expect(screen.getByText("Audio: not tested yet")).toBeTruthy();
+    expect(screen.getByText("Zoho: connected ✓")).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId("setup-guide-test-audio"));
+    await fireEvent.press(screen.getByTestId("setup-guide-test-zoho"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Audio: ready ✓ (verified)")).toBeTruthy();
+      expect(screen.getByText("Zoho: not set up — open Fix it to complete.")).toBeTruthy();
+    });
+    expect(screen.queryByText(/not tested yet \(verified\)/)).toBeNull();
+    expect(screen.queryByText(/connected ✓ — open Fix it/)).toBeNull();
+    expect(screen.queryByTestId("setup-guide-fix-audio")).toBeNull();
+    expect(screen.getByTestId("setup-guide-fix-zoho")).toBeTruthy();
+  });
+
+  it("wraps long Test it result badges within the card width in EN and Arabic RTL", async () => {
+    for (const locale of ["en", "ar"] as const) {
+      const view = await render(guide(admin, locale));
+      await fireEvent.press(screen.getByTestId("setup-guide-test-messaging"));
+      const expected =
+        locale === "en"
+          ? "WhatsApp / Email: not set up — open Fix it to complete."
+          : "البريد أو واتساب: غير متصل — افتح «أصلحها» لإكمال الخطوة.";
+      await waitFor(() => {
+        const badge = screen.getByTestId("setup-guide-status-messaging");
+        const flatStyle = Array.isArray(badge.props.style)
+          ? Object.assign({}, ...badge.props.style.filter(Boolean))
+          : badge.props.style;
+        expect(flatStyle.maxWidth).toBe("100%");
+        expect(flatStyle.flexShrink).toBe(1);
+        const textNode = screen.getByText(expected);
+        expect(textNode.props.numberOfLines).toBeUndefined();
+      });
+      await view.unmount();
+    }
+  });
 });
 
 describe("LocalModelsSettings (L6, D-096)", () => {

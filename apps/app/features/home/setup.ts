@@ -37,8 +37,10 @@ export type SetupStep = {
   /** Hidden from the list entirely (not offered, still loading). */
   hidden?: (f: SetupFacts) => boolean;
   done: (f: SetupFacts) => boolean;
-  /** Live status line shown in the Setup Guide (e.g. "Zoho: connected ✓"). */
-  statusLine?: (f: SetupFacts) => HomePhrase;
+  /** Live status line shown in the Setup Guide (e.g. "Zoho: connected ✓").
+   * Accepts an optional resolved `ok` boolean from a live "Test it" check so the status text
+   * and badge tone always come from the same state. */
+  statusLine?: (f: SetupFacts, ok?: boolean) => HomePhrase;
 };
 
 /** A count line, in its ".one" form for exactly one where the table has it. */
@@ -58,7 +60,9 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     href: "/settings#zoho",
     hidden: (f) => !f.zohoOffered || f.zohoConnected === null,
     done: (f) => f.zohoConnected === true,
-    statusLine: (f) => ({ key: f.zohoConnected ? "guide.zoho.on" : "guide.zoho.off" }),
+    statusLine: (f, ok) => ({
+      key: (ok ?? f.zohoConnected === true) ? "guide.zoho.on" : "guide.zoho.off",
+    }),
   },
   {
     id: "audio",
@@ -69,7 +73,9 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     recommendedDefault: "guide.audio.default",
     href: "/call?check=audio",
     done: (f) => f.audioChecked,
-    statusLine: (f) => ({ key: f.audioChecked ? "guide.audio.on" : "guide.audio.off" }),
+    statusLine: (f, ok) => ({
+      key: (ok ?? f.audioChecked) ? "guide.audio.on" : "guide.audio.off",
+    }),
   },
   {
     id: "practice",
@@ -81,8 +87,8 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     href: "/call?practice=1",
     hidden: (f) => !f.practiceOffered,
     done: (f) => f.markedDone.includes("practice"),
-    statusLine: (f) => ({
-      key: f.markedDone.includes("practice") ? "guide.practice.on" : "guide.practice.off",
+    statusLine: (f, ok) => ({
+      key: (ok ?? f.markedDone.includes("practice")) ? "guide.practice.on" : "guide.practice.off",
     }),
   },
   {
@@ -94,9 +100,9 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     recommendedDefault: "guide.playbook.default",
     href: "/playbook",
     done: (f) => f.playbookEntries > 0,
-    statusLine: (f) =>
-      f.playbookEntries > 0
-        ? counted("guide.playbook.on", f.playbookEntries)
+    statusLine: (f, ok) =>
+      (ok ?? f.playbookEntries > 0)
+        ? counted("guide.playbook.on", Math.max(1, f.playbookEntries))
         : { key: "guide.playbook.off" },
   },
   {
@@ -108,8 +114,10 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     recommendedDefault: "guide.invite.default",
     href: "/admin",
     done: (f) => f.seatsUsed > 1,
-    statusLine: (f) =>
-      f.seatsUsed > 1 ? counted("guide.invite.on", f.seatsUsed) : { key: "guide.invite.off" },
+    statusLine: (f, ok) =>
+      (ok ?? f.seatsUsed > 1)
+        ? counted("guide.invite.on", Math.max(2, f.seatsUsed))
+        : { key: "guide.invite.off" },
   },
   {
     id: "messaging",
@@ -120,8 +128,8 @@ export const SETUP_STEPS: readonly SetupStep[] = [
     recommendedDefault: "guide.messaging.default",
     href: "/admin/integrations",
     done: (f) => f.messagingConnected,
-    statusLine: (f) => ({
-      key: f.messagingConnected ? "guide.messaging.on" : "guide.messaging.off",
+    statusLine: (f, ok) => ({
+      key: (ok ?? f.messagingConnected) ? "guide.messaging.on" : "guide.messaging.off",
     }),
   },
 ];

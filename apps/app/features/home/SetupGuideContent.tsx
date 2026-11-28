@@ -73,8 +73,8 @@ export function SetupGuideView({
   const steps = guideStepsFor(facts);
   const [results, setResults] = useState<Record<string, { ok: boolean }>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
-  const statusOf = (step: SetupStep) => {
-    const line = step.statusLine?.(facts);
+  const statusOf = (step: SetupStep, ok: boolean) => {
+    const line = step.statusLine?.(facts, ok);
     return line ? ht(line.key, line.vars) : step.id;
   };
 
@@ -102,9 +102,9 @@ export function SetupGuideView({
       {steps.map((step) => {
         const tested = results[step.id];
         const ok = tested?.ok ?? step.done(facts);
-        const status = statusOf(step);
+        const status = statusOf(step, ok);
         const statusText = tested
-          ? ht(tested.ok ? "guide.verified" : "guide.incomplete", { status })
+          ? ht(ok ? "guide.verified" : "guide.incomplete", { status })
           : status;
         return (
           <View
@@ -116,14 +116,16 @@ export function SetupGuideView({
               borderWidth: 1,
               borderRadius: radius.lg,
               padding: space.lg,
+              maxWidth: "100%",
             }}
           >
             <Stack gap="sm">
               <View style={styles.headerRow}>
-                <Text variant="title" weight="semibold">
+                <Text variant="title" weight="semibold" style={styles.title}>
                   {step.title ? ht(step.title) : step.id}
                 </Text>
                 <Badge
+                  wrap
                   tone={ok ? "neutral" : "notice"}
                   label={statusText}
                   testID={`setup-guide-status-${step.id}`}
@@ -193,6 +195,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     flexWrap: "wrap",
     gap: space.sm,
+    minWidth: 0,
+  },
+  title: {
+    flexShrink: 1,
   },
   actions: {
     flexDirection: "row",
