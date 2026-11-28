@@ -474,96 +474,283 @@ $("#newForm").addEventListener("submit", async (e) => {
 });
 
 // --- features: entitlement matrix and kill switch (D-028) --------------------------------------
-const FEATURE_NAMES = {
-  call_review: "Call review",
-  follow_up: "Follow-up email",
-  recordings: "Recordings",
-  reports: "Reports",
-  ai_knowledge: "AI knowledge",
-  integrations: "Integrations",
-  zoho: "Zoho CRM",
-  gallabox: "Gallabox",
-  email_send: "Send email",
-  whatsapp: "WhatsApp",
-  prep: "Call prep",
-  card_ratings: "Card ratings",
-  learned_instructions: "Learned instructions",
+const FEATURE_META = {
+  call_state: {
+    name: "Call state",
+    group: "Live call",
+    desc: "Tracks live call stage and intent.",
+  },
+  talk_meter: {
+    name: "Talk meter",
+    group: "Live call",
+    desc: "Live agent vs customer talk ratio.",
+  },
+  card_style_v2: {
+    name: "Card tone",
+    group: "Live call",
+    desc: "Company tone and banned phrases on live cards.",
+  },
+  card_ratings: {
+    name: "Card ratings",
+    group: "Live call",
+    desc: "Helpful / not helpful feedback on cards.",
+  },
+  prep: { name: "Call prep", group: "Live call", desc: "Pre-call brief and meeting context." },
+  prep_coach: {
+    name: "Prep coach",
+    group: "Live call",
+    desc: "Interactive AI prep before a call.",
+  },
+  call_review: {
+    name: "Call review",
+    group: "After-call & Coaching",
+    desc: "Post-call rubric scores and summary.",
+  },
+  postcall_wizard: {
+    name: "Post-call wizard",
+    group: "After-call & Coaching",
+    desc: "Guided after-call wrap-up steps.",
+  },
+  follow_up: {
+    name: "Follow-up drafts",
+    group: "After-call & Coaching",
+    desc: "AI-drafted follow-up messages.",
+  },
+  followup_plan: {
+    name: "Follow-up plan",
+    group: "After-call & Coaching",
+    desc: "Scheduled follow-up steps after calls.",
+  },
+  recordings: {
+    name: "Recordings",
+    group: "After-call & Coaching",
+    desc: "Call audio upload and playback.",
+  },
+  reports: {
+    name: "Reports",
+    group: "After-call & Coaching",
+    desc: "Team call volume and skill reports.",
+  },
+  voice_coach: {
+    name: "Voice coach",
+    group: "After-call & Coaching",
+    desc: "Spoken post-call coaching sessions.",
+  },
+  morning_brief: {
+    name: "Morning brief",
+    group: "After-call & Coaching",
+    desc: "Daily 08:00 summary of today's meetings.",
+  },
+  style_memory: {
+    name: "Style memory",
+    group: "After-call & Coaching",
+    desc: "Per-agent writing and phrasing rules.",
+  },
+  learned_instructions: {
+    name: "Learned instructions",
+    group: "After-call & Coaching",
+    desc: "Auto-suggested rules from rated cards.",
+  },
+  integrations: {
+    name: "Integrations",
+    group: "CRM & Messaging",
+    desc: "Master switch for CRM and messaging.",
+  },
+  zoho: {
+    name: "Zoho CRM",
+    group: "CRM & Messaging",
+    desc: "Read meetings/contacts and save call notes.",
+  },
+  zoho_watch: {
+    name: "Zoho live sync",
+    group: "CRM & Messaging",
+    desc: "Real-time Zoho webhook notifications.",
+  },
+  gallabox: {
+    name: "Gallabox",
+    group: "CRM & Messaging",
+    desc: "WhatsApp Business API integration.",
+  },
+  whatsapp: {
+    name: "WhatsApp",
+    group: "CRM & Messaging",
+    desc: "Send approved WhatsApp templates.",
+  },
+  whatsapp_status: {
+    name: "WhatsApp status",
+    group: "CRM & Messaging",
+    desc: "Track sent, delivered, and read receipts.",
+  },
+  meeting_reminders: {
+    name: "Meeting reminders",
+    group: "CRM & Messaging",
+    desc: "Automated WhatsApp meeting reminders.",
+  },
+  email_send: {
+    name: "Send email",
+    group: "CRM & Messaging",
+    desc: "Send follow-up emails via SMTP.",
+  },
+  email_attachments: {
+    name: "Email attachments",
+    group: "CRM & Messaging",
+    desc: "Attach company files to follow-up emails.",
+  },
+  ai_knowledge: {
+    name: "AI knowledge",
+    group: "Admin & Platform",
+    desc: "Company knowledge fed to AI cards.",
+  },
+  playbook_bootstrap: {
+    name: "Playbook bootstrap",
+    group: "Admin & Platform",
+    desc: "Generate initial playbook from website/Zoho.",
+  },
+  setup_guide: {
+    name: "Setup guide",
+    group: "Admin & Platform",
+    desc: "In-app onboarding checklist.",
+  },
+  call_logs_github: {
+    name: "Call logs to GitHub",
+    group: "Admin & Platform",
+    desc: "Owner-gated telemetry export to GitHub.",
+  },
+  local_models_text: {
+    name: "Local text models",
+    group: "Admin & Platform",
+    desc: "Owner-gated local LLM endpoint.",
+  },
+  local_models_voice: {
+    name: "Local voice models",
+    group: "Admin & Platform",
+    desc: "Owner-gated local STT/voice endpoint.",
+  },
 };
-const featureName = (id) => FEATURE_NAMES[id] || id;
+const featureMeta = (id) => FEATURE_META[id] || { name: id, group: "Other", desc: "" };
+const featureName = (id) => featureMeta(id).name;
+let featuresData = null;
 
 async function loadFeatures() {
   renderFeatures(await api("/api/owner/features"));
 }
 function renderFeatures(data) {
-  $("#kills tbody").replaceChildren(
-    ...data.features.map((f) =>
-      h(
-        "tr",
-        {},
-        h("th", { scope: "row" }, featureName(f.id)),
+  featuresData = data;
+  const groups = [
+    "Live call",
+    "After-call & Coaching",
+    "CRM & Messaging",
+    "Admin & Platform",
+    "Other",
+  ];
+  const killRows = [];
+  for (const grp of groups) {
+    const items = data.features.filter((f) => featureMeta(f.id).group === grp);
+    if (!items.length) continue;
+    killRows.push(h("tr", { class: "group-row" }, h("th", { colspan: 3, scope: "colgroup" }, grp)));
+    for (const f of items) {
+      const meta = featureMeta(f.id);
+      killRows.push(
         h(
-          "td",
+          "tr",
           {},
-          f.killed_at
-            ? h("span", { class: "status bad" }, `Killed since ${fmtDate(f.killed_at)}`)
-            : h("span", { class: "status ok" }, "Live"),
-          f.built ? null : h("small", { class: "kill-note" }, " Not released yet"),
-        ),
-        h(
-          "td",
-          { class: "act" },
           h(
-            "button",
-            {
-              type: "button",
-              class: f.killed_at ? "ghost" : "danger",
-              "data-feature": f.id,
-              onclick: () => setKill(f, !f.killed_at),
-            },
-            f.killed_at ? "Turn back on" : "Turn off for everyone",
+            "th",
+            { scope: "row" },
+            meta.name,
+            meta.desc ? h("span", { class: "meta" }, meta.desc) : null,
+          ),
+          h(
+            "td",
+            {},
+            f.killed_at
+              ? h("span", { class: "status bad" }, `Killed since ${fmtDate(f.killed_at)}`)
+              : h("span", { class: "status ok" }, "Live"),
+            f.built ? null : h("small", { class: "kill-note" }, " Not released yet"),
+          ),
+          h(
+            "td",
+            { class: "act" },
+            h(
+              "button",
+              {
+                type: "button",
+                class: f.killed_at ? "ghost" : "danger",
+                "data-feature": f.id,
+                onclick: () => setKill(f, !f.killed_at),
+              },
+              f.killed_at ? "Turn back on" : "Turn off for everyone",
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
+    }
+  }
+  $("#kills tbody").replaceChildren(...killRows);
+  const sel = $("#matrixCompany");
+  if (sel) {
+    const keep = sel.value;
+    sel.replaceChildren(...data.companies.map((c) => h("option", { value: c.id }, c.name)));
+    if (keep && data.companies.some((c) => c.id === keep)) sel.value = keep;
+  }
+  renderMatrixForCompany();
+}
+function renderMatrixForCompany() {
+  if (!featuresData) return;
+  const data = featuresData;
+  const sel = $("#matrixCompany");
+  const q = ($("#matrixSearch")?.value || "").trim().toLowerCase();
+  const company = data.companies.find((c) => c.id === sel?.value) || data.companies[0];
   $("#matrix thead").replaceChildren(
     h(
       "tr",
       {},
-      h("th", { scope: "col" }, "Company"),
-      data.features.map((f) => h("th", { scope: "col", class: "center" }, featureName(f.id))),
+      h("th", { scope: "col" }, "Feature"),
+      h("th", { scope: "col" }, "Group"),
+      h("th", { scope: "col", class: "center" }, "Entitled"),
     ),
   );
+  if (!company) {
+    $("#matrix tbody").replaceChildren(
+      h("tr", {}, h("td", { colspan: 3, class: "empty" }, "No companies yet.")),
+    );
+    return;
+  }
+  const filtered = data.features.filter((f) => {
+    if (!q) return true;
+    const m = featureMeta(f.id);
+    return (
+      m.name.toLowerCase().includes(q) ||
+      m.group.toLowerCase().includes(q) ||
+      f.id.toLowerCase().includes(q)
+    );
+  });
   $("#matrix tbody").replaceChildren(
-    ...(data.companies.length
-      ? data.companies.map((c) =>
-          h(
+    ...(filtered.length
+      ? filtered.map((f) => {
+          const m = featureMeta(f.id);
+          return h(
             "tr",
             {},
-            h("th", { scope: "row" }, c.name),
-            data.features.map((f) =>
-              h(
-                "td",
-                { class: "center" },
-                h("input", {
-                  type: "checkbox",
-                  checked: c.entitled[f.id],
-                  "aria-label": `${featureName(f.id)} for ${c.name}`,
-                  onchange: (e) => setEntitled(c, f.id, e.target),
-                }),
-              ),
+            h("th", { scope: "row" }, m.name, m.desc ? h("span", { class: "meta" }, m.desc) : null),
+            h("td", {}, m.group),
+            h(
+              "td",
+              { class: "center" },
+              h("input", {
+                type: "checkbox",
+                checked: company.entitled[f.id],
+                "aria-label": `${m.name} for ${company.name}`,
+                onchange: (e) => setEntitled(company, f.id, e.target),
+              }),
             ),
-          ),
-        )
-      : [
-          h(
-            "tr",
-            {},
-            h("td", { colspan: data.features.length + 1, class: "empty" }, "No companies yet."),
-          ),
-        ]),
+          );
+        })
+      : [h("tr", {}, h("td", { colspan: 3, class: "empty" }, "No matching features."))]),
   );
 }
+$("#matrixCompany")?.addEventListener("change", renderMatrixForCompany);
+$("#matrixSearch")?.addEventListener("input", renderMatrixForCompany);
 function confirmAction({ title, body, blast, confirmLabel = "Confirm", requireText = null }) {
   return new Promise((resolve) => {
     const dlg = $("#confirmDialog");
@@ -637,8 +824,48 @@ async function setEntitled(c, feature, box) {
 }
 
 // --- audit and account ---------------------------------------------------------------------
-async function loadAudit() {
-  const { items } = await api("/api/owner/audit");
+let auditOffset = 0;
+const AUDIT_LIMIT = 50;
+function auditDetailCell(detail) {
+  const text = String(detail || "").trim();
+  if (!text) return h("td", {}, "—");
+  if (
+    (text.startsWith("{") && text.endsWith("}")) ||
+    (text.startsWith("[") && text.endsWith("]"))
+  ) {
+    try {
+      const pretty = JSON.stringify(JSON.parse(text), null, 2);
+      return h("td", {}, h("details", {}, h("summary", {}, "JSON details"), h("pre", {}, pretty)));
+    } catch {
+      /* fall through to plain text */
+    }
+  }
+  return h("td", {}, text);
+}
+async function loadAudit(resetOffset = true) {
+  if (resetOffset) auditOffset = 0;
+  const compSel = $("#auditCompany");
+  if (compSel && compSel.options.length <= 1) {
+    try {
+      const list = (await api("/api/owner/companies")).companies;
+      compSel.replaceChildren(
+        h("option", { value: "" }, "All companies"),
+        ...list.map((c) => h("option", { value: c.id }, c.name)),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+  const params = new URLSearchParams({ limit: String(AUDIT_LIMIT), offset: String(auditOffset) });
+  const q = $("#auditSearch")?.value?.trim();
+  const cid = compSel?.value;
+  const act = $("#auditAction")?.value?.trim();
+  if (q) params.set("q", q);
+  if (cid) params.set("company_id", cid);
+  if (act) params.set("action", act);
+  if ($("#auditHideNoise")?.checked) params.set("hide_noise", "1");
+  const data = await api(`/api/owner/audit?${params.toString()}`);
+  const items = data.items || [];
   $("#audit tbody").replaceChildren(
     ...(items.length
       ? items.map((a) =>
@@ -649,13 +876,34 @@ async function loadAudit() {
             h("td", {}, a.company || "—"),
             h("td", {}, a.actor || "—"),
             h("td", {}, a.action),
-            h("td", {}, a.detail),
-            h("td", {}, a.ip),
+            auditDetailCell(a.detail),
+            h("td", {}, a.ip || "—"),
           ),
         )
       : [h("tr", {}, h("td", { colspan: 6, class: "empty" }, "Nothing logged yet."))]),
   );
+  const total = data.total ?? items.length;
+  const pageEl = $("#auditPage");
+  if (pageEl) {
+    const start = total ? auditOffset + 1 : 0;
+    const end = auditOffset + items.length;
+    pageEl.textContent = `Showing ${start}–${end} of ${total}`;
+  }
+  if ($("#auditPrev")) $("#auditPrev").disabled = auditOffset === 0;
+  if ($("#auditNext")) $("#auditNext").disabled = !data.has_more;
 }
+$("#auditSearch")?.addEventListener("input", () => loadAudit(true));
+$("#auditCompany")?.addEventListener("change", () => loadAudit(true));
+$("#auditAction")?.addEventListener("input", () => loadAudit(true));
+$("#auditHideNoise")?.addEventListener("change", () => loadAudit(true));
+$("#auditPrev")?.addEventListener("click", () => {
+  auditOffset = Math.max(0, auditOffset - AUDIT_LIMIT);
+  loadAudit(false);
+});
+$("#auditNext")?.addEventListener("click", () => {
+  auditOffset += AUDIT_LIMIT;
+  loadAudit(false);
+});
 $("#pwForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
@@ -988,6 +1236,15 @@ function renderBugs() {
       : [h("tr", {}, h("td", { colspan: 6, class: "empty" }, "No bug reports yet."))]),
   );
 }
+function readablePageLabel(url) {
+  try {
+    const u = new URL(url);
+    const label = `${u.pathname}${u.hash}`.replace(/^\//, "");
+    return label || u.host;
+  } catch {
+    return String(url || "page");
+  }
+}
 function bugRow(r) {
   const titleCell = h(
     "td",
@@ -998,7 +1255,11 @@ function bugRow(r) {
       ? h(
           "span",
           { class: "meta" },
-          h("a", { href: r.page_url, target: "_blank", rel: "noopener noreferrer" }, "page"),
+          h(
+            "a",
+            { href: r.page_url, target: "_blank", rel: "noopener noreferrer" },
+            readablePageLabel(r.page_url),
+          ),
         )
       : null,
     r.screenshot_url
@@ -1014,6 +1275,7 @@ function bugRow(r) {
       : null,
   );
   const statusCell = h("td", {}, bugStatusPill(r.status));
+  const issueNum = r.github_issue_url ? r.github_issue_url.split("/").pop() : null;
   const issueCell = h(
     "td",
     {},
@@ -1021,28 +1283,47 @@ function bugRow(r) {
       ? h(
           "a",
           { href: r.github_issue_url, target: "_blank", rel: "noopener noreferrer" },
-          `#${r.github_issue_url.split("/").pop()}`,
+          `#${issueNum}`,
         )
       : "—",
   );
   const actions = h("td", { class: "act" });
   const editBtn = h("button", { type: "button", class: "ghost" }, "Edit");
   editBtn.onclick = () => editBugRow(r, titleCell, statusCell, actions);
-  const submitBtn = h(
-    "button",
-    { type: "button", class: "primary", disabled: r.status === "submitted" },
-    "Submit to GitHub",
-  );
-  submitBtn.onclick = async () => {
-    try {
-      const out = await api(`/api/owner/bug-reports/${r.id}/submit`, { method: "POST", body: {} });
-      toast(`Issue created: ${out.issue_url}`);
-      loadBugReports();
-    } catch (err) {
-      toast(err.message);
-    }
-  };
-  actions.append(editBtn, " ", submitBtn);
+  const submitAction =
+    r.status === "submitted" && r.github_issue_url
+      ? h(
+          "a",
+          {
+            href: r.github_issue_url,
+            target: "_blank",
+            rel: "noopener noreferrer",
+            class: "ghost",
+          },
+          `View on GitHub #${issueNum}`,
+        )
+      : h(
+          "button",
+          {
+            type: "button",
+            class: "primary",
+            disabled: r.status === "submitted",
+            onclick: async () => {
+              try {
+                const out = await api(`/api/owner/bug-reports/${r.id}/submit`, {
+                  method: "POST",
+                  body: {},
+                });
+                toast(`Issue created: ${out.issue_url}`);
+                loadBugReports();
+              } catch (err) {
+                toast(err.message);
+              }
+            },
+          },
+          "Submit to GitHub",
+        );
+  actions.append(editBtn, " ", submitAction);
   return h(
     "tr",
     {},
@@ -1064,7 +1345,7 @@ function editBugRow(r, titleCell, statusCell, actions) {
   const statusSel = h(
     "select",
     { "aria-label": "Report status" },
-    ["new", "reviewed", "closed"].map((s) =>
+    ["new", "reviewed", "submitted", "closed"].map((s) =>
       h("option", { value: s, selected: s === r.status }, s),
     ),
   );

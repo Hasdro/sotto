@@ -2493,22 +2493,80 @@ class CloudStore:
         rows = self._q(sql, (who.company, limit))
         return [dict(r) for r in rows]
 
-    def owner_audit(self, company_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
-        if company_id:
-            rows = self._q(
-                "SELECT a.*, u.email AS actor FROM audit a LEFT JOIN users u ON u.id = a.actor_id"
-                " WHERE a.company_id = ? ORDER BY a.id DESC LIMIT ?",
-                (company_id, limit),
-            )
-        else:
-            rows = self._q(
-                "SELECT a.*, u.email AS actor, c.name AS company FROM audit a"
-                " LEFT JOIN users u ON u.id = a.actor_id"
-                " LEFT JOIN companies c ON c.id = a.company_id"
-                " ORDER BY a.id DESC LIMIT ?",
-                (limit,),
-            )
+    def owner_audit(
+        self,
+        company_id: str | None = None,
+        limit: int = 200,
+        *,
+        offset: int = 0,
+        q: str = "",
+        action: str = "",
+        hide_noise: bool = False,
+    ) -> list[dict[str, Any]]:
+        act_pat = f"{action.strip()}%" if action.strip() else None
+        q_pat = f"%{q.strip()}%" if q.strip() else None
+        rows = self._q(
+            "SELECT a.*, u.email AS actor, c.name AS company FROM audit a"
+            " LEFT JOIN users u ON u.id = a.actor_id"
+            " LEFT JOIN companies c ON c.id = a.company_id"
+            " WHERE (? IS NULL OR a.company_id = ?)"
+            " AND (? IS NULL OR a.action LIKE ?)"
+            " AND (? = 0 OR (a.action NOT IN ('keys.delivered', 'zoho.read')"
+            "   AND a.action NOT LIKE 'zoho.read.%'))"
+            " AND (? IS NULL OR a.action LIKE ? OR a.detail LIKE ?"
+            "   OR COALESCE(u.email, '') LIKE ? OR COALESCE(c.name, '') LIKE ?)"
+            " ORDER BY a.id DESC LIMIT ? OFFSET ?",
+            (
+                company_id,
+                company_id,
+                act_pat,
+                act_pat,
+                1 if hide_noise else 0,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+                max(1, min(limit, 500)),
+                max(0, offset),
+            ),
+        )
         return [dict(r) for r in rows]
+
+    def owner_audit_count(
+        self,
+        *,
+        company_id: str | None = None,
+        q: str = "",
+        action: str = "",
+        hide_noise: bool = False,
+    ) -> int:
+        act_pat = f"{action.strip()}%" if action.strip() else None
+        q_pat = f"%{q.strip()}%" if q.strip() else None
+        rows = self._q(
+            "SELECT COUNT(*) AS n FROM audit a"
+            " LEFT JOIN users u ON u.id = a.actor_id"
+            " LEFT JOIN companies c ON c.id = a.company_id"
+            " WHERE (? IS NULL OR a.company_id = ?)"
+            " AND (? IS NULL OR a.action LIKE ?)"
+            " AND (? = 0 OR (a.action NOT IN ('keys.delivered', 'zoho.read')"
+            "   AND a.action NOT LIKE 'zoho.read.%'))"
+            " AND (? IS NULL OR a.action LIKE ? OR a.detail LIKE ?"
+            "   OR COALESCE(u.email, '') LIKE ? OR COALESCE(c.name, '') LIKE ?)",
+            (
+                company_id,
+                company_id,
+                act_pat,
+                act_pat,
+                1 if hide_noise else 0,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+            ),
+        )
+        return int(rows[0]["n"])
 
     # --- Zoho (D-031) --------------------------------------------------------------------------
     # Secrets are written here and read only by the server's own Zoho calls; no method that

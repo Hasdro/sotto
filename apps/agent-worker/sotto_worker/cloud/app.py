@@ -1785,8 +1785,40 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         store.owner_set_kill(who, r.path_params["id"], killed, ip=ip_of(r))
         return JSONResponse(store.owner_features())
 
-    async def o_audit(_r: Request, _who: Principal) -> Response:
-        return JSONResponse({"items": store.owner_audit()})
+    async def o_audit(r: Request, _who: Principal) -> Response:
+        qp = r.query_params
+        company_id = qp.get("company_id") or None
+        q = qp.get("q") or ""
+        action = qp.get("action") or ""
+        hide_noise = qp.get("hide_noise") == "1"
+        try:
+            limit = max(1, min(int(qp.get("limit", "50")), 200))
+            offset = max(0, int(qp.get("offset", "0")))
+        except ValueError:
+            limit, offset = 50, 0
+        items = store.owner_audit(
+            company_id=company_id,
+            limit=limit,
+            offset=offset,
+            q=q,
+            action=action,
+            hide_noise=hide_noise,
+        )
+        total = store.owner_audit_count(
+            company_id=company_id,
+            q=q,
+            action=action,
+            hide_noise=hide_noise,
+        )
+        return JSONResponse(
+            {
+                "items": items,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + len(items) < total,
+            }
+        )
 
     async def o_password(r: Request, who: Principal) -> Response:
         data = await body(r)

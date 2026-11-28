@@ -98,8 +98,12 @@
           <thead><tr><th scope="col">Feature</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
           <tbody></tbody></table></div>
       </div>
-      <div class="panel flush">
-        <h2 class="pad">Entitlements <small>which companies may use each feature; new companies get every feature</small></h2>
+      <div class="panel">
+        <h2>Entitlements <small>pick one company to toggle its features; new companies get every feature</small></h2>
+        <div class="toolbar">
+          <label for="matrixCompany">Company</label><select id="matrixCompany"></select>
+          <label class="ss-search search-pill"><input id="matrixSearch" type="search" placeholder="Filter features" aria-label="Filter features"></label>
+        </div>
         <div class="table-wrap"><table id="matrix"><thead></thead><tbody></tbody></table></div>
       </div>
     </section>
@@ -237,9 +241,16 @@
 
     <section id="v-audit" class="view" hidden>
       <header class="page-head"><h1 class="ss-page-title">Audit log</h1><p class="ss-lead ss-muted">Every owner and admin action, newest first.</p></header>
+      <div class="toolbar">
+        <label class="ss-search search-pill"><input id="auditSearch" type="search" placeholder="Search actor, action, detail" aria-label="Search audit log"></label>
+        <select id="auditCompany" aria-label="Filter by company"><option value="">All companies</option></select>
+        <input id="auditAction" type="text" placeholder="Action prefix (e.g. owner.)" aria-label="Filter by action">
+        <label><input id="auditHideNoise" type="checkbox" checked> Hide key delivery &amp; Zoho reads</label>
+      </div>
       <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
       <section class="table-wrap" tabindex="0" aria-label="Audit log table"><table id="audit">
         <thead><tr><th>When</th><th>Company</th><th>Who</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead><tbody></tbody></table></section></div>
+      <div class="toolbar"><button type="button" id="auditPrev" class="ghost">Previous</button><span id="auditPage" class="note"></span><button type="button" id="auditNext" class="ghost">Next</button></div>
     </section>
 
     <section id="v-account" class="view" hidden>
