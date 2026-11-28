@@ -4,6 +4,7 @@ import { UIProvider } from "../theme.tsx";
 import { minTouchTarget, themes } from "../tokens.ts";
 import { Badge } from "./Badge.tsx";
 import { Button } from "./Button.tsx";
+import { Dropdown } from "./Dropdown.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { ICON_NAMES, Icon } from "./Icon.tsx";
 import { Panel, Screen, Stack } from "./layout.tsx";
@@ -176,6 +177,44 @@ describe("SegmentedControl", () => {
     expect(screen.getByTestId("s-customer")).toBeChecked();
     await fireEvent.press(screen.getByTestId("s-agent"));
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("Dropdown", () => {
+  const options = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `Option ${i}` }));
+
+  it("lists a short list without a search box (UI-016)", async () => {
+    await render(
+      <Dropdown
+        options={options(8)}
+        value="v0"
+        onChange={jest.fn()}
+        accessibilityLabel="Pick"
+        testID="d"
+      />,
+    );
+    await fireEvent.press(screen.getByTestId("d-trigger"));
+    expect(screen.getByTestId("d-v7")).toBeOnTheScreen();
+    expect(screen.queryByTestId("d-search")).toBeNull();
+  });
+
+  it("searches a long list", async () => {
+    const onChange = jest.fn();
+    await render(
+      <Dropdown
+        options={options(9)}
+        value="v0"
+        onChange={onChange}
+        accessibilityLabel="Pick"
+        testID="d"
+      />,
+    );
+    await fireEvent.press(screen.getByTestId("d-trigger"));
+    await fireEvent.changeText(screen.getByTestId("d-search"), "8");
+    expect(screen.queryByTestId("d-v1")).toBeNull();
+    await fireEvent.press(screen.getByTestId("d-v8"));
+    expect(onChange).toHaveBeenCalledWith("v8");
   });
 });
 

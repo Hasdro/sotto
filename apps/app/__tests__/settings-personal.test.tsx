@@ -1,7 +1,7 @@
 /** ZC-map-agent (ZC A1, A3, A5): Settings is language/theme, Audio, the person's Zoho, Advanced
  * and About; no "Soon" placeholders; agents get no playbook guide (draft D-050 (backlog)). */
 import { UIProvider } from "@sotto/ui";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, within } from "@testing-library/react-native";
 import SettingsScreen from "../app/settings";
 import { LocaleProvider } from "../lib/locale";
 import { RoleProvider, type ViewRole } from "../lib/role";
@@ -65,9 +65,10 @@ describe("personal Settings", () => {
     expect(screen.queryByTestId("settings-health")).toBeNull();
   });
 
-  it("Audio re-runs the check on the call screen", async () => {
+  it("Audio re-runs the check on the call screen, and says Audio once (UI-013)", async () => {
     signedIn("agent");
     await wrap("agent");
+    expect(within(screen.getByTestId("settings-audio")).getAllByText("Audio")).toHaveLength(1);
     await fireEvent.press(screen.getByTestId("settings-audio-check"));
     expect(mockPush).toHaveBeenCalledWith("/call?check=audio");
   });

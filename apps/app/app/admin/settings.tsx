@@ -209,7 +209,6 @@ function TextLine(props: {
       <Button
         testID={`${props.testID}-save`}
         label={t("settings.knowledge.save")}
-        variant="secondary"
         disabled={!valid || clean === props.value.trim()}
         onPress={() => void props.onSave(clean).then(setSaved)}
       />

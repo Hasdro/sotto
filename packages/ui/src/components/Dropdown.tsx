@@ -1,8 +1,9 @@
 /**
  * A single-select dropdown for lists longer than 4 options (D-093): SegmentedControl is
  * documented for 2–4 options and grows past the screen when the list does. A trigger shows
- * the chosen label; tapping it opens a Sheet with a search field and the options. The sheet
- * (not an in-flow list) is what keeps a long list usable on a narrow phone.
+ * the chosen label; tapping it opens a Sheet with the options, and a search field when the list
+ * is long (more than 8; UI-016: a short list is quicker to scan than to search). The sheet (not
+ * an in-flow list) is what keeps a long list usable on a narrow phone.
  */
 import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -14,6 +15,9 @@ import { Text } from "./Text.tsx";
 import { TextField } from "./TextField.tsx";
 
 export type DropdownOption<V extends string> = { value: V; label: string };
+
+/** Lists up to this long open without a search field. */
+export const DROPDOWN_SEARCH_AFTER = 8;
 
 export type DropdownProps<V extends string> = {
   options: readonly DropdownOption<V>[];
@@ -49,6 +53,7 @@ export function Dropdown<V extends string>({
     return q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
   }, [options, query]);
   const disabled = options.length === 0;
+  const searchable = options.length > DROPDOWN_SEARCH_AFTER;
   return (
     <View testID={testID}>
       <Pressable
@@ -87,14 +92,16 @@ export function Dropdown<V extends string>({
         closeLabel={accessibilityLabel}
         testID={testID ? `${testID}-sheet` : undefined}
       >
-        <TextField
-          autoFocus
-          accessibilityLabel={searchPlaceholder}
-          placeholder={searchPlaceholder}
-          value={query}
-          onChangeText={setQuery}
-          testID={testID ? `${testID}-search` : undefined}
-        />
+        {searchable ? (
+          <TextField
+            autoFocus
+            accessibilityLabel={searchPlaceholder}
+            placeholder={searchPlaceholder}
+            value={query}
+            onChangeText={setQuery}
+            testID={testID ? `${testID}-search` : undefined}
+          />
+        ) : null}
         {shown.map((o) => {
           const selected = o.value === value;
           return (

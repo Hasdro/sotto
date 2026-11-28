@@ -243,7 +243,7 @@ export function InstructionsScreen() {
               <Button
                 testID="instruction-add"
                 label={t("learning.add")}
-                variant="secondary"
+                variant="outline"
                 disabled={drafts.length >= limits.items}
                 onPress={() => setDrafts((ds) => [...ds, { text: "", enabled: true }])}
               />

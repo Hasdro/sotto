@@ -15,6 +15,7 @@ import { useCloud } from "../../lib/useCloud";
 import { practiceScenario } from "../call/practice";
 import { useZoho } from "../crm/useZoho";
 import { guideStepsFor, type SetupFacts, type SetupStep } from "./setup";
+import { useHomeText } from "./strings";
 
 export type StepTester = (
   step: SetupStep,
@@ -76,6 +77,7 @@ export function SetupGuideView({
   onNavigate?: (href: string) => void;
 }) {
   const { color } = useTheme();
+  const ht = useHomeText();
   const steps = guideStepsFor(facts);
   const [results, setResults] = useState<Record<string, { ok: boolean; detail: string }>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -94,10 +96,10 @@ export function SetupGuideView({
     <Stack gap="lg" testID="setup-guide">
       <Stack gap="xs">
         <Text variant="heading" weight="semibold" accessibilityRole="header">
-          Setup guide ({facts.role})
+          {ht("guide.title")}
         </Text>
         <Text variant="body" color={color.textMuted}>
-          Check each step below, run a quick test, or jump straight to Fix it.
+          {ht("guide.intro")}
         </Text>
       </Stack>
 
@@ -135,7 +137,7 @@ export function SetupGuideView({
               <View style={styles.actions}>
                 <Button
                   variant="secondary"
-                  label={testingId === step.id ? "Testing…" : "Test it"}
+                  label={testingId === step.id ? ht("guide.testing") : ht("guide.test")}
                   onPress={() => void runTest(step)}
                   disabled={testingId === step.id}
                   testID={`setup-guide-test-${step.id}`}
@@ -143,7 +145,7 @@ export function SetupGuideView({
                 {!ok ? (
                   <Button
                     variant="primary"
-                    label="Fix it"
+                    label={ht("guide.fix")}
                     onPress={() => onNavigate(step.href)}
                     testID={`setup-guide-fix-${step.id}`}
                   />

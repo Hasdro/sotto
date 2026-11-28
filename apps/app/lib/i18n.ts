@@ -458,6 +458,10 @@ const en = {
   "account.signoutDevice": "Sign out",
   "account.signout": "Sign out of this device",
   "account.team": "Team",
+  "account.teamAdmin": "Add people and change roles in Admin › People.",
+  "account.teamOpen": "Open People",
+  "team.seatsFull":
+    "All {total} seats are in use. Add seats in Admin › Billing before you invite someone.",
   "account.invite": "Add a person",
   "account.inviteRole": "Role",
   "account.inviteDone": "Added. Give {email} this one-time password: {password}",
@@ -1548,6 +1552,10 @@ const ar: Record<StringKey, string> = {
   "account.signoutDevice": "تسجيل الخروج",
   "account.signout": "تسجيل الخروج من هذا الجهاز",
   "account.team": "الفريق",
+  "account.teamAdmin": "أضف الأشخاص وغيّر الأدوار من الإدارة › الأشخاص.",
+  "account.teamOpen": "افتح الأشخاص",
+  "team.seatsFull":
+    "كل المقاعد ({total}) مستخدمة. أضف مقاعد من الإدارة › الفوترة قبل أن تدعو شخصًا.",
   "account.invite": "إضافة شخص",
   "account.inviteRole": "الدور",
   "account.inviteDone": "تمت الإضافة. أعطِ {email} كلمة المرور المؤقتة: {password}",

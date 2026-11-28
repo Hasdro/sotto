@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { cloudApi } from "../../lib/cloud";
 import { useI18n } from "../../lib/locale";
+import { useCloud } from "../../lib/useCloud";
 
 export type Role = "admin" | "manager" | "agent";
 export type Member = {
@@ -51,6 +52,10 @@ export function TeamPanel({
   onChange: () => void;
 }) {
   const { t } = useI18n();
+  const cloud = useCloud();
+  const company = cloud.status === "signed_in" ? cloud.me.company : null;
+  // UX-014: with every seat taken, say so instead of offering an invite the server refuses.
+  const full = company ? company.seats_used >= company.seats : false;
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("agent");
@@ -81,13 +86,24 @@ export function TeamPanel({
               <Text variant="body" weight="medium">
                 {t("account.invite")}
               </Text>
-              <TextField label={t("account.inviteName")} value={name} onChangeText={setName} />
+              {full && company ? (
+                <Text variant="label" tone="notice" testID="team-seats-full">
+                  {t("team.seatsFull", { total: company.seats })}
+                </Text>
+              ) : null}
+              <TextField
+                label={t("account.inviteName")}
+                value={name}
+                onChangeText={setName}
+                testID="team-invite-name"
+              />
               <TextField
                 label={t("account.email")}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
+                testID="team-invite-email"
               />
               <SegmentedControl<Role>
                 accessibilityLabel={t("account.inviteRole")}
@@ -102,7 +118,8 @@ export function TeamPanel({
               <Button
                 label={t("account.invite")}
                 onPress={invite}
-                disabled={!email.trim() || !name.trim()}
+                disabled={full || !email.trim() || !name.trim()}
+                testID="team-invite"
               />
               {note ? (
                 <Text variant="body" selectable accessibilityLiveRegion="polite">

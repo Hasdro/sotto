@@ -126,7 +126,8 @@ export default function SettingsScreen() {
       </Group>
 
       <Group icon="mic" title={t("settings.audio")} testID="settings-audio" nativeID="audio">
-        <Row label={t("settings.audio")} body={t("settings.audio.body")}>
+        {/* UI-013: the card is titled Audio; the row only says what the check does. */}
+        <Row body={t("settings.audio.body")}>
           <Button
             variant="secondary"
             label={t("settings.audio.check")}
@@ -459,11 +460,11 @@ function Group({
   );
 }
 
-function Row({ label, body, children }: { label: string; body: string; children: ReactNode }) {
+function Row({ label, body, children }: { label?: string; body: string; children: ReactNode }) {
   return (
     <View style={styles.row}>
       <View style={styles.flex}>
-        <Text weight="medium">{label}</Text>
+        {label ? <Text weight="medium">{label}</Text> : null}
         <Text variant="label" tone="muted">
           {body}
         </Text>

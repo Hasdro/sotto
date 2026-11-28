@@ -1,6 +1,9 @@
 /** Account (D-022): who is signed in, the company's plan and usage, this person's devices, the
- * team (admins add people here), and sign out. Only in builds connected to a management server. */
+ * team, and sign out. Only in builds connected to a management server. UX-014: admins manage the
+ * team in Admin › People (a link here, not a second copy of the form); managers, who cannot open
+ * Admin, see the team list. */
 import { Badge, Button, Divider, layout, Panel, Screen, Stack, space, Text } from "@sotto/ui";
+import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import { PageHeader } from "../components/PageHeader";
@@ -121,8 +124,27 @@ export default function AccountScreen() {
           </Stack>
         </Panel>
       </Stack>
-      {role === "admin" || role === "manager" ? (
-        <TeamPanel team={team} canInvite={role === "admin"} onChange={reload} />
+      {role === "admin" ? (
+        <Stack gap="sm">
+          <Text variant="label" weight="medium" tone="muted" accessibilityRole="header">
+            {t("account.team")}
+          </Text>
+          <Panel>
+            <View style={styles.row}>
+              <Text variant="body" style={styles.grow}>
+                {t("account.teamAdmin")}
+              </Text>
+              <Button
+                variant="outline"
+                label={t("account.teamOpen")}
+                onPress={() => router.push("/admin")}
+                testID="account-team-open"
+              />
+            </View>
+          </Panel>
+        </Stack>
+      ) : role === "manager" ? (
+        <TeamPanel team={team} canInvite={false} onChange={reload} />
       ) : null}
       {cloudOrigin() ? (
         <Button

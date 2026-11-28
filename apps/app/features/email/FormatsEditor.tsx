@@ -4,9 +4,11 @@
  * editor stands on its own here — and the opening, body and signature are rich text now
  * (bold, italic, lists, links as Markdown), rendered into the HTML part of the sent email.
  * The plain-text part keeps the same words, so formats saved before this change still work.
+ * UI-016: one formatting toolbar, under the rich field the admin was last in, and a primary
+ * Save formats that is on only when something changed.
  */
 import { Button, Dropdown, Panel, Stack, Text, TextField } from "@sotto/ui";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "../../lib/locale";
 import { type EmailFormat, emailFormats, saveFormats } from "./api";
 import { RichTextField } from "./RichTextField";
@@ -14,23 +16,46 @@ import { useEmailText } from "./strings";
 
 const errorOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+type RichKey = "opening" | "body" | "signature";
+
 export function FormatsEditor() {
   const t = useEmailText();
   // The Dropdown's own chrome strings live in the shared table, not this feature's.
   const { t: gt } = useI18n();
   const [formats, setFormats] = useState<EmailFormat[]>([]);
+  /** What the server has, to tell whether there is anything to save. */
+  const [saved, setSaved] = useState("[]");
+  const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(0);
+  const [active, setActive] = useState<RichKey>("body");
   const [note, setNote] = useState<string | null>(null);
+  const keep = useCallback((list: EmailFormat[]) => {
+    setFormats(list);
+    setSaved(JSON.stringify(list));
+  }, []);
   useEffect(() => {
     emailFormats()
-      .then((r) => setFormats(r.formats))
+      .then((r) => keep(r.formats))
       .catch(() => {});
-  }, []);
+  }, [keep]);
   if (!formats.length) return null;
   const f = formats[open] ?? formats[0];
   if (!f) return null;
   const edit = (patch: Partial<EmailFormat>) =>
     setFormats((all) => all.map((x, i) => (i === open ? { ...x, ...patch } : x)));
+  const dirty = JSON.stringify(formats) !== saved;
+  const rich = (key: RichKey, label: string, height: number) => (
+    <RichTextField
+      label={label}
+      value={f[key]}
+      onChangeText={(text) => edit({ [key]: text })}
+      height={height}
+      testID={`email-format-${key}`}
+      toolbar={active === key}
+      toolbarTestID="email-format-toolbar"
+      onFocus={() => setActive(key)}
+    />
+  );
   return (
     <Panel testID="email-formats">
       <Stack gap="md">
@@ -63,39 +88,25 @@ export function FormatsEditor() {
           onChangeText={(subject) => edit({ subject })}
           testID="email-format-subject"
         />
-        <RichTextField
-          label={t("integrations.smtp.formats.opening")}
-          value={f.opening}
-          onChangeText={(opening) => edit({ opening })}
-          height={64}
-          testID="email-format-opening"
-        />
-        <RichTextField
-          label={t("integrations.smtp.formats.example")}
-          value={f.body}
-          onChangeText={(body) => edit({ body })}
-          height={96}
-          testID="email-format-body"
-        />
-        <RichTextField
-          label={t("integrations.smtp.formats.signature")}
-          value={f.signature}
-          onChangeText={(signature) => edit({ signature })}
-          height={96}
-          testID="email-format-signature"
-        />
+        {rich("opening", t("integrations.smtp.formats.opening"), 64)}
+        {rich("body", t("integrations.smtp.formats.example"), 96)}
+        {rich("signature", t("integrations.smtp.formats.signature"), 96)}
         <Stack direction="row" gap="sm" wrap align="center">
           <Button
-            variant="secondary"
             label={t("integrations.smtp.formats.save")}
-            onPress={() =>
+            disabled={!dirty}
+            busy={saving}
+            onPress={() => {
+              setSaving(true);
+              setNote(null);
               saveFormats(formats)
                 .then((r) => {
-                  setFormats(r.formats);
+                  keep(r.formats);
                   setNote(t("integrations.smtp.saved"));
                 })
                 .catch((e) => setNote(t("integrations.smtp.failed", { error: errorOf(e) })))
-            }
+                .finally(() => setSaving(false));
+            }}
             testID="email-formats-save"
           />
           {note ? (
