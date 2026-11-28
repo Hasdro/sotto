@@ -453,6 +453,7 @@ $("#newCompany").addEventListener("click", () => {
 $("#nCancel").addEventListener("click", () => $("#newDialog").close());
 $("#newForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const rawCap = $("#nCap")?.value?.trim() || "";
   try {
     const r = await api("/api/owner/companies", {
       method: "POST",
@@ -461,6 +462,7 @@ $("#newForm").addEventListener("submit", async (e) => {
         admin_name: $("#nAdmin").value,
         admin_email: $("#nEmail").value,
         plan: $("#nPlan").value,
+        ...(rawCap ? { monthly_spend_cap_usd: Number(rawCap) } : {}),
       },
     });
     $("#newDialog").close();
@@ -562,19 +564,50 @@ function renderFeatures(data) {
         ]),
   );
 }
-function confirmKill(f) {
+function confirmAction({ title, body, blast, confirmLabel = "Confirm", requireText = null }) {
   return new Promise((resolve) => {
-    const dlg = $("#killDialog");
-    $("#kBody").textContent =
-      `${featureName(f.id)} stops working for every company. Apps follow within 10 minutes. You can turn it back on at any time.`;
+    const dlg = $("#confirmDialog");
+    $("#confirmTitle").textContent = title;
+    $("#confirmBody").textContent = body;
+    const blastEl = $("#confirmBlast");
+    blastEl.textContent = blast || "";
+    blastEl.hidden = !blast;
+    const typeWrap = $("#confirmTypeWrap");
+    const input = $("#confirmInput");
+    const okBtn = $("#confirmOk");
+    const cancelBtn = $("#confirmCancel");
+    okBtn.textContent = confirmLabel;
+    input.value = "";
+    if (requireText) {
+      typeWrap.hidden = false;
+      $("#confirmTypeLabel").textContent = `Type "${requireText}" to confirm`;
+      okBtn.disabled = true;
+      input.oninput = () => {
+        okBtn.disabled = input.value !== requireText;
+      };
+    } else {
+      typeWrap.hidden = true;
+      okBtn.disabled = false;
+      input.oninput = null;
+    }
     const done = (yes) => {
       dlg.close();
       resolve(yes);
     };
-    $("#kCancel").onclick = () => done(false);
-    $("#kConfirm").onclick = () => done(true);
+    cancelBtn.onclick = () => done(false);
+    okBtn.onclick = () => done(true);
     dlg.oncancel = () => resolve(false);
     dlg.showModal();
+    cancelBtn.focus();
+  });
+}
+function confirmKill(f) {
+  return confirmAction({
+    title: `Turn off ${featureName(f.id)} for everyone?`,
+    body: `${featureName(f.id)} stops working for every company. You can turn it back on at any time.`,
+    blast: "Affects: every company · apps follow within 10 minutes.",
+    confirmLabel: "Turn off for everyone",
+    requireText: f.id,
   });
 }
 async function setKill(f, killed) {
@@ -672,7 +705,14 @@ $("#zohoForm").addEventListener("submit", async (e) => {
   }
 });
 $("#zohoRemove").addEventListener("click", async () => {
-  if (!confirm("Remove the platform Zoho client? People who use it will have to reconnect."))
+  if (
+    !(await confirmAction({
+      title: "Remove platform Zoho client?",
+      body: "Companies using the platform Zoho client will need to reconnect once a new client is saved.",
+      blast: "Affects: every company without its own Zoho override.",
+      confirmLabel: "Remove client",
+    }))
+  )
     return;
   try {
     zohoState(await api("/api/owner/zoho", { method: "DELETE" }));
@@ -738,7 +778,14 @@ $("#smtpTest").addEventListener("click", async () => {
   }
 });
 $("#smtpRemove").addEventListener("click", async () => {
-  if (!confirm("Remove the platform mailbox? Organisations without their own cannot send email."))
+  if (
+    !(await confirmAction({
+      title: "Remove platform mailbox?",
+      body: "Organisations without their own SMTP mailbox will not be able to send email, and welcome/OTP emails will stop.",
+      blast: "Affects: platform invites, OTPs, and companies without their own mailbox.",
+      confirmLabel: "Remove mailbox",
+    }))
+  )
     return;
   try {
     smtpState(await api("/api/owner/smtp", { method: "DELETE" }));
@@ -791,7 +838,15 @@ $("#githubTest").addEventListener("click", async () => {
   }
 });
 $("#githubRemove").addEventListener("click", async () => {
-  if (!confirm("Remove the GitHub repo and token? Issue reporting stops working.")) return;
+  if (
+    !(await confirmAction({
+      title: "Remove GitHub repo and token?",
+      body: "Issue reporting from the console and bug-report submission to GitHub will stop working.",
+      blast: "Affects: owner console issue reporting and bug-report triage.",
+      confirmLabel: "Remove GitHub config",
+    }))
+  )
+    return;
   try {
     githubState(await api("/api/owner/github", { method: "DELETE" }));
     $("#githubMsg").textContent = "Removed.";

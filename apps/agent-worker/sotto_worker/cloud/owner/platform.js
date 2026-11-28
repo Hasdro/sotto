@@ -125,12 +125,22 @@ function renderProviders(data) {
           p.key_set
             ? btn(
                 "Remove",
-                () =>
-                  run(async () => {
+                async () => {
+                  if (
+                    !(await confirmAction({
+                      title: `Remove ${p.name} key?`,
+                      body: `Live calls routed to ${p.name} will fail until a new key is saved or routes are switched.`,
+                      blast: "Affects: every non-BYO company using this provider.",
+                      confirmLabel: "Remove key",
+                    }))
+                  )
+                    return;
+                  await run(async () => {
                     renderProviders(
                       await api(`/api/owner/keys/${p.key_env}`, { method: "DELETE" }),
                     );
-                  }, `${p.name} key removed`),
+                  }, `${p.name} key removed`);
+                },
                 "danger",
               )
             : null,
@@ -471,15 +481,25 @@ function renderHealth(data) {
               )
             : btn(
                 "Demote 30 min",
-                () =>
-                  run(async () => {
+                async () => {
+                  if (
+                    !(await confirmAction({
+                      title: `Demote ${p.name} for 30 minutes?`,
+                      body: `Calls will skip ${p.name} and use backup providers for 30 minutes.`,
+                      blast: "Affects: every company · apps follow within 10 minutes.",
+                      confirmLabel: "Demote 30 min",
+                    }))
+                  )
+                    return;
+                  await run(async () => {
                     renderHealth(
                       await api(`/api/owner/health/${p.id}/demote`, {
                         method: "POST",
                         body: { minutes: 30 },
                       }),
                     );
-                  }, `${p.name} demoted; apps follow within 10 minutes`),
+                  }, `${p.name} demoted; apps follow within 10 minutes`);
+                },
                 "danger",
               ),
         ),
@@ -506,10 +526,20 @@ function renderZohoClients(z) {
         fmtDate(c.updated_at),
         btn(
           "Remove",
-          () =>
-            run(async () => {
+          async () => {
+            if (
+              !(await confirmAction({
+                title: `Remove Zoho ${c.dc} client secret?`,
+                body: `Companies in the ${c.dc} data centre will lose Zoho refresh until a secret is saved again.`,
+                blast: `Affects: all companies on Zoho ${c.dc}.`,
+                confirmLabel: "Remove secret",
+              }))
+            )
+              return;
+            await run(async () => {
               renderZohoClients(await api(`/api/owner/zoho/clients/${c.dc}`, { method: "DELETE" }));
-            }, `${c.dc} removed`),
+            }, `${c.dc} removed`);
+          },
           "danger",
         ),
       ]),
@@ -525,12 +555,22 @@ function renderZohoClients(z) {
         fmtDate(o.updated_at),
         btn(
           "Remove",
-          () =>
-            run(async () => {
+          async () => {
+            if (
+              !(await confirmAction({
+                title: `Remove Zoho override for ${o.company}?`,
+                body: `${o.company} will revert to the platform Zoho client and users may need to reconnect.`,
+                blast: `Affects: ${o.company}.`,
+                confirmLabel: "Remove override",
+              }))
+            )
+              return;
+            await run(async () => {
               renderZohoClients(
                 await api(`/api/owner/companies/${o.company_id}/zoho-client`, { method: "DELETE" }),
               );
-            }, `${o.company} uses the AGN client again`),
+            }, `${o.company} uses the AGN client again`);
+          },
           "danger",
         ),
       ]),
@@ -630,28 +670,47 @@ async function loadSignups() {
                   )
                 : null,
               s.company_id
-                ? btn(s.status === "suspended" ? "Restore" : "Suspend", () =>
-                    run(
+                ? btn(s.status === "suspended" ? "Restore" : "Suspend", async () => {
+                    const suspending = s.status !== "suspended";
+                    if (
+                      suspending &&
+                      !(await confirmAction({
+                        title: `Suspend ${s.company}?`,
+                        body: "Live calls are blocked immediately; sign-in and history stay available.",
+                        blast: `Affects: all users at ${s.company}.`,
+                        confirmLabel: "Suspend company",
+                      }))
+                    )
+                      return;
+                    await run(
                       async () => {
                         await api(`/api/owner/companies/${s.company_id}`, {
                           method: "PATCH",
-                          body: { suspended: s.status !== "suspended" },
+                          body: { suspended: suspending },
                         });
                         await loadSignups();
                       },
-                      s.status === "suspended" ? "Restored" : "Suspended: calls are blocked",
-                    ),
-                  )
+                      suspending ? "Suspended: calls are blocked" : "Restored",
+                    );
+                  })
                 : null,
               s.company_id
                 ? btn(
                     "Delete",
-                    () => {
-                      const typed = prompt(`Type ${s.company} to delete it and all its data.`);
-                      if (typed !== s.company) return;
-                      run(async () => {
+                    async () => {
+                      if (
+                        !(await confirmAction({
+                          title: `Delete ${s.company}?`,
+                          body: "Permanently deletes this company, its users, devices, calls, and settings. This cannot be undone.",
+                          blast: `Affects: ${s.company} · irreversible.`,
+                          confirmLabel: "Delete company",
+                          requireText: s.company,
+                        }))
+                      )
+                        return;
+                      await run(async () => {
                         await api(
-                          `/api/owner/companies/${s.company_id}?confirm=${encodeURIComponent(typed)}`,
+                          `/api/owner/companies/${s.company_id}?confirm=${encodeURIComponent(s.company)}`,
                           { method: "DELETE" },
                         );
                         await loadSignups();
@@ -758,16 +817,19 @@ $("#routingJobSave").addEventListener("click", () => {
   return saveRoutingJob(body);
 });
 $("#routingCapClear").addEventListener("click", () => saveRoutingJob({ monthly_cap_usd: null }));
+$("#routingToSpend")?.addEventListener("click", () => show("spend"));
 
 // --- spend (ZC-12) -------------------------------------------------------------------------
 const SPEND_STATE = {
-  cap_not_set: ["bad", "Cap not set"],
+  cap_not_set: ["warn", "No guardrail — set a cap"],
   ok: ["ok", "Under 80 %"],
-  alert: ["bad", "Over 80 % · owner alerted"],
+  alert: ["warn", "Over 80 % · owner alerted"],
   capped: ["bad", "Cap reached · AGN keys withheld"],
 };
 async function loadSpend() {
   const data = await api("/api/owner/spend");
+  const policyEl = $("#spendPolicy p");
+  if (policyEl && data.at_cap_behaviour) policyEl.textContent = data.at_cap_behaviour;
   $("#spendNote").textContent =
     `Estimates from seed/models/prices.yaml (checked ${data.checked}); not a vendor bill. Stages a company runs on its own keys (BYO) are not counted.`;
   $("#spend tbody").replaceChildren(
@@ -781,7 +843,14 @@ async function loadSpend() {
         placeholder: c.cap_usd === null ? "Not set" : String(c.cap_usd),
       });
       const [tone, text] = SPEND_STATE[c.status];
+      const pctNum = c.ratio === null ? null : Math.min(100, Math.round(c.ratio * 100));
       const pct = c.ratio === null ? "" : ` · ${Math.round(c.ratio * 100)} %`;
+      const bar = (() => {
+        if (pctNum === null) return null;
+        const fill = h("div", { class: `fill ${tone === "ok" ? "" : tone}` });
+        fill.style.width = `${pctNum}%`;
+        return h("div", { class: "minibar" }, h("div", { class: "track" }, fill));
+      })();
       const put = (cap) =>
         run(
           async () => {
@@ -799,7 +868,7 @@ async function loadSpend() {
         h("th", { scope: "row" }, c.name),
         h("td", { class: "num" }, `${c.spend_usd.toFixed(2)} USD`),
         h("td", { class: "num" }, c.cap_usd === null ? "—" : `${c.cap_usd.toFixed(2)} USD`),
-        h("td", {}, h("span", { class: `status ${tone}` }, text + pct)),
+        h("td", {}, h("span", { class: `status ${tone}` }, text + pct), bar),
         h("td", {}, input),
         h(
           "td",

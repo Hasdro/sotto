@@ -1666,6 +1666,17 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
 
     async def o_company_create(r: Request, who: Principal) -> Response:
         data = await body(r)
+        cap = data.get("monthly_spend_cap_usd")
+        if (
+            cap is not None
+            and cap != ""
+            and (
+                not isinstance(cap, int | float)
+                or isinstance(cap, bool)
+                or not 0 < float(cap) <= 1_000_000.0
+            )
+        ):
+            raise CloudError("invalid", "monthly_spend_cap_usd must be a positive number")
         company_id, password = store.owner_create_company(
             who,
             name=str(data.get("name", "")),
@@ -1674,7 +1685,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             plan=str(data.get("plan", "trial")),
             ip=ip_of(r),
         )
-        return JSONResponse({"id": company_id, "temporary_password": password}, status_code=201)
+        if cap is not None and cap != "":
+            metering.set_cap(who, company_id, float(cap), ip=ip_of(r))
+        return JSONResponse(
+            {
+                "id": company_id,
+                "temporary_password": password,
+                "monthly_spend_cap_usd": float(cap) if cap is not None and cap != "" else None,
+            },
+            status_code=201,
+        )
 
     async def o_company_patch(r: Request, who: Principal) -> Response:
         store.owner_update_company(who, r.path_params["id"], await body(r), ip=ip_of(r))

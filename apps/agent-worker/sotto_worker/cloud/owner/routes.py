@@ -157,7 +157,15 @@ def make_routes(
 
     async def o_spend(_r: Request, _who: Principal) -> Response:
         return JSONResponse(
-            {"companies": metering.overview(), "checked": metering.table.checked},
+            {
+                "companies": metering.overview(),
+                "checked": metering.table.checked,
+                "routing_job_cap_usd": routing_store.cap_usd(store),
+                "at_cap_behaviour": (
+                    "At 80% an alert is sent (calls continue). At 100% AGN platform keys are "
+                    "withheld until you raise the cap or the month ends (BYO keys are unaffected)."
+                ),
+            },
             headers=NO_STORE,
         )
 

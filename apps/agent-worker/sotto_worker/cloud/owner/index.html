@@ -125,10 +125,10 @@
     <section id="v-routingjob" class="view" hidden>
       <header class="page-head"><h1 class="ss-page-title">Routing job</h1><p class="ss-lead ss-muted">Weekly: benchmarks candidate models per live stage on the golden calls, stages the fastest one that meets R1 as a canary on AGN's demo org, then promotes it to everyone or rolls it back on a worse p95 or quality (D-067).</p></header>
       <div class="panel" id="routingJobState" aria-live="polite"></div>
-      <div class="panel"><h2>Settings <small>no defaults: the job stays off until a monthly cap is set</small></h2>
-        <label for="routingCap">Monthly cap (US dollars), <code>routing.monthly_cap_usd</code></label><input id="routingCap" type="number" min="1" step="1" inputmode="decimal" placeholder="Not set">
+      <div class="panel"><h2>Settings <small>benchmark job budget only — separate from per-company AI spend caps in Spend</small></h2>
+        <label for="routingCap">Weekly benchmark budget cap (US dollars/month), <code>routing.monthly_cap_usd</code></label><input id="routingCap" type="number" min="1" step="1" inputmode="decimal" placeholder="Not set">
         <label for="routingDemo">Demo org for canaries</label><select id="routingDemo"></select>
-        <p><button type="button" class="primary" id="routingJobSave">Save</button> <button type="button" class="ghost" id="routingCapClear">Clear cap</button></p>
+        <p><button type="button" class="primary" id="routingJobSave">Save</button> <button type="button" class="ghost" id="routingCapClear">Clear cap</button> <button type="button" class="ghost" id="routingToSpend">Company spend caps</button></p>
       </div>
       <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
       <section class="table-wrap" tabindex="0" aria-label="Routing job runs table"><table id="routingRuns">
@@ -137,7 +137,8 @@
     </section>
 
     <section id="v-spend" class="view" hidden>
-      <header class="page-head"><h1 class="ss-page-title">Spend</h1><p class="ss-lead ss-muted">Estimated AI and speech-to-text spend on AGN's keys this month, from the calls each company's apps report and the seed price table (D-060, D-061). With a cap, you get one alert at 80 %; at 100 % AGN's keys are withheld for that company until you raise the cap or the month ends.</p></header>
+      <header class="page-head"><h1 class="ss-page-title">Spend</h1><p class="ss-lead ss-muted">Estimated AI and speech-to-text spend on AGN's keys this month, from the calls each company's apps report and the seed price table (D-060, D-061).</p></header>
+      <div class="panel" id="spendPolicy"><p class="note">At 80% an alert is sent (calls continue). At 100% AGN platform keys are withheld until you raise the cap or the month ends (BYO keys are unaffected).</p></div>
       <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
       <section class="table-wrap" tabindex="0" aria-label="Spend table"><table id="spend">
         <thead><tr><th scope="col">Company</th><th scope="col">This month (estimate)</th><th scope="col">Cap</th><th scope="col">State</th><th scope="col">New cap (USD)</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -304,16 +305,22 @@
     <label for="nEmail">Admin email</label><input id="nEmail" type="email" required>
     <label for="nPlan">Plan</label>
     <select id="nPlan"><option value="trial">Trial (14 days, 3 seats, 300 min)</option><option value="starter">Starter (3 seats, 2,000 min)</option><option value="growth">Growth (10 seats, 5,000 min)</option><option value="scale">Scale (100 seats, 20,000 min)</option><option value="team">Team (20 seats, 10,000 min)</option><option value="custom">Custom (50 seats, 50,000 min)</option></select>
+    <label for="nCap">Monthly AI spend cap (USD, optional)</label><input id="nCap" type="number" min="1" step="1" inputmode="decimal" placeholder="Optional guardrail, e.g. 50">
     <div class="row"><button type="button" id="nCancel" class="ghost">Cancel</button><button type="submit" class="primary">Create</button></div>
     <p id="nMsg" class="error" role="alert"></p>
   </form>
 </dialog>
 
-<dialog id="killDialog" class="ss-sheet ss-glass" aria-labelledby="kTitle">
+<dialog id="confirmDialog" class="ss-sheet ss-glass" aria-labelledby="confirmTitle">
   <form method="dialog">
-    <h2 id="kTitle">Turn off for everyone?</h2>
-    <p id="kBody"></p>
-    <div class="row"><button type="button" id="kCancel" class="ghost">Cancel</button><button type="button" id="kConfirm" class="danger">Turn off for everyone</button></div>
+    <h2 id="confirmTitle">Confirm action</h2>
+    <p id="confirmBody"></p>
+    <p id="confirmBlast" class="note"></p>
+    <div id="confirmTypeWrap" hidden>
+      <label id="confirmTypeLabel" for="confirmInput"></label>
+      <input id="confirmInput" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="row"><button type="button" id="confirmCancel" class="ghost">Cancel</button><button type="button" id="confirmOk" class="danger">Confirm</button></div>
   </form>
 </dialog>
 

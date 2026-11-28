@@ -151,7 +151,7 @@ def test_owner_kill_switch_is_a_status_table_with_a_confirmed_destructive_action
     server side (audit row per kill, D-028) is covered in test_features."""
     page = client.get("/owner").text
     assert '<table id="kills"' in page
-    assert 'id="killDialog"' in page
+    assert 'id="confirmDialog"' in page
     js = client.get("/owner/owner.js").text
     for text in ("Turn off for everyone", "Turn back on", "Killed since", "Live"):
         assert text in js, text

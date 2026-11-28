@@ -116,6 +116,43 @@ $("#sCopy").addEventListener("click", () =>
     () => toast("Select the text and copy it"),
   ),
 );
+function confirmAction({ title, body, blast, confirmLabel = "Confirm", requireText = null }) {
+  return new Promise((resolve) => {
+    const dlg = $("#confirmDialog");
+    $("#confirmTitle").textContent = title;
+    $("#confirmBody").textContent = body;
+    const blastEl = $("#confirmBlast");
+    blastEl.textContent = blast || "";
+    blastEl.hidden = !blast;
+    const typeWrap = $("#confirmTypeWrap");
+    const input = $("#confirmInput");
+    const okBtn = $("#confirmOk");
+    const cancelBtn = $("#confirmCancel");
+    okBtn.textContent = confirmLabel;
+    input.value = "";
+    if (requireText) {
+      typeWrap.hidden = false;
+      $("#confirmTypeLabel").textContent = `Type "${requireText}" to confirm`;
+      okBtn.disabled = true;
+      input.oninput = () => {
+        okBtn.disabled = input.value !== requireText;
+      };
+    } else {
+      typeWrap.hidden = true;
+      okBtn.disabled = false;
+      input.oninput = null;
+    }
+    const done = (yes) => {
+      dlg.close();
+      resolve(yes);
+    };
+    cancelBtn.onclick = () => done(false);
+    okBtn.onclick = () => done(true);
+    dlg.oncancel = () => resolve(false);
+    dlg.showModal();
+    cancelBtn.focus();
+  });
+}
 
 // --- tiles (D-092): one tile per section; a tile opens its section in #tileDialog -------------
 // The section node is moved into the dialog while open and moved back on close, so every
@@ -485,9 +522,20 @@ function renderPlan() {
     }
   };
   const suspend = async () => {
+    const suspending = !c.suspended;
+    if (
+      suspending &&
+      !(await confirmAction({
+        title: `Suspend ${c.name}?`,
+        body: "Live calls are blocked immediately; sign-in and history stay available.",
+        blast: `Affects: ${c.users.length} user(s) at ${c.name}.`,
+        confirmLabel: "Suspend company",
+      }))
+    )
+      return;
     c = await api(`/api/owner/companies/${c.id}`, {
       method: "PATCH",
-      body: { suspended: !c.suspended },
+      body: { suspended: suspending },
     });
     load();
     toast(c.suspended ? "Suspended: calls blocked, sign-in still works" : "Re-activated");
@@ -636,11 +684,17 @@ function renderDanger() {
         type: "button",
         class: "danger",
         onclick: async () => {
-          const typed = window.prompt
-            ? window.prompt(`Type "${c.name}" to delete this company and all its data.`)
-            : null;
-          if (typed !== c.name) return toast("Not deleted");
-          await api(`/api/owner/companies/${c.id}?confirm=${encodeURIComponent(typed)}`, {
+          if (
+            !(await confirmAction({
+              title: `Delete ${c.name}?`,
+              body: "Permanently deletes this company, its users, devices, calls, and settings. This cannot be undone.",
+              blast: `Affects: ${c.users.length} user(s), ${c.devices.length} device(s) · irreversible.`,
+              confirmLabel: "Delete company",
+              requireText: c.name,
+            }))
+          )
+            return;
+          await api(`/api/owner/companies/${c.id}?confirm=${encodeURIComponent(c.name)}`, {
             method: "DELETE",
           });
           window.close();
@@ -738,6 +792,15 @@ function smtpForm(actions, prefix) {
       type: "button",
       class: "ghost",
       onclick: async () => {
+        if (
+          !(await confirmAction({
+            title: "Remove SMTP mailbox?",
+            body: "Email sending will fall back to the next configured mailbox or stop if none is set.",
+            blast: `Affects: ${prefix === "org" ? c.name : "selected user"}.`,
+            confirmLabel: "Remove mailbox",
+          }))
+        )
+          return;
         try {
           await actions.remove();
           fill({ configured: false });
@@ -983,6 +1046,15 @@ async function renderGallabox() {
     }
   };
   const remove = async () => {
+    if (
+      !(await confirmAction({
+        title: `Remove Gallabox keys for ${c.name}?`,
+        body: "WhatsApp sending and template discovery will stop for this company until new keys are saved.",
+        blast: `Affects: ${c.name}.`,
+        confirmLabel: "Remove Gallabox",
+      }))
+    )
+      return;
     try {
       status = await api(`/api/owner/companies/${id}/gallabox`, { method: "DELETE" });
       renderGallabox();
@@ -1397,9 +1469,12 @@ async function renderModels() {
             class: "danger",
             onclick: async () => {
               if (
-                !confirm(
-                  `Remove the custom provider ${cp.name}? Any stage using it must be re-picked.`,
-                )
+                !(await confirmAction({
+                  title: `Remove custom provider ${cp.name}?`,
+                  body: "Any stage using this provider will reset and must be re-picked.",
+                  blast: `Affects: ${c.name}.`,
+                  confirmLabel: "Remove provider",
+                }))
               )
                 return;
               try {
