@@ -280,11 +280,7 @@ function openTile(key) {
   const sec = document.getElementById(SECTIONS[key].sec);
   if (!sec) return;
   currentTile = key;
-  openTile.home = $("#sectionHome");
-  openTile.next = sec.nextSibling;
-  $("#tileTitle").textContent = SECTIONS[key].title;
-  $("#tileBody").append(sec);
-  $("#tileDialog").showModal();
+  sec.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 $("#tileClose").addEventListener("click", () => $("#tileDialog").close());
 $("#tileDialog").addEventListener("close", () => {
@@ -1073,7 +1069,13 @@ async function renderGallabox() {
           ? h(
               "span",
               { class: "status ok" },
-              `Connected · ${status.channel.label} · ${status.templates.length} template(s) allowed`,
+              [
+                "Connected",
+                status.channel.label || null,
+                `${status.templates.length} template(s) allowed`,
+              ]
+                .filter(Boolean)
+                .join(" · "),
             )
           : h("span", { class: "status warn" }, "Keys saved · no WhatsApp number picked yet")
         : h(

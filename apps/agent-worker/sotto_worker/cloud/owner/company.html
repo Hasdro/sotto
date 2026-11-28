@@ -24,10 +24,18 @@
       <header class="page-head"><h1 class="ss-page-title" id="cName">Company</h1><p class="ss-lead ss-muted" id="cMeta"></p></header>
       <div id="stats"></div>
       <p id="intRollup" class="note" role="status"></p>
+      <nav id="companySubnav" class="company-subnav" aria-label="Company sections">
+        <a href="#sec-plan">Plan</a>
+        <a href="#sec-users">Users</a>
+        <a href="#sec-integrations">Integrations</a>
+        <a href="#sec-models">Models</a>
+        <a href="#sec-devices">Devices</a>
+        <a href="#sec-calls">Recent calls</a>
+        <a href="#sec-audit">Audit</a>
+        <a href="#sec-danger">Danger zone</a>
+      </nav>
       <ul id="tiles" class="tiles"></ul>
-      <!-- Round 3 (D-092): the sections live here, hidden, and open in the tile dialog.
-           Each section keeps its own heading; the tile shows its status + headline number. -->
-      <div id="sectionHome" hidden>
+      <div id="sectionHome" class="company-sections">
         <section class="panel" id="sec-plan"><h2>Plan</h2><div id="planForm"></div></section>
         <section class="panel" id="sec-users"><h2 id="usersTitle">Users</h2><div id="users"></div></section>
         <section class="panel" id="sec-integrations"><h2>Integrations</h2><div id="integrations">

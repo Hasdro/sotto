@@ -518,63 +518,75 @@ function renderZohoClients(z) {
     ? `Client ID ends ${z.platform.client_id_ends ?? "…"} · home ${z.platform.dc ?? "—"} · saved ${fmtDate(z.platform.updated_at)}`
     : "No main client yet (Account › Zoho OAuth client).";
   $("#dcList").replaceChildren(
-    table(
-      ["Data centre", "Client ID", "Saved", ""],
-      z.dc_clients.map((c) => [
-        c.dc,
-        `ends ${c.client_id_ends}`,
-        fmtDate(c.updated_at),
-        btn(
-          "Remove",
-          async () => {
-            if (
-              !(await confirmAction({
-                title: `Remove Zoho ${c.dc} client secret?`,
-                body: `Companies in the ${c.dc} data centre will lose Zoho refresh until a secret is saved again.`,
-                blast: `Affects: all companies on Zoho ${c.dc}.`,
-                confirmLabel: "Remove secret",
-              }))
-            )
-              return;
-            await run(async () => {
-              renderZohoClients(await api(`/api/owner/zoho/clients/${c.dc}`, { method: "DELETE" }));
-            }, `${c.dc} removed`);
-          },
-          "danger",
+    z.dc_clients.length
+      ? table(
+          ["Data centre", "Client ID", "Saved", ""],
+          z.dc_clients.map((c) => [
+            c.dc,
+            `ends ${c.client_id_ends}`,
+            fmtDate(c.updated_at),
+            btn(
+              "Remove",
+              async () => {
+                if (
+                  !(await confirmAction({
+                    title: `Remove Zoho ${c.dc} client secret?`,
+                    body: `Companies in the ${c.dc} data centre will lose Zoho refresh until a secret is saved again.`,
+                    blast: `Affects: all companies on Zoho ${c.dc}.`,
+                    confirmLabel: "Remove secret",
+                  }))
+                )
+                  return;
+                await run(async () => {
+                  renderZohoClients(
+                    await api(`/api/owner/zoho/clients/${c.dc}`, { method: "DELETE" }),
+                  );
+                }, `${c.dc} removed`);
+              },
+              "danger",
+            ),
+          ]),
+        )
+      : h(
+          "p",
+          { class: "empty" },
+          "No per-data-centre secrets saved yet — the main Zoho client is used.",
         ),
-      ]),
-    ),
   );
   $("#ovrList").replaceChildren(
-    table(
-      ["Company", "Data centre", "Client ID", "Saved", ""],
-      z.overrides.map((o) => [
-        o.company,
-        o.dc,
-        `ends ${o.client_id_ends}`,
-        fmtDate(o.updated_at),
-        btn(
-          "Remove",
-          async () => {
-            if (
-              !(await confirmAction({
-                title: `Remove Zoho override for ${o.company}?`,
-                body: `${o.company} will revert to the platform Zoho client and users may need to reconnect.`,
-                blast: `Affects: ${o.company}.`,
-                confirmLabel: "Remove override",
-              }))
-            )
-              return;
-            await run(async () => {
-              renderZohoClients(
-                await api(`/api/owner/companies/${o.company_id}/zoho-client`, { method: "DELETE" }),
-              );
-            }, `${o.company} uses the AGN client again`);
-          },
-          "danger",
-        ),
-      ]),
-    ),
+    z.overrides.length
+      ? table(
+          ["Company", "Data centre", "Client ID", "Saved", ""],
+          z.overrides.map((o) => [
+            o.company,
+            o.dc,
+            `ends ${o.client_id_ends}`,
+            fmtDate(o.updated_at),
+            btn(
+              "Remove",
+              async () => {
+                if (
+                  !(await confirmAction({
+                    title: `Remove Zoho override for ${o.company}?`,
+                    body: `${o.company} will revert to the platform Zoho client and users may need to reconnect.`,
+                    blast: `Affects: ${o.company}.`,
+                    confirmLabel: "Remove override",
+                  }))
+                )
+                  return;
+                await run(async () => {
+                  renderZohoClients(
+                    await api(`/api/owner/companies/${o.company_id}/zoho-client`, {
+                      method: "DELETE",
+                    }),
+                  );
+                }, `${o.company} uses the AGN client again`);
+              },
+              "danger",
+            ),
+          ]),
+        )
+      : h("p", { class: "empty" }, "No company overrides yet — every company uses the AGN client."),
   );
 }
 $("#dcForm").addEventListener("submit", (e) => {
