@@ -31,6 +31,8 @@ export type ButtonProps = {
   busy?: boolean;
   /** Leading visual, e.g. a dot or glyph. Decorative: hidden from screen readers. */
   leading?: ReactNode;
+  /** Trailing visual after the label, e.g. the external-link mark. Decorative, like `leading`. */
+  trailing?: ReactNode;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   /** Shown under a disabled button to say why it is disabled, e.g. "Enter a client ID first". */
@@ -47,6 +49,7 @@ export function Button({
   disabled = false,
   busy = false,
   leading,
+  trailing,
   accessibilityLabel,
   accessibilityHint,
   helper,
@@ -120,6 +123,11 @@ export function Button({
       >
         {label}
       </Text>
+      {trailing ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {trailing}
+        </View>
+      ) : null}
     </Pressable>
   );
   if (!why) return button;

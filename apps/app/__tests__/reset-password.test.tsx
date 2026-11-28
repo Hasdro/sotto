@@ -7,6 +7,8 @@ import ResetPasswordScreen from "../app/reset-password";
 import { CloudError, confirmPasswordReset } from "../lib/cloud";
 import { LocaleProvider } from "../lib/locale";
 
+const mockReplace = jest.fn();
+jest.mock("expo-router", () => ({ router: { replace: (...a: unknown[]) => mockReplace(...a) } }));
 jest.mock("../lib/cloud", () => {
   class CloudError extends Error {
     status: number;
@@ -117,5 +119,12 @@ describe("/reset-password", () => {
     await wrap();
     expect(screen.getByTestId("reset-error")).toHaveTextContent(/^This link is incomplete\./);
     expect(screen.getByTestId("reset-save")).toBeDisabled();
+  });
+
+  it("always offers a way back to sign in (UI-017)", async () => {
+    (g.location as { hash: string }).hash = "";
+    await wrap();
+    await fireEvent.press(screen.getByTestId("reset-back"));
+    expect(mockReplace).toHaveBeenCalledWith("/");
   });
 });

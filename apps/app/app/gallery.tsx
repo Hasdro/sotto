@@ -1,6 +1,9 @@
 /**
  * Component gallery (P3.3): every packages/ui component in light and dark, LTR and RTL.
  * Not in the navigation; open /gallery. Sample text comes from the string table.
+ * PROD-001: a developer page. It opens in development and in builds that name no server (the
+ * CI accessibility export, `pnpm dev`, `pnpm demo`); every production build (desktop app,
+ * hosted web app, extension, phones) names one, and there /gallery goes Home.
  */
 
 import type { CardType } from "@sotto/shared";
@@ -38,10 +41,12 @@ import {
   UIProvider,
   Wordmark,
 } from "@sotto/ui";
+import { Redirect } from "expo-router";
 import { useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import { cardStrings } from "../features/call/components/strings";
 import { CALL_TEXT, type CallTextKey } from "../features/call/strings";
+import { cloudOrigin } from "../lib/cloud";
 import { directionOf, formatNumber, type Locale, t as translate } from "../lib/i18n";
 import { personaFor } from "../lib/role";
 
@@ -51,7 +56,17 @@ const TYPES: readonly CardType[] = ["answer", "question", "objection", "warning"
 const sourceFor = (type: CardType) =>
   type === "holding" ? "holding" : type === "answer" ? "ai" : "playbook";
 
-export default function Gallery() {
+/** True where the gallery may open: a development build, or a build without a server. */
+export function galleryAllowed(dev: boolean = __DEV__, origin: string | null = cloudOrigin()) {
+  return dev || origin === null;
+}
+
+export default function GalleryRoute() {
+  if (!galleryAllowed()) return <Redirect href="/home" />;
+  return <Gallery />;
+}
+
+function Gallery() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <View style={styles.grid}>

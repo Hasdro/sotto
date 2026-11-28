@@ -1,8 +1,23 @@
 /** UX-17: every Zoho value in the rail is formatted, in English and Arabic, Western digits. */
-import { formatDay, formatMoney, formatNumber, formatWhen, parseAmount } from "./format";
+import {
+  formatDay,
+  formatMoney,
+  formatNumber,
+  formatSeconds,
+  formatWhen,
+  parseAmount,
+} from "./format";
 
 // 13 Nov 2026, 10:00 in Dubai.
 const NOW = new Date("2026-11-13T06:00:00Z");
+
+describe("formatSeconds (UI-017)", () => {
+  it("says the unit in the reader's language, Western digits", () => {
+    expect(formatSeconds(1140, "en")).toBe("1.1 s");
+    expect(formatSeconds(1140, "ar")).toBe("1.1 ث");
+    expect(formatSeconds(1500, "ar")).not.toMatch(/[٠-٩]|\bs\b/);
+  });
+});
 
 describe("format (UX-17)", () => {
   it("groups digits", () => {

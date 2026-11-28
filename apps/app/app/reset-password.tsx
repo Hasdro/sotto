@@ -6,6 +6,7 @@
  * expired or a used link (no oracle), so the page does too.
  */
 import { Button, Panel, Screen, Stack, space, Text, TextField, Wordmark } from "@sotto/ui";
+import { router } from "expo-router";
 import { useState } from "react";
 import { Platform, StyleSheet } from "react-native";
 import { CloudError, confirmPasswordReset } from "../lib/cloud";
@@ -136,6 +137,13 @@ export default function ResetPasswordScreen() {
               />
             </>
           )}
+          {/* UI-017: a person who lands here (no link, a used link, or done) can get back. */}
+          <Button
+            variant="ghost"
+            label={t("account.reset.back")}
+            onPress={() => router.replace("/")}
+            testID="reset-back"
+          />
         </Stack>
       </Panel>
     </Screen>

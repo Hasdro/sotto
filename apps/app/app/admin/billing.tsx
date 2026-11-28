@@ -7,10 +7,11 @@
  */
 import { Badge, Button, layout, Panel, Screen, Stack, StatTile, space, Text } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
-import { Linking, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { ExternalLinkButton } from "../../components/ExternalLinkButton";
 import { PageHeader } from "../../components/PageHeader";
 import { type BillingInfo, billingInfo } from "../../features/support/api";
-import { formatNumber } from "../../lib/i18n";
+import { countKey, formatNumber } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 
 function formatDate(ms: number, locale: "en" | "ar"): string {
@@ -57,7 +58,7 @@ function BillingPanel({ info }: { info: BillingInfo }) {
   const { t, locale } = useI18n();
   const statusText =
     info.status === "trial"
-      ? t("account.trial", { n: info.days_left ?? 0 })
+      ? t(countKey("account.trial", info.days_left ?? 0), { n: info.days_left ?? 0 })
       : t(
           info.status === "active"
             ? "account.status.active"
@@ -115,9 +116,9 @@ function BillingPanel({ info }: { info: BillingInfo }) {
         />
       </View>
       {upgradeReady && info.upgrade_url ? (
-        <Button
+        <ExternalLinkButton
           label={t("billing.upgrade")}
-          onPress={() => void Linking.openURL(info.upgrade_url as string)}
+          url={info.upgrade_url}
           testID="billing-upgrade"
         />
       ) : info.upgrade_url === null ? (

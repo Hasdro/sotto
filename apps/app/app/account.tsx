@@ -5,12 +5,13 @@
 import { Badge, Button, Divider, layout, Panel, Screen, Stack, space, Text } from "@sotto/ui";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Linking, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { ExternalLinkButton } from "../components/ExternalLinkButton";
 import { PageHeader } from "../components/PageHeader";
 import { TeamPanel, useTeam } from "../features/team/TeamPanel";
 import { cloudApi, cloudOrigin, signOut } from "../lib/cloud";
 import { formatDateTime } from "../lib/format";
-import type { StringKey } from "../lib/i18n";
+import { countKey, type StringKey } from "../lib/i18n";
 import { useI18n } from "../lib/locale";
 import { useCloud } from "../lib/useCloud";
 
@@ -69,7 +70,7 @@ export default function AccountScreen() {
               <Badge
                 label={
                   c.status === "trial"
-                    ? t("account.trial", { n: c.days_left ?? 0 })
+                    ? t(countKey("account.trial", c.days_left ?? 0), { n: c.days_left ?? 0 })
                     : t(status ?? "account.plan")
                 }
                 tone={c.can_call ? "primary" : "notice"}
@@ -147,10 +148,10 @@ export default function AccountScreen() {
         <TeamPanel team={team} canInvite={false} onChange={reload} />
       ) : null}
       {cloudOrigin() ? (
-        <Button
+        <ExternalLinkButton
           variant="ghost"
           label={t("account.apps")}
-          onPress={() => void Linking.openURL(`${cloudOrigin()}/downloads/`)}
+          url={`${cloudOrigin()}/downloads/`}
           testID="get-apps"
         />
       ) : null}

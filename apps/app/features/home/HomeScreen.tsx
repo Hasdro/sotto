@@ -25,7 +25,13 @@ import { useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { AppLink } from "../../components/AppLink";
 import { allDeviceCalls, type DeviceCall, deviceCalls } from "../../lib/deviceHistory";
-import { daysFromToday, formatTime, formatWeekday, formatWhen } from "../../lib/format";
+import {
+  daysFromToday,
+  formatSeconds,
+  formatTime,
+  formatWeekday,
+  formatWhen,
+} from "../../lib/format";
 import { countKey, type Locale } from "../../lib/i18n";
 import { useI18n } from "../../lib/locale";
 import { useRole } from "../../lib/role";
@@ -105,12 +111,15 @@ export function statusLine(
   const seats = { used: c.seats_used, total: c.seats };
   if (!c.can_call || c.status === "expired" || c.status === "suspended")
     return t("home.status.paused", seats);
-  if (c.status === "trial") return t("home.status.trial", { days: c.days_left ?? 0, ...seats });
+  if (c.status === "trial") {
+    const days = c.days_left ?? 0;
+    return t(countKey("home.status.trial", days), { days, ...seats });
+  }
   return t("home.status.active", seats);
 }
 
 export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
-  const { t, locale } = useI18n();
+  const { t, locale, dir } = useI18n();
   const { color } = useTheme();
   const router = useRouter();
   const cloud = useCloud();
@@ -133,7 +142,7 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
     {
       id: "speed",
       label: t("home.stat.speed"),
-      value: stats.p95 === null ? "—" : `${(stats.p95 / 1000).toFixed(1)} s`,
+      value: stats.p95 === null ? "—" : formatSeconds(stats.p95, locale),
     },
   ];
   const tip = calls.find((c) => c.review?.tip)?.review?.tip ?? null;
@@ -159,7 +168,10 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
       ) : null}
       {!agent && company ? (
         <Section title={t("home.company")} testID="home-company">
-          <Text weight="medium">{company.name}</Text>
+          {/* UI-017: a Latin-only name keeps the card's side in Arabic (dir="auto" put it left). */}
+          <Text weight="medium" style={dir === "rtl" ? styles.rtlLine : null}>
+            {company.name}
+          </Text>
           <Text variant="label" tone="muted" testID="home-status">
             {statusLine(t, company)}
           </Text>
@@ -279,7 +291,7 @@ export function HomeScreen({ today }: { today?: React.ReactNode } = {}) {
                   </View>
                   {c.p95_ms !== null ? (
                     <Badge
-                      label={`${(c.p95_ms / 1000).toFixed(1)} s`}
+                      label={formatSeconds(c.p95_ms, locale)}
                       tone={c.p95_ms <= 1500 ? "neutral" : "warning"}
                     />
                   ) : null}
@@ -377,6 +389,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+  rtlLine: { textAlign: "right" },
   page: { padding: space.xl, gap: space.xl, maxWidth: 1180, width: "100%", alignSelf: "center" },
   pageWide: { paddingHorizontal: space.xxxl, paddingTop: space.xxxl },
   flex: { flex: 1, minWidth: 0 },

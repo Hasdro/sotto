@@ -180,6 +180,16 @@ describe("SegmentedControl", () => {
   });
 });
 
+describe("Button trailing visual", () => {
+  it("draws a trailing visual after the label, hidden from screen readers (UI-014)", async () => {
+    await render(
+      <Button label="Get apps" onPress={jest.fn()} trailing={<Icon name="external" size={16} />} />,
+    );
+    expect(screen.getByRole("button", { name: "Get apps" })).toBeOnTheScreen();
+    expect(screen.getByTestId("icon-external", { includeHiddenElements: true })).toBeTruthy();
+  });
+});
+
 describe("Dropdown", () => {
   const options = (n: number) =>
     Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: `Option ${i}` }));

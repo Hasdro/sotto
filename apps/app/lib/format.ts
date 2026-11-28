@@ -47,6 +47,11 @@ export function formatNumber(n: number, locale: Locale): string {
   }).format(n);
 }
 
+/** "1.1 s" / "1.1 ث" (UI-017): a delay in seconds, one decimal, the unit in the reader's language. */
+export function formatSeconds(ms: number, locale: Locale): string {
+  return `${(ms / 1000).toFixed(1)} ${locale === "ar" ? "ث" : "s"}`;
+}
+
 /** Zoho sends amounts as text ("12000", "12,000.50"); null when it is not a number. */
 export function parseAmount(raw: string | number | null | undefined): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;

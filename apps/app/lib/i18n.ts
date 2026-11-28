@@ -123,9 +123,9 @@ const en = {
   "call.approximate": "Approximate: speaker matching",
 
   "plan.trial":
-    "Trial: {days} days left · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
+    "Free trial: {days} days left · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
   "plan.trial.one":
-    "Trial: last day · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
+    "Free trial: last day · {seats} of {seatLimit} seats · {minutes} of {minuteLimit} call minutes",
   "plan.expired":
     "Your trial has ended. Sign-in still works, but calls are blocked. Your data is kept for 30 days.",
   "plan.paused": "Calls paused — {reason}. Ask your admin.",
@@ -447,6 +447,7 @@ const en = {
   "account.you": "Signed in as {name} ({role})",
   "account.plan": "Plan",
   "account.trial": "Free trial: {n} days left",
+  "account.trial.one": "Free trial: last day",
   "account.status.active": "Active plan",
   "account.status.expired": "Plan ended: calls are paused",
   "account.status.suspended": "Suspended: calls are paused",
@@ -457,6 +458,9 @@ const en = {
   "account.lastSeen": "Last used {when}",
   "account.signoutDevice": "Sign out",
   "account.signout": "Sign out of this device",
+  "link.hint": "Opens in your browser",
+  "link.opened": "Opened in your browser.",
+  "link.failed": "Could not open the link.",
   "account.team": "Team",
   "account.teamAdmin": "Add people and change roles in Admin › People.",
   "account.teamOpen": "Open People",
@@ -942,6 +946,7 @@ const en = {
   "home.nextOn": "Next: {title} on {day} at {time}",
   "home.ready": "Ready for your next call",
   "home.status.trial": "Free trial · {days} days left · {used} of {total} seats",
+  "home.status.trial.one": "Free trial · last day · {used} of {total} seats",
   "home.status.active": "Active plan · {used} of {total} seats",
   "home.status.paused": "Calls are paused · {used} of {total} seats",
   "home.lastTip": "Tip from your last call",
@@ -1218,9 +1223,9 @@ const ar: Record<StringKey, string> = {
   "call.approximate": "تقريبي: مطابقة الصوت",
 
   "plan.trial":
-    "فترة تجريبية: باقٍ {days} يوماً · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
+    "تجربة مجانية: بقي {days} يومًا · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
   "plan.trial.one":
-    "فترة تجريبية: اليوم الأخير · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
+    "تجربة مجانية: اليوم الأخير · {seats} من {seatLimit} مقاعد · {minutes} من {minuteLimit} دقيقة مكالمات",
   "plan.expired":
     "انتهت الفترة التجريبية. يمكنك تسجيل الدخول، لكن المكالمات متوقفة. نحتفظ ببياناتك 30 يوماً.",
   "plan.paused": "المكالمات متوقفة — {reason}. تواصل مع المسؤول.",
@@ -1540,7 +1545,8 @@ const ar: Record<StringKey, string> = {
   "account.title": "الحساب",
   "account.you": "مسجّل باسم {name} ({role})",
   "account.plan": "الخطة",
-  "account.trial": "تجربة مجانية: باقي {n} يوم",
+  "account.trial": "تجربة مجانية: بقي {n} يومًا",
+  "account.trial.one": "تجربة مجانية: اليوم الأخير",
   "account.status.active": "خطة فعّالة",
   "account.status.expired": "انتهت الخطة: المكالمات متوقفة",
   "account.status.suspended": "موقوف: المكالمات متوقفة",
@@ -1551,6 +1557,9 @@ const ar: Record<StringKey, string> = {
   "account.lastSeen": "آخر استخدام {when}",
   "account.signoutDevice": "تسجيل الخروج",
   "account.signout": "تسجيل الخروج من هذا الجهاز",
+  "link.hint": "يُفتح في متصفحك",
+  "link.opened": "فُتح في متصفحك.",
+  "link.failed": "تعذّر فتح الرابط.",
   "account.team": "الفريق",
   "account.teamAdmin": "أضف الأشخاص وغيّر الأدوار من الإدارة › الأشخاص.",
   "account.teamOpen": "افتح الأشخاص",
@@ -2025,6 +2034,7 @@ const ar: Record<StringKey, string> = {
   "home.nextOn": "التالي: {title} يوم {day} الساعة {time}",
   "home.ready": "جاهز لمكالمتك التالية",
   "home.status.trial": "تجربة مجانية · بقي {days} يومًا · {used} من {total} مقاعد",
+  "home.status.trial.one": "تجربة مجانية · اليوم الأخير · {used} من {total} مقاعد",
   "home.status.active": "خطة فعّالة · {used} من {total} مقاعد",
   "home.status.paused": "المكالمات متوقفة · {used} من {total} مقاعد",
   "home.lastTip": "نصيحة من مكالمتك الأخيرة",

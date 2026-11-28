@@ -84,6 +84,7 @@ describe("admin tools", () => {
     jest.mocked(cloudApi).mockResolvedValue({
       items: [
         {
+          id: 1, // the server's audit row id (the list key)
           at: Date.now(),
           action: "key.set",
           detail: "Groq key",

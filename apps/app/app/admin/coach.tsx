@@ -16,6 +16,8 @@ import {
   setAdminTranscriptAccess,
 } from "../../features/coach/api";
 import { type CoachTextKey, useCoachText } from "../../features/coach/strings";
+import { formatMoney } from "../../lib/format";
+import { useI18n } from "../../lib/locale";
 
 type Access = "private" | "admins";
 
@@ -39,6 +41,7 @@ export default function AdminCoachScreen() {
 
 function AdminCoachInner({ featureOff }: { featureOff: ReturnType<typeof useFeature> | null }) {
   const tc = useCoachText();
+  const { locale } = useI18n();
   const [settings, setSettings] = useState<CoachSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -112,7 +115,10 @@ function AdminCoachInner({ featureOff }: { featureOff: ReturnType<typeof useFeat
             </Text>
             <Text variant="label" weight="semibold">
               {settings?.cap_usd != null
-                ? `$${settings.cap_usd.toFixed(2)} / mo (${settings.cap_minutes ?? 0} min)`
+                ? tc("admin.capValue", {
+                    amount: formatMoney(settings.cap_usd, "USD", locale),
+                    minutes: String(settings.cap_minutes ?? 0),
+                  })
                 : tc("admin.noCap")}
             </Text>
           </View>
@@ -122,7 +128,10 @@ function AdminCoachInner({ featureOff }: { featureOff: ReturnType<typeof useFeat
             </Text>
             <Text variant="label">
               {settings
-                ? `$${settings.spend_usd.toFixed(2)} (${settings.used_minutes.toFixed(1)} min)`
+                ? tc("admin.spendValue", {
+                    amount: formatMoney(settings.spend_usd, "USD", locale),
+                    minutes: settings.used_minutes.toFixed(1),
+                  })
                 : "—"}
             </Text>
           </View>

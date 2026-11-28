@@ -33,6 +33,17 @@ describe("string table", () => {
     expect(hits).toEqual([]);
   });
 
+  it("names the free trial the same way everywhere (UI-017)", () => {
+    const vars = { days: 50, n: 50, seats: 3, seatLimit: 3, minutes: 92, minuteLimit: 300 };
+    const lines = (locale: "en" | "ar") =>
+      (["plan.trial", "home.status.trial", "account.trial"] as const).map((k) =>
+        t(k, locale, { ...vars, used: 3, total: 3 }),
+      );
+    for (const line of lines("en")) expect(line).toMatch(/^Free trial ?[:·] 50 days left/);
+    for (const line of lines("ar")) expect(line).toMatch(/^تجربة مجانية ?[:·] بقي 50 يومًا/);
+    expect(t("account.trial.one", "en", vars)).toBe("Free trial: last day");
+  });
+
   it("Arabic is right-to-left, English left-to-right", () => {
     expect(directionOf("ar")).toBe("rtl");
     expect(directionOf("en")).toBe("ltr");

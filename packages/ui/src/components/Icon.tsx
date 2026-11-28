@@ -50,7 +50,8 @@ export type IconName =
   | "info"
   | "palette"
   | "target"
-  | "bolt";
+  | "bolt"
+  | "external";
 
 type Prim =
   | { k: "line"; x1: number; y1: number; x2: number; y2: number; t?: number }
@@ -251,6 +252,16 @@ const ICONS: Record<IconName, Prim[]> = {
   chevron: [
     { k: "line", x1: 7, y1: 10, x2: 12, y2: 15 },
     { k: "line", x1: 12, y1: 15, x2: 17, y2: 10 },
+  ],
+  /** Leaves the app (UI-014): an arrow out of an open box. */
+  external: [
+    { k: "line", x1: 11, y1: 6, x2: 5.5, y2: 6 },
+    { k: "line", x1: 5.5, y1: 6, x2: 5.5, y2: 18.5 },
+    { k: "line", x1: 5.5, y1: 18.5, x2: 18, y2: 18.5 },
+    { k: "line", x1: 18, y1: 18.5, x2: 18, y2: 13 },
+    { k: "line", x1: 11, y1: 13, x2: 19, y2: 5 },
+    { k: "line", x1: 13.5, y1: 5, x2: 19, y2: 5 },
+    { k: "line", x1: 19, y1: 5, x2: 19, y2: 10.5 },
   ],
   arrowLeft: [
     { k: "line", x1: 19, y1: 12, x2: 5, y2: 12 },

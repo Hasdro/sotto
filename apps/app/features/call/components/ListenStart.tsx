@@ -1,5 +1,6 @@
 import { Button, Mascot, Panel, radius, space, Text, useTheme } from "@sotto/ui";
-import { Linking, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { ExternalLinkButton } from "../../../components/ExternalLinkButton";
 import { cloudOrigin } from "../../../lib/cloud";
 import { useI18n } from "../../../lib/locale";
 import { usePrefs } from "../../../lib/prefs";
@@ -144,10 +145,10 @@ export function PhoneCallsLater({ onPractice }: { onPractice?: (() => void) | un
         {t("call.phone.body")}
       </Text>
       {origin ? (
-        <Button
+        <ExternalLinkButton
           label={t("call.phone.download")}
           variant="secondary"
-          onPress={() => void Linking.openURL(`${origin}/downloads/`)}
+          url={`${origin}/downloads/`}
           testID="phone-downloads"
         />
       ) : null}
