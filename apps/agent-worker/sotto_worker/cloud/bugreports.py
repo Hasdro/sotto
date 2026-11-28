@@ -15,8 +15,6 @@ def issue_title(report: dict[str, Any]) -> str:
 
 def issue_body(report: dict[str, Any]) -> str:
     parts = [str(report["description"]).strip()]
-    if report.get("page_url"):
-        parts.append(f"\nReported from: {report['page_url']}")
     who = report.get("user_email") or ""
     company = report.get("company_name") or ""
     if who or company:

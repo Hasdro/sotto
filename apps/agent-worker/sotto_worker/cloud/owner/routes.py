@@ -5,6 +5,8 @@ failure report (ZC-06) and the company prompt routes (BYO only)."""
 from __future__ import annotations
 
 import json
+import secrets
+import time
 from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import Any
@@ -109,6 +111,7 @@ def make_routes(
                     "provider_id": provider_id,
                     "model": model,
                     "source": "platform" if chosen else "default",
+                    "key_source": platform.stage_key_source(store, pcat, provider_id, company_id),
                     "live": slot.id in platform.LIVE_STAGES,
                     "deadline_ms": default.first_token_ms if default else None,
                     "benchmark": platform.benchmark(store, provider_id, model, slot.id)
@@ -154,7 +157,15 @@ def make_routes(
 
     async def o_spend(_r: Request, _who: Principal) -> Response:
         return JSONResponse(
-            {"companies": metering.overview(), "checked": metering.table.checked},
+            {
+                "companies": metering.overview(),
+                "checked": metering.table.checked,
+                "routing_job_cap_usd": routing_store.cap_usd(store),
+                "at_cap_behaviour": (
+                    "At 80% an alert is sent (calls continue). At 100% AGN platform keys are "
+                    "withheld until you raise the cap or the month ends (BYO keys are unaffected)."
+                ),
+            },
             headers=NO_STORE,
         )
 
@@ -216,6 +227,60 @@ def make_routes(
     async def o_route_rollback(r: Request, who: Principal) -> Response:
         platform.rollback_route(store, seed, who, r.path_params["stage"], ip=ip_of(r))
         return JSONResponse(providers_out(), headers=NO_STORE)
+
+    async def o_route_test(r: Request, who: Principal) -> Response:
+        """Test one live/configured stage end-to-end with its resolved platform key (F-05)."""
+        stage_id = r.path_params["stage"]
+        prov = providers_out()
+        st = next((s for s in prov["stages"] if s["id"] == stage_id), None)
+        if st is None:
+            raise CloudError("not_found", "unknown stage")
+        pid = st["provider_id"]
+        provider = catalog.providers.get(pid) if pid else None
+        if provider is None:
+            raise CloudError("not_found", "unknown provider for stage")
+        key = platform.platform_key(store, provider.key_env)
+        t0 = time.monotonic()
+        ok, detail = False, "No key saved for this stage's provider"
+        if key:
+            try:
+                if provider.kind == "stt":
+                    if provider.id in STT_TOKEN_VENDORS:
+                        await minter(provider.id, key)
+                        ok, detail = True, "streaming token issued"
+                    else:
+                        ok, detail = True, "key saved (no token test endpoint)"
+                else:
+                    url = provider.models_url()
+                    if not url:
+                        ok, detail = False, "provider has no test endpoint"
+                    else:
+                        models = await tester(provider.id, url, key)
+                        ok, detail = True, f"{len(models)} models available"
+            except httpx.HTTPStatusError as e:
+                detail = f"{provider.name} answered {e.response.status_code}"
+            except httpx.HTTPError as e:
+                detail = f"{provider.name} unreachable ({type(e).__name__})"
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        with store._tx() as db:
+            store.audit(
+                db,
+                "owner.stage.tested",
+                f"{stage_id} ({pid}/{st['model']}): {'ok' if ok else 'fail'} ({latency_ms} ms)",
+                actor=who,
+                ip=ip_of(r),
+            )
+        return JSONResponse(
+            {
+                "ok": ok,
+                "stage": stage_id,
+                "provider_id": pid,
+                "model": st["model"],
+                "latency_ms": latency_ms,
+                "detail": detail,
+            },
+            headers=NO_STORE,
+        )
 
     # --- per-company model routes (round 2, D-078/D-079) -----------------------------------------
     async def o_company_routes(r: Request, _who: Principal) -> Response:
@@ -541,10 +606,13 @@ def make_routes(
 
     # --- sign-up queue and webhook (ZC-10) -------------------------------------------------------
     async def o_signups(_r: Request, _who: Principal) -> Response:
+        refused_count, refused_last_at = platform.signup_refused_stats(store)
         return JSONResponse(
             {
                 "signups": platform.signups(store),
                 "secret_set_at": platform.signup_secret_set(store),
+                "refused_count": refused_count,
+                "refused_last_at": refused_last_at,
             },
             headers=NO_STORE,
         )
@@ -556,6 +624,32 @@ def make_routes(
     async def o_signup_secret(r: Request, who: Principal) -> Response:
         secret = platform.rotate_signup_secret(store, who, ip=ip_of(r))
         return JSONResponse({"secret": secret, "header": "X-AGN-Signup-Secret"}, headers=NO_STORE)
+
+    async def o_signup_test(r: Request, who: Principal) -> Response:
+        """Create a distinctive test sign-up so the owner can verify the queue end-to-end (F-03)."""
+        email = f"test+{secrets.token_hex(4)}@example.test"
+        made = platform.signup(
+            store,
+            seed,
+            company="Test — delete me",
+            name="Test Sign-up",
+            email=email,
+            phone="",
+            ip=ip_of(r),
+        )
+        company_id = made[0] if made else None
+        refused_count, refused_last_at = platform.signup_refused_stats(store)
+        return JSONResponse(
+            {
+                "ok": True,
+                "company_id": company_id,
+                "signups": platform.signups(store),
+                "refused_count": refused_count,
+                "refused_last_at": refused_last_at,
+            },
+            status_code=HTTPStatus.CREATED,
+            headers=NO_STORE,
+        )
 
     async def hook_fields(r: Request) -> dict[str, str]:
         declared = r.headers.get("content-length")
@@ -590,6 +684,7 @@ def make_routes(
             raise CloudError("rate_limited", "too many tries; wait")
         if not platform.signup_secret_ok(store, r.headers.get(SIGNUP_HEADER)):
             bad_secret_record(ip_key(r))
+            platform.record_signup_refused(store)
             return JSONResponse(
                 {"error": "wrong secret", "code": "signed_out"}, status_code=HTTPStatus.UNAUTHORIZED
             )
@@ -617,6 +712,140 @@ def make_routes(
             log(f"signup invite email failed: {type(err).__name__}")
         return JSONResponse({"ok": True, "created": True}, status_code=HTTPStatus.CREATED)
 
+    # --- Overview attention queue (F-07 / R-02) --------------------------------------------------
+    async def o_attention(_r: Request, _who: Principal) -> Response:
+        items: list[dict[str, Any]] = []
+        speed = store.owner_speed_stats()
+        stats = store.owner_stats()
+        if platform.signup_secret_set(store) is None:
+            items.append(
+                {
+                    "id": "signup_webhook_missing",
+                    "severity": "red",
+                    "title": "Sign-ups are being refused",
+                    "detail": (
+                        "No webhook secret is set yet; Zoho Forms sign-ups are rejected until you "
+                        "create one."
+                    ),
+                    "view": "signups",
+                    "href": "#v-signups",
+                    "cta_label": "Create webhook secret",
+                }
+            )
+        p95 = speed["p95_ms"]
+        if p95 is not None and p95 > platform.R1_P95_MS:
+            items.append(
+                {
+                    "id": "speed_over_limit",
+                    "severity": "red" if p95 > 2500 else "amber",
+                    "title": f"Speed (p95) is {p95:,} ms vs 1,500 ms limit",
+                    "detail": (
+                        f"30-day p95 across {speed['calls_count']} call(s) exceeds the R1 target."
+                    ),
+                    "view": "routing",
+                    "href": "#v-routing",
+                    "cta_label": "Check model routing",
+                }
+            )
+        prov = providers_out()
+        key_set_by_id = {p["id"]: bool(p["key_set"]) for p in prov["providers"]}
+        missing_key_stages = [
+            st["label"]
+            for st in prov["stages"]
+            if (st["live"] or st["id"] == "stt")
+            and st["provider_id"]
+            and not key_set_by_id.get(st["provider_id"], False)
+        ]
+        if missing_key_stages:
+            items.append(
+                {
+                    "id": "live_stage_no_key",
+                    "severity": "red",
+                    "title": "Live stage missing an AGN provider key",
+                    "detail": f"No platform key saved for: {', '.join(missing_key_stages)}.",
+                    "view": "providers",
+                    "href": "#v-providers",
+                    "cta_label": "Add provider keys",
+                }
+            )
+        rjob = routing_job.state(store)
+        if rjob["monthly_cap_usd"] is None:
+            items.append(
+                {
+                    "id": "routing_job_off",
+                    "severity": "amber",
+                    "title": "Weekly R1 benchmarking is off",
+                    "detail": (
+                        "Set a monthly cap so candidate models are benchmarked against the "
+                        "1,500 ms R1 limit."
+                    ),
+                    "view": "routingjob",
+                    "href": "#v-routingjob",
+                    "cta_label": "Enable routing job",
+                }
+            )
+        spend_rows = metering.overview()
+        uncapped = [c["name"] for c in spend_rows if c["cap_usd"] is None]
+        if uncapped:
+            items.append(
+                {
+                    "id": "spend_cap_missing",
+                    "severity": "amber",
+                    "title": f"{len(uncapped)} company(s) without a monthly spend cap",
+                    "detail": f"No guardrail set for: {', '.join(uncapped[:4])}.",
+                    "view": "spend",
+                    "href": "#v-spend",
+                    "cta_label": "Set spend caps",
+                }
+            )
+        alerted = [c for c in spend_rows if c["status"] in ("alert", "capped")]
+        if alerted:
+            capped = any(c["status"] == "capped" for c in alerted)
+            items.append(
+                {
+                    "id": "spend_cap_alert",
+                    "severity": "red" if capped else "amber",
+                    "title": "Monthly spend cap reached" if capped else "Spend cap over 80%",
+                    "detail": ", ".join(
+                        f"{c['name']} (${c['spend_usd']:.2f} / ${c['cap_usd']:.2f})"
+                        for c in alerted[:4]
+                    ),
+                    "view": "spend",
+                    "href": "#v-spend",
+                    "cta_label": "Review spend",
+                }
+            )
+        new_bugs = store.bug_reports("new")
+        if new_bugs:
+            items.append(
+                {
+                    "id": "bug_reports_new",
+                    "severity": "amber",
+                    "title": f"{len(new_bugs)} bug report(s) awaiting triage",
+                    "detail": "Review incoming reports before submitting them to GitHub.",
+                    "view": "bugs",
+                    "href": "#v-bugs",
+                    "cta_label": "Review bug reports",
+                }
+            )
+        esc = int(stats["month"]["escalations"])
+        if esc > 0:
+            items.append(
+                {
+                    "id": "unanswered_questions",
+                    "severity": "amber",
+                    "title": f"{esc} unanswered question(s) this month",
+                    "detail": "Agents hit questions outside their playbook this month.",
+                    "view": "companies",
+                    "href": "#v-companies",
+                    "cta_label": "View companies",
+                }
+            )
+        return JSONResponse(
+            {"computed_at": speed["computed_at"], "items": items},
+            headers=NO_STORE,
+        )
+
     def o(path: str, fn: Inner, method: str = "GET") -> Route:
         return Route(
             f"/api/owner/{path}", owner_route(fn, mutating=method != "GET"), methods=[method]
@@ -624,6 +853,7 @@ def make_routes(
 
     api = "/api/v1"
     return [
+        o("attention", o_attention),
         o("providers", o_providers),
         o("providers/{pid}/models/{mid:path}", o_provider_model_patch, "PATCH"),
         o("keys/{env}", o_key_put, "PUT"),
@@ -637,6 +867,7 @@ def make_routes(
         o("routes/{stage}", o_route_put, "PUT"),
         o("routes/{stage}", o_route_delete, "DELETE"),
         o("routes/{stage}/rollback", o_route_rollback, "POST"),
+        o("routes/{stage}/test", o_route_test, "POST"),
         o("companies/{id}/routes", o_company_routes),
         o("companies/{id}/routes/{stage}", o_company_route_put, "PUT"),
         o("companies/{id}/routes/{stage}", o_company_route_delete, "DELETE"),
@@ -673,6 +904,7 @@ def make_routes(
         o("companies/{id}/zoho-client", o_zoho_override_delete, "DELETE"),
         o("signups", o_signups),
         o("signups/secret", o_signup_secret, "POST"),
+        o("signups/test", o_signup_test, "POST"),
         o("signups/{id}/approve", o_signup_approve, "POST"),
         Route(f"{api}/provider-health", failures_post, methods=["POST"]),
         Route(f"{api}/company/prompts", c_prompts),

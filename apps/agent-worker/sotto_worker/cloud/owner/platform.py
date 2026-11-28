@@ -614,6 +614,35 @@ def effective_routes(store: CloudStore, company_id: str) -> dict[str, tuple[str,
 
 
 # --- per-company routes (round 2, D-078/D-079) ---------------------------------------------------
+def stage_key_source(
+    store: CloudStore, catalog: Catalog, provider_id: str | None, company_id: str | None = None
+) -> dict[str, Any]:
+    """Effective key source for a stage without exposing key material (F-05)."""
+    provider = catalog.providers.get(provider_id) if provider_id else None
+    if provider is None or not provider.key_env:
+        return {"source": "missing", "label": "No key — will fail", "updated_at": None}
+    key_env = provider.key_env
+    if company_id is not None and byo_on(store, company_id):
+        rows = store._q(
+            "SELECT updated_at FROM company_keys WHERE company_id = ? AND key_env = ?",
+            (company_id, key_env),
+        )
+        if rows:
+            return {
+                "source": "company",
+                "label": "Company key (BYO)",
+                "updated_at": int(rows[0]["updated_at"]),
+            }
+    prows = store._q("SELECT updated_at FROM platform_keys WHERE key_env = ?", (key_env,))
+    if prows:
+        return {
+            "source": "platform",
+            "label": "AGN key",
+            "updated_at": int(prows[0]["updated_at"]),
+        }
+    return {"source": "missing", "label": "No key — will fail", "updated_at": None}
+
+
 def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[str, Any]:
     """What the company profile shows per stage: the route that actually runs, and whether the
     company overrides the platform's. The client never sees this; the vendor sets it.
@@ -649,6 +678,7 @@ def company_routes_out(store: CloudStore, seed: Seed, company_id: str) -> dict[s
                 else "platform"
                 if slot.id in plat
                 else "default",
+                "key_source": stage_key_source(store, catalog, provider_id, company_id),
                 "live": slot.id in LIVE_STAGES,
                 "deadline_ms": default.first_token_ms if default else None,
                 "benchmark": benchmark(store, provider_id, model, slot.id)
@@ -1479,6 +1509,7 @@ def health(store: CloudStore, catalog: Catalog) -> dict[str, Any]:
             "min_companies": FAIL_MIN_COMPANIES,
             "window_min": FAIL_WINDOW_MS // 60_000,
             "demote_min": DEMOTE_MS // 60_000,
+            "manual_demote_min": 30,
         },
     }
 
@@ -1835,11 +1866,38 @@ def signup_secret_set(store: CloudStore) -> int | None:
     return int(rows[0]["updated_at"]) if rows else None
 
 
+SIGNUP_REFUSED_COUNT = "signup_webhook_refused_count"
+
+
 def signup_secret_ok(store: CloudStore, given: str | None) -> bool:
     rows = store._q("SELECT value FROM platform_settings WHERE key = ?", (SIGNUP_SECRET,))
     if not rows or not given or len(given) > 200:
         return False
     return hmac.compare_digest(hashlib.sha256(given.encode()).hexdigest(), str(rows[0]["value"]))
+
+
+def record_signup_refused(store: CloudStore) -> None:
+    """Count refused sign-up webhook calls (count + timestamp only, no PII; F-03)."""
+    t = now_ms()
+    with store._tx() as db:
+        row = db.execute(
+            "SELECT value FROM platform_settings WHERE key = ?", (SIGNUP_REFUSED_COUNT,)
+        ).fetchone()
+        count = (int(row["value"]) if row else 0) + 1
+        db.execute(
+            "INSERT OR REPLACE INTO platform_settings(key, value, updated_at) VALUES (?,?,?)",
+            (SIGNUP_REFUSED_COUNT, str(count), t),
+        )
+
+
+def signup_refused_stats(store: CloudStore) -> tuple[int, int | None]:
+    rows = store._q(
+        "SELECT value, updated_at FROM platform_settings WHERE key = ?",
+        (SIGNUP_REFUSED_COUNT,),
+    )
+    if not rows:
+        return 0, None
+    return int(rows[0]["value"]), int(rows[0]["updated_at"])
 
 
 def signup(

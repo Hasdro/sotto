@@ -39,6 +39,28 @@ def _local_dt(now_ms_val: int, tz_offset_min: int) -> datetime:
     return datetime.fromtimestamp(now_ms_val / 1000, UTC) + timedelta(minutes=tz_offset_min)
 
 
+def _meeting_local_day(start_val: Any, tz_offset_min: int) -> str | None:
+    """Resolve a meeting's start timestamp into YYYY-MM-DD in the user's local offset (UX-002)."""
+    if start_val is None or start_val == "":
+        return None
+    if isinstance(start_val, int | float) and not isinstance(start_val, bool):
+        ms = int(start_val * 1000) if start_val < 10_000_000_000 else int(start_val)
+        return _local_dt(ms, tz_offset_min).strftime("%Y-%m-%d")
+    raw = str(start_val).strip()
+    if not raw:
+        return None
+    try:
+        iso = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(UTC) + timedelta(minutes=tz_offset_min)
+        return dt.strftime("%Y-%m-%d")
+    except ValueError:
+        if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+            return raw[:10]
+        return None
+
+
 def _daily_tip(day_iso: str, user_id: str) -> str:
     idx = (sum(ord(c) for c in f"{day_iso}:{user_id}")) % len(FALLBACK_TIPS)
     return FALLBACK_TIPS[idx]
@@ -55,13 +77,22 @@ async def generate_morning_brief(
 ) -> dict[str, Any]:
     t = store.clock() if now is None else now
     prefs = store.get_morning_brief_prefs(who)
-    local = _local_dt(t, int(prefs["timezone_offset_min"]))
+    tz_offset_min = int(prefs["timezone_offset_min"])
+    local = _local_dt(t, tz_offset_min)
     day_iso = local.strftime("%Y-%m-%d")
 
     pending = [
         r for r in store.list_reviews(who, include_closed=False, now=t) if r["status"] == "pending"
     ]
-    meeting_list = list(meetings or [])
+    all_meetings = list(meetings or [])
+    meeting_list: list[dict[str, Any]] = []
+    upcoming_meetings: list[dict[str, Any]] = []
+    for m in all_meetings:
+        mday = _meeting_local_day(m.get("start"), tz_offset_min)
+        if mday is None or mday == day_iso:
+            meeting_list.append(m)
+        elif mday > day_iso:
+            upcoming_meetings.append(m)
     tip = _daily_tip(day_iso, who.user_id)
 
     cap = store.cap_status(who.company, now=t)
@@ -112,6 +143,12 @@ async def generate_morning_brief(
                 + ", ".join(str(m.get("title", "Call")) for m in meeting_list[:4])
                 + "."
             )
+        elif upcoming_meetings:
+            nxt = upcoming_meetings[0]
+            parts.append(
+                f"No meetings today. Next upcoming: {nxt.get('title', 'Call')} "
+                f"({nxt.get('start', '')})."
+            )
         parts.append(f"Tip for today: {tip}")
         if pending:
             parts.append(f"You have {len(pending)} pending call review(s) in your queue.")
@@ -125,6 +162,7 @@ async def generate_morning_brief(
         "day": day_iso,
         "has_zoho_meetings": bool(meeting_list),
         "meetings": meeting_list[:6],
+        "next_meeting": upcoming_meetings[0] if not meeting_list and upcoming_meetings else None,
         "tip": tip,
         "pending_reviews_count": len(pending),
         "summary_text": summary_text,

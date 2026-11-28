@@ -1007,6 +1007,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse(store.billing_info(who), headers={"Cache-Control": "no-store"})
 
     @app_route
+    async def bug_reports_get(_request: Request, _who: Principal) -> Response:
+        raise CloudError("forbidden", "bug reports are reviewed in the owner console")
+
+    @app_route
     async def bug_report_post(request: Request, who: Principal) -> Response:
         data = await body(request)
         # The upload answers with an absolute URL; the store keeps the relative
@@ -1523,6 +1527,28 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse({"ok": True})
 
     @app_route
+    async def escalation_dismiss(request: Request, who: Principal) -> Response:
+        store.dismiss_escalation(who, request.path_params["id"], ip=ip_of(request))
+        return JSONResponse({"ok": True})
+
+    @app_route
+    async def call_contact_get(request: Request, who: Principal) -> Response:
+        return JSONResponse(
+            {"contact": store.call_contact(who, request.path_params["call_id"])},
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app_route
+    async def call_contact_put(request: Request, who: Principal) -> Response:
+        saved = store.set_call_contact(who, request.path_params["call_id"], await body(request))
+        return JSONResponse({"ok": True, "contact": saved}, headers={"Cache-Control": "no-store"})
+
+    @app_route
+    async def call_meta_patch(request: Request, who: Principal) -> Response:
+        out = store.update_call_meta(who, request.path_params["call_id"], await body(request))
+        return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+    @app_route
     async def team_get(_request: Request, who: Principal) -> Response:
         return JSONResponse({"users": store.team(who)})
 
@@ -1551,8 +1577,49 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse({"devices": store.devices(who, all_users=everyone)})
 
     @app_route
-    async def audit_get(_request: Request, who: Principal) -> Response:
-        return JSONResponse({"items": store.company_audit(who)})
+    async def audit_get(request: Request, who: Principal) -> Response:
+        include_system = request.query_params.get("include_system") == "1"
+        return JSONResponse({"items": store.company_audit(who, include_system=include_system)})
+
+    @app_route
+    async def api_health(_request: Request, who: Principal) -> Response:
+        """Tenant-scoped health & stage readiness check (FUNC-001-server)."""
+        t = int(time.time() * 1000)
+        state = plan_state(store.company_row(who.company), store.minutes_used(who.company), t)
+        cseed = platform.company_seed(store, seed, who.company)
+        routing = apply_overrides(
+            cseed.routing, cseed.catalog, platform.effective_routes(store, who.company)
+        )
+        key_set = set(store.key_status(who))
+        stages_out: dict[str, dict[str, Any]] = {}
+        for sid in ("suggest", "stt", "summary"):
+            route = routing.stages.get(sid)
+            if route is None:
+                stages_out[sid] = {"ready": False, "provider_id": None, "model": None}
+                continue
+            env_name = route_key_env(route)
+            ready = True if not env_name else (env_name in key_set)
+            stages_out[sid] = {
+                "ready": ready,
+                "provider_id": platform.vendor_of(cseed.catalog, route),
+                "model": route.model,
+            }
+        p95_30d, calls_30d = store._p95_30d(t - 30 * 86_400_000, company_id=who.company)
+        return JSONResponse(
+            {
+                "ok": True,
+                "service": "sotto-cloud",
+                "plan": {
+                    "status": state["status"],
+                    "can_call": state["can_call"],
+                    "blocked_reason": state["blocked_reason"],
+                },
+                "stages": stages_out,
+                "speed": {"p95_ms": p95_30d, "calls_30d": calls_30d},
+                "config_health": store.config_health(who),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app_route
     async def device_delete(request: Request, who: Principal) -> Response:
@@ -1653,7 +1720,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse({"email": who.email, "name": who.name, "must_change": who.must_change})
 
     async def o_stats(_r: Request, _who: Principal) -> Response:
-        return JSONResponse(store.owner_stats())
+        return JSONResponse(store.owner_stats(), headers={"Cache-Control": "no-store"})
+
+    async def o_stats_speed(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(store.owner_speed_stats(), headers={"Cache-Control": "no-store"})
 
     async def o_companies(_r: Request, _who: Principal) -> Response:
         return JSONResponse({"companies": store.owner_companies()})
@@ -1663,6 +1733,17 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
 
     async def o_company_create(r: Request, who: Principal) -> Response:
         data = await body(r)
+        cap = data.get("monthly_spend_cap_usd")
+        if (
+            cap is not None
+            and cap != ""
+            and (
+                not isinstance(cap, int | float)
+                or isinstance(cap, bool)
+                or not 0 < float(cap) <= 1_000_000.0
+            )
+        ):
+            raise CloudError("invalid", "monthly_spend_cap_usd must be a positive number")
         company_id, password = store.owner_create_company(
             who,
             name=str(data.get("name", "")),
@@ -1671,7 +1752,16 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
             plan=str(data.get("plan", "trial")),
             ip=ip_of(r),
         )
-        return JSONResponse({"id": company_id, "temporary_password": password}, status_code=201)
+        if cap is not None and cap != "":
+            metering.set_cap(who, company_id, float(cap), ip=ip_of(r))
+        return JSONResponse(
+            {
+                "id": company_id,
+                "temporary_password": password,
+                "monthly_spend_cap_usd": float(cap) if cap is not None and cap != "" else None,
+            },
+            status_code=201,
+        )
 
     async def o_company_patch(r: Request, who: Principal) -> Response:
         store.owner_update_company(who, r.path_params["id"], await body(r), ip=ip_of(r))
@@ -1717,8 +1807,40 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         store.owner_set_kill(who, r.path_params["id"], killed, ip=ip_of(r))
         return JSONResponse(store.owner_features())
 
-    async def o_audit(_r: Request, _who: Principal) -> Response:
-        return JSONResponse({"items": store.owner_audit()})
+    async def o_audit(r: Request, _who: Principal) -> Response:
+        qp = r.query_params
+        company_id = qp.get("company_id") or None
+        q = qp.get("q") or ""
+        action = qp.get("action") or ""
+        hide_noise = qp.get("hide_noise") == "1"
+        try:
+            limit = max(1, min(int(qp.get("limit", "50")), 200))
+            offset = max(0, int(qp.get("offset", "0")))
+        except ValueError:
+            limit, offset = 50, 0
+        items = store.owner_audit(
+            company_id=company_id,
+            limit=limit,
+            offset=offset,
+            q=q,
+            action=action,
+            hide_noise=hide_noise,
+        )
+        total = store.owner_audit_count(
+            company_id=company_id,
+            q=q,
+            action=action,
+            hide_noise=hide_noise,
+        )
+        return JSONResponse(
+            {
+                "items": items,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+                "has_more": offset + len(items) < total,
+            }
+        )
 
     async def o_password(r: Request, who: Principal) -> Response:
         data = await body(r)
@@ -1999,6 +2121,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     api = "/api/v1"
     routes = [
         Route("/healthz", healthz),
+        Route(f"{api}/health", api_health),
         Route(f"{api}/auth/signup", signup, methods=["POST"]),
         Route(f"{api}/companies", crm_create_company, methods=["POST"]),
         Route(f"{api}/auth/otp/request", otp_request, methods=["POST"]),
@@ -2010,6 +2133,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route(f"{api}/auth/reset/request", reset_request, methods=["POST"]),
         Route(f"{api}/auth/reset/confirm", reset_confirm, methods=["POST"]),
         Route(f"{api}/billing", billing_get),
+        Route(f"{api}/bug-reports", bug_reports_get, methods=["GET"]),
         Route(f"{api}/bug-reports", bug_report_post, methods=["POST"]),
         Route(f"{api}/issue-attachments", attachment_upload, methods=["POST"]),
         Route(f"{api}/issue-attachments/{{token}}", attachment_get),
@@ -2044,6 +2168,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route(f"{api}/escalations", escalations_get),
         Route(f"{api}/escalations", escalation_post, methods=["POST"]),
         Route(f"{api}/escalations/{{id}}/answer", escalation_answer, methods=["POST"]),
+        Route(f"{api}/escalations/{{id}}/dismiss", escalation_dismiss, methods=["POST"]),
+        Route(f"{api}/calls/{{call_id}}/contact", call_contact_get),
+        Route(f"{api}/calls/{{call_id}}/contact", call_contact_put, methods=["PUT"]),
+        Route(f"{api}/calls/{{call_id}}", call_meta_patch, methods=["PATCH"]),
         Route(f"{api}/team", team_get),
         Route(f"{api}/team", team_post, methods=["POST"]),
         Route(f"{api}/team/{{id}}", team_patch, methods=["PATCH"]),
@@ -2054,6 +2182,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route("/api/owner/logout", owner_logout, methods=["POST"]),
         Route("/api/owner/me", owner_route(o_me)),
         Route("/api/owner/stats", owner_route(o_stats)),
+        Route("/api/owner/stats/speed", owner_route(o_stats_speed)),
         Route("/api/owner/audit", owner_route(o_audit)),
         Route("/api/owner/features", owner_route(o_features)),
         Route(

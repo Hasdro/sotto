@@ -527,6 +527,8 @@ ADDED_COLUMNS = (
     ("zoho_connections", "failed_at", "INTEGER"),  # ZC-14: last refresh Zoho refused
     ("companies", "billing_plan_code", "TEXT"),  # Round 3 (D-087): the Zoho Billing plan code
     ("usage", "exclude_p95_alarm", "INTEGER"),  # Round 4 (D-096): slow local model excluded
+    ("usage", "contact_json", "TEXT"),  # Slice 3B (PROD-004/SAFE-001): per-call Zoho contact
+    ("usage", "call_title", "TEXT"),  # Slice 3B: editable call title
 )
 OTP_TTL_MS = 10 * 60_000  # a sign-in code works for 10 minutes
 OTP_MAX_ATTEMPTS = 5  # then the code is spent; ask for a new one
@@ -1096,11 +1098,24 @@ class CloudStore:
 
     @staticmethod
     def _device_out(r: sqlite3.Row, current: str | None = None) -> dict[str, Any]:
+        os_labels = {
+            "mac": "macOS",
+            "windows": "Windows",
+            "linux": "Linux",
+            "web": "Web",
+            "ios": "iOS",
+            "android": "Android",
+            "extension": "Browser extension",
+            "unknown": "Unknown",
+        }
+        plat = str(r["platform"] or "unknown")
         return {
             "id": r["id"],
             "user": {"email": r["email"], "name": r["name"]},
-            "platform": r["platform"],
+            "platform": plat,
+            "os_label": os_labels.get(plat, plat),
             "label": r["label"],
+            "hostname": r["label"],
             "app_version": r["app_version"],
             "first_seen": r["first_seen"],
             "last_seen": r["last_seen"],
@@ -1536,6 +1551,29 @@ class CloudStore:
                 ip=ip,
             )
 
+    def dismiss_escalation(self, who: Principal, item_id: str, *, ip: str = "") -> None:
+        """UX-012-server: dismiss noise or irrelevant questions without adding to the playbook."""
+        who.require("admin", "manager")
+        rows = self._q(
+            "SELECT * FROM escalations WHERE id = ? AND company_id = ?", (item_id, who.company)
+        )
+        if not rows:
+            raise CloudError("not_found", "question not found")
+        with self._tx() as db:
+            db.execute(
+                "UPDATE escalations SET status = 'dismissed', updated_at = ?"
+                " WHERE id = ? AND company_id = ?",
+                (now_ms(), item_id, who.company),
+            )
+            self.audit(
+                db,
+                "escalation.dismissed",
+                str(rows[0]["question"]),
+                company_id=who.company,
+                actor=who,
+                ip=ip,
+            )
+
     # --- team ------------------------------------------------------------------------------------
     def team(self, who: Principal) -> list[dict[str, Any]]:
         who.require("admin", "manager")
@@ -1544,7 +1582,10 @@ class CloudStore:
             " WHERE company_id = ? ORDER BY created_at",
             (who.company,),
         )
-        return [dict(r) | {"active": bool(r["active"])} for r in rows]
+        return [
+            dict(r) | {"active": bool(r["active"]), "last_active_at": r["last_seen_at"]}
+            for r in rows
+        ]
 
     def invite(
         self, who: Principal, email: str, name: str, role: str, *, ip: str = ""
@@ -1597,6 +1638,14 @@ class CloudStore:
         if role not in ROLES or not isinstance(active, bool):
             raise CloudError("invalid", "bad role or active flag")
         with self._tx() as db:
+            if rows[0]["role"] == "admin" and rows[0]["active"] and (role != "admin" or not active):
+                other_admins = db.execute(
+                    "SELECT COUNT(*) FROM users WHERE company_id = ? AND role = 'admin'"
+                    " AND active = 1 AND id != ?",
+                    (who.company, user_id),
+                ).fetchone()[0]
+                if other_admins < 1:
+                    raise CloudError("invalid", "at least one active admin is required")
             if active and not rows[0]["active"]:
                 self._check_seat(db, who.company)  # re-enabling takes a seat again
             db.execute(
@@ -1628,6 +1677,27 @@ class CloudStore:
                 (f"{who.company}:{call_id}", who.company, who.user_id, now_ms()),
             )
 
+    @staticmethod
+    def _clean_contact(raw: object) -> dict[str, str] | None:
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise CloudError("invalid", "contact must be an object")
+        allowed = {
+            "name": 160,
+            "email": 254,
+            "phone": 60,
+            "company": 160,
+            "zoho_module": 40,
+            "zoho_id": 80,
+        }
+        clean: dict[str, str] = {}
+        for k, limit in allowed.items():
+            val = _clean(raw.get(k), k, limit, required=False)
+            if val:
+                clean[k] = val
+        return clean or None
+
     def report_usage(self, who: Principal, data: dict[str, Any], platform: str) -> str:
         def num(key: str, hi: int, *, optional: bool = False) -> int | None:
             v = data.get(key)
@@ -1649,6 +1719,8 @@ class CloudStore:
         if began:
             started = int(began[0]["started_at"])
             duration = min(duration, max(0, (t - started) // 1000) + 30)
+        contact = self._clean_contact(data.get("contact"))
+        call_title = _clean(data.get("title"), "title", 200, required=False) or None
         row = (
             usage_id,
             who.company,
@@ -1669,16 +1741,77 @@ class CloudStore:
             t,
             source if source in CALL_SOURCES else "computer",
             1 if data.get("exclude_p95_alarm") is True else 0,
+            json.dumps(contact, ensure_ascii=False) if contact else None,
+            call_title,
         )
         with self._tx() as db:
             db.execute(
                 "INSERT OR IGNORE INTO usage(id, company_id, user_id, device_id, started_at,"
                 " duration_s, cards, playbook_cards, ai_cards, holding_lines, escalations, p50_ms,"
-                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source, exclude_p95_alarm)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " p95_ms, stt_vendor, llm_vendor, platform, reported_at, source, exclude_p95_alarm,"
+                " contact_json, call_title)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 row,
             )
         return call_id
+
+    def call_contact(self, who: Principal, call_id: str) -> dict[str, str] | None:
+        """PROD-004 / SAFE-001: per-call Zoho contact; strictly company-scoped."""
+        self.recording_call(who, call_id, upload=False)
+        rows = self._q(
+            "SELECT contact_json FROM usage WHERE id = ? AND company_id = ?",
+            (f"{who.company}:{call_id}", who.company),
+        )
+        if not rows or not rows[0]["contact_json"]:
+            return None
+        return cast(dict[str, str], json.loads(rows[0]["contact_json"]))
+
+    def set_call_contact(
+        self, who: Principal, call_id: str, data: dict[str, Any]
+    ) -> dict[str, str] | None:
+        """PROD-004 / SAFE-001: attach or replace a single call's Zoho contact."""
+        self.recording_call(who, call_id, upload=True)
+        clean = self._clean_contact(data)
+        with self._tx() as db:
+            db.execute(
+                "UPDATE usage SET contact_json = ? WHERE id = ? AND company_id = ?",
+                (
+                    json.dumps(clean, ensure_ascii=False) if clean else None,
+                    f"{who.company}:{call_id}",
+                    who.company,
+                ),
+            )
+        return clean
+
+    def update_call_meta(
+        self, who: Principal, call_id: str, data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update a call's title and/or contact metadata."""
+        self.recording_call(who, call_id, upload=True)
+        fields: dict[str, Any] = {}
+        if "title" in data:
+            fields["call_title"] = _clean(data.get("title"), "title", 200, required=False) or None
+        if "contact" in data:
+            clean = self._clean_contact(data.get("contact"))
+            fields["contact_json"] = json.dumps(clean, ensure_ascii=False) if clean else None
+        if not fields:
+            raise CloudError("invalid", "nothing to change")
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        with self._tx() as db:
+            db.execute(
+                f"UPDATE usage SET {sets} WHERE id = ? AND company_id = ?",  # noqa: S608
+                (*fields.values(), f"{who.company}:{call_id}", who.company),
+            )
+        rows = self._q(
+            "SELECT call_title, contact_json FROM usage WHERE id = ? AND company_id = ?",
+            (f"{who.company}:{call_id}", who.company),
+        )
+        raw = rows[0]["contact_json"] if rows else None
+        return {
+            "call_id": call_id,
+            "title": rows[0]["call_title"] if rows else None,
+            "contact": json.loads(raw) if raw else None,
+        }
 
     def require_own_call(self, who: Principal, call_id: str) -> None:
         """The call was started or reported by this person in this company; anything else is
@@ -1756,6 +1889,9 @@ class CloudStore:
             row = dict(r)
             raw = row.pop("review_json", None)
             row["review"] = json.loads(raw) if raw else None
+            raw_contact = row.pop("contact_json", None)
+            row["contact"] = json.loads(raw_contact) if raw_contact else None
+            row["title"] = row.pop("call_title", None)
             out.append(row)
         return out
 
@@ -2041,6 +2177,33 @@ class CloudStore:
             )
 
     # --- owner (platform) ------------------------------------------------------------------------
+    def _p95_30d(self, since: int, company_id: str | None = None) -> tuple[int | None, int]:
+        """Single source of truth for 30-day speed p95 across Overview, Companies, and /stats/speed
+        (F-01, F-06). Excludes slow local-model calls flagged exclude_p95_alarm=1."""
+        sql = (
+            "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL"
+            " AND COALESCE(exclude_p95_alarm, 0) = 0"
+        )
+        args: tuple[Any, ...] = (since,)
+        if company_id is not None:
+            sql += " AND company_id = ?"
+            args = (*args, company_id)
+        p95s = sorted(int(r["p95_ms"]) for r in self._q(sql, args))
+        if not p95s:
+            return None, 0
+        idx = min(len(p95s) - 1, int(len(p95s) * 0.95))
+        return p95s[idx], len(p95s)
+
+    def owner_speed_stats(self, window_days: int = 30) -> dict[str, Any]:
+        t = now_ms()
+        p95_ms, calls_count = self._p95_30d(t - window_days * DAY_MS)
+        return {
+            "p95_ms": p95_ms,
+            "window_days": window_days,
+            "computed_at": t,
+            "calls_count": calls_count,
+        }
+
     def owner_stats(self) -> dict[str, Any]:
         t = now_ms()
         companies = self.owner_companies()
@@ -2070,17 +2233,10 @@ class CloudStore:
             " COALESCE(SUM(escalations), 0) AS escalations FROM usage WHERE started_at >= ?",
             (_month_start(t),),
         )[0]
-        p95s = [
-            int(r["p95_ms"])
-            for r in self._q(
-                "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL"
-                " AND COALESCE(exclude_p95_alarm, 0) = 0",
-                (day0,),
-            )
-        ]
-        p95s.sort()
+        p95_ms_30d, p95_calls_30d = self._p95_30d(day0)
         return {
             "now": t,
+            "computed_at": t,
             "companies": len(companies),
             "by_status": by_status,
             "users": users,
@@ -2094,7 +2250,10 @@ class CloudStore:
                 "holding_lines": month["holds"],
                 "escalations": month["escalations"],
             },
-            "p95_ms_30d": p95s[int(len(p95s) * 0.95)] if p95s else None,
+            "calls_30d": sum(int(r["calls"]) for r in daily),
+            "p95_ms_30d": p95_ms_30d,
+            "p95_window_days": 30,
+            "p95_calls_30d": p95_calls_30d,
             "daily": [
                 {
                     "day": int(r["day"]) * DAY_MS,
@@ -2114,6 +2273,7 @@ class CloudStore:
     def owner_companies(self) -> list[dict[str, Any]]:
         t = now_ms()
         month0 = _month_start(t)
+        day0 = t - 30 * DAY_MS
         rows = self._q(
             "SELECT c.*,"
             " (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id AND u.active = 1)"
@@ -2130,11 +2290,12 @@ class CloudStore:
             " (SELECT email FROM users u WHERE u.company_id = c.id AND u.role = 'admin'"
             "   ORDER BY created_at LIMIT 1) AS admin_email"
             " FROM companies c ORDER BY c.created_at DESC",
-            (month0, t - 30 * DAY_MS, t - 30 * DAY_MS),
+            (month0, day0, day0),
         )
         out = []
         for r in rows:
             used = -(-int(r["month_seconds"]) // 60)
+            p95_30d, _ = self._p95_30d(day0, company_id=str(r["id"]))
             out.append(
                 {
                     "id": r["id"],
@@ -2147,6 +2308,7 @@ class CloudStore:
                     "devices": r["devices"],
                     "last_active": r["last_active"],
                     "calls_30d": r["calls_30d"],
+                    "p95_ms_30d": p95_30d,
                     "p95_avg_ms": round(r["p95_avg"]) if r["p95_avg"] is not None else None,
                     **plan_state(r, used, t),
                 }
@@ -2414,35 +2576,109 @@ class CloudStore:
             db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
             self.audit(db, "owner.company.deleted", str(c["name"]), actor=owner, ip=ip)
 
-    def company_audit(self, who: Principal, limit: int = 200) -> list[dict[str, Any]]:
+    def company_audit(
+        self, who: Principal, limit: int = 200, *, include_system: bool = False
+    ) -> list[dict[str, Any]]:
         """The company's own activity log for its admins (owner, 22 Oct 2026): who changed
-        roles, keys (names only), settings, routes and the playbook, and when."""
+        roles, keys (names only), settings, routes and the playbook, and when. Noisy
+        background telemetry (`keys.delivered`, `zoho.read*`) is filtered out by default
+        (UX-017) unless `include_system=True`."""
         who.require("admin")
+        if include_system:
+            sql = (
+                "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
+                " FROM audit a"
+                " LEFT JOIN users u ON u.id = a.actor_id"
+                " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%'"
+                " ORDER BY a.id DESC LIMIT ?"
+            )
+        else:
+            sql = (
+                "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
+                " FROM audit a"
+                " LEFT JOIN users u ON u.id = a.actor_id"
+                " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%'"
+                " AND a.action NOT IN ('keys.delivered', 'zoho.read')"
+                " AND a.action NOT LIKE 'zoho.read.%'"
+                " ORDER BY a.id DESC LIMIT ?"
+            )
+        rows = self._q(sql, (who.company, limit))
+        return [dict(r) for r in rows]
+
+    def owner_audit(
+        self,
+        company_id: str | None = None,
+        limit: int = 200,
+        *,
+        offset: int = 0,
+        q: str = "",
+        action: str = "",
+        hide_noise: bool = False,
+    ) -> list[dict[str, Any]]:
+        act_pat = f"{action.strip()}%" if action.strip() else None
+        q_pat = f"%{q.strip()}%" if q.strip() else None
         rows = self._q(
-            "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
-            " FROM audit a"
+            "SELECT a.*, u.email AS actor, c.name AS company FROM audit a"
             " LEFT JOIN users u ON u.id = a.actor_id"
-            " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%' ORDER BY a.id DESC LIMIT ?",
-            (who.company, limit),
+            " LEFT JOIN companies c ON c.id = a.company_id"
+            " WHERE (? IS NULL OR a.company_id = ?)"
+            " AND (? IS NULL OR a.action LIKE ?)"
+            " AND (? = 0 OR (a.action NOT IN ('keys.delivered', 'zoho.read')"
+            "   AND a.action NOT LIKE 'zoho.read.%'))"
+            " AND (? IS NULL OR a.action LIKE ? OR a.detail LIKE ?"
+            "   OR COALESCE(u.email, '') LIKE ? OR COALESCE(c.name, '') LIKE ?)"
+            " ORDER BY a.id DESC LIMIT ? OFFSET ?",
+            (
+                company_id,
+                company_id,
+                act_pat,
+                act_pat,
+                1 if hide_noise else 0,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+                max(1, min(limit, 500)),
+                max(0, offset),
+            ),
         )
         return [dict(r) for r in rows]
 
-    def owner_audit(self, company_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
-        if company_id:
-            rows = self._q(
-                "SELECT a.*, u.email AS actor FROM audit a LEFT JOIN users u ON u.id = a.actor_id"
-                " WHERE a.company_id = ? ORDER BY a.id DESC LIMIT ?",
-                (company_id, limit),
-            )
-        else:
-            rows = self._q(
-                "SELECT a.*, u.email AS actor, c.name AS company FROM audit a"
-                " LEFT JOIN users u ON u.id = a.actor_id"
-                " LEFT JOIN companies c ON c.id = a.company_id"
-                " ORDER BY a.id DESC LIMIT ?",
-                (limit,),
-            )
-        return [dict(r) for r in rows]
+    def owner_audit_count(
+        self,
+        *,
+        company_id: str | None = None,
+        q: str = "",
+        action: str = "",
+        hide_noise: bool = False,
+    ) -> int:
+        act_pat = f"{action.strip()}%" if action.strip() else None
+        q_pat = f"%{q.strip()}%" if q.strip() else None
+        rows = self._q(
+            "SELECT COUNT(*) AS n FROM audit a"
+            " LEFT JOIN users u ON u.id = a.actor_id"
+            " LEFT JOIN companies c ON c.id = a.company_id"
+            " WHERE (? IS NULL OR a.company_id = ?)"
+            " AND (? IS NULL OR a.action LIKE ?)"
+            " AND (? = 0 OR (a.action NOT IN ('keys.delivered', 'zoho.read')"
+            "   AND a.action NOT LIKE 'zoho.read.%'))"
+            " AND (? IS NULL OR a.action LIKE ? OR a.detail LIKE ?"
+            "   OR COALESCE(u.email, '') LIKE ? OR COALESCE(c.name, '') LIKE ?)",
+            (
+                company_id,
+                company_id,
+                act_pat,
+                act_pat,
+                1 if hide_noise else 0,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+                q_pat,
+            ),
+        )
+        return int(rows[0]["n"])
 
     # --- Zoho (D-031) --------------------------------------------------------------------------
     # Secrets are written here and read only by the server's own Zoho calls; no method that

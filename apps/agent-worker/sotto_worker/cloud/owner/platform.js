@@ -125,12 +125,22 @@ function renderProviders(data) {
           p.key_set
             ? btn(
                 "Remove",
-                () =>
-                  run(async () => {
+                async () => {
+                  if (
+                    !(await confirmAction({
+                      title: `Remove ${p.name} key?`,
+                      body: `Live calls routed to ${p.name} will fail until a new key is saved or routes are switched.`,
+                      blast: "Affects: every non-BYO company using this provider.",
+                      confirmLabel: "Remove key",
+                    }))
+                  )
+                    return;
+                  await run(async () => {
                     renderProviders(
                       await api(`/api/owner/keys/${p.key_env}`, { method: "DELETE" }),
                     );
-                  }, `${p.name} key removed`),
+                  }, `${p.name} key removed`);
+                },
                 "danger",
               )
             : null,
@@ -181,11 +191,47 @@ async function loadRouting() {
   renderRouting(await api("/api/owner/providers"));
 }
 function benchText(b) {
-  if (!b) return "Not benchmarked";
+  if (!b) return "Never benchmarked — R1 not verified";
   return `${b.ok ? "Meets R1" : "Misses R1"} · p50 ${b.p50_ms ?? "—"} · p95 ${b.p95_ms ?? "—"} ms · ${fmtDate(b.at)}`;
+}
+function keySourceBadge(ks) {
+  if (!ks) return null;
+  if (ks.source === "missing")
+    return h("span", { class: "status bad" }, ks.label || "No key — will fail");
+  const when = ks.updated_at ? ` · saved ${fmtDate(ks.updated_at)}` : "";
+  return h("span", { class: "status ok" }, `${ks.label}${when}`);
 }
 function renderRouting(data) {
   providerList = data.providers;
+  const unbenchmarked = data.stages.filter((s) => s.live && !s.benchmark);
+  const banner = $("#routingBanner");
+  if (banner) {
+    banner.replaceChildren(
+      ...(unbenchmarked.length
+        ? [
+            h(
+              "div",
+              { class: "panel attention-item warn" },
+              h(
+                "div",
+                { class: "attention-copy" },
+                h(
+                  "span",
+                  { class: "status warn" },
+                  `${unbenchmarked.length} live stage(s) have never been benchmarked against R1 (1,500 ms)`,
+                ),
+                h(
+                  "span",
+                  { class: "meta" },
+                  "Enable the weekly Routing job to verify live stages meet R1.",
+                ),
+              ),
+              btn("Open Routing job", () => show("routingjob"), "primary"),
+            ),
+          ]
+        : []),
+    );
+  }
   $("#routing tbody").replaceChildren(
     ...data.stages.map((s) => {
       const vendors = providerList.filter((p) => p.kind === s.kind && p.client);
@@ -201,6 +247,7 @@ function renderRouting(data) {
         autocomplete: "off",
       });
       const prev = s.history.length > 0;
+      const liveLabel = s.live ? (s.benchmark?.ok ? " Live" : " Live (unverified)") : null;
       return h(
         "tr",
         {},
@@ -208,7 +255,7 @@ function renderRouting(data) {
           "th",
           { scope: "row" },
           s.label,
-          s.live ? h("small", { class: "kill-note" }, " live") : null,
+          liveLabel ? h("small", { class: "kill-note" }, liveLabel) : null,
         ),
         h(
           "td",
@@ -216,12 +263,36 @@ function renderRouting(data) {
           `${s.provider_id || "—"} · ${s.model || "—"}`,
           h("br"),
           h("small", {}, s.source === "platform" ? "AGN choice" : "Default"),
+          s.key_source ? h("br") : null,
+          keySourceBadge(s.key_source),
         ),
-        h("td", {}, s.benchmark ? status(s.benchmark.ok, benchText(s.benchmark)) : benchText(null)),
+        h(
+          "td",
+          {},
+          s.benchmark
+            ? status(s.benchmark.ok, benchText(s.benchmark))
+            : h("span", { class: "status warn" }, benchText(null)),
+        ),
         h("td", {}, pick, " ", model),
         h(
           "td",
           { class: "act" },
+          btn("Test stage", (e) =>
+            run(async () => {
+              e.target.disabled = true;
+              e.target.textContent = "Testing…";
+              try {
+                const r = await api(`/api/owner/routes/${s.id}/test`, {
+                  method: "POST",
+                  body: {},
+                });
+                toast(`${s.label}: ${r.ok ? "Pass" : "Fail"} (${r.latency_ms} ms) — ${r.detail}`);
+              } finally {
+                e.target.disabled = false;
+                e.target.textContent = "Test stage";
+              }
+            }),
+          ),
           btn(
             "Use",
             () =>
@@ -378,7 +449,7 @@ async function loadHealth() {
 function renderHealth(data) {
   const r = data.rule;
   $("#healthRule").textContent =
-    `Rule: ${r.threshold} failures from at least ${r.min_companies} companies within ${r.window_min} min demote a vendor for ${r.demote_min} min.`;
+    `Auto-demotion: ${r.threshold} failures from at least ${r.min_companies} companies within ${r.window_min} min demote a vendor for ${r.demote_min} min. Manual demotion lasts ${r.manual_demote_min || 30} min.`;
   $("#health tbody").replaceChildren(
     ...data.providers.map((p) =>
       h(
@@ -410,15 +481,25 @@ function renderHealth(data) {
               )
             : btn(
                 "Demote 30 min",
-                () =>
-                  run(async () => {
+                async () => {
+                  if (
+                    !(await confirmAction({
+                      title: `Demote ${p.name} for 30 minutes?`,
+                      body: `Calls will skip ${p.name} and use backup providers for 30 minutes.`,
+                      blast: "Affects: every company · apps follow within 10 minutes.",
+                      confirmLabel: "Demote 30 min",
+                    }))
+                  )
+                    return;
+                  await run(async () => {
                     renderHealth(
                       await api(`/api/owner/health/${p.id}/demote`, {
                         method: "POST",
                         body: { minutes: 30 },
                       }),
                     );
-                  }, `${p.name} demoted; apps follow within 10 minutes`),
+                  }, `${p.name} demoted; apps follow within 10 minutes`);
+                },
                 "danger",
               ),
         ),
@@ -437,43 +518,75 @@ function renderZohoClients(z) {
     ? `Client ID ends ${z.platform.client_id_ends ?? "…"} · home ${z.platform.dc ?? "—"} · saved ${fmtDate(z.platform.updated_at)}`
     : "No main client yet (Account › Zoho OAuth client).";
   $("#dcList").replaceChildren(
-    table(
-      ["Data centre", "Client ID", "Saved", ""],
-      z.dc_clients.map((c) => [
-        c.dc,
-        `ends ${c.client_id_ends}`,
-        fmtDate(c.updated_at),
-        btn(
-          "Remove",
-          () =>
-            run(async () => {
-              renderZohoClients(await api(`/api/owner/zoho/clients/${c.dc}`, { method: "DELETE" }));
-            }, `${c.dc} removed`),
-          "danger",
+    z.dc_clients.length
+      ? table(
+          ["Data centre", "Client ID", "Saved", ""],
+          z.dc_clients.map((c) => [
+            c.dc,
+            `ends ${c.client_id_ends}`,
+            fmtDate(c.updated_at),
+            btn(
+              "Remove",
+              async () => {
+                if (
+                  !(await confirmAction({
+                    title: `Remove Zoho ${c.dc} client secret?`,
+                    body: `Companies in the ${c.dc} data centre will lose Zoho refresh until a secret is saved again.`,
+                    blast: `Affects: all companies on Zoho ${c.dc}.`,
+                    confirmLabel: "Remove secret",
+                  }))
+                )
+                  return;
+                await run(async () => {
+                  renderZohoClients(
+                    await api(`/api/owner/zoho/clients/${c.dc}`, { method: "DELETE" }),
+                  );
+                }, `${c.dc} removed`);
+              },
+              "danger",
+            ),
+          ]),
+        )
+      : h(
+          "p",
+          { class: "empty" },
+          "No per-data-centre secrets saved yet — the main Zoho client is used.",
         ),
-      ]),
-    ),
   );
   $("#ovrList").replaceChildren(
-    table(
-      ["Company", "Data centre", "Client ID", "Saved", ""],
-      z.overrides.map((o) => [
-        o.company,
-        o.dc,
-        `ends ${o.client_id_ends}`,
-        fmtDate(o.updated_at),
-        btn(
-          "Remove",
-          () =>
-            run(async () => {
-              renderZohoClients(
-                await api(`/api/owner/companies/${o.company_id}/zoho-client`, { method: "DELETE" }),
-              );
-            }, `${o.company} uses the AGN client again`),
-          "danger",
-        ),
-      ]),
-    ),
+    z.overrides.length
+      ? table(
+          ["Company", "Data centre", "Client ID", "Saved", ""],
+          z.overrides.map((o) => [
+            o.company,
+            o.dc,
+            `ends ${o.client_id_ends}`,
+            fmtDate(o.updated_at),
+            btn(
+              "Remove",
+              async () => {
+                if (
+                  !(await confirmAction({
+                    title: `Remove Zoho override for ${o.company}?`,
+                    body: `${o.company} will revert to the platform Zoho client and users may need to reconnect.`,
+                    blast: `Affects: ${o.company}.`,
+                    confirmLabel: "Remove override",
+                  }))
+                )
+                  return;
+                await run(async () => {
+                  renderZohoClients(
+                    await api(`/api/owner/companies/${o.company_id}/zoho-client`, {
+                      method: "DELETE",
+                    }),
+                  );
+                }, `${o.company} uses the AGN client again`);
+              },
+              "danger",
+            ),
+          ]),
+        )
+      : h("p", { class: "empty" }, "No company overrides yet — every company uses the AGN client."),
   );
 }
 $("#dcForm").addEventListener("submit", (e) => {
@@ -514,6 +627,15 @@ async function loadSignups() {
   $("#hookState").textContent = data.secret_set_at
     ? `Secret set ${fmtDate(data.secret_set_at)}. It is shown only once; make a new one if it is lost.`
     : "No secret yet: the webhook refuses every sign-up until you make one.";
+  const refEl = $("#hookRefused");
+  if (refEl) {
+    if (data.refused_count > 0) {
+      refEl.hidden = false;
+      refEl.textContent = `Refused sign-up attempts (missing or wrong secret): ${data.refused_count}${data.refused_last_at ? ` · last ${fmtWhen(data.refused_last_at)}` : ""}.`;
+    } else {
+      refEl.hidden = true;
+    }
+  }
   $("#signups tbody").replaceChildren(
     ...(data.signups.length
       ? data.signups.map((s) =>
@@ -560,28 +682,47 @@ async function loadSignups() {
                   )
                 : null,
               s.company_id
-                ? btn(s.status === "suspended" ? "Restore" : "Suspend", () =>
-                    run(
+                ? btn(s.status === "suspended" ? "Restore" : "Suspend", async () => {
+                    const suspending = s.status !== "suspended";
+                    if (
+                      suspending &&
+                      !(await confirmAction({
+                        title: `Suspend ${s.company}?`,
+                        body: "Live calls are blocked immediately; sign-in and history stay available.",
+                        blast: `Affects: all users at ${s.company}.`,
+                        confirmLabel: "Suspend company",
+                      }))
+                    )
+                      return;
+                    await run(
                       async () => {
                         await api(`/api/owner/companies/${s.company_id}`, {
                           method: "PATCH",
-                          body: { suspended: s.status !== "suspended" },
+                          body: { suspended: suspending },
                         });
                         await loadSignups();
                       },
-                      s.status === "suspended" ? "Restored" : "Suspended: calls are blocked",
-                    ),
-                  )
+                      suspending ? "Suspended: calls are blocked" : "Restored",
+                    );
+                  })
                 : null,
               s.company_id
                 ? btn(
                     "Delete",
-                    () => {
-                      const typed = prompt(`Type ${s.company} to delete it and all its data.`);
-                      if (typed !== s.company) return;
-                      run(async () => {
+                    async () => {
+                      if (
+                        !(await confirmAction({
+                          title: `Delete ${s.company}?`,
+                          body: "Permanently deletes this company, its users, devices, calls, and settings. This cannot be undone.",
+                          blast: `Affects: ${s.company} · irreversible.`,
+                          confirmLabel: "Delete company",
+                          requireText: s.company,
+                        }))
+                      )
+                        return;
+                      await run(async () => {
                         await api(
-                          `/api/owner/companies/${s.company_id}?confirm=${encodeURIComponent(typed)}`,
+                          `/api/owner/companies/${s.company_id}?confirm=${encodeURIComponent(s.company)}`,
                           { method: "DELETE" },
                         );
                         await loadSignups();
@@ -606,6 +747,12 @@ $("#hookRotate").addEventListener("click", () =>
     );
     await loadSignups();
   }),
+);
+$("#hookTest")?.addEventListener("click", () =>
+  run(async () => {
+    await api("/api/owner/signups/test", { method: "POST", body: {} });
+    await loadSignups();
+  }, "Test sign-up added to the queue"),
 );
 
 // --- routing job (ZC-05) ---------------------------------------------------------------------
@@ -682,16 +829,19 @@ $("#routingJobSave").addEventListener("click", () => {
   return saveRoutingJob(body);
 });
 $("#routingCapClear").addEventListener("click", () => saveRoutingJob({ monthly_cap_usd: null }));
+$("#routingToSpend")?.addEventListener("click", () => show("spend"));
 
 // --- spend (ZC-12) -------------------------------------------------------------------------
 const SPEND_STATE = {
-  cap_not_set: ["bad", "Cap not set"],
+  cap_not_set: ["warn", "No guardrail — set a cap"],
   ok: ["ok", "Under 80 %"],
-  alert: ["bad", "Over 80 % · owner alerted"],
+  alert: ["warn", "Over 80 % · owner alerted"],
   capped: ["bad", "Cap reached · AGN keys withheld"],
 };
 async function loadSpend() {
   const data = await api("/api/owner/spend");
+  const policyEl = $("#spendPolicy p");
+  if (policyEl && data.at_cap_behaviour) policyEl.textContent = data.at_cap_behaviour;
   $("#spendNote").textContent =
     `Estimates from seed/models/prices.yaml (checked ${data.checked}); not a vendor bill. Stages a company runs on its own keys (BYO) are not counted.`;
   $("#spend tbody").replaceChildren(
@@ -705,7 +855,14 @@ async function loadSpend() {
         placeholder: c.cap_usd === null ? "Not set" : String(c.cap_usd),
       });
       const [tone, text] = SPEND_STATE[c.status];
+      const pctNum = c.ratio === null ? null : Math.min(100, Math.round(c.ratio * 100));
       const pct = c.ratio === null ? "" : ` · ${Math.round(c.ratio * 100)} %`;
+      const bar = (() => {
+        if (pctNum === null) return null;
+        const fill = h("div", { class: `fill ${tone === "ok" ? "" : tone}` });
+        fill.style.width = `${pctNum}%`;
+        return h("div", { class: "minibar" }, h("div", { class: "track" }, fill));
+      })();
       const put = (cap) =>
         run(
           async () => {
@@ -723,7 +880,7 @@ async function loadSpend() {
         h("th", { scope: "row" }, c.name),
         h("td", { class: "num" }, `${c.spend_usd.toFixed(2)} USD`),
         h("td", { class: "num" }, c.cap_usd === null ? "—" : `${c.cap_usd.toFixed(2)} USD`),
-        h("td", {}, h("span", { class: `status ${tone}` }, text + pct)),
+        h("td", {}, h("span", { class: `status ${tone}` }, text + pct), bar),
         h("td", {}, input),
         h(
           "td",

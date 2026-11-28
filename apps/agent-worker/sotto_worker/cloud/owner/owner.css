@@ -1127,3 +1127,98 @@ ul.plain li label {
 .tour-foot .row {
   margin-top: 0;
 }
+
+/* ---------- Slice 2A: Overview attention queue & KPI state tones (F-01, F-06, F-07) ---------- */
+.kpi.ok {
+  border-inline-start: 3px solid var(--ss-positive);
+}
+.kpi.warn {
+  border-inline-start: 3px solid var(--ss-notice-border);
+}
+.kpi.bad {
+  border-inline-start: 3px solid var(--ss-danger);
+}
+.kpi.clickable {
+  cursor: pointer;
+}
+.kpi.clickable:hover {
+  background: var(--ss-bubble);
+}
+.kpi-stamp {
+  margin: -8px 0 0;
+  font-size: var(--ss-text-label);
+}
+.attention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ss-space-sm);
+}
+.attention-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ss-space-md);
+  padding: var(--ss-space-md) var(--ss-space-lg);
+  border-radius: var(--ss-radius-lg);
+  background: var(--ss-surface-sunken);
+  flex-wrap: wrap;
+}
+.attention-copy {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+  flex: 1 1 240px;
+}
+.attention-copy .meta {
+  color: var(--ss-text-muted);
+  font-size: var(--ss-text-label);
+}
+.nav-group {
+  margin: var(--ss-space-sm) var(--ss-space-sm) 2px;
+  font-size: var(--ss-text-timestamp);
+  font-weight: var(--ss-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ss-text-muted);
+}
+.company-subnav {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ss-space-xs);
+  padding: var(--ss-space-sm) 0;
+  margin-block-end: var(--ss-space-md);
+  background: var(--ss-canvas);
+  border-block-end: 1px solid var(--ss-border);
+}
+.company-subnav a {
+  padding: 6px 12px;
+  border-radius: var(--ss-radius-pill);
+  background: var(--ss-surface-sunken);
+  color: var(--ss-text);
+  text-decoration: none;
+  font-size: var(--ss-text-label);
+  font-weight: var(--ss-weight-medium);
+}
+.company-subnav a:hover {
+  background: var(--ss-bubble);
+}
+.company-sections {
+  display: grid;
+  gap: var(--ss-space-lg);
+}
+#companies thead th:first-child,
+#companies tbody td:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 2;
+  background: var(--ss-surface);
+  border-inline-end: 1px solid var(--ss-border);
+}
+#companies tbody tr:hover td:first-child {
+  background: var(--ss-surface-sunken);
+}
