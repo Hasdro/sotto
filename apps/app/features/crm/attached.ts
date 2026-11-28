@@ -48,6 +48,12 @@ const GAME_PLAN_MAX = 1600;
 type State = { crm: Attached; prep: Prep; auto: Partial<Prep>; call: string | null };
 const NONE: State = { crm: { kind: "none" }, prep: EMPTY_PREP, auto: {}, call: null };
 let state: State = NONE;
+/**
+ * The call bound last. The call screen binds its call id again every time it opens, and the
+ * session keeps an ended call's id until the next call starts, so binding that same id again
+ * must change nothing: a meeting picked on Home after the call stays with the next call.
+ */
+let lastBound: string | null = null;
 let gamePlanText = "";
 const listeners = new Set<() => void>();
 
@@ -113,10 +119,16 @@ export const clearCrm = () => {
   for (const f of PREP_FIELDS) if (isPrefilled(state, f)) prep[f] = "";
   set({ crm: { kind: "none" }, prep, auto: {} });
 };
-/** A new call: nothing attached, an empty brief. */
-export const resetCall = () => {
+/** Nothing attached, an empty brief, no game plan. */
+function clearState(): void {
   gamePlanText = "";
   set(NONE);
+}
+
+/** A new call: nothing attached, an empty brief, and no call bound yet. */
+export const resetCall = () => {
+  lastBound = null;
+  clearState();
 };
 
 export function setGamePlanText(text: string | null | undefined): void {
@@ -129,19 +141,20 @@ export function attachedGamePlanText(): string {
 
 /** Picked on the home screen: becomes the next call's brief. */
 export function attachForNextCall(brief: Brief): void {
-  resetCall();
+  clearState();
   attachBrief(brief);
 }
 
 /**
- * Called with the call screen's call id (null before a call). A call keeps what was prepared
- * for it: a meeting picked on Home, or a record and notes added before it started. A record or
- * brief that belongs to another call is dropped, so it never carries into this one (SAFE-001).
+ * Called with the call screen's call id. A new call keeps what was prepared for it (a meeting
+ * picked on Home, or what was added before it started); a record or brief that belongs to
+ * another call is dropped, so it never carries into this one (SAFE-001).
  */
 export function bindCall(callId: string | null): void {
-  if (callId === state.call) return;
-  if (state.call !== null) resetCall();
-  if (callId !== null) set({ call: callId });
+  if (callId === null || callId === lastBound) return;
+  if (state.call !== null) clearState();
+  lastBound = callId;
+  set({ call: callId });
 }
 export function setPrep(field: PrepField, value: string): void {
   set({ prep: { ...state.prep, [field]: value.slice(0, PREP_MAX) } });

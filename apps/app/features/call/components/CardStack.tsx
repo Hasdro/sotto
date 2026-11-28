@@ -121,6 +121,7 @@ export function CardStack({ cards, wide, listening, speaking = false, practice =
           <HeroActions
             key={`actions-${hero.id}`}
             cardId={hero.id}
+            done={hero.done}
             text={heroParts.main}
             why={showWhy ? heroParts.why : null}
             whyOpen={heroWhyOpen}
@@ -392,12 +393,15 @@ function canCopy(): boolean {
  */
 function HeroActions({
   cardId,
+  done,
   text,
   why,
   whyOpen,
   onToggleWhy,
 }: {
   cardId: string;
+  /** The card has finished streaming: only then is there a whole sentence to copy. */
+  done: boolean;
   text: string;
   why: string | null;
   whyOpen: boolean;
@@ -413,7 +417,7 @@ function HeroActions({
     },
     [],
   );
-  const copyable = canCopy();
+  const copyable = done && canCopy();
   const keys = desktop() ? `${LRI}${shortcutKeys().copy}${PDI}` : null;
   if (!why && !copyable) return null;
   const copy = () => {

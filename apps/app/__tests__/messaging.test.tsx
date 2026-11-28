@@ -426,6 +426,7 @@ describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
   it("a meeting prepared on Home for the next call never fills the last call (SAFE-001)", async () => {
     call("f6"); // Jane's call
     attachForNextCall(OMAR);
+    bindCall("f6"); // the call screen reopens on f6's ended view
     await wrap(<FollowUp callId="f6" />);
     expect(screen.getByText("Follow up with the customer")).toBeTruthy();
     expect(await fields()).toEqual({ to: "", name: "", waName: "", waPhone: "" });

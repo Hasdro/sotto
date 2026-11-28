@@ -515,6 +515,17 @@ describe("in-call screen", () => {
       expect(screen.queryByTestId("call-rail-sheet")).toBeNull();
     });
 
+    it("`prepare=1` never pops the rail open during a call when the window widens (review)", async () => {
+      jest.replaceProperty(RN.Platform, "OS", "web");
+      jest.mocked(useIsWide).mockReturnValue(false);
+      const st = stateFrom([real, { type: "call_started", call_id: CALL }]);
+      const view = await render(<CallView session={session(st)} mock={false} prepare />);
+      expect(screen.queryByTestId("call-rail")).toBeNull();
+      jest.mocked(useIsWide).mockReturnValue(true);
+      await view.rerender(<CallView session={session(st)} mock={false} prepare />);
+      expect(screen.queryByTestId("call-rail")).toBeNull();
+    });
+
     it("without `prepare` the rail stays collapsed before the call; the toggle opens the editor", async () => {
       jest.replaceProperty(RN.Platform, "OS", "web");
       jest.mocked(useIsWide).mockReturnValue(true);

@@ -158,17 +158,16 @@ describe("CrmRail", () => {
     expect(attachedBriefText()).toBe("");
   });
 
-  it("a record added before the next call carries into it; a finished call's never does (SAFE-001)", async () => {
+  it("a meeting picked on Home after a call goes to the next call, even when the call screen reopens on the last one (SAFE-001 review)", async () => {
     const { brief } = await mockLookup.meetingBrief(MEETING);
-    bindCall("c1");
-    attachBrief(brief);
-    bindCall(null); // the call screen is back at its start: c1's record is not the next call's
-    expect(attachedBriefText()).toBe("");
-    attachBrief(brief); // linked before the next call starts
-    setPrep("objective", "Close it");
-    bindCall("c2");
+    bindCall("c1"); // call 1 runs
+    setPrep("objective", "Old notes");
+    attachForNextCall(brief); // call 1 ended; the agent prepares the next meeting on Home
+    bindCall("c1"); // /call remounts on call 1's ended view (the session keeps its id)
     expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
-    expect(attachedBriefText()).toContain("Call objective: Close it");
+    bindCall("c2"); // call 2 starts
+    expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+    expect(attachedBriefText()).not.toContain("Old notes");
   });
 
   it("asks to connect first while the person has not connected Zoho", async () => {

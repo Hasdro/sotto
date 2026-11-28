@@ -104,6 +104,19 @@ describe("live call actions (PROD-002)", () => {
     expect(screen.getByText("Copied")).toBeOnTheScreen();
   });
 
+  it("offers Copy only once the card is complete, never half a sentence (review)", async () => {
+    fakeDesktop({});
+    const streaming = session([
+      hello,
+      { type: "call_started", call_id: CALL },
+      card({ done: false }),
+    ]);
+    await render(<CallView session={streaming} mock={false} />);
+    expect(screen.getByTestId("hero-card")).toBeOnTheScreen();
+    expect(screen.queryByTestId("hero-copy")).toBeNull();
+    expect(screen.queryByTestId("hero-copy-shortcut")).toBeNull();
+  });
+
   it("the browser shows Copy but no desktop shortcut or mini window", async () => {
     await render(<CallView session={live()} mock={false} />);
     expect(screen.getByTestId("hero-copy")).toBeOnTheScreen();

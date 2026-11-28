@@ -160,11 +160,13 @@ export function CallView({
   useEffect(() => {
     if (askPractice) setPracticing(true);
   }, [askPractice]);
-  useEffect(() => {
-    if (prepare && wide) setRailOpen(true);
-  }, [prepare, wide]);
   const live = state.phase === "live";
   const idle = state.phase === "idle";
+  // `?prepare=1` opens the rail before the call only: widening the window during a call never
+  // pops it open over the card (the parameter stays in the address for the whole call).
+  useEffect(() => {
+    if (prepare && wide && idle) setRailOpen(true);
+  }, [prepare, wide, idle]);
   // A new call starts with a clean brief, unless a meeting was picked for it on Home.
   useEffect(() => bindCall(state.callId), [state.callId]);
   useEffect(() => {
