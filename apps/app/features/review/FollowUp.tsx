@@ -25,10 +25,11 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useFeature } from "../../components/FeatureGate";
+import { cloudApi } from "../../lib/cloud";
 import { deviceCall, setAfterCallItem } from "../../lib/deviceHistory";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
-import { useAttachedFor } from "../crm/attached";
+import { type CallContact, useAttachedFor } from "../crm/attached";
 import { EmailAction } from "../email";
 import type { Draft as EmailDraft } from "../email/api";
 import { SendWarnings } from "../email/EmailAction";
@@ -57,8 +58,9 @@ export function FollowUp({
   const ft = useReviewText();
   const { color } = useTheme();
   const cloud = useCloud();
-  // SAFE-001: this call's own record only; an older call in History gets empty fields.
+  // SAFE-001 / PROD-004: this call's own record only (in-memory if active, else per-call server contact).
   const crm = useAttachedFor(callId);
+  const [serverContact, setServerContact] = useState<CallContact | null>(null);
   const email = useFeature("email_send");
   const [channel, setChannel] = useState<Channel>("email");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -75,7 +77,31 @@ export function FollowUp({
   const lines = (call?.transcript ?? []).flatMap((e) =>
     e.kind === "line" ? [{ speaker: e.speaker, text: e.text }] : [],
   );
-  const person = crm.kind === "attached" ? crm.brief.person : null;
+  useEffect(() => {
+    setServerContact(null);
+    if (!callId || crm.kind === "attached" || cloud.status !== "signed_in") return;
+    let live = true;
+    cloudApi<{ contact?: CallContact | null }>(
+      `/api/v1/calls/${encodeURIComponent(callId)}/contact`,
+    )
+      .then((res) => {
+        if (live && res?.contact) setServerContact(res.contact);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [callId, crm.kind, cloud.status]);
+  const person =
+    crm.kind === "attached"
+      ? crm.brief.person
+      : serverContact
+        ? {
+            name: serverContact.name ?? "",
+            email: serverContact.email ?? "",
+            phone: serverContact.phone ?? "",
+          }
+        : null;
   const visible = Boolean(bundle && lines.some((l) => l.speaker === "customer"));
   const label = person?.name
     ? ft("fu.title", { name: `${LRI}${person.name}${PDI}` })
@@ -188,7 +214,7 @@ export function FollowUp({
           ) : null}
           {phase === "drafting" ? null : email.state === "available" ? (
             <EmailAction
-              key={version}
+              key={`${version}:${person?.email ?? ""}:${person?.name ?? ""}`}
               callId={callId}
               customer={{ name: person?.name, email: person?.email }}
               draft={draft}
@@ -215,6 +241,7 @@ export function FollowUp({
         </Stack>
       ) : (
         <WhatsAppAction
+          key={`${person?.phone ?? ""}:${person?.name ?? ""}`}
           callId={callId}
           customer={{ name: person?.name, phone: person?.phone }}
           onSent={sent}

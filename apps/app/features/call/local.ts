@@ -29,6 +29,7 @@ import {
 import {
   attachedBriefText,
   attachedCallName,
+  attachedContact,
   attachedGamePlanText,
   saveBriefFor,
 } from "../crm/attached";
@@ -160,9 +161,16 @@ export function connectLocal(bundle: CallBundle, handlers: BridgeHandlers): Brid
       });
     if (reviewAllowed()) review(s.call_id, lines, learn);
     else learn("");
-    void cloudApi("/api/v1/usage", { method: "POST", body: { ...s, source } }).catch((err) =>
-      console.warn("[engine] usage not reported", err),
-    );
+    const contact = attachedContact();
+    void cloudApi("/api/v1/usage", {
+      method: "POST",
+      body: {
+        ...s,
+        source,
+        ...(named?.title ? { title: named.title } : {}),
+        ...(contact ? { contact } : {}),
+      },
+    }).catch((err) => console.warn("[engine] usage not reported", err));
   };
   const review = (
     callId: string,

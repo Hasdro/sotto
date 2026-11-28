@@ -423,6 +423,32 @@ describe("FollowUp card (UX-05, draft D-045 (backlog))", () => {
     expect(screen.queryByText(/Omar|Jane/)).toBeNull();
   });
 
+  it("an older call prefills strictly from its own server contact and never another call's (PROD-004)", async () => {
+    call("f8"); // older call whose contact is stored on the server
+    call("f9"); // newer call with Omar attached in memory
+    attachBrief(OMAR);
+    mockRoutes["GET /api/v1/calls/f8/contact"] = () => ({
+      contact: {
+        name: "Alice Buyer",
+        email: "alice@buyer.test",
+        phone: "+971500000001",
+        zoho_module: "Contacts",
+        zoho_id: "zc-101",
+      },
+    });
+    await wrap(<FollowUp callId="f8" />);
+    await waitFor(() =>
+      expect(screen.getByText("Follow up with \u2066Alice Buyer\u2069")).toBeTruthy(),
+    );
+    expect(await fields()).toEqual({
+      to: "alice@buyer.test",
+      name: "Alice Buyer",
+      waName: "Alice Buyer",
+      waPhone: "+971500000001",
+    });
+    expect(screen.queryByText(/Omar/)).toBeNull();
+  });
+
   it("a meeting prepared on Home for the next call never fills the last call (SAFE-001)", async () => {
     call("f6"); // Jane's call
     attachForNextCall(OMAR);

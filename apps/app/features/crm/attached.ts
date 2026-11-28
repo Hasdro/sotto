@@ -180,6 +180,32 @@ export function attachedCallName(): { title: string; company: string } | null {
   return title ? { title, company: (b.account?.name ?? "").trim() } : null;
 }
 
+export type CallContact = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  zoho_module?: string;
+  zoho_id?: string;
+};
+
+/** PROD-004 / SAFE-001: per-call Zoho contact snapshot sent with POST /api/v1/usage. */
+export function attachedContact(): CallContact | null {
+  if (state.crm.kind !== "attached") return null;
+  const p = state.crm.brief.person;
+  if (!p) return null;
+  const company = (state.crm.brief.account?.name ?? "").trim();
+  const out: CallContact = {
+    ...(p.name?.trim() ? { name: p.name.trim() } : {}),
+    ...(p.email?.trim() ? { email: p.email.trim() } : {}),
+    ...(p.phone?.trim() ? { phone: p.phone.trim() } : {}),
+    ...(company ? { company } : {}),
+    ...(p.module ? { zoho_module: p.module } : {}),
+    ...(p.id ? { zoho_id: p.id } : {}),
+  };
+  return Object.keys(out).length ? out : null;
+}
+
 /** Saves the brief with the call (server, company-scoped). Nothing to save: nothing sent. */
 export function saveBriefFor(callId: string): Promise<void> {
   const crm = state.crm.kind === "attached" ? state.crm.brief : null;
