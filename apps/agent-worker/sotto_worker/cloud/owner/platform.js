@@ -181,11 +181,47 @@ async function loadRouting() {
   renderRouting(await api("/api/owner/providers"));
 }
 function benchText(b) {
-  if (!b) return "Not benchmarked";
+  if (!b) return "Never benchmarked — R1 not verified";
   return `${b.ok ? "Meets R1" : "Misses R1"} · p50 ${b.p50_ms ?? "—"} · p95 ${b.p95_ms ?? "—"} ms · ${fmtDate(b.at)}`;
+}
+function keySourceBadge(ks) {
+  if (!ks) return null;
+  if (ks.source === "missing")
+    return h("span", { class: "status bad" }, ks.label || "No key — will fail");
+  const when = ks.updated_at ? ` · saved ${fmtDate(ks.updated_at)}` : "";
+  return h("span", { class: "status ok" }, `${ks.label}${when}`);
 }
 function renderRouting(data) {
   providerList = data.providers;
+  const unbenchmarked = data.stages.filter((s) => s.live && !s.benchmark);
+  const banner = $("#routingBanner");
+  if (banner) {
+    banner.replaceChildren(
+      ...(unbenchmarked.length
+        ? [
+            h(
+              "div",
+              { class: "panel attention-item warn" },
+              h(
+                "div",
+                { class: "attention-copy" },
+                h(
+                  "span",
+                  { class: "status warn" },
+                  `${unbenchmarked.length} live stage(s) have never been benchmarked against R1 (1,500 ms)`,
+                ),
+                h(
+                  "span",
+                  { class: "meta" },
+                  "Enable the weekly Routing job to verify live stages meet R1.",
+                ),
+              ),
+              btn("Open Routing job", () => show("routingjob"), "primary"),
+            ),
+          ]
+        : []),
+    );
+  }
   $("#routing tbody").replaceChildren(
     ...data.stages.map((s) => {
       const vendors = providerList.filter((p) => p.kind === s.kind && p.client);
@@ -201,6 +237,7 @@ function renderRouting(data) {
         autocomplete: "off",
       });
       const prev = s.history.length > 0;
+      const liveLabel = s.live ? (s.benchmark?.ok ? " Live" : " Live (unverified)") : null;
       return h(
         "tr",
         {},
@@ -208,7 +245,7 @@ function renderRouting(data) {
           "th",
           { scope: "row" },
           s.label,
-          s.live ? h("small", { class: "kill-note" }, " live") : null,
+          liveLabel ? h("small", { class: "kill-note" }, liveLabel) : null,
         ),
         h(
           "td",
@@ -216,12 +253,36 @@ function renderRouting(data) {
           `${s.provider_id || "—"} · ${s.model || "—"}`,
           h("br"),
           h("small", {}, s.source === "platform" ? "AGN choice" : "Default"),
+          s.key_source ? h("br") : null,
+          keySourceBadge(s.key_source),
         ),
-        h("td", {}, s.benchmark ? status(s.benchmark.ok, benchText(s.benchmark)) : benchText(null)),
+        h(
+          "td",
+          {},
+          s.benchmark
+            ? status(s.benchmark.ok, benchText(s.benchmark))
+            : h("span", { class: "status warn" }, benchText(null)),
+        ),
         h("td", {}, pick, " ", model),
         h(
           "td",
           { class: "act" },
+          btn("Test stage", (e) =>
+            run(async () => {
+              e.target.disabled = true;
+              e.target.textContent = "Testing…";
+              try {
+                const r = await api(`/api/owner/routes/${s.id}/test`, {
+                  method: "POST",
+                  body: {},
+                });
+                toast(`${s.label}: ${r.ok ? "Pass" : "Fail"} (${r.latency_ms} ms) — ${r.detail}`);
+              } finally {
+                e.target.disabled = false;
+                e.target.textContent = "Test stage";
+              }
+            }),
+          ),
           btn(
             "Use",
             () =>
@@ -514,6 +575,15 @@ async function loadSignups() {
   $("#hookState").textContent = data.secret_set_at
     ? `Secret set ${fmtDate(data.secret_set_at)}. It is shown only once; make a new one if it is lost.`
     : "No secret yet: the webhook refuses every sign-up until you make one.";
+  const refEl = $("#hookRefused");
+  if (refEl) {
+    if (data.refused_count > 0) {
+      refEl.hidden = false;
+      refEl.textContent = `Refused sign-up attempts (missing or wrong secret): ${data.refused_count}${data.refused_last_at ? ` · last ${fmtWhen(data.refused_last_at)}` : ""}.`;
+    } else {
+      refEl.hidden = true;
+    }
+  }
   $("#signups tbody").replaceChildren(
     ...(data.signups.length
       ? data.signups.map((s) =>
@@ -606,6 +676,12 @@ $("#hookRotate").addEventListener("click", () =>
     );
     await loadSignups();
   }),
+);
+$("#hookTest")?.addEventListener("click", () =>
+  run(async () => {
+    await api("/api/owner/signups/test", { method: "POST", body: {} });
+    await loadSignups();
+  }, "Test sign-up added to the queue"),
 );
 
 // --- routing job (ZC-05) ---------------------------------------------------------------------

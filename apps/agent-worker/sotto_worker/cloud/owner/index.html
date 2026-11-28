@@ -115,6 +115,7 @@
 
     <section id="v-routing" class="view" hidden>
       <header class="page-head"><h1 class="ss-page-title">Model routing</h1><p class="ss-lead ss-muted">Which vendor and model each stage uses for every company. A live stage only takes a model whose last benchmark met R1 (p95 ≤ 1500 ms). The next call uses a change; no release needed.</p></header>
+      <div id="routingBanner"></div>
       <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
       <section class="table-wrap" tabindex="0" aria-label="Model routing table"><table id="routing">
         <thead><tr><th scope="col">Stage</th><th scope="col">Now</th><th scope="col">Benchmark</th><th scope="col">Change to</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
@@ -204,8 +205,13 @@
     <section id="v-signups" class="view" hidden>
       <header class="page-head"><h1 class="ss-page-title">Sign-up queue</h1><p class="ss-lead ss-muted">Companies created by the Zoho Forms sign-up (D-068): a 14-day trial and an invite to the first admin. Calls use AGN's providers once you approve the company.</p></header>
       <div class="panel"><h2>Webhook secret</h2><p id="hookState" class="note">Loading…</p>
-        <p class="note">In Zoho Forms › Integrations › Webhooks: POST to <code id="hookUrl"></code>, JSON payload with parameters <code>company</code>, <code>name</code>, <code>email</code>, <code>phone</code>, and a custom header <code>X-AGN-Signup-Secret</code>.</p>
-        <button type="button" id="hookRotate" class="ghost">New secret</button></div>
+        <p id="hookRefused" class="note" hidden></p>
+        <ol class="note">
+          <li>Open Zoho Forms › Integrations › Webhooks and set POST URL to <code id="hookUrl"></code>.</li>
+          <li>Send JSON fields <code>company</code>, <code>name</code>, <code>email</code>, <code>phone</code>.</li>
+          <li>Add custom header <code>X-AGN-Signup-Secret</code> with the secret generated below.</li>
+        </ol>
+        <div class="row"><button type="button" id="hookRotate" class="primary">New secret</button> <button type="button" id="hookTest" class="ghost">Send test sign-up</button></div></div>
       <div class="panel flush"><!-- biome-ignore lint/a11y/noNoninteractiveTabindex: a keyboard user must be able to scroll a wide table (axe scrollable-region-focusable) -->
       <section class="table-wrap" tabindex="0" aria-label="Sign-ups table"><table id="signups">
         <thead><tr><th scope="col">When</th><th scope="col">Company</th><th scope="col">Admin</th><th scope="col">Status</th><th scope="col">Invite</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>

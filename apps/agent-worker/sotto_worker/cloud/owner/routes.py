@@ -5,6 +5,8 @@ failure report (ZC-06) and the company prompt routes (BYO only)."""
 from __future__ import annotations
 
 import json
+import secrets
+import time
 from collections.abc import Awaitable, Callable
 from http import HTTPStatus
 from typing import Any
@@ -109,6 +111,7 @@ def make_routes(
                     "provider_id": provider_id,
                     "model": model,
                     "source": "platform" if chosen else "default",
+                    "key_source": platform.stage_key_source(store, pcat, provider_id, company_id),
                     "live": slot.id in platform.LIVE_STAGES,
                     "deadline_ms": default.first_token_ms if default else None,
                     "benchmark": platform.benchmark(store, provider_id, model, slot.id)
@@ -216,6 +219,60 @@ def make_routes(
     async def o_route_rollback(r: Request, who: Principal) -> Response:
         platform.rollback_route(store, seed, who, r.path_params["stage"], ip=ip_of(r))
         return JSONResponse(providers_out(), headers=NO_STORE)
+
+    async def o_route_test(r: Request, who: Principal) -> Response:
+        """Test one live/configured stage end-to-end with its resolved platform key (F-05)."""
+        stage_id = r.path_params["stage"]
+        prov = providers_out()
+        st = next((s for s in prov["stages"] if s["id"] == stage_id), None)
+        if st is None:
+            raise CloudError("not_found", "unknown stage")
+        pid = st["provider_id"]
+        provider = catalog.providers.get(pid) if pid else None
+        if provider is None:
+            raise CloudError("not_found", "unknown provider for stage")
+        key = platform.platform_key(store, provider.key_env)
+        t0 = time.monotonic()
+        ok, detail = False, "No key saved for this stage's provider"
+        if key:
+            try:
+                if provider.kind == "stt":
+                    if provider.id in STT_TOKEN_VENDORS:
+                        await minter(provider.id, key)
+                        ok, detail = True, "streaming token issued"
+                    else:
+                        ok, detail = True, "key saved (no token test endpoint)"
+                else:
+                    url = provider.models_url()
+                    if not url:
+                        ok, detail = False, "provider has no test endpoint"
+                    else:
+                        models = await tester(provider.id, url, key)
+                        ok, detail = True, f"{len(models)} models available"
+            except httpx.HTTPStatusError as e:
+                detail = f"{provider.name} answered {e.response.status_code}"
+            except httpx.HTTPError as e:
+                detail = f"{provider.name} unreachable ({type(e).__name__})"
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        with store._tx() as db:
+            store.audit(
+                db,
+                "owner.stage.tested",
+                f"{stage_id} ({pid}/{st['model']}): {'ok' if ok else 'fail'} ({latency_ms} ms)",
+                actor=who,
+                ip=ip_of(r),
+            )
+        return JSONResponse(
+            {
+                "ok": ok,
+                "stage": stage_id,
+                "provider_id": pid,
+                "model": st["model"],
+                "latency_ms": latency_ms,
+                "detail": detail,
+            },
+            headers=NO_STORE,
+        )
 
     # --- per-company model routes (round 2, D-078/D-079) -----------------------------------------
     async def o_company_routes(r: Request, _who: Principal) -> Response:
@@ -541,10 +598,13 @@ def make_routes(
 
     # --- sign-up queue and webhook (ZC-10) -------------------------------------------------------
     async def o_signups(_r: Request, _who: Principal) -> Response:
+        refused_count, refused_last_at = platform.signup_refused_stats(store)
         return JSONResponse(
             {
                 "signups": platform.signups(store),
                 "secret_set_at": platform.signup_secret_set(store),
+                "refused_count": refused_count,
+                "refused_last_at": refused_last_at,
             },
             headers=NO_STORE,
         )
@@ -556,6 +616,32 @@ def make_routes(
     async def o_signup_secret(r: Request, who: Principal) -> Response:
         secret = platform.rotate_signup_secret(store, who, ip=ip_of(r))
         return JSONResponse({"secret": secret, "header": "X-AGN-Signup-Secret"}, headers=NO_STORE)
+
+    async def o_signup_test(r: Request, who: Principal) -> Response:
+        """Create a distinctive test sign-up so the owner can verify the queue end-to-end (F-03)."""
+        email = f"test+{secrets.token_hex(4)}@example.test"
+        made = platform.signup(
+            store,
+            seed,
+            company="Test — delete me",
+            name="Test Sign-up",
+            email=email,
+            phone="",
+            ip=ip_of(r),
+        )
+        company_id = made[0] if made else None
+        refused_count, refused_last_at = platform.signup_refused_stats(store)
+        return JSONResponse(
+            {
+                "ok": True,
+                "company_id": company_id,
+                "signups": platform.signups(store),
+                "refused_count": refused_count,
+                "refused_last_at": refused_last_at,
+            },
+            status_code=HTTPStatus.CREATED,
+            headers=NO_STORE,
+        )
 
     async def hook_fields(r: Request) -> dict[str, str]:
         declared = r.headers.get("content-length")
@@ -590,6 +676,7 @@ def make_routes(
             raise CloudError("rate_limited", "too many tries; wait")
         if not platform.signup_secret_ok(store, r.headers.get(SIGNUP_HEADER)):
             bad_secret_record(ip_key(r))
+            platform.record_signup_refused(store)
             return JSONResponse(
                 {"error": "wrong secret", "code": "signed_out"}, status_code=HTTPStatus.UNAUTHORIZED
             )
@@ -772,6 +859,7 @@ def make_routes(
         o("routes/{stage}", o_route_put, "PUT"),
         o("routes/{stage}", o_route_delete, "DELETE"),
         o("routes/{stage}/rollback", o_route_rollback, "POST"),
+        o("routes/{stage}/test", o_route_test, "POST"),
         o("companies/{id}/routes", o_company_routes),
         o("companies/{id}/routes/{stage}", o_company_route_put, "PUT"),
         o("companies/{id}/routes/{stage}", o_company_route_delete, "DELETE"),
@@ -808,6 +896,7 @@ def make_routes(
         o("companies/{id}/zoho-client", o_zoho_override_delete, "DELETE"),
         o("signups", o_signups),
         o("signups/secret", o_signup_secret, "POST"),
+        o("signups/test", o_signup_test, "POST"),
         o("signups/{id}/approve", o_signup_approve, "POST"),
         Route(f"{api}/provider-health", failures_post, methods=["POST"]),
         Route(f"{api}/company/prompts", c_prompts),

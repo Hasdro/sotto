@@ -1727,6 +1727,15 @@ async function renderModels() {
         stage.provider_id && stage.model ? `${stage.provider_id} / ${stage.model}` : "—",
         isUnavailable ? h("span", { class: "status bad" }, " unavailable") : null,
         h("span", { class: "meta" }, ` ${stage.source}`),
+        stage.key_source
+          ? h(
+              "span",
+              {
+                class: `status ${stage.key_source.source === "missing" ? "bad" : "ok"}`,
+              },
+              ` ${stage.key_source.label}`,
+            )
+          : null,
         stage.benchmark
           ? h("span", { class: "meta" }, ` · p95 ${stage.benchmark.p95_ms} ms`)
           : null,
