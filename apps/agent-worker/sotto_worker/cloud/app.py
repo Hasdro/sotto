@@ -1007,6 +1007,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse(store.billing_info(who), headers={"Cache-Control": "no-store"})
 
     @app_route
+    async def bug_reports_get(_request: Request, _who: Principal) -> Response:
+        raise CloudError("forbidden", "bug reports are reviewed in the owner console")
+
+    @app_route
     async def bug_report_post(request: Request, who: Principal) -> Response:
         data = await body(request)
         # The upload answers with an absolute URL; the store keeps the relative
@@ -1551,8 +1555,49 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse({"devices": store.devices(who, all_users=everyone)})
 
     @app_route
-    async def audit_get(_request: Request, who: Principal) -> Response:
-        return JSONResponse({"items": store.company_audit(who)})
+    async def audit_get(request: Request, who: Principal) -> Response:
+        include_system = request.query_params.get("include_system") == "1"
+        return JSONResponse({"items": store.company_audit(who, include_system=include_system)})
+
+    @app_route
+    async def api_health(_request: Request, who: Principal) -> Response:
+        """Tenant-scoped health & stage readiness check (FUNC-001-server)."""
+        t = int(time.time() * 1000)
+        state = plan_state(store.company_row(who.company), store.minutes_used(who.company), t)
+        cseed = platform.company_seed(store, seed, who.company)
+        routing = apply_overrides(
+            cseed.routing, cseed.catalog, platform.effective_routes(store, who.company)
+        )
+        key_set = set(store.key_status(who))
+        stages_out: dict[str, dict[str, Any]] = {}
+        for sid in ("suggest", "stt", "summary"):
+            route = routing.stages.get(sid)
+            if route is None:
+                stages_out[sid] = {"ready": False, "provider_id": None, "model": None}
+                continue
+            env_name = route_key_env(route)
+            ready = True if not env_name else (env_name in key_set)
+            stages_out[sid] = {
+                "ready": ready,
+                "provider_id": platform.vendor_of(cseed.catalog, route),
+                "model": route.model,
+            }
+        p95_30d, calls_30d = store._p95_30d(t - 30 * 86_400_000, company_id=who.company)
+        return JSONResponse(
+            {
+                "ok": True,
+                "service": "sotto-cloud",
+                "plan": {
+                    "status": state["status"],
+                    "can_call": state["can_call"],
+                    "blocked_reason": state["blocked_reason"],
+                },
+                "stages": stages_out,
+                "speed": {"p95_ms": p95_30d, "calls_30d": calls_30d},
+                "config_health": store.config_health(who),
+            },
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app_route
     async def device_delete(request: Request, who: Principal) -> Response:
@@ -2022,6 +2067,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
     api = "/api/v1"
     routes = [
         Route("/healthz", healthz),
+        Route(f"{api}/health", api_health),
         Route(f"{api}/auth/signup", signup, methods=["POST"]),
         Route(f"{api}/companies", crm_create_company, methods=["POST"]),
         Route(f"{api}/auth/otp/request", otp_request, methods=["POST"]),
@@ -2033,6 +2079,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route(f"{api}/auth/reset/request", reset_request, methods=["POST"]),
         Route(f"{api}/auth/reset/confirm", reset_confirm, methods=["POST"]),
         Route(f"{api}/billing", billing_get),
+        Route(f"{api}/bug-reports", bug_reports_get, methods=["GET"]),
         Route(f"{api}/bug-reports", bug_report_post, methods=["POST"]),
         Route(f"{api}/issue-attachments", attachment_upload, methods=["POST"]),
         Route(f"{api}/issue-attachments/{{token}}", attachment_get),

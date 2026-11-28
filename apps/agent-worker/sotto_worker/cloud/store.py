@@ -1096,11 +1096,24 @@ class CloudStore:
 
     @staticmethod
     def _device_out(r: sqlite3.Row, current: str | None = None) -> dict[str, Any]:
+        os_labels = {
+            "mac": "macOS",
+            "windows": "Windows",
+            "linux": "Linux",
+            "web": "Web",
+            "ios": "iOS",
+            "android": "Android",
+            "extension": "Browser extension",
+            "unknown": "Unknown",
+        }
+        plat = str(r["platform"] or "unknown")
         return {
             "id": r["id"],
             "user": {"email": r["email"], "name": r["name"]},
-            "platform": r["platform"],
+            "platform": plat,
+            "os_label": os_labels.get(plat, plat),
             "label": r["label"],
+            "hostname": r["label"],
             "app_version": r["app_version"],
             "first_seen": r["first_seen"],
             "last_seen": r["last_seen"],
@@ -1544,7 +1557,10 @@ class CloudStore:
             " WHERE company_id = ? ORDER BY created_at",
             (who.company,),
         )
-        return [dict(r) | {"active": bool(r["active"])} for r in rows]
+        return [
+            dict(r) | {"active": bool(r["active"]), "last_active_at": r["last_seen_at"]}
+            for r in rows
+        ]
 
     def invite(
         self, who: Principal, email: str, name: str, role: str, *, ip: str = ""
@@ -1597,6 +1613,14 @@ class CloudStore:
         if role not in ROLES or not isinstance(active, bool):
             raise CloudError("invalid", "bad role or active flag")
         with self._tx() as db:
+            if rows[0]["role"] == "admin" and rows[0]["active"] and (role != "admin" or not active):
+                other_admins = db.execute(
+                    "SELECT COUNT(*) FROM users WHERE company_id = ? AND role = 'admin'"
+                    " AND active = 1 AND id != ?",
+                    (who.company, user_id),
+                ).fetchone()[0]
+                if other_admins < 1:
+                    raise CloudError("invalid", "at least one active admin is required")
             if active and not rows[0]["active"]:
                 self._check_seat(db, who.company)  # re-enabling takes a seat again
             db.execute(
@@ -2440,17 +2464,33 @@ class CloudStore:
             db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
             self.audit(db, "owner.company.deleted", str(c["name"]), actor=owner, ip=ip)
 
-    def company_audit(self, who: Principal, limit: int = 200) -> list[dict[str, Any]]:
+    def company_audit(
+        self, who: Principal, limit: int = 200, *, include_system: bool = False
+    ) -> list[dict[str, Any]]:
         """The company's own activity log for its admins (owner, 22 Oct 2026): who changed
-        roles, keys (names only), settings, routes and the playbook, and when."""
+        roles, keys (names only), settings, routes and the playbook, and when. Noisy
+        background telemetry (`keys.delivered`, `zoho.read*`) is filtered out by default
+        (UX-017) unless `include_system=True`."""
         who.require("admin")
-        rows = self._q(
-            "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
-            " FROM audit a"
-            " LEFT JOIN users u ON u.id = a.actor_id"
-            " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%' ORDER BY a.id DESC LIMIT ?",
-            (who.company, limit),
-        )
+        if include_system:
+            sql = (
+                "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
+                " FROM audit a"
+                " LEFT JOIN users u ON u.id = a.actor_id"
+                " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%'"
+                " ORDER BY a.id DESC LIMIT ?"
+            )
+        else:
+            sql = (
+                "SELECT a.id, a.at, a.action, a.detail, u.email AS actor, u.name AS actor_name"
+                " FROM audit a"
+                " LEFT JOIN users u ON u.id = a.actor_id"
+                " WHERE a.company_id = ? AND a.action NOT LIKE 'owner.%'"
+                " AND a.action NOT IN ('keys.delivered', 'zoho.read')"
+                " AND a.action NOT LIKE 'zoho.read.%'"
+                " ORDER BY a.id DESC LIMIT ?"
+            )
+        rows = self._q(sql, (who.company, limit))
         return [dict(r) for r in rows]
 
     def owner_audit(self, company_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
