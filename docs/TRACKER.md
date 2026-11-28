@@ -410,6 +410,11 @@ Things only the owner can do, so the agent never waits silently.
 
 ## Session log
 
+### 2026-11-28 · Mac · `fix/server-owner-round1` (Stream 2 Owner Panel & Stream 3 Cloud APIs)
+- **Done:** Executed Stream 2 Owner Panel fixes (`F-01`–`F-17`, `F-19`, `F-21`–`F-23`) and Stream 3 shared cloud APIs (`UX-002-server`, `FUNC-001-server`, `FUNC-003-server`, `FUNC-004-server`, `UX-012-server`, `UX-016`, `UX-017`, `PROD-004`/`SAFE-001` per-call Zoho contact storage & call rename) across commits `2c3c4bd`, `523dc68`, `d05373b`, `2fc1baa`, `f5ca958`, `6e51870`, `1a9f6a6`, and `e2d1255`. Kept `apps/app/`, `packages/ui/`, and `apps/desktop/` untouched to avoid merge conflicts with client PR #4 (`fix/client-ux-round1`).
+- **Evidence:** `ruff check`/`format` (273 files) clean, `mypy sotto_worker` (147 files) clean, `biome check` & `node --check` clean on edited owner JS files, `pytest tests/cloud/` 542 passed (21 local-socket bind tests in `test_email.py`/`test_attachments.py` blocked only by sandbox network restriction; `test_slice_3b.py` + `test_isolation.py` 3/3 pass).
+- **Next:** Owner merges PR #4 (`fix/client-ux-round1`) and reviews/merges `fix/server-owner-round1`. Post-merge: branch from `main` for Setup guide fixes (`/setup`, `/admin/setup`) and Slice 3C client hookups (`GET/PUT /api/v1/calls/{call_id}/contact`, `PATCH /api/v1/calls/{call_id}`, `POST /api/v1/escalations/{id}/dismiss`, `GET /api/v1/health`), plus owner Mac/Windows R5a test call verification.
+
 ### 2026-11-27 · Mac · `main` (0.7.0 live deploy, cleanup, bundle budget D-137)
 - **Done:** Backed up us3 DB (`cloud.db.pre-2026-11-26-round4`, `880K`); deployed backend (`d07e25a`, `sotto-cloud` `active`, `/healthz` + `/owner` + strict CSP `200`); created private `Hasdro/sales-shield-logs`; published `https://github.com/Hasdro/sotto/releases/tag/v0.7.0` (`D-097` fix in `scripts/release.sh`); pulled & SHA-256-verified `AGN Sales Shield-0.7.0-arm64.dmg` + `AGN Sales Shield Setup 0.7.0.exe` on us3; deleted older `0.3.0`–`0.6.1` server installers with owner go (`2.5G` free on `/dev/vda2`); published `apps/landing` (`200` on `https://salesshield.agncompu.com/`, `downloads.json` `0.7.0`, both download links `200`); installed `/Applications/AGN Sales Shield.app` (`0.7.0`, `launch.mac.mjs PASS`); adjusted web bundle budget `450 → 700 KB` with owner go (`D-137`, `T-044`).
 
