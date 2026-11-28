@@ -18,6 +18,10 @@ jest.mock("../lib/cloud", () => ({
 }));
 const mockPush = jest.fn();
 jest.mock("expo-router", () => ({ router: { push: (h: string) => mockPush(h) } }));
+let mockPhase: "idle" | "live" | "ended" | null = null;
+jest.mock("../features/call/CallSessionProvider", () => ({
+  useCallPhase: () => mockPhase,
+}));
 
 const wrap = (node: React.ReactNode) =>
   render(
@@ -63,6 +67,22 @@ describe("HomeMeetings", () => {
     await fireEvent.press(screen.getByTestId(`meeting-${ID}-prepare`));
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/call?prepare=1"));
     expect(attachedBriefText()).toContain("Meeting: Acme renewal call");
+  });
+
+  it("during a live call nothing can be prepared for the next one (review: it took over the live call)", async () => {
+    signedIn({ state: "available" });
+    mockPhase = "live";
+    try {
+      await wrap(<HomeMeetings source={mockMeetings} />);
+      await waitFor(() => expect(screen.getByTestId("meetings-during-call")).toBeTruthy());
+      expect(screen.getByTestId("meetings-during-call")).toHaveTextContent(
+        "Finish the current call to prepare the next one.",
+      );
+      for (const b of screen.getAllByRole("button", { name: "Prepare" })) expect(b).toBeDisabled();
+      expect(attachedBriefText()).toBe("");
+    } finally {
+      mockPhase = null;
+    }
   });
 
   it("'Start call with this meeting' binds it and opens the call", async () => {

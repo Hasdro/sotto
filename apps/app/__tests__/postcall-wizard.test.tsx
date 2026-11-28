@@ -282,7 +282,7 @@ describe("Round 4 Wizard, FeedbackStep & StyleMemoryScreen", () => {
     await fireEvent.press(screen.getByTestId("memory-tabs-agents"));
     const card = await screen.findByTestId("agent-memory-u2");
     expect(screen.getAllByText("Omar Haddad")).toHaveLength(1); // the name is not repeated
-    expect(card).toHaveTextContent(/Active rules: 1\/12/);
+    expect(card).toHaveTextContent(/Active rules: 1\/12/); // the server's limit, not a fixed 12
     expect(card).not.toHaveTextContent(/your next call/);
     const save = screen.getByTestId("agent-editor-u2-save");
     expect(save).toBeDisabled();

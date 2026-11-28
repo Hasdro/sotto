@@ -37,7 +37,7 @@ import { practiceScenario, usePracticeRun } from "../features/call/practice";
 import { useCallText } from "../features/call/strings";
 import { type CallSession, useCallSession } from "../features/call/useCallSession";
 import { selectCards } from "../features/cards/reducer";
-import { bindCall, useAttachedState } from "../features/crm/attached";
+import { bindCall, useAttachedFor, useAttachedState } from "../features/crm/attached";
 import { mockLookup, mockPerform } from "../features/crm/mock";
 import { useEscalations } from "../features/escalations/store";
 import { desktop } from "../lib/desktop";
@@ -153,7 +153,11 @@ export function CallView({
   }, [check]);
   const callApp = useCallApp();
   const cloud = useCloud();
-  const { crm: linked } = useAttachedState();
+  const { crm: current } = useAttachedState();
+  // Review: once the call has ended, the header names only this call's record, never a meeting
+  // picked on Home for the next call.
+  const own = useAttachedFor(state.callId);
+  const linked = state.phase === "ended" ? own : current;
   const script = practiceScenario(cloud.status === "signed_in" ? cloud.bundle : null);
   const practiceRun = usePracticeRun();
   const [practicing, setPracticing] = useState(askPractice);

@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useFeature } from "../../components/FeatureGate";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
+import { useCallPhase } from "../call/CallSessionProvider";
 import { type MeetingCandidate, zohoMeetingBrief } from "./api";
 import { attachForNextCall } from "./attached";
 import { mockLookup, mockMeetings } from "./mock";
@@ -39,6 +40,9 @@ export function HomeMeetings({
   // UX-004: which button is working, so it alone says "Opening…".
   const [busy, setBusy] = useState<{ id: string; action: "prepare" | "start" } | null>(null);
   const [problem, setProblem] = useState(false);
+  // Review: a meeting picked during a live call replaced that call's record and brief (the live
+  // cards, the saved brief and its History name). The next call is prepared after this one.
+  const live = useCallPhase() === "live";
   if (!mock && (cloud.status !== "signed_in" || zoho.state !== "available")) return null;
   const from = source ?? (mock ? mockMeetings : undefined);
   const pull = mock ? mockLookup.meetingBrief : brief;
@@ -77,7 +81,7 @@ export function HomeMeetings({
               id: "prepare",
               label: t("meetings.prepare"),
               variant: "secondary",
-              busy: busy !== null,
+              busy: busy !== null || live,
               working: working("prepare"),
               onPress: (m) => bindCall(m, "prepare"),
             },
@@ -85,12 +89,17 @@ export function HomeMeetings({
               id: "start",
               label: t("meetings.startWith"),
               variant: "primary",
-              busy: busy !== null,
+              busy: busy !== null || live,
               working: working("start"),
               onPress: (m) => bindCall(m, "start"),
             },
           ]}
         />
+        {live ? (
+          <Text variant="label" tone="muted" testID="meetings-during-call">
+            {t("meetings.duringCall")}
+          </Text>
+        ) : null}
         {problem ? (
           <Text variant="label" tone="muted" aria-live="polite" accessibilityLiveRegion="polite">
             {t("crm.error")}

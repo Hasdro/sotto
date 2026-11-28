@@ -3,8 +3,10 @@
  * ends it. The session connects the first time the call screen opens and then stays up until the
  * agent ends the call, signs out (the bundle goes, so the bridge closes) or the app closes.
  */
-import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { useI18n } from "../../lib/locale";
+import { useCloud } from "../../lib/useCloud";
+import { resetCall } from "../crm/attached";
 import { AutoPickup } from "./autoPickup";
 import type { SocketFactory } from "./bridge";
 import { DesktopBridge } from "./DesktopBridge";
@@ -31,6 +33,14 @@ export function CallSessionProvider({
     ...(socketFactory ? { socketFactory } : {}),
   });
   const activate = useCallback(() => setActive(true), []);
+  // R3 (review): a linked record or call brief never outlives the account that made it, so the
+  // next account on this computer starts clean (signed out, or the gate unmounts the app).
+  const account = useCloud();
+  const userId = account.status === "signed_in" ? account.me.user.id : null;
+  useEffect(() => {
+    if (userId === null) resetCall();
+  }, [userId]);
+  useEffect(() => () => resetCall(), []);
   return (
     <SharedCall.Provider value={{ session, activate }}>
       <AutoPickup session={session} activate={activate} />
@@ -38,6 +48,11 @@ export function CallSessionProvider({
       {children}
     </SharedCall.Provider>
   );
+}
+
+/** The shared call's phase; null outside the provider (the mini window, tests). */
+export function useCallPhase(): CallSession["state"]["phase"] | null {
+  return useContext(SharedCall)?.session.state.phase ?? null;
 }
 
 /** The app-wide call session; the call screen activates it on first visit. */

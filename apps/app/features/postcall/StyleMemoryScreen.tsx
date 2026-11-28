@@ -160,7 +160,10 @@ export function StyleMemoryScreen() {
           <Panel>
             <Stack gap="sm">
               <Text variant="heading" weight="semibold">
-                {ft("memory.effective", { count: myView?.effective.length ?? 0 })}
+                {ft("memory.effective", {
+                  count: myView?.effective.length ?? 0,
+                  max: limits.rules,
+                })}
               </Text>
               {myView && myView.effective.length > 0 ? (
                 myView.effective.map((rule) => (
@@ -276,7 +279,10 @@ export function StyleMemoryScreen() {
                       </Text>
                     </View>
                     <Badge
-                      label={ft("memory.agentActive", { count: agent.effective.length })}
+                      label={ft("memory.agentActive", {
+                        count: agent.effective.length,
+                        max: limits.rules,
+                      })}
                       tone="neutral"
                     />
                   </View>

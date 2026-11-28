@@ -15,7 +15,7 @@ import {
 } from "@sotto/ui";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { cloudApi } from "../../lib/cloud";
+import { cloudApi, refreshCloud } from "../../lib/cloud";
 import { useI18n } from "../../lib/locale";
 import { useCloud } from "../../lib/useCloud";
 
@@ -71,6 +71,7 @@ export function TeamPanel({
         setEmail("");
         setName("");
         onChange();
+        void refreshCloud(); // the seat count on this page comes from the plan
       })
       .catch((err: unknown) => setNote(err instanceof Error ? err.message : "error"));
   };
@@ -87,9 +88,17 @@ export function TeamPanel({
                 {t("account.invite")}
               </Text>
               {full && company ? (
-                <Text variant="label" tone="notice" testID="team-seats-full">
-                  {t("team.seatsFull", { total: company.seats })}
-                </Text>
+                <Stack gap="xs" align="flex-start">
+                  <Text variant="label" tone="notice" testID="team-seats-full">
+                    {t("team.seatsFull", { total: company.seats })}
+                  </Text>
+                  <Button
+                    variant="ghost"
+                    label={t("team.seatsCheck")}
+                    onPress={() => void refreshCloud()}
+                    testID="team-seats-check"
+                  />
+                </Stack>
               ) : null}
               <TextField
                 label={t("account.inviteName")}

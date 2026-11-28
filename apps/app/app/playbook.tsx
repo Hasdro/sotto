@@ -206,7 +206,13 @@ function RowActions({
   if (asking) {
     return (
       <View style={styles.ask}>
-        <Text variant="label" weight="medium" testID={`remove-ask-${id}`}>
+        <Text
+          variant="label"
+          weight="medium"
+          accessibilityLiveRegion="polite"
+          aria-live="polite"
+          testID={`remove-ask-${id}`}
+        >
           {t("playbook.removeAsk")}
         </Text>
         <View style={styles.actions}>

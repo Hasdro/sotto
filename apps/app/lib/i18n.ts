@@ -464,6 +464,7 @@ const en = {
   "account.team": "Team",
   "account.teamAdmin": "Add people and change roles in Admin › People.",
   "account.teamOpen": "Open People",
+  "team.seatsCheck": "Check again",
   "team.seatsFull":
     "All {total} seats are in use. Add seats in Admin › Billing before you invite someone.",
   "account.invite": "Add a person",
@@ -955,6 +956,7 @@ const en = {
     "When a customer asks something you can't answer, it goes to your manager and shows here.",
   "meetings.prepare": "Prepare",
   "meetings.startWith": "Start call with this meeting",
+  "meetings.duringCall": "Finish the current call to prepare the next one.",
   "setup.title": "Get set up",
   "setup.progress": "{done} of {total} done",
   "setup.open": "Open",
@@ -1563,6 +1565,7 @@ const ar: Record<StringKey, string> = {
   "account.team": "الفريق",
   "account.teamAdmin": "أضف الأشخاص وغيّر الأدوار من الإدارة › الأشخاص.",
   "account.teamOpen": "افتح الأشخاص",
+  "team.seatsCheck": "تحقّق مجددًا",
   "team.seatsFull":
     "كل المقاعد ({total}) مستخدمة. أضف مقاعد من الإدارة › الفوترة قبل أن تدعو شخصًا.",
   "account.invite": "إضافة شخص",
@@ -2042,6 +2045,7 @@ const ar: Record<StringKey, string> = {
   "home.myQuestions.none": "عندما يسأل العميل سؤالًا لا تعرف جوابه، يذهب إلى مديرك ويظهر هنا.",
   "meetings.prepare": "حضّر",
   "meetings.startWith": "ابدأ المكالمة بهذا الاجتماع",
+  "meetings.duringCall": "أنهِ المكالمة الحالية لتحضير التالية.",
   "setup.title": "جهّز حسابك",
   "setup.progress": "تم {done} من {total}",
   "setup.open": "افتح",

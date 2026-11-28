@@ -34,7 +34,7 @@ export function briefLines(
     const titles = today
       .slice(0, NAMED)
       .map((m) => `⁨${m.title}⁩`)
-      .join(", ");
+      .join(locale === "ar" ? "، " : ", ");
     lines.push(tc("brief.today", { count: today.length, titles }));
   } else if (later[0]) {
     lines.push(tc("brief.noneToday", { day: formatWeekday(later[0].start, locale) }));

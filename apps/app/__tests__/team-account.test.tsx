@@ -27,7 +27,9 @@ jest.mock("../lib/cloud", () => ({
       : { devices: [] },
   ),
   cloudOrigin: () => "",
+  refreshCloud: () => mockRefresh(),
 }));
+const mockRefresh = jest.fn(async () => {});
 let mockRole = "admin";
 let mockSeats = { seats: 3, seats_used: 2 };
 jest.mock("../lib/useCloud", () => ({
@@ -87,6 +89,9 @@ describe("Admin › People seats (UX-014)", () => {
     await wrap(<TeamPanel team={[]} canInvite onChange={jest.fn()} />);
     expect(screen.getByTestId("team-seats-full")).toHaveTextContent(/All 3 seats are in use/);
     expect(screen.getByTestId("team-invite")).toBeDisabled();
+    // After buying seats in Billing the admin can re-read the plan here (review: it went stale).
+    await fireEvent.press(screen.getByTestId("team-seats-check"));
+    expect(mockRefresh).toHaveBeenCalled();
   });
 
   it("lets an admin invite while a seat is free", async () => {

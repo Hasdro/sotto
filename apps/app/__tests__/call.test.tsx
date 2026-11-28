@@ -6,7 +6,7 @@ import CallScreen, { CallView } from "../app/call";
 import { demoEnabled } from "../features/call/devGate";
 import { initialSessionState, type SessionState, sessionReducer } from "../features/call/session";
 import type { CallSession } from "../features/call/useCallSession";
-import { attachBrief, resetCall } from "../features/crm/attached";
+import { attachBrief, attachForNextCall, resetCall } from "../features/crm/attached";
 import { mockLookup } from "../features/crm/mock";
 import { useIsWide } from "../lib/responsive";
 
@@ -260,6 +260,26 @@ describe("in-call screen", () => {
       attachBrief((await mockLookup.brief({ module: "Contacts", id: "x" })).brief),
     );
     expect(screen.getByTestId("call-title")).toHaveTextContent("Jane Doe");
+    await act(async () => resetCall());
+  });
+
+  it("after a Home pick, an ended call's header never names the next meeting (review)", async () => {
+    const real: DemoServerMessage = { ...hello, company_name: "Zylker", scenarios: [] };
+    const started = stateFrom([real, { type: "call_started", call_id: CALL }]);
+    const view = await render(<CallView session={session(started)} mock={false} />);
+    await act(async () =>
+      attachBrief((await mockLookup.brief({ module: "Contacts", id: "x" })).brief),
+    );
+    expect(screen.getByTestId("call-title")).toHaveTextContent("Jane Doe");
+    const ended = sessionReducer(started, {
+      type: "server",
+      msg: { type: "call_ended", call_id: CALL } as DemoServerMessage,
+      now: 9000,
+    });
+    await view.rerender(<CallView session={session(ended)} mock={false} />);
+    expect(screen.getByTestId("call-title")).toHaveTextContent("Jane Doe");
+    await act(async () => attachForNextCall((await mockLookup.meetingBrief("m")).brief));
+    expect(screen.getByTestId("call-title")).not.toHaveTextContent("Acme renewal call");
     await act(async () => resetCall());
   });
 
