@@ -272,15 +272,16 @@ function NavPanel({ onClose }: { onClose?: () => void }) {
 }
 
 /** UX-001: ⌘K had no visible way in; this opens the quick search and names its keys. */
-function SearchButton({ onPress }: { onPress: () => void }) {
+export function SearchButton({ onPress }: { onPress: () => void }) {
   const { color } = useTheme();
   const { t } = useI18n();
   // Native phones have no ⌘K; the button alone opens the search there.
   const keys = Platform.OS === "web" ? paletteKeys() : null;
   return (
+    // No accessibilityLabel: the name comes from the visible "Search" and keycap, so it always
+    // contains the shortcut the button shows (axe label-content-name-mismatch).
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t("palette.open")}
       onPress={onPress}
       testID="palette-open"
       style={(state) => [
