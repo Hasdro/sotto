@@ -131,9 +131,66 @@ function show(view) {
 }
 
 // --- overview ------------------------------------------------------------------------------
+function speedTone(p95) {
+  if (p95 === null || p95 === undefined) return "";
+  if (p95 <= 1500) return "ok";
+  if (p95 <= 2500) return "warn";
+  return "bad";
+}
+function renderAttention(data) {
+  const el = $("#attention");
+  if (!el) return;
+  const items = data?.items || [];
+  el.replaceChildren(
+    items.length
+      ? h(
+          "ul",
+          { class: "attention-list" },
+          items.map((item) =>
+            h(
+              "li",
+              { class: `attention-item ${item.severity === "red" ? "bad" : "warn"}` },
+              h(
+                "div",
+                { class: "attention-copy" },
+                h(
+                  "span",
+                  { class: `status ${item.severity === "red" ? "bad" : "warn"}` },
+                  item.title,
+                ),
+                h("span", { class: "meta" }, item.detail),
+              ),
+              h(
+                "button",
+                {
+                  type: "button",
+                  class: item.severity === "red" ? "primary" : "ghost",
+                  onclick: () => item.view && show(item.view),
+                },
+                item.cta_label || "Open",
+              ),
+            ),
+          ),
+        )
+      : h("p", { class: "empty" }, "Nothing needs attention."),
+  );
+}
 async function loadOverview() {
-  const s = await api("/api/owner/stats");
+  const [s, att] = await Promise.all([
+    api("/api/owner/stats"),
+    api("/api/owner/attention").catch(() => ({ items: [] })),
+  ]);
+  renderAttention(att);
   const k = $("#kpis");
+  const p95Tone = speedTone(s.p95_ms_30d);
+  const p95Calls = s.p95_calls_30d ? ` · ${fmtNum(s.p95_calls_30d)} calls` : "";
+  const speedTile = kpi(
+    "Speed (p95, 30 days)",
+    s.p95_ms_30d === null ? "—" : `${fmtNum(s.p95_ms_30d)} ms`,
+    `limit 1,500 ms${p95Calls}`,
+    p95Tone,
+    () => show("routing"),
+  );
   k.replaceChildren(
     kpi(
       "Companies",
@@ -148,13 +205,16 @@ async function loadOverview() {
       `${fmtNum(s.month.minutes)} minute${s.month.minutes === 1 ? "" : "s"}`,
     ),
     kpi("Cards this month", s.month.cards, `${fmtNum(s.month.holding_lines)} holding lines`),
-    kpi(
-      "Speed (p95, 30 days)",
-      s.p95_ms_30d === null ? "—" : `${fmtNum(s.p95_ms_30d)} ms`,
-      "limit 1,500 ms",
-    ),
+    speedTile,
     kpi("Unanswered questions", s.month.escalations, "this month"),
   );
+  const stamp = $("#kpiStamp");
+  if (stamp) {
+    const at = s.computed_at || s.now;
+    stamp.textContent = at
+      ? `Snapshot updated ${new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · 30-day chart total: ${fmtNum(s.calls_30d ?? 0)} calls`
+      : "";
+  }
   drawChart($("#chart"), s.daily, s.now);
   bars($("#statusBars"), s.by_status, { trial: "", active: "", expired: "warn", suspended: "bad" });
   bars($("#platformBars"), s.platforms, {});
@@ -181,10 +241,20 @@ async function loadOverview() {
       : h("p", { class: "empty" }, "No trials end in the next 3 days."),
   );
 }
-function kpi(label, value, sub) {
+function kpi(label, value, sub, tone = "", onclick = null) {
   return h(
     "div",
-    { class: "kpi" },
+    {
+      class: `kpi${tone ? ` ${tone}` : ""}${onclick ? " clickable" : ""}`,
+      ...(onclick
+        ? {
+            role: "button",
+            tabindex: 0,
+            onclick,
+            onkeydown: (e) => (e.key === "Enter" || e.key === " ") && onclick(),
+          }
+        : {}),
+    },
     h("div", { class: "label" }, label),
     h("div", { class: "value" }, typeof value === "number" ? fmtNum(value) : value),
     h("div", { class: "sub" }, sub),
@@ -323,7 +393,17 @@ function renderCompanies() {
               ),
             ),
             h("td", { class: "num" }, fmtNum(c.calls_30d)),
-            h("td", { class: "num" }, c.p95_avg_ms === null ? "—" : `${fmtNum(c.p95_avg_ms)} ms`),
+            (() => {
+              const p95 = c.p95_ms_30d !== undefined ? c.p95_ms_30d : c.p95_avg_ms;
+              const tone = speedTone(p95);
+              return h(
+                "td",
+                { class: "num" },
+                p95 === null
+                  ? "—"
+                  : h("span", { class: tone ? `status ${tone}` : "" }, `${fmtNum(p95)} ms`),
+              );
+            })(),
             h("td", {}, fmtWhen(c.last_active)),
           );
         })

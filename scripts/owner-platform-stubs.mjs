@@ -5,6 +5,20 @@ export const PLATFORM_VIEWS = ["providers", "routing", "prompts", "health", "zoh
 
 export function platformStubs(NOW, DAY) {
   return {
+    "/api/owner/attention": {
+      computed_at: NOW,
+      items: [
+        {
+          id: "routing_job_off",
+          severity: "amber",
+          title: "Weekly R1 benchmarking is off",
+          detail: "Set a monthly cap so candidate models are benchmarked.",
+          view: "routingjob",
+          href: "#v-routingjob",
+          cta_label: "Enable routing job",
+        },
+      ],
+    },
     "/api/owner/providers": {
       providers: [
         {

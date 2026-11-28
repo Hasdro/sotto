@@ -229,12 +229,15 @@ function renderRollup() {
   ];
   const known = parts.filter((s) => s !== null).length;
   if (!known) {
-    $("#intRollup").textContent = "";
+    $("#intRollup").textContent = "Checking integrations…";
+    return;
+  }
+  if (known < 5) {
+    $("#intRollup").textContent = `Checking integrations… (${known} of 5 checked)`;
     return;
   }
   const done = parts.filter((s) => s === "ok" || s === "warn").length;
-  $("#intRollup").textContent =
-    `Integrations: ${done} of 5 set up${known < 5 ? ` (${known} checked so far).` : "."}`;
+  $("#intRollup").textContent = `Integrations: ${done} of 5 set up.`;
 }
 function openTile(key) {
   const sec = document.getElementById(SECTIONS[key].sec);

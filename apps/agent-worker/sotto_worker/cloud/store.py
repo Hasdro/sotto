@@ -2041,6 +2041,33 @@ class CloudStore:
             )
 
     # --- owner (platform) ------------------------------------------------------------------------
+    def _p95_30d(self, since: int, company_id: str | None = None) -> tuple[int | None, int]:
+        """Single source of truth for 30-day speed p95 across Overview, Companies, and /stats/speed
+        (F-01, F-06). Excludes slow local-model calls flagged exclude_p95_alarm=1."""
+        sql = (
+            "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL"
+            " AND COALESCE(exclude_p95_alarm, 0) = 0"
+        )
+        args: tuple[Any, ...] = (since,)
+        if company_id is not None:
+            sql += " AND company_id = ?"
+            args = (*args, company_id)
+        p95s = sorted(int(r["p95_ms"]) for r in self._q(sql, args))
+        if not p95s:
+            return None, 0
+        idx = min(len(p95s) - 1, int(len(p95s) * 0.95))
+        return p95s[idx], len(p95s)
+
+    def owner_speed_stats(self, window_days: int = 30) -> dict[str, Any]:
+        t = now_ms()
+        p95_ms, calls_count = self._p95_30d(t - window_days * DAY_MS)
+        return {
+            "p95_ms": p95_ms,
+            "window_days": window_days,
+            "computed_at": t,
+            "calls_count": calls_count,
+        }
+
     def owner_stats(self) -> dict[str, Any]:
         t = now_ms()
         companies = self.owner_companies()
@@ -2070,17 +2097,10 @@ class CloudStore:
             " COALESCE(SUM(escalations), 0) AS escalations FROM usage WHERE started_at >= ?",
             (_month_start(t),),
         )[0]
-        p95s = [
-            int(r["p95_ms"])
-            for r in self._q(
-                "SELECT p95_ms FROM usage WHERE started_at >= ? AND p95_ms IS NOT NULL"
-                " AND COALESCE(exclude_p95_alarm, 0) = 0",
-                (day0,),
-            )
-        ]
-        p95s.sort()
+        p95_ms_30d, p95_calls_30d = self._p95_30d(day0)
         return {
             "now": t,
+            "computed_at": t,
             "companies": len(companies),
             "by_status": by_status,
             "users": users,
@@ -2094,7 +2114,10 @@ class CloudStore:
                 "holding_lines": month["holds"],
                 "escalations": month["escalations"],
             },
-            "p95_ms_30d": p95s[int(len(p95s) * 0.95)] if p95s else None,
+            "calls_30d": sum(int(r["calls"]) for r in daily),
+            "p95_ms_30d": p95_ms_30d,
+            "p95_window_days": 30,
+            "p95_calls_30d": p95_calls_30d,
             "daily": [
                 {
                     "day": int(r["day"]) * DAY_MS,
@@ -2114,6 +2137,7 @@ class CloudStore:
     def owner_companies(self) -> list[dict[str, Any]]:
         t = now_ms()
         month0 = _month_start(t)
+        day0 = t - 30 * DAY_MS
         rows = self._q(
             "SELECT c.*,"
             " (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id AND u.active = 1)"
@@ -2130,11 +2154,12 @@ class CloudStore:
             " (SELECT email FROM users u WHERE u.company_id = c.id AND u.role = 'admin'"
             "   ORDER BY created_at LIMIT 1) AS admin_email"
             " FROM companies c ORDER BY c.created_at DESC",
-            (month0, t - 30 * DAY_MS, t - 30 * DAY_MS),
+            (month0, day0, day0),
         )
         out = []
         for r in rows:
             used = -(-int(r["month_seconds"]) // 60)
+            p95_30d, _ = self._p95_30d(day0, company_id=str(r["id"]))
             out.append(
                 {
                     "id": r["id"],
@@ -2147,6 +2172,7 @@ class CloudStore:
                     "devices": r["devices"],
                     "last_active": r["last_active"],
                     "calls_30d": r["calls_30d"],
+                    "p95_ms_30d": p95_30d,
                     "p95_avg_ms": round(r["p95_avg"]) if r["p95_avg"] is not None else None,
                     **plan_state(r, used, t),
                 }

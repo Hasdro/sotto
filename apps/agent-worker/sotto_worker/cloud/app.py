@@ -1653,7 +1653,10 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         return JSONResponse({"email": who.email, "name": who.name, "must_change": who.must_change})
 
     async def o_stats(_r: Request, _who: Principal) -> Response:
-        return JSONResponse(store.owner_stats())
+        return JSONResponse(store.owner_stats(), headers={"Cache-Control": "no-store"})
+
+    async def o_stats_speed(_r: Request, _who: Principal) -> Response:
+        return JSONResponse(store.owner_speed_stats(), headers={"Cache-Control": "no-store"})
 
     async def o_companies(_r: Request, _who: Principal) -> Response:
         return JSONResponse({"companies": store.owner_companies()})
@@ -2054,6 +2057,7 @@ def create_cloud_app(config: CloudConfig, store: CloudStore, seed: Seed) -> Head
         Route("/api/owner/logout", owner_logout, methods=["POST"]),
         Route("/api/owner/me", owner_route(o_me)),
         Route("/api/owner/stats", owner_route(o_stats)),
+        Route("/api/owner/stats/speed", owner_route(o_stats_speed)),
         Route("/api/owner/audit", owner_route(o_audit)),
         Route("/api/owner/features", owner_route(o_features)),
         Route(
