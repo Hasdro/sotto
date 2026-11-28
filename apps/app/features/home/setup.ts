@@ -2,10 +2,11 @@
  * First-run steps on Home (UX-10, ZC-09) and the full Setup Guide (L2):
  * what each role still has to do before the product works, each with plain-language guidance
  * ("what this does" + recommended default), live status, a Test it check, and a Fix it link.
+ * Every text is a Home string key (features/home/strings.ts), in English and Arabic.
  */
-import type { StringKey } from "../../lib/i18n";
+import { countKey, type StringKey } from "../../lib/i18n";
 import { canOpen, type ViewRole } from "../../lib/role";
-import type { HomeTextKey } from "./strings";
+import { HOME_TEXT, type HomePhrase, type HomeTextKey } from "./strings";
 
 export type SetupFacts = {
   role: ViewRole;
@@ -27,92 +28,101 @@ export type SetupStep = {
   /** An i18n key, or a Home-local one (features/home/strings.ts, D-058). */
   label: StringKey | HomeTextKey;
   /** Plain-language title for the Setup Guide screen (L2). */
-  title?: string;
+  title?: HomeTextKey;
   /** One-line "what this does" description (L2). */
-  whatItDoes?: string;
+  whatItDoes?: HomeTextKey;
   /** Recommended default shown beside the setting/step (L2). */
-  recommendedDefault?: string;
+  recommendedDefault?: HomeTextKey;
   href: string;
   /** Hidden from the list entirely (not offered, still loading). */
   hidden?: (f: SetupFacts) => boolean;
   done: (f: SetupFacts) => boolean;
   /** Live status line shown in the Setup Guide (e.g. "Zoho: connected ✓"). */
-  statusLine?: (f: SetupFacts) => string;
+  statusLine?: (f: SetupFacts) => HomePhrase;
 };
+
+/** A count line, in its ".one" form for exactly one where the table has it. */
+const counted = (key: HomeTextKey, n: number): HomePhrase => ({
+  key: countKey(key, n, HOME_TEXT.en),
+  vars: { n },
+});
 
 export const SETUP_STEPS: readonly SetupStep[] = [
   {
     id: "zoho",
     roles: ["agent", "manager", "admin"],
     label: "setup.zoho",
-    title: "Zoho CRM",
-    whatItDoes: "Pulls customer context before each call and logs approved notes after.",
-    recommendedDefault: "Connected per agent",
+    title: "guide.zoho.title",
+    whatItDoes: "guide.zoho.what",
+    recommendedDefault: "guide.zoho.default",
     href: "/settings#zoho",
     hidden: (f) => !f.zohoOffered || f.zohoConnected === null,
     done: (f) => f.zohoConnected === true,
-    statusLine: (f) => (f.zohoConnected ? "Zoho: connected ✓" : "Zoho: not set up"),
+    statusLine: (f) => ({ key: f.zohoConnected ? "guide.zoho.on" : "guide.zoho.off" }),
   },
   {
     id: "audio",
     roles: ["agent", "manager", "admin"],
     label: "setup.audio",
-    title: "Microphone & call audio",
-    whatItDoes: "Verifies customer audio is captured separately from your microphone.",
-    recommendedDefault: "Separate customer & agent tracks",
+    title: "guide.audio.title",
+    whatItDoes: "guide.audio.what",
+    recommendedDefault: "guide.audio.default",
     href: "/call?check=audio",
     done: (f) => f.audioChecked,
-    statusLine: (f) => (f.audioChecked ? "Audio: ready ✓" : "Audio: not tested yet"),
+    statusLine: (f) => ({ key: f.audioChecked ? "guide.audio.on" : "guide.audio.off" }),
   },
   {
     id: "practice",
     roles: ["agent", "manager", "admin"],
     label: "setup.practice",
-    title: "Practice call",
-    whatItDoes:
-      "Runs a 30-second scripted call so you can see live cards before calling a customer.",
-    recommendedDefault: "Recommended once before first live call",
+    title: "guide.practice.title",
+    whatItDoes: "guide.practice.what",
+    recommendedDefault: "guide.practice.default",
     href: "/call?practice=1",
     hidden: (f) => !f.practiceOffered,
     done: (f) => f.markedDone.includes("practice"),
-    statusLine: (f) =>
-      f.markedDone.includes("practice") ? "Practice: completed ✓" : "Practice: not tried yet",
+    statusLine: (f) => ({
+      key: f.markedDone.includes("practice") ? "guide.practice.on" : "guide.practice.off",
+    }),
   },
   {
     id: "playbook",
     roles: ["manager", "admin"],
     label: "setup.playbook",
-    title: "Sales playbook",
-    whatItDoes: "Gives instant, company-approved answers to pricing and objection questions.",
-    recommendedDefault: "At least 5 top FAQ & objection entries",
+    title: "guide.playbook.title",
+    whatItDoes: "guide.playbook.what",
+    recommendedDefault: "guide.playbook.default",
     href: "/playbook",
     done: (f) => f.playbookEntries > 0,
     statusLine: (f) =>
-      f.playbookEntries > 0 ? `Playbook: ${f.playbookEntries} entries ready ✓` : "Playbook: empty",
+      f.playbookEntries > 0
+        ? counted("guide.playbook.on", f.playbookEntries)
+        : { key: "guide.playbook.off" },
   },
   {
     id: "invite",
     roles: ["admin"],
     label: "setup.invite",
-    title: "Team seats",
-    whatItDoes: "Invites your sales agents and managers; each sees only what their role allows.",
-    recommendedDefault: "Invite active reps before rollout",
+    title: "guide.invite.title",
+    whatItDoes: "guide.invite.what",
+    recommendedDefault: "guide.invite.default",
     href: "/admin",
     done: (f) => f.seatsUsed > 1,
     statusLine: (f) =>
-      f.seatsUsed > 1 ? `Team: ${f.seatsUsed} seats active ✓` : "Team: only 1 seat so far",
+      f.seatsUsed > 1 ? counted("guide.invite.on", f.seatsUsed) : { key: "guide.invite.off" },
   },
   {
     id: "messaging",
     roles: ["admin"],
     label: "setup.messaging",
-    title: "Email & WhatsApp",
-    whatItDoes: "Connects your approved sender and WhatsApp templates for post-call follow-ups.",
-    recommendedDefault: "Connected with approved templates",
+    title: "guide.messaging.title",
+    whatItDoes: "guide.messaging.what",
+    recommendedDefault: "guide.messaging.default",
     href: "/admin/integrations",
     done: (f) => f.messagingConnected,
-    statusLine: (f) =>
-      f.messagingConnected ? "WhatsApp / Email: connected ✓" : "WhatsApp / Email: not set up",
+    statusLine: (f) => ({
+      key: f.messagingConnected ? "guide.messaging.on" : "guide.messaging.off",
+    }),
   },
 ];
 

@@ -17,10 +17,8 @@ import { useZoho } from "../crm/useZoho";
 import { guideStepsFor, type SetupFacts, type SetupStep } from "./setup";
 import { useHomeText } from "./strings";
 
-export type StepTester = (
-  step: SetupStep,
-  facts: SetupFacts,
-) => Promise<{ ok: boolean; detail: string }>;
+/** Whether the step really works; the guide words the result in the reader's language. */
+export type StepTester = (step: SetupStep, facts: SetupFacts) => Promise<{ ok: boolean }>;
 
 async function runLiveCheck(step: SetupStep, facts: SetupFacts): Promise<boolean> {
   if (!cloudActive()) return step.done(facts);
@@ -54,17 +52,11 @@ async function runLiveCheck(step: SetupStep, facts: SetupFacts): Promise<boolean
 }
 
 export const defaultTester: StepTester = async (step, facts) => {
-  let ok = step.done(facts);
   try {
-    ok = await runLiveCheck(step, facts);
+    return { ok: await runLiveCheck(step, facts) };
   } catch {
-    ok = step.done(facts);
+    return { ok: step.done(facts) };
   }
-  const summary = step.statusLine ? step.statusLine(facts) : step.id;
-  return {
-    ok,
-    detail: ok ? `${summary} (verified)` : `${summary} — open Fix it to complete.`,
-  };
 };
 
 export function SetupGuideView({
@@ -79,8 +71,12 @@ export function SetupGuideView({
   const { color } = useTheme();
   const ht = useHomeText();
   const steps = guideStepsFor(facts);
-  const [results, setResults] = useState<Record<string, { ok: boolean; detail: string }>>({});
+  const [results, setResults] = useState<Record<string, { ok: boolean }>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
+  const statusOf = (step: SetupStep) => {
+    const line = step.statusLine?.(facts);
+    return line ? ht(line.key, line.vars) : step.id;
+  };
 
   const runTest = async (step: SetupStep) => {
     setTestingId(step.id);
@@ -104,9 +100,12 @@ export function SetupGuideView({
       </Stack>
 
       {steps.map((step) => {
-        const ok = results[step.id]?.ok ?? step.done(facts);
-        const statusText =
-          results[step.id]?.detail ?? (step.statusLine ? step.statusLine(facts) : step.id);
+        const tested = results[step.id];
+        const ok = tested?.ok ?? step.done(facts);
+        const status = statusOf(step);
+        const statusText = tested
+          ? ht(tested.ok ? "guide.verified" : "guide.incomplete", { status })
+          : status;
         return (
           <View
             key={step.id}
@@ -122,7 +121,7 @@ export function SetupGuideView({
             <Stack gap="sm">
               <View style={styles.headerRow}>
                 <Text variant="title" weight="semibold">
-                  {step.title ?? step.id}
+                  {step.title ? ht(step.title) : step.id}
                 </Text>
                 <Badge
                   tone={ok ? "neutral" : "notice"}
@@ -130,10 +129,12 @@ export function SetupGuideView({
                   testID={`setup-guide-status-${step.id}`}
                 />
               </View>
-              <Text variant="body">{step.whatItDoes ?? ""}</Text>
-              <Text variant="label" color={color.textMuted}>
-                Recommended default: {step.recommendedDefault ?? ""}
-              </Text>
+              {step.whatItDoes ? <Text variant="body">{ht(step.whatItDoes)}</Text> : null}
+              {step.recommendedDefault ? (
+                <Text variant="label" color={color.textMuted}>
+                  {ht("guide.recommended", { value: ht(step.recommendedDefault) })}
+                </Text>
+              ) : null}
               <View style={styles.actions}>
                 <Button
                   variant="secondary"

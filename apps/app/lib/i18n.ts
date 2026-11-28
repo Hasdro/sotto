@@ -2203,10 +2203,20 @@ export function t(key: StringKey, locale: Locale = "en", vars?: Vars): string {
 }
 
 /** The `.one` form of a count string for exactly one ("1 card", "بطاقة واحدة"), where the table
- * has one; otherwise the key itself ("{n} cards"). */
-export function countKey(key: StringKey, n: number): StringKey {
+ * has one; otherwise the key itself ("{n} cards"). A feature's own table (D-058) is passed in. */
+export function countKey(key: StringKey, n: number): StringKey;
+export function countKey<K extends string>(
+  key: K,
+  n: number,
+  table: Readonly<Record<K, string>>,
+): K;
+export function countKey(
+  key: string,
+  n: number,
+  table: Readonly<Record<string, string>> = en,
+): string {
   const one = `${key}.one`;
-  return n === 1 && one in en ? (one as StringKey) : key;
+  return n === 1 && one in table ? one : key;
 }
 
 export function directionOf(locale: Locale): "ltr" | "rtl" {

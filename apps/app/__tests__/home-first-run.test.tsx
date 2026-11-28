@@ -147,6 +147,7 @@ describe("first-run checklist (UX-10)", () => {
     signedIn("agent", { practice: true });
     await wrap("agent", "ar");
     expect(screen.getByText("جرّب مكالمة تدريبية")).toBeOnTheScreen();
+    expect(screen.getByTestId("setup-open-guide")).toHaveTextContent("دليل الإعداد");
     await act(async () => setPrefs({ setupDone: ["practice"] }));
     expect(screen.queryByText("جرّب مكالمة تدريبية")).toBeNull();
   });

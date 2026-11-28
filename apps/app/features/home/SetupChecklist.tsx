@@ -91,7 +91,7 @@ function Checklist({ facts }: { facts: SetupFacts }) {
         </Text>
         <Button
           variant="ghost"
-          label="Setup guide"
+          label={th("guide.title")}
           onPress={() => router.push(facts.role === "admin" ? "/admin/setup" : "/setup")}
           testID="setup-open-guide"
         />
