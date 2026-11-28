@@ -32,6 +32,7 @@ Tags:
 - **Pre-public / deploy status:** `0.7.0` deployed to us3 (`cloud.db.pre-2026-11-26-round4` backup; `200` on `/healthz`, `/owner`, `https://salesshield.agncompu.com/`, `downloads.json` `0.7.0`, Mac `arm64` `.dmg` & Windows `.exe`); old `0.3.0`–`0.6.1` server installers deleted (`2.5G` free); `Hasdro/sales-shield-logs` created; GitHub Release `v0.7.0` live; Mac `0.7.0` installed. Bundle budget raised `450 → 700 KB` (`D-137`, `T-044`).
 - **Owner items still open:** save `Hasdro/sales-shield-logs` PAT (`/owner/logs.html`); voice coach vendor + API key + per-company stages/caps (`/owner/coach.html`); Windows launch test (`launch.win.mjs`); spend caps, Zoho multi-DC/webhooks, legal text, `pnpm replay:live` approval.
 - **Environment:** local Mac (`ssh root@104.168.48.116`). Intel Mac (`x64`) release builds stopped at `0.7.0` (D-097).
+- **Client UX audit, Stream 1 (app, UI, desktop):** Slices 1A–1D + `SAFE-001` done on `fix/client-ux-round1` (`b74cb6c`, pushed; Stop hook and lint pass; replay p50 576 / p95 978 ms). Next: owner review and merge. Left: consent text stays `DRAFT` until the owner's final wording (D-063); Setup guide step texts in Arabic; Stream 3 server follow-ups (morning brief calls every meeting "today's"; calls keep only the Zoho record id, so older calls cannot prefill their contact).
 
 ## Phase board
 
